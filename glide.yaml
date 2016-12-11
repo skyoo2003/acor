@@ -1,0 +1,7 @@
+package: .
+import:
+- package: github.com/golang/example
+  subpackages:
+  - stringutil
+- package: gopkg.in/redis.v5
+  version: ^5.1.0
