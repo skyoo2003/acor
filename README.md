@@ -1,4 +1,4 @@
-# ACOR (Aho-Corasick automation On Redis) [![Version Status](https://img.shields.io/badge/v1.0.0-stable-green.svg)](https://github.com/skyoo2003/acor/releases/tag/v1.0.0)
+# ACOR (Aho-Corasick automation On Redis)
 Golang implementation of Aho-Corasick algorithm, working on redis
 
 [![Current Release](https://img.shields.io/github/release/skyoo2003/acor.svg)](https://github.com/skyoo2003/acor/releases/latest)
