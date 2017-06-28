@@ -1,6 +1,8 @@
 # ACOR (Aho-Corasick automation On Redis)
 Golang implementation of Aho-Corasick algorithm, working on redis
 
+[![Build Status](https://travis-ci.org/skyoo2003/acor.svg?branch=master)](https://travis-ci.org/skyoo2003/acor)
+
 * Refered to project : [judou/redis-ac-keyword](https://github.com/judou/redis-ac-keywords)
 * Aho-Corasick algorithm's paper link : [Efficient string matching: an aid to bibliographic search](http://dl.acm.org/citation.cfm?id=360855)
 * Aho-Corasick Wikipedia : [Aho-Corasick algorithm wiki](https://en.wikipedia.org/wiki/Aho%E2%80%93Corasick_algorithm)
