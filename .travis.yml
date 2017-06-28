@@ -8,6 +8,8 @@ matrix:
   allow_failures:
     - go: master
   fast_finish: true
+services:
+  - redis-server
 script:
   - go get -t ./...
   - go test -v
