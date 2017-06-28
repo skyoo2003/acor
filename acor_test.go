@@ -4,7 +4,7 @@ import "testing"
 
 func CreateAhoCorasick() *AhoCorasick {
 	return Create(&AhoCorasickArgs{
-		Addr:     "192.168.99.100:6379",
+		Addr:     "localhost:6379",
 		Password: "",
 		DB:       0,
 		Name:     "test",
