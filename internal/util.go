@@ -1,4 +1,4 @@
-package acor
+package internal
 
 func Reverse(s string) string {
 	r := []rune(s)
