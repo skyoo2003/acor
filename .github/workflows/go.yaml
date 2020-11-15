@@ -1,0 +1,27 @@
+name: Go
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    name: CI
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [1.11, 1.12, 1.13, 1.14, 1.15]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Go ${{ matrix.go-version }}
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go-version }}
+    - name: Install golint tool
+      run: go get -u golang.org/x/lint/golint
+    - name: Lint
+      run: golint ./...
+    - name: Test
+      run: go test -v ./...
