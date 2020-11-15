@@ -2,7 +2,7 @@
 Golang implementation of Aho-Corasick algorithm, working on redis
 
 [![Current Release](https://img.shields.io/github/release/skyoo2003/acor.svg)](https://github.com/skyoo2003/acor/releases/latest)
-[![Build Status](https://github.com/skyoo2003/cse-exercises/workflows/Go/badge.svg)](https://github.com/skyoo2003/acor)
+[![Build Status](https://github.com/skyoo2003/acor/workflows/Go/badge.svg)](https://github.com/skyoo2003/acor)
 [![Godoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/skyoo2003/acor)
 [![License](https://img.shields.io/github/license/mashape/apistatus.svg)](LICENSE)
 
