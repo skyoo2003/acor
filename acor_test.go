@@ -1,26 +1,44 @@
 package acor
 
-import "testing"
+import (
+	"testing"
 
-func CreateAhoCorasick() *AhoCorasick {
-	return Create(&AhoCorasickArgs{
+	miniredis "github.com/alicebob/miniredis/v2"
+	redis "github.com/go-redis/redis/v8"
+)
+
+func createTestRedisClient() *redis.Client {
+	mr, err := miniredis.Run()
+	if err != nil {
+		panic(err)
+	}
+	return redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+}
+
+func createAhoCorasick() *AhoCorasick {
+	ac := Create(&AhoCorasickArgs{
 		Addr:     "localhost:6379",
 		Password: "",
 		DB:       0,
 		Name:     "test",
-		Debug:    true,
+		Debug:    false,
 	})
+	ac.redisClient = createTestRedisClient()
+	return ac
 }
 
 func TestInitAndFlushAndClose(t *testing.T) {
-	ac := CreateAhoCorasick()
+	ac := createAhoCorasick()
 	defer ac.Close()
 	ac.Flush()
 }
 
 func TestAddAndRemove(t *testing.T) {
-	ac := CreateAhoCorasick()
+	ac := createAhoCorasick()
 	defer ac.Close()
+	defer ac.Flush()
 
 	addedCount, removedCount := 0, 0
 	keywords := []string{"her", "he", "his"}
@@ -38,15 +56,14 @@ func TestAddAndRemove(t *testing.T) {
 	if removedCount != 3 {
 		t.Errorf("The removed count is not fit")
 	}
-
-	ac.Flush()
 }
 
 func TestSuggest(t *testing.T) {
 	var results []string
 
-	ac := CreateAhoCorasick()
+	ac := createAhoCorasick()
 	defer ac.Close()
+	defer ac.Flush()
 
 	keywords := []string{"her", "he", "his"}
 	for _, keyword := range keywords {
@@ -67,35 +84,4 @@ func TestSuggest(t *testing.T) {
 		}
 		t.Error("results have invalid data")
 	}
-
-	ac.Flush()
-}
-
-func TestKoreanSuggest(t *testing.T) {
-	var results []string
-
-	ac := CreateAhoCorasick()
-	defer ac.Close()
-
-	keywords := []string{"실전게임", "실전고스톱", "실전맞고"}
-	for _, keyword := range keywords {
-		ac.Add(keyword)
-	}
-
-	input := "실전"
-	results = ac.Suggest(input)
-	t.Logf("Suggest(%s) : Results(%s)", input, results)
-
-	if len(results) != 3 {
-		t.Error("results' count is unexpected")
-	}
-	for _, result := range results {
-		switch result {
-		case "실전게임", "실전고스톱", "실전맞고":
-			continue
-		}
-		t.Error("results have invalid data")
-	}
-
-	ac.Flush()
 }
