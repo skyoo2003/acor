@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    tags:
+    - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout the code
+      uses: actions/checkout@v2.3.4
+    - name: Set up Go 1.16
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.16
+    - name: Get current tag name
+      id: getTag
+      uses: olegtarasov/get-tag@v2.1
+    - name: Login to Docker Registry
+      run: >
+        echo "${{ secrets.GH_PAT }}" |
+        docker login ghcr.io -u skyoo2003 --password-stdin
+    - name: Execute GoReleaser
+      uses: goreleaser/goreleaser-action@v2.5.0
+      with:
+        version: latest
+        args: release --rm-dist --release-notes changes/${{ steps.getTag.outputs.tag }}.md
+      env:
+        GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+    - name: Upload assets
+      uses: actions/upload-artifact@v2
+      with:
+        name: acor
+        path: dist/*

@@ -3,7 +3,7 @@
 ACOR means Aho-Corasick automation working On Redis, Written in Go
 
 [![Current Release](https://img.shields.io/github/release/skyoo2003/acor.svg)](https://github.com/skyoo2003/acor/releases/latest)
-[![CI Status](https://github.com/skyoo2003/acor/actions/workflows/go.yaml/badge.svg)](https://github.com/skyoo2003/acor/actions/workflows/go.yaml)
+[![CI Status](https://github.com/skyoo2003/acor/actions/workflows/ci.yaml/badge.svg)](https://github.com/skyoo2003/acor/actions/workflows/ci.yaml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/skyoo2003/acor.svg)](https://pkg.go.dev/github.com/skyoo2003/acor)
 [![Go Report Card](https://goreportcard.com/badge/github.com/skyoo2003/acor)](https://goreportcard.com/report/github.com/skyoo2003/acor)
 [![License](https://img.shields.io/github/license/mashape/apistatus.svg)](LICENSE)
