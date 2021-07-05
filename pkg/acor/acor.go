@@ -11,7 +11,8 @@ import (
 	"strings"
 
 	redis "github.com/go-redis/redis/v8"
-	"github.com/skyoo2003/acor/internal"
+
+	"github.com/skyoo2003/acor/internal/pkg/utils"
 )
 
 // Key type constants
@@ -115,7 +116,7 @@ func (ac *AhoCorasick) Remove(keyword string) int {
 	keywordRunes := []rune(keyword)
 	for idx := len(keywordRunes); idx >= 0; idx-- {
 		prefix := string(keywordRunes[:idx])
-		suffix := internal.Reverse(prefix)
+		suffix := utils.Reverse(prefix)
 
 		sKey := fmt.Sprintf(SuffixKey, ac.name)
 		kKey := fmt.Sprintf(KeywordKey, ac.name)
@@ -331,7 +332,7 @@ func (ac *AhoCorasick) _buildTrie(keyword string) {
 	keywordRunes := []rune(keyword)
 	for idx := range keywordRunes {
 		prefix := string(keywordRunes[:idx+1])
-		suffix := internal.Reverse(prefix)
+		suffix := utils.Reverse(prefix)
 
 		ac.logger.Printf("_buildTrie(%s) > Prefix(%s) Suffix(%s)", keyword, prefix, suffix)
 
@@ -378,7 +379,7 @@ func (ac *AhoCorasick) _rebuildOutput(suffix string) {
 
 		sKeyword := sKeywords[0]
 		if strings.HasPrefix(sKeyword, suffix) {
-			state := internal.Reverse(sKeyword)
+			state := utils.Reverse(sKeyword)
 			ac._buildOutput(state)
 		} else {
 			break

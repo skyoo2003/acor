@@ -1,0 +1,7 @@
+FROM alpine:3.13.5
+
+VOLUME /acor
+WORKDIR /acor
+COPY acor /usr/bin/acor
+
+ENTRYPOINT ["acor"]
