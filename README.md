@@ -24,7 +24,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/skyoo2003/acor"
+	"github.com/skyoo2003/acor/pkg/acor"
 )
 
 func main() {
@@ -45,7 +45,7 @@ func main() {
 	matched := ac.Find("he is him")
 	fmt.Println(matched)
 
-	ac.Flush() // If you want to remove all of data 
+	ac.Flush() // If you want to remove all of data
 }
 ```
 
