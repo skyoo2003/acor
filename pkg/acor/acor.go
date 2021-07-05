@@ -1,3 +1,4 @@
+// Package acor means Aho-Corasick automation working On Redis, Written in Go
 package acor
 
 import (
@@ -24,8 +25,13 @@ const (
 	NodeKey    = "%s:node"
 )
 
+const (
+	initScore   = 0.0
+	memberScore = 1.0
+)
+
 var (
-	RedisAlreadyClosed = errors.New("redis client was already closed")
+	ErrRedisAlreadyClosed = errors.New("redis client was already closed")
 )
 
 type AhoCorasickArgs struct {
@@ -45,7 +51,7 @@ type AhoCorasick struct {
 
 type AhoCorasickInfo struct {
 	Keywords int // Aho-Corasick keywords count
-	Nodes    int //Aho-Corasick nodes count
+	Nodes    int // Aho-Corasick nodes count
 }
 
 func Create(args *AhoCorasickArgs) *AhoCorasick {
@@ -72,7 +78,7 @@ func (ac *AhoCorasick) init() {
 	// Init trie root
 	prefixKey := fmt.Sprintf(PrefixKey, ac.name)
 	member := &redis.Z{
-		Score:  0.0,
+		Score:  initScore,
 		Member: "",
 	}
 	ac.redisClient.ZAdd(ac.ctx, prefixKey, member).Val()
@@ -82,7 +88,7 @@ func (ac *AhoCorasick) Close() error {
 	if ac.redisClient != nil {
 		return ac.redisClient.Close()
 	}
-	return RedisAlreadyClosed
+	return ErrRedisAlreadyClosed
 }
 
 func (ac *AhoCorasick) Add(keyword string) int {
@@ -137,18 +143,16 @@ func (ac *AhoCorasick) Remove(keyword string) int {
 
 			sRemovedCount := ac.redisClient.ZRem(ac.ctx, sKey, suffix).Val()
 			ac.logger.Println(fmt.Sprintf("Remove(%s) > ZREM key(%s) : Count(%d)", keyword, sKey, sRemovedCount))
-		} else {
-			if len(pKeywords) > 0 {
-				pKeyword := pKeywords[0]
-				if !strings.HasPrefix(pKeyword, prefix) {
-					pRemovedCount := ac.redisClient.ZRem(ac.ctx, pKey, prefix).Val()
-					ac.logger.Println(fmt.Sprintf("Remove(%s) > ZREM key(%s) : Count(%d)", keyword, pKey, pRemovedCount))
+		} else if len(pKeywords) > 0 {
+			pKeyword := pKeywords[0]
+			if !strings.HasPrefix(pKeyword, prefix) {
+				pRemovedCount := ac.redisClient.ZRem(ac.ctx, pKey, prefix).Val()
+				ac.logger.Println(fmt.Sprintf("Remove(%s) > ZREM key(%s) : Count(%d)", keyword, pKey, pRemovedCount))
 
-					sRemovedCount := ac.redisClient.ZRem(ac.ctx, sKey, suffix).Val()
-					ac.logger.Println(fmt.Sprintf("Remove(%s) > ZREM key(%s) : Count(%d)", keyword, sKey, sRemovedCount))
-				} else {
-					break
-				}
+				sRemovedCount := ac.redisClient.ZRem(ac.ctx, sKey, suffix).Val()
+				ac.logger.Println(fmt.Sprintf("Remove(%s) > ZREM key(%s) : Count(%d)", keyword, sKey, sRemovedCount))
+			} else {
+				break
 			}
 		}
 	}
@@ -218,8 +222,6 @@ func (ac *AhoCorasick) Flush() {
 
 	kDelCount := ac.redisClient.Del(ac.ctx, kKey).Val()
 	ac.logger.Println(fmt.Sprintf("Flush() > DEL Key(%s) : Count(%d)", kKey, kDelCount))
-
-	return
 }
 
 func (ac *AhoCorasick) Info() *AhoCorasickInfo {
@@ -255,7 +257,7 @@ func (ac *AhoCorasick) Suggest(input string) []string {
 			results = append(results, pKeyword)
 		}
 
-		pZRank = pZRank + 1
+		pZRank++
 		pKeywords, err = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Result()
 	}
 
@@ -287,8 +289,6 @@ func (ac *AhoCorasick) Debug() {
 		nodes = append(nodes, nKeywords...)
 	}
 	fmt.Println("-", nodes)
-
-	return
 }
 
 func (ac *AhoCorasick) _go(inState string, input rune) string {
@@ -314,7 +314,7 @@ func (ac *AhoCorasick) _fail(inState string) string {
 		if err != redis.Nil {
 			return outState
 		}
-		idx = idx + 1
+		idx++
 	}
 	return ""
 }
@@ -340,7 +340,7 @@ func (ac *AhoCorasick) _buildTrie(keyword string) {
 		err := ac.redisClient.ZScore(ac.ctx, pKey, prefix).Err()
 		if err == redis.Nil {
 			pMember := &redis.Z{
-				Score:  1.0,
+				Score:  memberScore,
 				Member: prefix,
 			}
 			pAddedCount := ac.redisClient.ZAdd(ac.ctx, pKey, pMember).Val()
@@ -348,7 +348,7 @@ func (ac *AhoCorasick) _buildTrie(keyword string) {
 
 			sKey := fmt.Sprintf(SuffixKey, ac.name)
 			sMember := &redis.Z{
-				Score:  1.0,
+				Score:  memberScore,
 				Member: suffix,
 			}
 			sAddedCount := ac.redisClient.ZAdd(ac.ctx, sKey, sMember).Val()
@@ -385,11 +385,9 @@ func (ac *AhoCorasick) _rebuildOutput(suffix string) {
 			break
 		}
 
-		sZRank = sZRank + 1
+		sZRank++
 		sKeywords, sErr = ac.redisClient.ZRange(ac.ctx, sKey, sZRank, sZRank).Result()
 	}
-
-	return
 }
 
 func (ac *AhoCorasick) _buildOutput(state string) {
@@ -422,6 +420,4 @@ func (ac *AhoCorasick) _buildOutput(state string) {
 			ac.logger.Println(fmt.Sprintf("_buildOutput(%s) > SADD key(%s) member(%s) : Count(%d)", state, nKey, state, nAddedCount))
 		}
 	}
-
-	return
 }
