@@ -1,3 +1,4 @@
+// Package utils stateless and useful functions or structs
 package utils
 
 func Reverse(s string) string {
