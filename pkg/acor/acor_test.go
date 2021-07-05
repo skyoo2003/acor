@@ -31,13 +31,13 @@ func createAhoCorasick() *AhoCorasick {
 
 func TestInitAndFlushAndClose(t *testing.T) {
 	ac := createAhoCorasick()
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 	ac.Flush()
 }
 
 func TestAddAndRemove(t *testing.T) {
 	ac := createAhoCorasick()
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 	defer ac.Flush()
 
 	addedCount, removedCount := 0, 0
@@ -60,9 +60,10 @@ func TestAddAndRemove(t *testing.T) {
 
 func TestSuggest(t *testing.T) {
 	var results []string
+	const input = "he"
 
 	ac := createAhoCorasick()
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 	defer ac.Flush()
 
 	keywords := []string{"her", "he", "his"}
@@ -70,7 +71,6 @@ func TestSuggest(t *testing.T) {
 		ac.Add(keyword)
 	}
 
-	input := "he"
 	results = ac.Suggest(input)
 	t.Logf("Suggest(%s) : Results(%s)", input, results)
 
@@ -79,7 +79,7 @@ func TestSuggest(t *testing.T) {
 	}
 	for _, result := range results {
 		switch result {
-		case "her", "he":
+		case "her", input:
 			continue
 		}
 		t.Error("results have invalid data")
@@ -88,9 +88,10 @@ func TestSuggest(t *testing.T) {
 
 func TestFind(t *testing.T) {
 	var results []string
+	const input = "he"
 
 	ac := createAhoCorasick()
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 	defer ac.Flush()
 
 	keywords := []string{"her", "he", "his"}
@@ -99,7 +100,6 @@ func TestFind(t *testing.T) {
 	}
 	ac.Debug()
 
-	input := "he"
 	results = ac.Find(input)
 	t.Logf("Find(%s) : Results(%s)", input, results)
 
@@ -107,8 +107,7 @@ func TestFind(t *testing.T) {
 		t.Error("results' count is unexpected")
 	}
 	for _, result := range results {
-		switch result {
-		case "he":
+		if result == "he" {
 			continue
 		}
 		t.Error("results have invalid data")
