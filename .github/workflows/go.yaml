@@ -2,9 +2,19 @@ name: Go
 
 on:
   push:
-    branches: [ master ]
+    branches:
+    - master
+    paths:
+    - "**/*.go"
+    - "go.mod"
+    - "go.sum"
   pull_request:
-    branches: [ master ]
+    branches:
+    - master
+    paths:
+    - "**/*.go"
+    - "go.mod"
+    - "go.sum"
 
 jobs:
   build:
