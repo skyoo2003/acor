@@ -25,6 +25,11 @@ const (
 	NodeKey    = "%s:node"
 )
 
+const (
+	initScore   = 0.0
+	memberScore = 1.0
+)
+
 var (
 	ErrRedisAlreadyClosed = errors.New("redis client was already closed")
 )
@@ -73,7 +78,7 @@ func (ac *AhoCorasick) init() {
 	// Init trie root
 	prefixKey := fmt.Sprintf(PrefixKey, ac.name)
 	member := &redis.Z{
-		Score:  0.0,
+		Score:  initScore,
 		Member: "",
 	}
 	ac.redisClient.ZAdd(ac.ctx, prefixKey, member).Val()
@@ -335,7 +340,7 @@ func (ac *AhoCorasick) _buildTrie(keyword string) {
 		err := ac.redisClient.ZScore(ac.ctx, pKey, prefix).Err()
 		if err == redis.Nil {
 			pMember := &redis.Z{
-				Score:  1.0,
+				Score:  memberScore,
 				Member: prefix,
 			}
 			pAddedCount := ac.redisClient.ZAdd(ac.ctx, pKey, pMember).Val()
@@ -343,7 +348,7 @@ func (ac *AhoCorasick) _buildTrie(keyword string) {
 
 			sKey := fmt.Sprintf(SuffixKey, ac.name)
 			sMember := &redis.Z{
-				Score:  1.0,
+				Score:  memberScore,
 				Member: suffix,
 			}
 			sAddedCount := ac.redisClient.ZAdd(ac.ctx, sKey, sMember).Val()
