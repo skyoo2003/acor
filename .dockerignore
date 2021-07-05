@@ -1,0 +1,8 @@
+.github
+.idea
+.vscode
+.vagrant
+bin
+src
+dist
+docs

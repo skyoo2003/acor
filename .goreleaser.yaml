@@ -1,0 +1,76 @@
+project_name: acor
+
+env:
+- GO111MODULE=on
+- CGO_ENABLED=0
+
+before:
+  hooks:
+  - go mod download
+
+builds:
+- id: acor
+  binary: acor
+  main: cmd/acor/main.go
+  goos:
+  - darwin
+  - linux
+  - windows
+  goarch:
+  - 386
+  - amd64
+  - arm
+  - arm64
+  goarm:
+  - 6
+  - 7
+  ignore:
+  - goos: darwin
+    goarch: 386
+  - goos: linux
+    goarch: arm
+    goarm: 6
+
+archives:
+- id: acor
+  format: tar.gz
+  format_overrides:
+  - goos: windows
+    format: zip
+  files:
+    - LICENSE
+    - README.md
+    - CHANGELOG.md
+    - CODE_OF_CONDUCT.md
+    - CONTRIBUTING.md
+
+changelog:
+  skip: true
+
+checksum:
+  algorithm: sha256
+  name_template: 'CHECKSUMS'
+
+dockers:
+- ids:
+  - acor
+  dockerfile: Dockerfile.goreleaser
+  use_buildx: true
+  image_templates:
+  - "ghcr.io/skyoo2003/acor:{{ .Tag }}-alpine"
+  - "ghcr.io/skyoo2003/acor:v{{ .Major }}.{{ .Minor }}-alpine"
+  - "ghcr.io/skyoo2003/acor:v{{ .Major }}-alpine"
+  - "ghcr.io/skyoo2003/acor:latest-alpine"
+  build_flag_templates:
+  - "--label=org.opencontainers.image.created={{ .Date }}"
+  - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+  - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+  - "--label=org.opencontainers.image.version={{ .Version }}"
+  skip_push: false
+
+release:
+  github:
+    owner: skyoo2003
+    name: acor
+  name_template: "v{{ .Version }}"
+  disable: false

@@ -1,24 +1,30 @@
-# ACOR (Aho-Corasick automation On Redis)
-Golang implementation of Aho-Corasick algorithm, working on redis
+# ACOR
+
+ACOR means Aho-Corasick automation working On Redis, Written in Go
 
 [![Current Release](https://img.shields.io/github/release/skyoo2003/acor.svg)](https://github.com/skyoo2003/acor/releases/latest)
-[![Build Status](https://github.com/skyoo2003/acor/workflows/Go/badge.svg)](https://github.com/skyoo2003/acor)
-[![Godoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/skyoo2003/acor)
+[![CI Status](https://github.com/skyoo2003/acor/actions/workflows/go.yaml/badge.svg)](https://github.com/skyoo2003/acor/actions/workflows/go.yaml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/skyoo2003/acor.svg)](https://pkg.go.dev/github.com/skyoo2003/acor)
+[![Go Report Card](https://goreportcard.com/badge/github.com/skyoo2003/acor)](https://goreportcard.com/report/github.com/skyoo2003/acor)
 [![License](https://img.shields.io/github/license/mashape/apistatus.svg)](LICENSE)
 
-# Prerequisite
+# Prerequisites
 
 * Golang >= 1.11
 * Redis >= 3.0
 
-# Usage
+# Getting Started
 
+```sh
+$ go get -u https://github.com/skyoo2003/acor
 ```
+
+```go
 package main
 
 import (
 	"fmt"
-	"github.com/skyoo2003/acor"
+	"github.com/skyoo2003/acor/pkg/acor"
 )
 
 func main() {
@@ -39,22 +45,18 @@ func main() {
 	matched := ac.Find("he is him")
 	fmt.Println(matched)
 
-    ac.Flush() // If you want to remove all of data 
+	ac.Flush() // If you want to remove all of data
 }
 ```
 
-# Contribution
+# Contributing
 
-If you want to participate, you can create an issue or request a 'Pull Request'.
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
-Welcome any and all suggestions.
+Please make sure to update tests as appropriate.
 
-# License
+# [License](LICENSE)
 
-MIT License
+Copyright (c) 2016-2021 Sung-Kyu Yoo.
 
-# References
-
-* Refered to project : [judou/redis-ac-keyword](https://github.com/judou/redis-ac-keywords)
-* Aho-Corasick paper link : [Efficient string matching: an aid to bibliographic search](http://dl.acm.org/citation.cfm?id=360855)
-* Aho-Corasick wikipedia : [Aho-Corasick algorithm wiki](https://en.wikipedia.org/wiki/Aho%E2%80%93Corasick_algorithm)
+This project is MIT license.
