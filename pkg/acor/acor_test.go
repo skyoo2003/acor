@@ -85,3 +85,32 @@ func TestSuggest(t *testing.T) {
 		t.Error("results have invalid data")
 	}
 }
+
+func TestFind(t *testing.T) {
+	var results []string
+
+	ac := createAhoCorasick()
+	defer ac.Close()
+	defer ac.Flush()
+
+	keywords := []string{"her", "he", "his"}
+	for _, keyword := range keywords {
+		ac.Add(keyword)
+	}
+	ac.Debug()
+
+	input := "he"
+	results = ac.Find(input)
+	t.Logf("Find(%s) : Results(%s)", input, results)
+
+	if len(results) != 1 {
+		t.Error("results' count is unexpected")
+	}
+	for _, result := range results {
+		switch result {
+		case "he":
+			continue
+		}
+		t.Error("results have invalid data")
+	}
+}
