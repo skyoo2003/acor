@@ -7,7 +7,7 @@ linters-settings:
     lines: 100
     statements: 50
   gci:
-    local-prefixes: github.com/skyoo2003/kvs
+    local-prefixes: github.com/skyoo2003/acor
   goconst:
     min-len: 2
     min-occurrences: 2
@@ -27,7 +27,7 @@ linters-settings:
   gocyclo:
     min-complexity: 15
   goimports:
-    local-prefixes: github.com/skyoo2003/kvs
+    local-prefixes: github.com/skyoo2003/acor
   govet:
     check-shadowing: true
   lll:
