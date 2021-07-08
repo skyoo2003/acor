@@ -241,7 +241,6 @@ func (ac *AhoCorasick) Info() *AhoCorasickInfo {
 
 func (ac *AhoCorasick) Suggest(input string) []string {
 	var pKeywords []string
-	var err error
 
 	results := make([]string, 0)
 
@@ -249,8 +248,8 @@ func (ac *AhoCorasick) Suggest(input string) []string {
 	pKey := fmt.Sprintf(PrefixKey, ac.name)
 	pZRank := ac.redisClient.ZRank(ac.ctx, pKey, input).Val()
 
-	pKeywords, err = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Result()
-	for err != redis.Nil && len(pKeywords) > 0 {
+	pKeywords = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Val()
+	for len(pKeywords) > 0 {
 		pKeyword := pKeywords[0]
 		kExists := ac.redisClient.SIsMember(ac.ctx, kKey, pKeyword).Val()
 		if kExists && strings.HasPrefix(pKeyword, input) {
@@ -258,7 +257,7 @@ func (ac *AhoCorasick) Suggest(input string) []string {
 		}
 
 		pZRank++
-		pKeywords, err = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Result()
+		pKeywords = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Val()
 	}
 
 	return results
@@ -294,25 +293,25 @@ func (ac *AhoCorasick) Debug() {
 func (ac *AhoCorasick) _go(inState string, input rune) string {
 	buffer := bytes.NewBufferString(inState)
 	buffer.WriteRune(input)
-	outState := buffer.String()
+	nextState := buffer.String()
 
 	pKey := fmt.Sprintf(PrefixKey, ac.name)
-	err := ac.redisClient.ZScore(ac.ctx, pKey, outState).Err()
+	err := ac.redisClient.ZScore(ac.ctx, pKey, nextState).Err()
 	if err == redis.Nil {
 		return ""
 	}
-	return outState
+	return nextState
 }
 
 func (ac *AhoCorasick) _fail(inState string) string {
-	idx := 1
 	pKey := fmt.Sprintf(PrefixKey, ac.name)
+	idx := 0
 	inStateRunes := []rune(inState)
-	for idx < len(inStateRunes)+1 {
-		outState := string(inStateRunes[idx:])
-		err := ac.redisClient.ZScore(ac.ctx, pKey, outState).Err()
+	for idx < len(inStateRunes) {
+		nextState := string(inStateRunes[idx+1:])
+		err := ac.redisClient.ZScore(ac.ctx, pKey, nextState).Err()
 		if err != redis.Nil {
-			return outState
+			return nextState
 		}
 		idx++
 	}
@@ -368,13 +367,12 @@ func (ac *AhoCorasick) _buildTrie(keyword string) {
 
 func (ac *AhoCorasick) _rebuildOutput(suffix string) {
 	var sKeywords []string
-	var sErr error
 
 	sKey := fmt.Sprintf(SuffixKey, ac.name)
 	sZRank := ac.redisClient.ZRank(ac.ctx, sKey, suffix).Val()
 
-	sKeywords, sErr = ac.redisClient.ZRange(ac.ctx, sKey, sZRank, sZRank).Result()
-	for sErr != redis.Nil && len(sKeywords) > 0 {
+	sKeywords = ac.redisClient.ZRange(ac.ctx, sKey, sZRank, sZRank).Val()
+	for len(sKeywords) > 0 {
 		ac.logger.Printf("_rebuildOutput(%s) > Key(%s) ZRank(%d) Keywords(%s)", suffix, sKey, sZRank, sKeywords)
 
 		sKeyword := sKeywords[0]
@@ -386,7 +384,7 @@ func (ac *AhoCorasick) _rebuildOutput(suffix string) {
 		}
 
 		sZRank++
-		sKeywords, sErr = ac.redisClient.ZRange(ac.ctx, sKey, sZRank, sZRank).Result()
+		sKeywords = ac.redisClient.ZRange(ac.ctx, sKey, sZRank, sZRank).Val()
 	}
 }
 
@@ -415,7 +413,7 @@ func (ac *AhoCorasick) _buildOutput(state string) {
 		ac.logger.Println(fmt.Sprintf("_buildOutput(%s) > SADD key(%s) member(%s) : Count(%d)", state, oKey, args, oAddedCount))
 
 		for _, output := range outputs {
-			nKey := fmt.Sprintf(OutputKey, output)
+			nKey := fmt.Sprintf(NodeKey, output)
 			nAddedCount := ac.redisClient.SAdd(ac.ctx, nKey, state).Val()
 			ac.logger.Println(fmt.Sprintf("_buildOutput(%s) > SADD key(%s) member(%s) : Count(%d)", state, nKey, state, nAddedCount))
 		}

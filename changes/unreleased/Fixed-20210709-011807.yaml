@@ -1,0 +1,4 @@
+kind: Fixed
+body: Fixed NodeKey output was not writed
+custom:
+  Issue: "13"
