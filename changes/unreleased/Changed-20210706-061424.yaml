@@ -1,4 +1,0 @@
-kind: Changed
-body: Changed RedisAlreadyClosed error name
-custom:
-  Issue: "7"
