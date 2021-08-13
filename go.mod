@@ -4,5 +4,5 @@ go 1.16
 
 require (
 	github.com/alicebob/miniredis/v2 v2.15.1
-	github.com/go-redis/redis/v8 v8.11.2
+	github.com/go-redis/redis/v8 v8.11.3
 )
