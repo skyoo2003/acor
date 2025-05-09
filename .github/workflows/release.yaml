@@ -23,7 +23,7 @@ jobs:
         echo "${{ secrets.GH_PAT }}" |
         docker login ghcr.io -u skyoo2003 --password-stdin
     - name: Execute GoReleaser
-      uses: goreleaser/goreleaser-action@v4.2.0
+      uses: goreleaser/goreleaser-action@v6.3.0
       with:
         version: latest
         args: release --rm-dist --release-notes changes/${{ steps.getTag.outputs.tag }}.md
