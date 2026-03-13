@@ -34,18 +34,28 @@ func main() {
 		DB:       0,
 		Name:     "sample",
 	}
-	ac := acor.Create(args)
+	ac, err := acor.Create(args)
+	if err != nil {
+		panic(err)
+	}
 	defer ac.Close()
 
 	keywords := []string{"he", "her", "him"}
 	for _, k := range keywords {
-		ac.Add(k)
+		if _, err := ac.Add(k); err != nil {
+			panic(err)
+		}
 	}
 
-	matched := ac.Find("he is him")
+	matched, err := ac.Find("he is him")
+	if err != nil {
+		panic(err)
+	}
 	fmt.Println(matched)
 
-	ac.Flush() // If you want to remove all of data
+	if err := ac.Flush(); err != nil { // If you want to remove all of data
+		panic(err)
+	}
 }
 ```
 
