@@ -59,6 +59,34 @@ func main() {
 }
 ```
 
+Use the same `Create` API for Redis Sentinel, Cluster, and Ring by setting the topology-specific fields on `AhoCorasickArgs`. Use `Addr` for standalone Redis, use `Addrs` for Sentinel or Cluster seed nodes, and keep `DB` at `0` for Cluster:
+
+```go
+sentinelArgs := &acor.AhoCorasickArgs{
+	Addrs:      []string{"localhost:26379", "localhost:26380"},
+	MasterName: "mymaster",
+	Password:   "",
+	DB:         0,
+	Name:       "sample",
+}
+
+clusterArgs := &acor.AhoCorasickArgs{
+	Addrs:    []string{"localhost:7000", "localhost:7001", "localhost:7002"},
+	Password: "",
+	Name:     "sample",
+}
+
+ringArgs := &acor.AhoCorasickArgs{
+	RingAddrs: map[string]string{
+		"shard-1": "localhost:7000",
+		"shard-2": "localhost:7001",
+	},
+	Password: "",
+	DB:       0,
+	Name:     "sample",
+}
+```
+
 # Contributing
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.

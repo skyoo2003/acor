@@ -2,10 +2,10 @@ package acor
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	miniredis "github.com/alicebob/miniredis/v2"
+	redis "github.com/go-redis/redis/v8"
 )
 
 func createTestRedisServer(t *testing.T) *miniredis.Miniredis {
@@ -273,6 +273,176 @@ func TestCreateReturnsErrorWhenRedisUnavailable(t *testing.T) {
 	}
 }
 
+func TestNewRedisClientSelectsStandaloneTopology(t *testing.T) {
+	mr := createTestRedisServer(t)
+	defer mr.Close()
+
+	client, err := newRedisClient(&AhoCorasickArgs{
+		Addr: mr.Addr(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = client.Close() }()
+
+	if _, ok := client.(*redis.Client); !ok {
+		t.Fatalf("expected standalone redis client, got %T", client)
+	}
+}
+
+func TestNewRedisClientSelectsSentinelTopology(t *testing.T) {
+	client, err := newRedisClient(&AhoCorasickArgs{
+		Addrs:      []string{"127.0.0.1:26379"},
+		MasterName: "mymaster",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = client.Close() }()
+
+	standaloneClient, ok := client.(*redis.Client)
+	if !ok {
+		t.Fatalf("expected failover client to use redis.Client, got %T", client)
+	}
+	if standaloneClient.Options().Addr != "FailoverClient" {
+		t.Fatalf("expected sentinel failover client, got addr %q", standaloneClient.Options().Addr)
+	}
+}
+
+func TestNewRedisClientSelectsClusterTopology(t *testing.T) {
+	client, err := newRedisClient(&AhoCorasickArgs{
+		Addrs: []string{"127.0.0.1:7000"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = client.Close() }()
+
+	clusterClient, ok := client.(*redis.ClusterClient)
+	if !ok {
+		t.Fatalf("expected cluster redis client, got %T", client)
+	}
+	if len(clusterClient.Options().Addrs) != 1 {
+		t.Fatalf("expected cluster addresses to be preserved, got %v", clusterClient.Options().Addrs)
+	}
+}
+
+func TestAddUsesCollectionScopedKeys(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	if _, err := ac.Add("he"); err != nil {
+		t.Fatal(err)
+	}
+
+	keys := []string{
+		ac.keywordKey(),
+		ac.prefixKey(),
+		ac.suffixKey(),
+		ac.outputKey("he"),
+		ac.nodeKey("he"),
+	}
+	for _, key := range keys {
+		if !mr.Exists(key) {
+			t.Fatalf("expected redis key %q to exist", key)
+		}
+	}
+
+	if mr.Exists("he:output") {
+		t.Fatal("expected output key to be collection-scoped")
+	}
+	if mr.Exists("he:node") {
+		t.Fatal("expected node key to be collection-scoped")
+	}
+}
+
+func TestNewRedisClientSelectsRingTopology(t *testing.T) {
+	client, err := newRedisClient(&AhoCorasickArgs{
+		RingAddrs: map[string]string{
+			"shard-1": "127.0.0.1:7000",
+			"shard-2": "127.0.0.1:7001",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = client.Close() }()
+
+	ringClient, ok := client.(*redis.Ring)
+	if !ok {
+		t.Fatalf("expected ring redis client, got %T", client)
+	}
+	if len(ringClient.Options().Addrs) != 2 {
+		t.Fatalf("expected ring shard addresses to be preserved, got %v", ringClient.Options().Addrs)
+	}
+}
+
+func TestNewRedisClientRejectsInvalidTopologyConfigurations(t *testing.T) {
+	tests := []struct {
+		name string
+		args *AhoCorasickArgs
+		err  error
+	}{
+		{
+			name: "conflicting standalone and cluster",
+			args: &AhoCorasickArgs{
+				Addr:  "127.0.0.1:6379",
+				Addrs: []string{"127.0.0.1:7000"},
+			},
+			err: ErrRedisConflictingTopology,
+		},
+		{
+			name: "conflicting cluster and ring",
+			args: &AhoCorasickArgs{
+				Addrs: []string{"127.0.0.1:7000", "127.0.0.1:7001"},
+				RingAddrs: map[string]string{
+					"shard-1": "127.0.0.1:7100",
+				},
+			},
+			err: ErrRedisConflictingTopology,
+		},
+		{
+			name: "sentinel requires address",
+			args: &AhoCorasickArgs{
+				MasterName: "mymaster",
+			},
+			err: ErrRedisSentinelAddrs,
+		},
+		{
+			name: "cluster does not support db selection",
+			args: &AhoCorasickArgs{
+				Addrs: []string{"127.0.0.1:7000", "127.0.0.1:7001"},
+				DB:    1,
+			},
+			err: ErrRedisClusterDB,
+		},
+		{
+			name: "ring requires non-empty shard address",
+			args: &AhoCorasickArgs{
+				RingAddrs: map[string]string{
+					"shard-1": "   ",
+				},
+			},
+			err: ErrRedisRingAddrs,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := newRedisClient(tt.args)
+			if !errors.Is(err, tt.err) {
+				t.Fatalf("expected %v, got %v", tt.err, err)
+			}
+			if client != nil {
+				_ = client.Close()
+				t.Fatalf("expected client to be nil, got %T", client)
+			}
+		})
+	}
+}
+
 func TestFindReturnsErrorWhenRedisUnavailable(t *testing.T) {
 	ac, mr := createAhoCorasick(t)
 	defer func() { _ = ac.Close() }()
@@ -343,7 +513,7 @@ func TestAddFailedReAddKeepsExistingKeywordState(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pKey := fmt.Sprintf(PrefixKey, ac.name)
+	pKey := ac.prefixKey()
 	if _, err := ac.redisClient.ZRem(ac.ctx, pKey, input).Result(); err != nil {
 		t.Fatal(err)
 	}
