@@ -110,6 +110,10 @@ func (ac *AhoCorasick) Add(keyword string) (int, error) {
 	ac.logger.Println(fmt.Sprintf(`Add(%s) > SADD {"key": "%s", "member": "%s", "count": %d}`, keyword, keywordKey, keyword, addedCount))
 
 	if err := ac._buildTrie(keyword); err != nil {
+		if addedCount == 0 {
+			return 0, err
+		}
+
 		if _, rollbackErr := ac.Remove(keyword); rollbackErr != nil {
 			return 0, fmt.Errorf("build trie: %w; rollback keyword: %v", err, rollbackErr)
 		}
@@ -371,70 +375,106 @@ func (ac *AhoCorasick) Flush() error {
 	return nil
 }
 
-func (ac *AhoCorasick) Info() *AhoCorasickInfo {
+func (ac *AhoCorasick) Info() (*AhoCorasickInfo, error) {
 	kKey := fmt.Sprintf(KeywordKey, ac.name)
-	kCount := ac.redisClient.SCard(ac.ctx, kKey).Val()
+	kCount, err := ac.redisClient.SCard(ac.ctx, kKey).Result()
+	if err != nil {
+		return nil, err
+	}
 	ac.logger.Println(fmt.Sprintf("Info() > SCARD Key(%s) : Count(%d)", kKey, kCount))
 
 	nKey := fmt.Sprintf(PrefixKey, ac.name)
-	nCount := ac.redisClient.ZCard(ac.ctx, nKey).Val()
+	nCount, err := ac.redisClient.ZCard(ac.ctx, nKey).Result()
+	if err != nil {
+		return nil, err
+	}
 	ac.logger.Println(fmt.Sprintf("Info() > ZCARD Key(%s) : Count(%d)", nKey, nCount))
 
 	return &AhoCorasickInfo{
 		Keywords: int(kCount),
 		Nodes:    int(nCount),
-	}
+	}, nil
 }
 
-func (ac *AhoCorasick) Suggest(input string) []string {
+func (ac *AhoCorasick) Suggest(input string) ([]string, error) {
 	var pKeywords []string
 
 	results := make([]string, 0)
 
 	kKey := fmt.Sprintf(KeywordKey, ac.name)
 	pKey := fmt.Sprintf(PrefixKey, ac.name)
-	pZRank := ac.redisClient.ZRank(ac.ctx, pKey, input).Val()
+	pZRank, err := ac.redisClient.ZRank(ac.ctx, pKey, input).Result()
+	if err == redis.Nil {
+		return results, nil
+	}
+	if err != nil {
+		return nil, err
+	}
 
-	pKeywords = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Val()
+	pKeywords, err = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Result()
+	if err != nil {
+		return nil, err
+	}
 	for len(pKeywords) > 0 {
 		pKeyword := pKeywords[0]
-		kExists := ac.redisClient.SIsMember(ac.ctx, kKey, pKeyword).Val()
+		kExists, err := ac.redisClient.SIsMember(ac.ctx, kKey, pKeyword).Result()
+		if err != nil {
+			return nil, err
+		}
 		if kExists && strings.HasPrefix(pKeyword, input) {
 			results = append(results, pKeyword)
 		}
 
 		pZRank++
-		pKeywords = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Val()
+		pKeywords, err = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Result()
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return results
+	return results, nil
 }
 
-func (ac *AhoCorasick) SuggestIndex(input string) map[string][]int {
+func (ac *AhoCorasick) SuggestIndex(input string) (map[string][]int, error) {
 	var pKeywords []string
 
 	results := make(map[string][]int)
 
 	kKey := fmt.Sprintf(KeywordKey, ac.name)
 	pKey := fmt.Sprintf(PrefixKey, ac.name)
-	pZRank := ac.redisClient.ZRank(ac.ctx, pKey, input).Val()
+	pZRank, err := ac.redisClient.ZRank(ac.ctx, pKey, input).Result()
+	if err == redis.Nil {
+		return results, nil
+	}
+	if err != nil {
+		return nil, err
+	}
 
-	pKeywords = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Val()
+	pKeywords, err = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Result()
+	if err != nil {
+		return nil, err
+	}
 	for len(pKeywords) > 0 {
 		pKeyword := pKeywords[0]
-		kExists := ac.redisClient.SIsMember(ac.ctx, kKey, pKeyword).Val()
+		kExists, err := ac.redisClient.SIsMember(ac.ctx, kKey, pKeyword).Result()
+		if err != nil {
+			return nil, err
+		}
 		if kExists && strings.HasPrefix(pKeyword, input) {
 			results[pKeyword] = append(results[pKeyword], 0)
 		}
 
 		pZRank++
-		pKeywords = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Val()
+		pKeywords, err = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Result()
+		if err != nil {
+			return nil, err
+		}
 		if len(pKeywords) > 0 && !strings.HasPrefix(pKeywords[0], input) {
 			break
 		}
 	}
 
-	return results
+	return results, nil
 }
 
 func (ac *AhoCorasick) Debug() {

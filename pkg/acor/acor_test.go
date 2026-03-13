@@ -2,6 +2,7 @@ package acor
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	miniredis "github.com/alicebob/miniredis/v2"
@@ -94,7 +95,11 @@ func TestSuggest(t *testing.T) {
 		}
 	}
 
-	results = ac.Suggest(input)
+	var err error
+	results, err = ac.Suggest(input)
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Logf("Suggest(%s) : Results(%s)", input, results)
 
 	if len(results) != 2 {
@@ -124,7 +129,10 @@ func TestSuggestIndex(t *testing.T) {
 		}
 	}
 
-	results := ac.SuggestIndex(input)
+	results, err := ac.SuggestIndex(input)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(results) != 2 {
 		t.Error("results' count is unexpected")
@@ -151,7 +159,10 @@ func TestSuggestIndex(t *testing.T) {
 		}
 	}
 
-	emptyResults := ac.SuggestIndex("x")
+	emptyResults, err := ac.SuggestIndex("x")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(emptyResults) != 0 {
 		t.Error("results should be empty")
 	}
@@ -278,6 +289,8 @@ func TestFindReturnsErrorWhenRedisUnavailable(t *testing.T) {
 }
 
 func TestAddRollsBackPartialTrieWrites(t *testing.T) {
+	const input = "he"
+
 	ac, mr := createAhoCorasick(t)
 	defer mr.Close()
 	defer func() { _ = ac.Close() }()
@@ -285,13 +298,13 @@ func TestAddRollsBackPartialTrieWrites(t *testing.T) {
 
 	hookErr := errors.New("forced build trie failure")
 	ac.buildTrieHook = func(prefix string) error {
-		if prefix == "he" {
+		if prefix == input {
 			return hookErr
 		}
 		return nil
 	}
 
-	addedCount, err := ac.Add("he")
+	addedCount, err := ac.Add(input)
 	if !errors.Is(err, hookErr) {
 		t.Fatalf("expected add to fail with hook error, got %v", err)
 	}
@@ -301,7 +314,7 @@ func TestAddRollsBackPartialTrieWrites(t *testing.T) {
 
 	ac.buildTrieHook = nil
 
-	results, err := ac.Find("he")
+	results, err := ac.Find(input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,12 +322,85 @@ func TestAddRollsBackPartialTrieWrites(t *testing.T) {
 		t.Fatalf("expected no matches after rollback, got %v", results)
 	}
 
-	indexResults, err := ac.FindIndex("he")
+	indexResults, err := ac.FindIndex(input)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(indexResults) != 0 {
 		t.Fatalf("expected no indexed matches after rollback, got %v", indexResults)
+	}
+}
+
+func TestAddFailedReAddKeepsExistingKeywordState(t *testing.T) {
+	const input = "he"
+
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	if _, err := ac.Add(input); err != nil {
+		t.Fatal(err)
+	}
+
+	pKey := fmt.Sprintf(PrefixKey, ac.name)
+	if _, err := ac.redisClient.ZRem(ac.ctx, pKey, input).Result(); err != nil {
+		t.Fatal(err)
+	}
+
+	hookErr := errors.New("forced duplicate rebuild failure")
+	ac.buildTrieHook = func(prefix string) error {
+		if prefix == input {
+			return hookErr
+		}
+		return nil
+	}
+
+	addedCount, err := ac.Add(input)
+	if !errors.Is(err, hookErr) {
+		t.Fatalf("expected duplicate add to fail with hook error, got %v", err)
+	}
+	if addedCount != 0 {
+		t.Fatalf("expected duplicate add count to be zero, got %d", addedCount)
+	}
+
+	ac.buildTrieHook = nil
+
+	results, err := ac.Find(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0] != input {
+		t.Fatalf("expected existing keyword state to remain after failed re-add, got %v", results)
+	}
+
+	indexResults, err := ac.FindIndex(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertIndexResults(t, indexResults, map[string][]int{input: {0}})
+}
+
+func TestInfoSuggestAndSuggestIndexReturnErrorsWhenRedisUnavailable(t *testing.T) {
+	const input = "he"
+
+	ac, mr := createAhoCorasick(t)
+	defer func() { _ = ac.Close() }()
+
+	if _, err := ac.Add(input); err != nil {
+		t.Fatal(err)
+	}
+
+	mr.Close()
+
+	if _, err := ac.Info(); err == nil {
+		t.Fatal("expected info to return an error")
+	}
+	if _, err := ac.Suggest(input); err == nil {
+		t.Fatal("expected suggest to return an error")
+	}
+	if _, err := ac.SuggestIndex(input); err == nil {
+		t.Fatal("expected suggest index to return an error")
 	}
 }
 
