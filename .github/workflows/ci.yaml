@@ -6,6 +6,7 @@ on:
       - master
     paths:
       - "**/*.go"
+      - "docs/**"
       - "go.mod"
       - "go.sum"
       - ".github/workflows/*.yaml"
@@ -15,6 +16,7 @@ on:
       - master
     paths:
       - "**/*.go"
+      - "docs/**"
       - "go.mod"
       - "go.sum"
       - ".github/workflows/*.yaml"
