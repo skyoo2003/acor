@@ -9,6 +9,11 @@ import (
 	"github.com/skyoo2003/acor/pkg/acor"
 )
 
+const (
+	collectionNameSample = "sample"
+	commandFind          = "find"
+)
+
 type fakeService struct {
 	addCount       int
 	removeCount    int
@@ -100,9 +105,9 @@ func TestParseArgs(t *testing.T) {
 		"-ring-addrs", "shard-1=127.0.0.1:7100, shard-2=127.0.0.1:7101",
 		"-password", "secret",
 		"-db", "2",
-		"-name", "sample",
+		"-name", collectionNameSample,
 		"-debug",
-		"find", "hello",
+		commandFind, "hello",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -123,10 +128,10 @@ func TestParseArgs(t *testing.T) {
 	if len(parsed.RingAddrs) != 2 {
 		t.Fatalf("expected 2 ring addresses, got %v", parsed.RingAddrs)
 	}
-	if parsed.Password != "secret" || parsed.DB != 2 || parsed.Name != "sample" || !parsed.Debug {
+	if parsed.Password != "secret" || parsed.DB != 2 || parsed.Name != collectionNameSample || !parsed.Debug {
 		t.Fatalf("unexpected parsed args: %+v", parsed)
 	}
-	if len(remaining) != 2 || remaining[0] != "find" || remaining[1] != "hello" {
+	if len(remaining) != 2 || remaining[0] != commandFind || remaining[1] != "hello" {
 		t.Fatalf("unexpected remaining args: %v", remaining)
 	}
 }
@@ -160,8 +165,8 @@ func TestRunAddCommand(t *testing.T) {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
-	exitCode := run([]string{"-name", "sample", "add", "he"}, stdout, stderr, func(args *acor.AhoCorasickArgs) (service, error) {
-		if args.Name != "sample" {
+	exitCode := run([]string{"-name", collectionNameSample, "add", "he"}, stdout, stderr, func(args *acor.AhoCorasickArgs) (service, error) {
+		if args.Name != collectionNameSample {
 			t.Fatalf("expected collection name to be forwarded, got %q", args.Name)
 		}
 		return fake, nil

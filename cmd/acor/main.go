@@ -14,7 +14,10 @@ import (
 
 var errInvalidRingAddrs = errors.New("ring-addrs must be comma-separated shard=addr pairs")
 
-const usageText = `Usage:
+const (
+	exitCodeUsage = 2
+	keyValueParts = 2
+	usageText     = `Usage:
   acor [global options] <command> [argument]
 
 Commands:
@@ -45,6 +48,7 @@ Global options:
   -debug
         Enable debug logging
 `
+)
 
 type service interface {
 	Add(string) (int, error)
@@ -83,12 +87,12 @@ func run(args []string, stdout, stderr io.Writer, create func(*acor.AhoCorasickA
 			return 0
 		}
 		_, _ = fmt.Fprintln(stderr, err.Error())
-		return 2
+		return exitCodeUsage
 	}
 
 	if len(remaining) == 0 {
 		_, _ = fmt.Fprint(stderr, usageText)
-		return 2
+		return exitCodeUsage
 	}
 
 	command := remaining[0]
@@ -96,13 +100,13 @@ func run(args []string, stdout, stderr io.Writer, create func(*acor.AhoCorasickA
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err.Error())
 		_, _ = fmt.Fprint(stderr, usageText)
-		return 2
+		return exitCodeUsage
 	}
 
 	commandArg, err := commandArgument(command, remaining[1:], needsArg)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err.Error())
-		return 2
+		return exitCodeUsage
 	}
 
 	ac, err := create(config)
@@ -193,8 +197,8 @@ func parseRingAddrs(raw string) (map[string]string, error) {
 			return nil, errInvalidRingAddrs
 		}
 
-		pair := strings.SplitN(trimmed, "=", 2)
-		if len(pair) != 2 {
+		pair := strings.SplitN(trimmed, "=", keyValueParts)
+		if len(pair) != keyValueParts {
 			return nil, errInvalidRingAddrs
 		}
 		name := strings.TrimSpace(pair[0])
