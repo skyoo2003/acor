@@ -1,4 +1,4 @@
-FROM golang:1.16.4-alpine3.12 AS builder
+FROM golang:1.17.13-alpine3.15 AS builder
 
 ENV CGO_ENABLED=0
 ENV GO111MODULE=on
@@ -12,7 +12,7 @@ WORKDIR /github.com/skyoo2003/acor
 COPY . .
 RUN make build
 
-FROM alpine:3.13.5
+FROM alpine:3.15.11
 
 VOLUME /acor
 WORKDIR /acor
