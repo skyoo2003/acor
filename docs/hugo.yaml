@@ -1,0 +1,13 @@
+baseURL: https://skyoo2003.github.io/acor/
+languageCode: en-us
+title: ACOR Docs
+disableKinds:
+  - taxonomy
+  - term
+caches:
+  images:
+    dir: :cacheDir/images
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
