@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ if .Title }}{{ .Title }} | {{ end }}{{ site.Title }}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3efe6;
+      --surface: #fffdfa;
+      --surface-strong: #f6f1e8;
+      --text: #1e1f1c;
+      --muted: #5d6057;
+      --line: #d9d1c1;
+      --accent: #1b6b57;
+      --accent-soft: #dcefe8;
+      --code: #f4f0e7;
+      --shadow: 0 18px 40px rgba(49, 45, 35, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top right, rgba(27, 107, 87, 0.18), transparent 24%),
+        linear-gradient(180deg, #f8f4ec 0%, var(--bg) 100%);
+      color: var(--text);
+      line-height: 1.65;
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    code,
+    pre {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .page {
+      width: min(960px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 2rem 0 4rem;
+    }
+
+    .hero,
+    .content {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      padding: 2.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3 {
+      line-height: 1.15;
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(2.4rem, 6vw, 4.4rem);
+      margin-top: 0.85rem;
+    }
+
+    h2 {
+      font-size: 1.7rem;
+      margin: 2rem 0 0.85rem;
+    }
+
+    p,
+    ul,
+    table,
+    pre {
+      margin: 0.85rem 0 0;
+    }
+
+    .hero p,
+    .content {
+      color: var(--muted);
+    }
+
+    .content {
+      padding: 1.75rem;
+    }
+
+    .content > *:first-child {
+      margin-top: 0;
+    }
+
+    .content h2,
+    .content h3,
+    .content strong {
+      color: var(--text);
+    }
+
+    pre {
+      padding: 1rem;
+      overflow-x: auto;
+      border-radius: 16px;
+      background: var(--code);
+      border: 1px solid var(--line);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 0.8rem;
+      text-align: left;
+      vertical-align: top;
+      border-top: 1px solid var(--line);
+    }
+
+    ul {
+      padding-left: 1.2rem;
+    }
+
+    @media (max-width: 860px) {
+      .hero,
+      .content {
+        padding: 1.3rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <span class="eyebrow">ACOR Documentation</span>
+      <h1>{{ .Params.hero_title }}</h1>
+      <p>{{ .Params.hero_text }}</p>
+    </section>
+    {{ block "main" . }}{{ end }}
+  </main>
+</body>
+</html>
