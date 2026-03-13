@@ -196,6 +196,37 @@ func (ac *AhoCorasick) Find(text string) []string {
 	return matched
 }
 
+func (ac *AhoCorasick) FindIndex(text string) map[string][]int {
+	matched := make(map[string][]int)
+	state := ""
+	runeIndex := 0
+
+	for _, char := range text {
+		nextState := ac._go(state, char)
+		if nextState == "" {
+			nextState = ac._fail(state)
+			afterNextState := ac._go(nextState, char)
+			if afterNextState == "" {
+				buffer := bytes.NewBufferString(nextState)
+				buffer.WriteRune(char)
+				afterNextState = ac._fail(buffer.String())
+			}
+			nextState = afterNextState
+		}
+
+		outputs := ac._output(state)
+		ac.appendMatchedIndexes(matched, outputs, runeIndex)
+		state = nextState
+		runeIndex++
+	}
+
+	outputs := ac._output(state)
+	ac.appendMatchedIndexes(matched, outputs, runeIndex)
+	ac.logger.Println(fmt.Sprintf("FindIndex(%s) > Matched(%v) : Count(%d)", text, matched, len(matched)))
+
+	return matched
+}
+
 func (ac *AhoCorasick) Flush() {
 	kKey := fmt.Sprintf(KeywordKey, ac.name)
 	pKey := fmt.Sprintf(PrefixKey, ac.name)
@@ -263,6 +294,33 @@ func (ac *AhoCorasick) Suggest(input string) []string {
 	return results
 }
 
+func (ac *AhoCorasick) SuggestIndex(input string) map[string][]int {
+	var pKeywords []string
+
+	results := make(map[string][]int)
+
+	kKey := fmt.Sprintf(KeywordKey, ac.name)
+	pKey := fmt.Sprintf(PrefixKey, ac.name)
+	pZRank := ac.redisClient.ZRank(ac.ctx, pKey, input).Val()
+
+	pKeywords = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Val()
+	for len(pKeywords) > 0 {
+		pKeyword := pKeywords[0]
+		kExists := ac.redisClient.SIsMember(ac.ctx, kKey, pKeyword).Val()
+		if kExists && strings.HasPrefix(pKeyword, input) {
+			results[pKeyword] = append(results[pKeyword], 0)
+		}
+
+		pZRank++
+		pKeywords = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Val()
+		if len(pKeywords) > 0 && !strings.HasPrefix(pKeywords[0], input) {
+			break
+		}
+	}
+
+	return results
+}
+
 func (ac *AhoCorasick) Debug() {
 	kKey := fmt.Sprintf(KeywordKey, ac.name)
 	fmt.Println("-", ac.redisClient.SMembers(ac.ctx, kKey))
@@ -325,6 +383,13 @@ func (ac *AhoCorasick) _output(inState string) []string {
 		return oKeywords
 	}
 	return make([]string, 0)
+}
+
+func (ac *AhoCorasick) appendMatchedIndexes(matched map[string][]int, outputs []string, endIndex int) {
+	for _, output := range outputs {
+		startIndex := endIndex - len([]rune(output))
+		matched[output] = append(matched[output], startIndex)
+	}
 }
 
 func (ac *AhoCorasick) _buildTrie(keyword string) {
