@@ -10,7 +10,7 @@ ACOR means Aho-Corasick automation working On Redis, Written in Go
 
 # Prerequisites
 
-* Golang >= 1.13
+* Golang >= 1.17
 * Redis >= 3.0
 
 # Getting Started
