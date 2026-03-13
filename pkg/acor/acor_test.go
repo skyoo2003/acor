@@ -86,6 +86,51 @@ func TestSuggest(t *testing.T) {
 	}
 }
 
+func TestSuggestIndex(t *testing.T) {
+	const input = "he"
+
+	ac := createAhoCorasick()
+	defer func() { _ = ac.Close() }()
+	defer ac.Flush()
+
+	keywords := []string{"her", "he", "his"}
+	for _, keyword := range keywords {
+		ac.Add(keyword)
+	}
+
+	results := ac.SuggestIndex(input)
+
+	if len(results) != 2 {
+		t.Error("results' count is unexpected")
+	}
+
+	expected := map[string][]int{
+		"he":  {0},
+		"her": {0},
+	}
+	for keyword, indexes := range expected {
+		actualIndexes, ok := results[keyword]
+		if !ok {
+			t.Errorf("results are missing %s", keyword)
+			continue
+		}
+		if len(actualIndexes) != len(indexes) {
+			t.Errorf("results for %s have unexpected count", keyword)
+			continue
+		}
+		for idx, actualIndex := range actualIndexes {
+			if actualIndex != indexes[idx] {
+				t.Errorf("results for %s have invalid index", keyword)
+			}
+		}
+	}
+
+	emptyResults := ac.SuggestIndex("x")
+	if len(emptyResults) != 0 {
+		t.Error("results should be empty")
+	}
+}
+
 func TestFind(t *testing.T) {
 	var results []string
 	const input = "he"
@@ -111,5 +156,62 @@ func TestFind(t *testing.T) {
 			continue
 		}
 		t.Error("results have invalid data")
+	}
+}
+
+func TestFindIndex(t *testing.T) {
+	ac := createAhoCorasick()
+	defer func() { _ = ac.Close() }()
+	defer ac.Flush()
+
+	keywords := []string{"her", "he", "his"}
+	for _, keyword := range keywords {
+		ac.Add(keyword)
+	}
+
+	overlapResults := ac.FindIndex("her")
+	overlapExpected := map[string][]int{
+		"he":  {0},
+		"her": {0},
+	}
+	assertIndexResults(t, overlapResults, overlapExpected)
+
+	repeatedResults := ac.FindIndex("hehe")
+	repeatedExpected := map[string][]int{
+		"he": {0, 2},
+	}
+	assertIndexResults(t, repeatedResults, repeatedExpected)
+
+	ac.Flush()
+	ac.Add("한글")
+	unicodeResults := ac.FindIndex("가한글")
+	unicodeExpected := map[string][]int{
+		"한글": {1},
+	}
+	assertIndexResults(t, unicodeResults, unicodeExpected)
+}
+
+func assertIndexResults(t *testing.T, actual, expected map[string][]int) {
+	t.Helper()
+
+	if len(actual) != len(expected) {
+		t.Errorf("results' count is unexpected")
+	}
+
+	for keyword, expectedIndexes := range expected {
+		actualIndexes, ok := actual[keyword]
+		if !ok {
+			t.Errorf("results are missing %s", keyword)
+			continue
+		}
+		if len(actualIndexes) != len(expectedIndexes) {
+			t.Errorf("results for %s have unexpected count", keyword)
+			continue
+		}
+		for idx, actualIndex := range actualIndexes {
+			if actualIndex != expectedIndexes[idx] {
+				t.Errorf("results for %s have invalid index", keyword)
+			}
+		}
 	}
 }
