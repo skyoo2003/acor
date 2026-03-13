@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -63,7 +63,7 @@ type AhoCorasickInfo struct {
 }
 
 func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
-	logger := log.New(ioutil.Discard, "ACOR: ", log.LstdFlags|log.Lshortfile)
+	logger := log.New(io.Discard, "ACOR: ", log.LstdFlags|log.Lshortfile)
 	if args.Debug {
 		logger.SetOutput(os.Stdout)
 	}
