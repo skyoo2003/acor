@@ -1,3 +1,5 @@
+version: 2
+
 project_name: acor
 
 env:
@@ -50,11 +52,11 @@ checksum:
   algorithm: sha256
   name_template: 'CHECKSUMS'
 
-dockers:
+docker:
 - ids:
   - acor
   dockerfile: Dockerfile.goreleaser
-  use_buildx: true
+  use: buildx
   image_templates:
   - "ghcr.io/skyoo2003/acor:{{ .Tag }}-alpine"
   - "ghcr.io/skyoo2003/acor:v{{ .Major }}.{{ .Minor }}-alpine"
