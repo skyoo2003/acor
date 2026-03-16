@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the code
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@v6.0.2
       - name: Configure GitHub Pages
         id: pages
         uses: actions/configure-pages@v5
