@@ -364,9 +364,8 @@ func mustJSONReader(t *testing.T, payload interface{}) io.Reader {
 func dialBufConn(t *testing.T, lis *bufconn.Listener) *grpc.ClientConn {
 	t.Helper()
 
-	conn, err := grpc.DialContext(
-		context.Background(),
-		"bufnet",
+	conn, err := grpc.NewClient(
+		"passthrough:///bufnet",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 			return lis.Dial()
 		}),
