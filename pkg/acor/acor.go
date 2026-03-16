@@ -55,6 +55,7 @@ type AhoCorasick struct {
 	name          string                // Pattern's collection name
 	logger        *log.Logger           // logger
 	buildTrieHook func(string) error
+	schemaVersion int // detected schema version
 }
 
 type AhoCorasickInfo struct {
@@ -79,6 +80,9 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 		name:        args.Name,
 		logger:      logger,
 	}
+
+	ac.schemaVersion = ac.detectSchema()
+
 	if err := ac.init(); err != nil {
 		_ = ac.redisClient.Close()
 		return nil, err
@@ -247,6 +251,22 @@ func (ac *AhoCorasick) outputsKey() string {
 
 func (ac *AhoCorasick) nodesKey() string {
 	return fmt.Sprintf("%s:nodes", ac.keyPrefix())
+}
+
+func (ac *AhoCorasick) detectSchema() int {
+	if ac.redisClient.Exists(ac.ctx, ac.trieKey()).Val() > 0 {
+		return SchemaV2
+	}
+
+	if ac.redisClient.Exists(ac.ctx, ac.prefixKey()).Val() > 0 {
+		return SchemaV1
+	}
+
+	return SchemaV2
+}
+
+func (ac *AhoCorasick) SchemaVersion() int {
+	return ac.schemaVersion
 }
 
 func (ac *AhoCorasick) init() error {
