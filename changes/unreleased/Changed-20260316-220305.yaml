@@ -1,0 +1,5 @@
+kind: Changed
+body: Go required version 1.24 or higher
+time: 2026-03-16T22:03:05.028813+09:00
+custom:
+    Issue: "80"

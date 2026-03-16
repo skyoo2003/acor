@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: ["1.23", "1.24"]
+        go-version: ["1.24", "1.25", "1.26"]
     steps:
       - uses: actions/checkout@v6.0.2
       - name: Set up Go ${{ matrix.go-version }}
@@ -40,8 +40,7 @@ jobs:
       - name: Execute golangci-lint
         uses: golangci/golangci-lint-action@v9.2.0
         with:
-          version: v2.1.6
-          install-mode: goinstall
+          version: v2.11.3
       - name: Run test
         run: make test
       - name: Run build
