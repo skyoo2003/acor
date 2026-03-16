@@ -40,6 +40,29 @@ func createAhoCorasick(t *testing.T) (*AhoCorasick, *miniredis.Miniredis) {
 	return ac, mr
 }
 
+func createAhoCorasickV1(t *testing.T) (*AhoCorasick, *miniredis.Miniredis) {
+	t.Helper()
+
+	mr := createTestRedisServer(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client.ZAdd(context.Background(), "{test}:prefix", &redis.Z{Score: 0, Member: ""})
+	client.Close()
+
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:     mr.Addr(),
+		Password: "",
+		DB:       0,
+		Name:     "test",
+		Debug:    false,
+	})
+	if err != nil {
+		mr.Close()
+		t.Fatal(err)
+	}
+
+	return ac, mr
+}
+
 func TestInitAndFlushAndClose(t *testing.T) {
 	ac, mr := createAhoCorasick(t)
 	defer mr.Close()
@@ -330,7 +353,7 @@ func TestNewRedisClientSelectsClusterTopology(t *testing.T) {
 }
 
 func TestAddUsesCollectionScopedKeys(t *testing.T) {
-	ac, mr := createAhoCorasick(t)
+	ac, mr := createAhoCorasickV1(t)
 	defer mr.Close()
 	defer func() { _ = ac.Close() }()
 	defer func() { _ = ac.Flush() }()
@@ -463,7 +486,7 @@ func TestFindReturnsErrorWhenRedisUnavailable(t *testing.T) {
 func TestAddRollsBackPartialTrieWrites(t *testing.T) {
 	const input = "he"
 
-	ac, mr := createAhoCorasick(t)
+	ac, mr := createAhoCorasickV1(t)
 	defer mr.Close()
 	defer func() { _ = ac.Close() }()
 	defer func() { _ = ac.Flush() }()
@@ -506,7 +529,7 @@ func TestAddRollsBackPartialTrieWrites(t *testing.T) {
 func TestAddFailedReAddKeepsExistingKeywordState(t *testing.T) {
 	const input = "he"
 
-	ac, mr := createAhoCorasick(t)
+	ac, mr := createAhoCorasickV1(t)
 	defer mr.Close()
 	defer func() { _ = ac.Close() }()
 	defer func() { _ = ac.Flush() }()
@@ -556,7 +579,7 @@ func TestAddFailedReAddKeepsExistingKeywordState(t *testing.T) {
 func TestInfoSuggestAndSuggestIndexReturnErrorsWhenRedisUnavailable(t *testing.T) {
 	const input = "he"
 
-	ac, mr := createAhoCorasick(t)
+	ac, mr := createAhoCorasickV1(t)
 	defer func() { _ = ac.Close() }()
 
 	if _, err := ac.Add(input); err != nil {

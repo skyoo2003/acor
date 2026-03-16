@@ -1,0 +1,6 @@
+# github.com/skyoo2003/acor/pkg/acor [github.com/skyoo2003/acor/pkg/acor.test]
+pkg/acor/acor.go:431:5: syntax error: non-declaration statement outside function body
+pkg/acor/acor.go:432:2: string not terminated
+# github.com/skyoo2003/acor/pkg/acor [github.com/skyoo2003/acor/pkg/acor.test]
+pkg/acor/acor.go:431:5: syntax error: non-declaration statement outside function body
+pkg/acor/acor.go:432:2: string not terminated

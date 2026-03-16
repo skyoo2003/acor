@@ -290,6 +290,10 @@ func (ac *AhoCorasick) Close() error {
 }
 
 func (ac *AhoCorasick) Add(keyword string) (int, error) {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.addV2(keyword)
+	}
+
 	keyword = strings.TrimSpace(keyword)
 	keyword = strings.ToLower(keyword)
 
@@ -315,6 +319,10 @@ func (ac *AhoCorasick) Add(keyword string) (int, error) {
 }
 
 func (ac *AhoCorasick) Remove(keyword string) (int, error) {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.removeV2(keyword)
+	}
+
 	keyword = strings.TrimSpace(keyword)
 	keyword = strings.ToLower(keyword)
 
@@ -419,6 +427,10 @@ func (ac *AhoCorasick) removePrefixAndSuffix(keyword, prefix, suffix string) err
 }
 
 func (ac *AhoCorasick) Find(text string) ([]string, error) {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.findV2(text)
+	}
+
 	matched := make([]string, 0)
 	state := ""
 
@@ -467,6 +479,10 @@ func (ac *AhoCorasick) Find(text string) ([]string, error) {
 }
 
 func (ac *AhoCorasick) FindIndex(text string) (map[string][]int, error) {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.findIndexV2(text)
+	}
+
 	matched := make(map[string][]int)
 	state := ""
 	runeIndex := 0
@@ -517,6 +533,10 @@ func (ac *AhoCorasick) FindIndex(text string) (map[string][]int, error) {
 }
 
 func (ac *AhoCorasick) Flush() error {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.flushV2()
+	}
+
 	kKey := ac.keywordKey()
 	pKey := ac.prefixKey()
 	sKey := ac.suffixKey()
@@ -567,6 +587,10 @@ func (ac *AhoCorasick) Flush() error {
 }
 
 func (ac *AhoCorasick) Info() (*AhoCorasickInfo, error) {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.infoV2()
+	}
+
 	kKey := ac.keywordKey()
 	kCount, err := ac.redisClient.SCard(ac.ctx, kKey).Result()
 	if err != nil {
@@ -588,6 +612,10 @@ func (ac *AhoCorasick) Info() (*AhoCorasickInfo, error) {
 }
 
 func (ac *AhoCorasick) Suggest(input string) ([]string, error) {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.suggestV2(input)
+	}
+
 	var pKeywords []string
 
 	results := make([]string, 0)
@@ -627,6 +655,10 @@ func (ac *AhoCorasick) Suggest(input string) ([]string, error) {
 }
 
 func (ac *AhoCorasick) SuggestIndex(input string) (map[string][]int, error) {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.suggestIndexV2(input)
+	}
+
 	var pKeywords []string
 
 	results := make(map[string][]int)
