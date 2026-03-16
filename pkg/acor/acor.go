@@ -237,6 +237,18 @@ func (ac *AhoCorasick) nodeKey(keyword string) string {
 	return fmt.Sprintf("%s:node:%s", ac.keyPrefix(), keyword)
 }
 
+func (ac *AhoCorasick) trieKey() string {
+	return fmt.Sprintf("%s:trie", ac.keyPrefix())
+}
+
+func (ac *AhoCorasick) outputsKey() string {
+	return fmt.Sprintf("%s:outputs", ac.keyPrefix())
+}
+
+func (ac *AhoCorasick) nodesKey() string {
+	return fmt.Sprintf("%s:nodes", ac.keyPrefix())
+}
+
 func (ac *AhoCorasick) init() error {
 	// Init trie root
 	prefixKey := ac.prefixKey()

@@ -598,3 +598,25 @@ func assertIndexResults(t *testing.T, actual, expected map[string][]int) {
 		}
 	}
 }
+
+func TestV2KeyHelpers(t *testing.T) {
+	ac := &AhoCorasick{name: "test"}
+
+	tests := []struct {
+		name     string
+		got      string
+		expected string
+	}{
+		{"trieKey", ac.trieKey(), "{test}:trie"},
+		{"outputsKey", ac.outputsKey(), "{test}:outputs"},
+		{"nodesKey", ac.nodesKey(), "{test}:nodes"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.got != tt.expected {
+				t.Errorf("%s() = %s, want %s", tt.name, tt.got, tt.expected)
+			}
+		})
+	}
+}
