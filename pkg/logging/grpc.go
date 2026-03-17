@@ -9,6 +9,9 @@ import (
 )
 
 func GRPCUnaryInterceptor(logger *Logger) grpc.UnaryServerInterceptor {
+	if logger == nil {
+		panic("logging: nil logger passed to GRPCUnaryInterceptor")
+	}
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		start := time.Now()
 
