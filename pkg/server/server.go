@@ -141,14 +141,16 @@ func NewGRPCServerWithObservability(service Service, obs *Observability, opts ..
 
 	var unaryInterceptors []grpc.UnaryServerInterceptor
 
-	if obs.Metrics != nil {
-		unaryInterceptors = append(unaryInterceptors, metrics.GRPCUnaryInterceptor(obs.Metrics))
-	}
-	if obs.Logger != nil {
-		unaryInterceptors = append(unaryInterceptors, logging.GRPCUnaryInterceptor(obs.Logger))
-	}
-	if obs.Tracer != nil {
-		unaryInterceptors = append(unaryInterceptors, tracing.GRPCUnaryInterceptor(obs.Tracer))
+	if obs != nil {
+		if obs.Metrics != nil {
+			unaryInterceptors = append(unaryInterceptors, metrics.GRPCUnaryInterceptor(obs.Metrics))
+		}
+		if obs.Logger != nil {
+			unaryInterceptors = append(unaryInterceptors, logging.GRPCUnaryInterceptor(obs.Logger))
+		}
+		if obs.Tracer != nil {
+			unaryInterceptors = append(unaryInterceptors, tracing.GRPCUnaryInterceptor(obs.Tracer))
+		}
 	}
 
 	if len(unaryInterceptors) > 0 {
@@ -162,7 +164,7 @@ func NewGRPCServerWithObservability(service Service, obs *Observability, opts ..
 	grpcServer := grpc.NewServer(serverOpts...)
 	RegisterGRPCServer(grpcServer, NewAPI(service))
 
-	if obs.Health != nil {
+	if obs != nil && obs.Health != nil {
 		grpc_health_v1.RegisterHealthServer(grpcServer, health.NewGRPCHealthServer(obs.Health))
 	}
 
