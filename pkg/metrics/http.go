@@ -40,7 +40,7 @@ func normalizePath(path string) string {
 }
 
 func splitPath(path string) []string {
-	if len(path) == 0 || path[0] != '/' {
+	if path == "" || path[0] != '/' {
 		return nil
 	}
 
