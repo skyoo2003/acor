@@ -1,0 +1,4 @@
+reviews:
+  review_status: true
+  branches:
+    - "**"
