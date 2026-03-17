@@ -39,14 +39,15 @@ var (
 )
 
 type AhoCorasickArgs struct {
-	Addr       string // redis server address (ex) localhost:6379
-	Addrs      []string
-	MasterName string
-	RingAddrs  map[string]string
-	Password   string // redis password
-	DB         int    // redis db number
-	Name       string // pattern's collection name
-	Debug      bool   // debug flag
+	Addr          string // redis server address (ex) localhost:6379
+	Addrs         []string
+	MasterName    string
+	RingAddrs     map[string]string
+	Password      string // redis password
+	DB            int    // redis db number
+	Name          string // pattern's collection name
+	Debug         bool   // debug flag
+	SchemaVersion int    // 1: V1 (Legacy), 2 or 0: V2 (default)
 }
 
 type AhoCorasick struct {
@@ -75,13 +76,16 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	}
 
 	ac := &AhoCorasick{
-		redisClient: redisClient,
-		ctx:         context.Background(),
-		name:        args.Name,
-		logger:      logger,
+		redisClient:   redisClient,
+		ctx:           context.Background(),
+		name:          args.Name,
+		logger:        logger,
+		schemaVersion: args.SchemaVersion,
 	}
 
-	ac.schemaVersion = ac.detectSchema()
+	if ac.schemaVersion == 0 {
+		ac.schemaVersion = SchemaV2
+	}
 
 	if err := ac.init(); err != nil {
 		_ = ac.redisClient.Close()
@@ -251,18 +255,6 @@ func (ac *AhoCorasick) outputsKey() string {
 
 func (ac *AhoCorasick) nodesKey() string {
 	return fmt.Sprintf("%s:nodes", ac.keyPrefix())
-}
-
-func (ac *AhoCorasick) detectSchema() int {
-	if ac.redisClient.Exists(ac.ctx, ac.trieKey()).Val() > 0 {
-		return SchemaV2
-	}
-
-	if ac.redisClient.Exists(ac.ctx, ac.prefixKey()).Val() > 0 {
-		return SchemaV1
-	}
-
-	return SchemaV2
 }
 
 func (ac *AhoCorasick) SchemaVersion() int {

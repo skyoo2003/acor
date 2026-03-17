@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	miniredis "github.com/alicebob/miniredis/v2"
 	redis "github.com/go-redis/redis/v8"
@@ -49,11 +48,12 @@ func createAhoCorasickV1(t *testing.T) (*AhoCorasick, *miniredis.Miniredis) {
 	client.Close()
 
 	ac, err := Create(&AhoCorasickArgs{
-		Addr:     mr.Addr(),
-		Password: "",
-		DB:       0,
-		Name:     "test",
-		Debug:    false,
+		Addr:          mr.Addr(),
+		Password:      "",
+		DB:            0,
+		Name:          "test",
+		Debug:         false,
+		SchemaVersion: SchemaV1,
 	})
 	if err != nil {
 		mr.Close()
@@ -646,65 +646,6 @@ func TestV2KeyHelpers(t *testing.T) {
 	}
 }
 
-func TestDetectSchema(t *testing.T) {
-	mr := createTestRedisServer(t)
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer client.Close()
-
-	tests := []struct {
-		name     string
-		setup    func(redis.UniversalClient)
-		expected int
-	}{
-		{
-			name:     "empty collection defaults to V2",
-			setup:    func(c redis.UniversalClient) {},
-			expected: SchemaV2,
-		},
-		{
-			name: "V1 detected by prefix key",
-			setup: func(c redis.UniversalClient) {
-				c.ZAdd(context.Background(), "{test}:prefix", &redis.Z{Score: 0, Member: ""})
-			},
-			expected: SchemaV1,
-		},
-		{
-			name: "V2 detected by trie key",
-			setup: func(c redis.UniversalClient) {
-				c.HSet(context.Background(), "{test}:trie", "version", time.Now().Unix())
-			},
-			expected: SchemaV2,
-		},
-		{
-			name: "V2 takes precedence over V1",
-			setup: func(c redis.UniversalClient) {
-				c.ZAdd(context.Background(), "{test}:prefix", &redis.Z{Score: 0, Member: ""})
-				c.HSet(context.Background(), "{test}:trie", "version", time.Now().Unix())
-			},
-			expected: SchemaV2,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			client.Del(context.Background(), client.Keys(context.Background(), "{test}:*").Val()...)
-
-			tt.setup(client)
-
-			ac := &AhoCorasick{
-				redisClient: client,
-				ctx:         context.Background(),
-				name:        "test",
-			}
-
-			got := ac.detectSchema()
-			if got != tt.expected {
-				t.Errorf("detectSchema() = %d, want %d", got, tt.expected)
-			}
-		})
-	}
-}
-
 func TestV1V2Compatibility(t *testing.T) {
 	mr := createTestRedisServer(t)
 
@@ -722,7 +663,7 @@ func TestV1V2Compatibility(t *testing.T) {
 	client.ZAdd(context.Background(), "{v1test}:prefix", &redis.Z{Score: 0, Member: ""})
 	client.Close()
 
-	args := &AhoCorasickArgs{Addr: mr.Addr(), Name: "v1test"}
+	args := &AhoCorasickArgs{Addr: mr.Addr(), Name: "v1test", SchemaVersion: SchemaV1}
 	acV1, err := Create(args)
 	if err != nil {
 		t.Fatal(err)
@@ -738,7 +679,7 @@ func TestV1V2Compatibility(t *testing.T) {
 	}
 	acV1.Close()
 
-	args = &AhoCorasickArgs{Addr: mr.Addr(), Name: "v1test"}
+	args = &AhoCorasickArgs{Addr: mr.Addr(), Name: "v1test", SchemaVersion: SchemaV1}
 	acMigrate, err := Create(args)
 	if err != nil {
 		t.Fatal(err)
