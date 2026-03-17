@@ -264,7 +264,10 @@ func (ac *AhoCorasick) SchemaVersion() int {
 
 func (ac *AhoCorasick) init() error {
 	if ac.schemaVersion == SchemaV2 {
-		exists := ac.redisClient.Exists(ac.ctx, ac.trieKey()).Val()
+		exists, err := ac.redisClient.Exists(ac.ctx, ac.trieKey()).Result()
+		if err != nil {
+			return fmt.Errorf("failed to check trie key: %w", err)
+		}
 		if exists == 0 {
 			_, err := ac.redisClient.HSet(ac.ctx, ac.trieKey(), map[string]interface{}{
 				"keywords": "[]",

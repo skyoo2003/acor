@@ -20,8 +20,9 @@ func BenchmarkFindV1(b *testing.B) {
 	_ = client.Close()
 
 	args := &AhoCorasickArgs{
-		Addr: mr.Addr(),
-		Name: "bench",
+		Addr:          mr.Addr(),
+		Name:          "bench",
+		SchemaVersion: SchemaV1,
 	}
 
 	ac, err := Create(args)
@@ -105,8 +106,9 @@ func BenchmarkAddV1(b *testing.B) {
 	_ = client.Close()
 
 	args := &AhoCorasickArgs{
-		Addr: mr.Addr(),
-		Name: "bench",
+		Addr:          mr.Addr(),
+		Name:          "bench",
+		SchemaVersion: SchemaV1,
 	}
 
 	ac, err := Create(args)

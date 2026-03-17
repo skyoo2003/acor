@@ -12,6 +12,7 @@ import (
 var (
 	ErrAlreadyV2       = errors.New("collection is already on V2 schema")
 	ErrNoDataToMigrate = errors.New("no V1 data found to migrate")
+	ErrMigrationInProg = errors.New("migration already in progress")
 )
 
 const (
@@ -27,12 +28,46 @@ const (
 	stepWriteV2Structure = 4
 	keysBaseCount        = 2
 	v2KeyCount           = 3
+
+	migrationLockKeySuffix = ":migration_lock"
+	migrationLockTTL       = 300 * time.Second
 )
+
+func (ac *AhoCorasick) migrationLockKey() string {
+	return ac.keyPrefix() + migrationLockKeySuffix
+}
+
+func (ac *AhoCorasick) acquireMigrationLock() (bool, error) {
+	lockKey := ac.migrationLockKey()
+	result, err := ac.redisClient.SetNX(ac.ctx, lockKey, "migrating", migrationLockTTL).Result()
+	if err != nil {
+		return false, fmt.Errorf("failed to acquire migration lock: %w", err)
+	}
+	return result, nil
+}
+
+func (ac *AhoCorasick) releaseMigrationLock() error {
+	lockKey := ac.migrationLockKey()
+	_, err := ac.redisClient.Del(ac.ctx, lockKey).Result()
+	if err != nil {
+		return fmt.Errorf("failed to release migration lock: %w", err)
+	}
+	return nil
+}
 
 func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, error) { //nolint:gocyclo,funlen // Complex migration logic with multiple stages
 	if opts == nil {
 		opts = DefaultMigrationOptions()
 	}
+
+	acquired, err := ac.acquireMigrationLock()
+	if err != nil {
+		return nil, err
+	}
+	if !acquired {
+		return nil, ErrMigrationInProg
+	}
+	defer func() { _ = ac.releaseMigrationLock() }()
 
 	start := time.Now()
 	result := &MigrationResult{
@@ -42,11 +77,19 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 		DryRun:     opts.DryRun,
 	}
 
-	if ac.redisClient.Exists(ac.ctx, ac.trieKey()).Val() > 0 {
+	trieExists, err := ac.redisClient.Exists(ac.ctx, ac.trieKey()).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to check V2 keys: %w", err)
+	}
+	if trieExists > 0 {
 		return nil, ErrAlreadyV2
 	}
 
-	if ac.redisClient.Exists(ac.ctx, ac.prefixKey()).Val() == 0 {
+	prefixExists, err := ac.redisClient.Exists(ac.ctx, ac.prefixKey()).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to check V1 keys: %w", err)
+	}
+	if prefixExists == 0 {
 		return nil, ErrNoDataToMigrate
 	}
 
@@ -220,7 +263,11 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 }
 
 func (ac *AhoCorasick) RollbackToV1() error {
-	if ac.redisClient.Exists(ac.ctx, ac.keywordKey()).Val() == 0 {
+	v1Exists, err := ac.redisClient.Exists(ac.ctx, ac.keywordKey()).Result()
+	if err != nil {
+		return fmt.Errorf("failed to check V1 keys: %w", err)
+	}
+	if v1Exists == 0 {
 		return errors.New("V1 keys not found - rollback not possible")
 	}
 

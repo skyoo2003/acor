@@ -116,7 +116,7 @@ func (f *fakeService) Close() error {
 }
 
 func TestParseArgs(t *testing.T) {
-	parsed, remaining, err := parseArgs([]string{
+	parsed, _, remaining, err := parseArgs([]string{
 		"-addr", "127.0.0.1:6379",
 		"-addrs", "127.0.0.1:7000, 127.0.0.1:7001",
 		"-master-name", "mymaster",
@@ -167,7 +167,7 @@ func TestParseArgsRejectsInvalidTopologyFlags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := parseArgs(tt.args)
+			_, _, _, err := parseArgs(tt.args)
 			if err == nil {
 				t.Fatal("expected parseArgs to return an error")
 			}

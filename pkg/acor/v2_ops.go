@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -19,7 +20,10 @@ const maxRetries = 3
 const luaKeys = 2
 
 func mustJSON(v interface{}) string {
-	b, _ := json.Marshal(v)
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(fmt.Sprintf("json.Marshal failed: %v", err))
+	}
 	return string(b)
 }
 
