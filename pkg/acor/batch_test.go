@@ -148,3 +148,28 @@ func TestRemoveMany(t *testing.T) {
 		t.Error("expected 'him' to remain")
 	}
 }
+
+func TestFindMany(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	if _, err := ac.AddMany([]string{"he", "her", "him"}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	texts := []string{"he is here", "him and her", "nothing"}
+	results, err := ac.FindMany(texts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+
+	if len(results["he is here"]) < 2 {
+		t.Errorf("expected at least 2 matches in 'he is here', got %d", len(results["he is here"]))
+	}
+}

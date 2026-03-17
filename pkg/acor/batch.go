@@ -117,3 +117,17 @@ func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
 
 	return result, nil
 }
+
+func (ac *AhoCorasick) FindMany(texts []string) (map[string][]string, error) {
+	results := make(map[string][]string)
+
+	for _, text := range texts {
+		matches, err := ac.Find(text)
+		if err != nil {
+			return nil, err
+		}
+		results[text] = matches
+	}
+
+	return results, nil
+}
