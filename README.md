@@ -1,150 +1,187 @@
 # ACOR
 
-ACOR means Aho-Corasick automation working On Redis, Written in Go
+**A**ho-**C**orasick automation working **O**n **R**edis — A Go library for efficient multi-pattern string matching backed by Redis.
 
 [![Current Release](https://img.shields.io/github/release/skyoo2003/acor.svg)](https://github.com/skyoo2003/acor/releases/latest)
 [![CI Status](https://github.com/skyoo2003/acor/actions/workflows/ci.yaml/badge.svg)](https://github.com/skyoo2003/acor/actions/workflows/ci.yaml)
 [![Docs](https://img.shields.io/badge/docs-github_pages-1b6b57)](https://skyoo2003.github.io/acor/)
 [![Go Reference](https://pkg.go.dev/badge/github.com/skyoo2003/acor.svg)](https://pkg.go.dev/github.com/skyoo2003/acor)
 [![Go Report Card](https://goreportcard.com/badge/github.com/skyoo2003/acor)](https://goreportcard.com/report/github.com/skyoo2003/acor)
-[![License](https://img.shields.io/github/license/mashape/apistatus.svg)](LICENSE)
+[![License](https://img.shields.io/github/license/skyoo2003/acor.svg)](LICENSE)
 
-# Prerequisites
+## Overview
 
-* Golang >= 1.24
-* Redis >= 3.0
+ACOR implements the [Aho-Corasick algorithm](https://en.wikipedia.org/wiki/Aho%E2%80%93Corasick_algorithm) for efficient multi-pattern string matching, with all data structures persisted in Redis. This enables:
 
-# Getting Started
+- **Fast pattern matching** — O(n + m) complexity where n is text length and m is number of matches
+- **Distributed state** — Share pattern dictionaries across multiple application instances
+- **Persistence** — Pattern dictionaries survive application restarts
+- **Scalability** — Support for Redis Sentinel, Cluster, and Ring topologies
+
+## Use Cases
+
+- Content filtering and profanity detection
+- Log analysis and keyword extraction
+- Intrusion detection systems
+- Search term highlighting
+- Real-time text classification
+
+## Prerequisites
+
+- Go >= 1.24
+- Redis >= 3.0
+
+## Installation
 
 ```sh
-$ go get -u github.com/skyoo2003/acor
+go get -u github.com/skyoo2003/acor
 ```
 
-Project documentation is also published on GitHub Pages at <https://skyoo2003.github.io/acor/>.
+## Quick Start
 
 ```go
 package main
 
 import (
-	"fmt"
-	"github.com/skyoo2003/acor/pkg/acor"
+ "fmt"
+ "github.com/skyoo2003/acor/pkg/acor"
 )
 
 func main() {
-	args := &acor.AhoCorasickArgs{
-		Addr:     "localhost:6379",
-		Password: "",
-		DB:       0,
-		Name:     "sample",
-	}
-	ac, err := acor.Create(args)
-	if err != nil {
-		panic(err)
-	}
-	defer ac.Close()
+ args := &acor.AhoCorasickArgs{
+  Addr:     "localhost:6379",
+  Password: "",
+  DB:       0,
+  Name:     "sample",
+ }
+ ac, err := acor.Create(args)
+ if err != nil {
+  panic(err)
+ }
+ defer ac.Close()
 
-	keywords := []string{"he", "her", "him"}
-	for _, k := range keywords {
-		if _, err := ac.Add(k); err != nil {
-			panic(err)
-		}
-	}
+ keywords := []string{"he", "her", "him"}
+ for _, k := range keywords {
+  if _, err := ac.Add(k); err != nil {
+   panic(err)
+  }
+ }
 
-	matched, err := ac.Find("he is him")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(matched)
+ matched, err := ac.Find("he is him")
+ if err != nil {
+  panic(err)
+ }
+ fmt.Println(matched)
 
-	if err := ac.Flush(); err != nil { // If you want to remove all of data
-		panic(err)
-	}
+ if err := ac.Flush(); err != nil {
+  panic(err)
+ }
 }
 ```
 
-Use the same `Create` API for Redis Sentinel, Cluster, and Ring by setting the topology-specific fields on `AhoCorasickArgs`. Use `Addr` for standalone Redis, use `Addrs` for Sentinel or Cluster seed nodes, and keep `DB` at `0` for Cluster:
+## Redis Topologies
+
+ACOR supports standalone Redis, Sentinel, Cluster, and Ring configurations:
 
 ```go
+// Sentinel
 sentinelArgs := &acor.AhoCorasickArgs{
-	Addrs:      []string{"localhost:26379", "localhost:26380"},
-	MasterName: "mymaster",
-	Password:   "",
-	DB:         0,
-	Name:       "sample",
+ Addrs:      []string{"localhost:26379", "localhost:26380"},
+ MasterName: "mymaster",
+ Password:   "",
+ DB:         0,
+ Name:       "sample",
 }
 
+// Cluster
 clusterArgs := &acor.AhoCorasickArgs{
-	Addrs:    []string{"localhost:7000", "localhost:7001", "localhost:7002"},
-	Password: "",
-	Name:     "sample",
+ Addrs:    []string{"localhost:7000", "localhost:7001", "localhost:7002"},
+ Password: "",
+ Name:     "sample",
 }
 
+// Ring
 ringArgs := &acor.AhoCorasickArgs{
-	RingAddrs: map[string]string{
-		"shard-1": "localhost:7000",
-		"shard-2": "localhost:7001",
-	},
-	Password: "",
-	DB:       0,
-	Name:     "sample",
+ RingAddrs: map[string]string{
+  "shard-1": "localhost:7000",
+  "shard-2": "localhost:7001",
+ },
+ Password: "",
+ DB:       0,
+ Name:     "sample",
 }
 ```
 
-# Contributing
-
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
-
-Please make sure to update tests as appropriate.
-
-# Schema Versions
+## Schema Versions
 
 ACOR supports two Redis schema versions:
 
-- **V1 (Legacy)**: Multiple keys per collection (~500K keys for 100K keywords)
-- **V2 (Optimized)**: Fixed 3 keys per collection, 80-85% fewer Redis round trips
+| Version        | Description                  | Keys per 100K keywords |
+| -------------- | ---------------------------- | ---------------------- |
+| V1 (Legacy)    | Multiple keys per collection | ~500K                  |
+| V2 (Optimized) | Fixed 3 keys per collection  | 3                      |
 
-New collections automatically use V2. Existing V1 collections can be migrated:
+**V2 is recommended** for new collections and provides 50-60x faster `Find()` operations.
+
+### Performance Comparison
+
+| Operation | V1 (Legacy)   | V2 (Optimized) |
+| --------- | ------------- | -------------- |
+| Find()    | O(N×3-5) RTT  | 3 RTT (fixed)  |
+| Add()     | O(M×3-10) RTT | 2-3 RTT        |
+
+### Migration
 
 ```sh
-# Preview migration (dry-run)
+# Preview migration
 acor -name mycollection migrate --dry-run
 
 # Execute migration
 acor -name mycollection migrate
 
-# Rollback to V1 (if V1 keys were kept)
+# Rollback to V1
 acor -name mycollection migrate-rollback
 
-# Check current schema version
+# Check schema version
 acor -name mycollection schema-version
 ```
 
-## Performance Comparison
+## CLI
 
-| Operation | V1 (Legacy) | V2 (Optimized) |
-|-----------|-------------|----------------|
-| Find()    | O(N×3-5) RTT | 3 RTT (fixed)  |
-| Add()     | O(M×3-10) RTT | 2-3 RTT       |
-| Key count | ~500K/100K kw | 3 (fixed)     |
+ACOR includes a command-line interface for common operations:
 
-### Performance Tradeoffs
+```sh
+# Install
+go install github.com/skyoo2003/acor/cmd/acor@latest
 
-V2 schema is optimized for **read-heavy workloads**:
-- **Find()**: 50-60x faster than V1
-- **Add()/Remove()**: Slower than V1 due to loading the entire trie into memory
+# Add keywords
+acor -name mycollection add "keyword1" "keyword2"
 
-For write-heavy workloads with frequent Add/Remove operations, consider:
-- Using V1 schema (`SchemaVersion: 1`)
-- Batching Add operations before migrating to V2
+# Find matches
+acor -name mycollection find "sample text"
 
-### Migration Notes
+# List keywords
+acor -name mycollection list
+```
 
-- Migration uses a 5-minute lock to prevent concurrent migrations
-- For collections with 100K+ keywords, migration may take longer - consider increasing lock TTL or migrating during low-traffic periods
-- Use `--dry-run` to preview migration before executing
+## Documentation
 
-# [License](LICENSE)
+Full documentation is available at [GitHub Pages](https://skyoo2003.github.io/acor/).
 
-Copyright (c) 2016-2021 Sung-Kyu Yoo.
+API reference: [pkg.go.dev](https://pkg.go.dev/github.com/skyoo2003/acor)
 
-This project is MIT license.
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## Code of Conduct
+
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+## License
+
+[MIT License](LICENSE) - Copyright (c) 2016-2026 Sung-Kyu Yoo
