@@ -92,6 +92,24 @@ func (f *fakeService) Flush() error {
 	return nil
 }
 
+func (f *fakeService) MigrateV1ToV2(opts *acor.MigrationOptions) (*acor.MigrationResult, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &acor.MigrationResult{Status: "success"}, nil
+}
+
+func (f *fakeService) RollbackToV1() error {
+	if f.err != nil {
+		return f.err
+	}
+	return nil
+}
+
+func (f *fakeService) SchemaVersion() int {
+	return acor.SchemaV2
+}
+
 func (f *fakeService) Close() error {
 	f.closed = true
 	return nil

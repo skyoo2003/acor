@@ -29,6 +29,9 @@ Commands:
   suggest-index <input>
   info
   flush
+  migrate
+  migrate-rollback
+  schema-version
 
 Global options:
   -addr string
@@ -59,6 +62,9 @@ type service interface {
 	SuggestIndex(string) (map[string][]int, error)
 	Info() (*acor.AhoCorasickInfo, error)
 	Flush() error
+	MigrateV1ToV2(*acor.MigrationOptions) (*acor.MigrationResult, error)
+	RollbackToV1() error
+	SchemaVersion() int
 	Close() error
 }
 
@@ -233,6 +239,12 @@ func commandHandler(command string) (commandRunner, bool, error) {
 		return runInfo, false, nil
 	case "flush":
 		return runFlush, false, nil
+	case "migrate":
+		return runMigrate, false, nil
+	case "migrate-rollback":
+		return runMigrateRollback, false, nil
+	case "schema-version":
+		return runSchemaVersion, false, nil
 	default:
 		return nil, false, fmt.Errorf("unknown command %q", command)
 	}
@@ -320,6 +332,26 @@ func runFlush(stdout io.Writer, ac service, _ string) error {
 		return err
 	}
 	return writeJSON(stdout, map[string]string{"status": "ok"})
+}
+
+func runMigrate(stdout io.Writer, ac service, _ string) error {
+	result, err := ac.MigrateV1ToV2(acor.DefaultMigrationOptions())
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, result)
+}
+
+func runMigrateRollback(stdout io.Writer, ac service, _ string) error {
+	if err := ac.RollbackToV1(); err != nil {
+		return err
+	}
+	return writeJSON(stdout, map[string]string{"status": "rolled_back"})
+}
+
+func runSchemaVersion(stdout io.Writer, ac service, _ string) error {
+	version := ac.SchemaVersion()
+	return writeJSON(stdout, map[string]int{"schema_version": version})
 }
 
 func writeJSON(w io.Writer, value interface{}) error {
