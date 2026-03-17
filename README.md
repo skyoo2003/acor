@@ -96,6 +96,53 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 
 Please make sure to update tests as appropriate.
 
+# Schema Versions
+
+ACOR supports two Redis schema versions:
+
+- **V1 (Legacy)**: Multiple keys per collection (~500K keys for 100K keywords)
+- **V2 (Optimized)**: Fixed 3 keys per collection, 80-85% fewer Redis round trips
+
+New collections automatically use V2. Existing V1 collections can be migrated:
+
+```sh
+# Preview migration (dry-run)
+acor -name mycollection migrate --dry-run
+
+# Execute migration
+acor -name mycollection migrate
+
+# Rollback to V1 (if V1 keys were kept)
+acor -name mycollection migrate-rollback
+
+# Check current schema version
+acor -name mycollection schema-version
+```
+
+## Performance Comparison
+
+| Operation | V1 (Legacy) | V2 (Optimized) |
+|-----------|-------------|----------------|
+| Find()    | O(N×3-5) RTT | 3 RTT (fixed)  |
+| Add()     | O(M×3-10) RTT | 2-3 RTT       |
+| Key count | ~500K/100K kw | 3 (fixed)     |
+
+### Performance Tradeoffs
+
+V2 schema is optimized for **read-heavy workloads**:
+- **Find()**: 50-60x faster than V1
+- **Add()/Remove()**: Slower than V1 due to loading the entire trie into memory
+
+For write-heavy workloads with frequent Add/Remove operations, consider:
+- Using V1 schema (`SchemaVersion: 1`)
+- Batching Add operations before migrating to V2
+
+### Migration Notes
+
+- Migration uses a 5-minute lock to prevent concurrent migrations
+- For collections with 100K+ keywords, migration may take longer - consider increasing lock TTL or migrating during low-traffic periods
+- Use `--dry-run` to preview migration before executing
+
 # [License](LICENSE)
 
 Copyright (c) 2016-2021 Sung-Kyu Yoo.
