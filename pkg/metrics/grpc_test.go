@@ -4,11 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 )
 
 func TestGRPCUnaryInterceptor(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(prometheus.NewRegistry())
 
 	interceptor := GRPCUnaryInterceptor(reg)
 

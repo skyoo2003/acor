@@ -16,11 +16,15 @@ type Registry struct {
 	TrieNodesTotal         prometheus.Gauge
 }
 
-func NewRegistry() *Registry {
+func NewRegistry(registerer prometheus.Registerer) *Registry {
+	if registerer == nil {
+		registerer = prometheus.DefaultRegisterer
+	}
+	factory := promauto.With(registerer)
 	namespace := "acor"
 
 	return &Registry{
-		HTTPRequestsTotal: promauto.NewCounterVec(
+		HTTPRequestsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "http_requests_total",
@@ -28,7 +32,7 @@ func NewRegistry() *Registry {
 			},
 			[]string{"method", "path", "status"},
 		),
-		HTTPRequestDuration: promauto.NewHistogramVec(
+		HTTPRequestDuration: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
 				Name:      "http_request_duration_seconds",
@@ -37,7 +41,7 @@ func NewRegistry() *Registry {
 			},
 			[]string{"method", "path"},
 		),
-		GRPCRequestsTotal: promauto.NewCounterVec(
+		GRPCRequestsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "grpc_requests_total",
@@ -45,7 +49,7 @@ func NewRegistry() *Registry {
 			},
 			[]string{"method", "status"},
 		),
-		GRPCRequestDuration: promauto.NewHistogramVec(
+		GRPCRequestDuration: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
 				Name:      "grpc_request_duration_seconds",
@@ -54,7 +58,7 @@ func NewRegistry() *Registry {
 			},
 			[]string{"method"},
 		),
-		RedisOperationsTotal: promauto.NewCounterVec(
+		RedisOperationsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "redis_operations_total",
@@ -62,7 +66,7 @@ func NewRegistry() *Registry {
 			},
 			[]string{"operation", "status"},
 		),
-		RedisOperationDuration: promauto.NewHistogramVec(
+		RedisOperationDuration: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
 				Name:      "redis_operation_duration_seconds",
@@ -71,14 +75,14 @@ func NewRegistry() *Registry {
 			},
 			[]string{"operation"},
 		),
-		KeywordsTotal: promauto.NewGauge(
+		KeywordsTotal: factory.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "keywords_total",
 				Help:      "Number of registered keywords",
 			},
 		),
-		TrieNodesTotal: promauto.NewGauge(
+		TrieNodesTotal: factory.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "trie_nodes_total",
