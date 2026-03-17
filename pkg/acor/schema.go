@@ -7,12 +7,9 @@ import (
 const (
 	SchemaV1 = 1
 	SchemaV2 = 2
-
-	defaultBatchSize = 1000
 )
 
 type MigrationOptions struct {
-	BatchSize   int
 	DryRun      bool
 	KeepOldKeys bool
 	Quiet       bool
@@ -20,9 +17,7 @@ type MigrationOptions struct {
 }
 
 func DefaultMigrationOptions() *MigrationOptions {
-	return &MigrationOptions{
-		BatchSize: defaultBatchSize,
-	}
+	return &MigrationOptions{}
 }
 
 type MigrationResult struct {

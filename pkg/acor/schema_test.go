@@ -13,14 +13,17 @@ func TestSchemaConstants(t *testing.T) {
 
 func TestMigrationOptionsDefaults(t *testing.T) {
 	opts := DefaultMigrationOptions()
-	if opts.BatchSize != 1000 {
-		t.Errorf("BatchSize = %d, want 1000", opts.BatchSize)
-	}
 	if opts.DryRun {
 		t.Error("DryRun should be false by default")
 	}
 	if opts.KeepOldKeys {
 		t.Error("KeepOldKeys should be false by default")
+	}
+	if opts.Quiet {
+		t.Error("Quiet should be false by default")
+	}
+	if opts.Progress != nil {
+		t.Error("Progress should be nil by default")
 	}
 }
 

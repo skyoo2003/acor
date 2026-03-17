@@ -20,12 +20,12 @@ const (
 	migrationStatusSuccess = "success"
 	migrationStatusDryRun  = "dry-run"
 
-	migrationTotalSteps  = 4
-	stepCollectKeywords  = 0
-	stepCollectPrefixes  = 1
-	stepCollectOutputs   = 2
-	stepCollectNodes     = 3
-	stepWriteV2Structure = 4
+	migrationTotalSteps  = 5
+	stepCollectKeywords  = 1
+	stepCollectPrefixes  = 2
+	stepCollectOutputs   = 3
+	stepCollectNodes     = 4
+	stepWriteV2Structure = 5
 	keysBaseCount        = 2
 	v2KeyCount           = 3
 

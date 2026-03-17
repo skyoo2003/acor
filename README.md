@@ -127,6 +127,22 @@ acor -name mycollection schema-version
 | Add()     | O(M×3-10) RTT | 2-3 RTT       |
 | Key count | ~500K/100K kw | 3 (fixed)     |
 
+### Performance Tradeoffs
+
+V2 schema is optimized for **read-heavy workloads**:
+- **Find()**: 50-60x faster than V1
+- **Add()/Remove()**: Slower than V1 due to loading the entire trie into memory
+
+For write-heavy workloads with frequent Add/Remove operations, consider:
+- Using V1 schema (`SchemaVersion: 1`)
+- Batching Add operations before migrating to V2
+
+### Migration Notes
+
+- Migration uses a 5-minute lock to prevent concurrent migrations
+- For collections with 100K+ keywords, migration may take longer - consider increasing lock TTL or migrating during low-traffic periods
+- Use `--dry-run` to preview migration before executing
+
 # [License](LICENSE)
 
 Copyright (c) 2016-2021 Sung-Kyu Yoo.
