@@ -39,8 +39,12 @@ var (
 	ErrRedisRingAddrs           = errors.New("redis ring requires at least one shard address")
 )
 
+type Logger interface {
+	Printf(format string, v ...interface{})
+}
+
 type AhoCorasickArgs struct {
-	Addr          string // redis server address (ex) localhost:6379
+<<	Addr          string // redis server address (ex) localhost:6379
 	Addrs         []string
 	MasterName    string
 	RingAddrs     map[string]string
@@ -49,6 +53,7 @@ type AhoCorasickArgs struct {
 	Name          string // pattern's collection name
 	Debug         bool   // debug flag
 	SchemaVersion int    // 1: V1 (Legacy), 2 or 0: V2 (default)
+	Logger        Logger // Optional custom logger
 }
 
 type AhoCorasick struct {
