@@ -11,7 +11,7 @@ import (
 func TestMigrateV1ToV2(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 	client.SAdd(ctx, "{test}:keyword", "he", "she", "his")
@@ -56,7 +56,7 @@ func TestMigrateV1ToV2(t *testing.T) {
 		t.Fatalf("MigrateV1ToV2() error: %v", err)
 	}
 
-	if result.Status != "success" {
+	if result.Status != migrationStatusSuccess {
 		t.Errorf("Status = %s, want success", result.Status)
 	}
 	if result.FromSchema != SchemaV1 {
@@ -79,7 +79,7 @@ func TestMigrateV1ToV2(t *testing.T) {
 
 	trieData := client.HGetAll(ctx, "{test}:trie").Val()
 	var keywords []string
-	parseJSON(trieData["keywords"], &keywords)
+	_ = parseJSON(trieData["keywords"], &keywords)
 	if len(keywords) != 3 {
 		t.Errorf("Migrated keywords count = %d, want 3", len(keywords))
 	}
@@ -88,7 +88,7 @@ func TestMigrateV1ToV2(t *testing.T) {
 func TestMigrateAlreadyV2(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", "version", "123")
 
@@ -107,7 +107,7 @@ func TestMigrateAlreadyV2(t *testing.T) {
 func TestMigrateNoData(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ac := &AhoCorasick{
 		redisClient: client,
@@ -124,7 +124,7 @@ func TestMigrateNoData(t *testing.T) {
 func TestMigrationProgress(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 	client.SAdd(ctx, "{test}:keyword", "he")
@@ -161,7 +161,7 @@ func TestMigrationProgress(t *testing.T) {
 func TestRollbackToV1(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 	client.SAdd(ctx, "{test}:keyword", "he")
@@ -204,7 +204,7 @@ func TestRollbackToV1(t *testing.T) {
 func TestRollbackToV1NoV1Keys(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 	client.HSet(ctx, "{test}:trie", "version", "123")

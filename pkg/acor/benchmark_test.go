@@ -10,12 +10,14 @@ import (
 	redis "github.com/go-redis/redis/v8"
 )
 
+const benchmarkInputText = "ushers hello world benchmark test"
+
 func BenchmarkFindV1(b *testing.B) {
 	mr := miniredis.RunT(b)
 
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	client.ZAdd(context.Background(), "{bench}:prefix", &redis.Z{Score: 0, Member: ""})
-	client.Close()
+	_ = client.ZAdd(context.Background(), "{bench}:prefix", &redis.Z{Score: 0, Member: ""}).Err()
+	_ = client.Close()
 
 	args := &AhoCorasickArgs{
 		Addr: mr.Addr(),
@@ -26,29 +28,37 @@ func BenchmarkFindV1(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	keywords := []string{"he", "she", "his", "hers", "hello", "world", "benchmark"}
 	for _, kw := range keywords {
-		ac.Add(kw)
+		_, _ = ac.Add(kw)
 	}
 
-	input := "ushers hello world benchmark test"
+	input := benchmarkInputText
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ac.Find(input)
+		_, _ = ac.Find(input)
 	}
 }
 
 func BenchmarkFindV2(b *testing.B) {
 	mr := miniredis.RunT(b)
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	keywords := []string{"he", "she", "his", "hers", "hello", "world", "benchmark"}
-	prefixes := []string{"", "h", "he", "s", "sh", "she", "hi", "his", "her", "hers", "hel", "hell", "hello", "w", "wo", "wor", "worl", "world", "b", "be", "ben", "benc", "bench", "benchm", "benchma", "benchmar", "benchmark"}
-	suffixes := []string{"", "e", "eh", "s", "hs", "ehs", "i", "ih", "si", "sih", "r", "reh", "sreh", "l", "ll", "leh", "lleh", "d", "dl", "dor", "drow", "k", "kc", "kram", "kcehc", "kramdneb"}
+	prefixes := []string{
+		"", "h", "he", "s", "sh", "she", "hi", "his", "her", "hers",
+		"hel", "hell", "hello", "w", "wo", "wor", "worl", "world",
+		"b", "be", "ben", "benc", "bench", "benchm", "benchma", "benchmar", "benchmark",
+	}
+	suffixes := []string{
+		"", "e", "eh", "s", "hs", "ehs", "i", "ih", "si", "sih",
+		"r", "reh", "sreh", "l", "ll", "leh", "lleh", "d", "dl", "dor", "drow",
+		"k", "kc", "kram", "kcehc", "kramdneb",
+	}
 
 	client.HSet(context.Background(), "{bench}:trie", map[string]interface{}{
 		"keywords": mustJSON(keywords),
@@ -77,13 +87,13 @@ func BenchmarkFindV2(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
-	input := "ushers hello world benchmark test"
+	input := benchmarkInputText
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ac.Find(input)
+		_, _ = ac.Find(input)
 	}
 }
 
@@ -91,8 +101,8 @@ func BenchmarkAddV1(b *testing.B) {
 	mr := miniredis.RunT(b)
 
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	client.ZAdd(context.Background(), "{bench}:prefix", &redis.Z{Score: 0, Member: ""})
-	client.Close()
+	_ = client.ZAdd(context.Background(), "{bench}:prefix", &redis.Z{Score: 0, Member: ""}).Err()
+	_ = client.Close()
 
 	args := &AhoCorasickArgs{
 		Addr: mr.Addr(),
@@ -103,11 +113,11 @@ func BenchmarkAddV1(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ac.Add(fmt.Sprintf("keyword%d", i))
+		_, _ = ac.Add(fmt.Sprintf("keyword%d", i))
 	}
 }
 
@@ -123,20 +133,20 @@ func BenchmarkAddV2(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	client.HSet(context.Background(), "{bench}:trie", map[string]interface{}{
+	_ = client.HSet(context.Background(), "{bench}:trie", map[string]interface{}{
 		"keywords": "[]",
 		"prefixes": `[""]`,
 		"suffixes": `[""]`,
 		"version":  time.Now().Unix(),
-	})
-	client.Close()
+	}).Err()
+	_ = client.Close()
 	ac.schemaVersion = SchemaV2
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ac.Add(fmt.Sprintf("keyword%d", i))
+		_, _ = ac.Add(fmt.Sprintf("keyword%d", i))
 	}
 }

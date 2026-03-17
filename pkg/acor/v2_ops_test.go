@@ -10,7 +10,7 @@ import (
 func TestV2Find(t *testing.T) {
 	mr := createTestRedisServer(t)
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ac := &AhoCorasick{
 		redisClient:   client,

@@ -14,7 +14,22 @@ var (
 	ErrNoDataToMigrate = errors.New("no V1 data found to migrate")
 )
 
-func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, error) {
+const (
+	migrationStatusError   = "error"
+	migrationStatusSuccess = "success"
+	migrationStatusDryRun  = "dry-run"
+
+	migrationTotalSteps  = 4
+	stepCollectKeywords  = 0
+	stepCollectPrefixes  = 1
+	stepCollectOutputs   = 2
+	stepCollectNodes     = 3
+	stepWriteV2Structure = 4
+	keysBaseCount        = 2
+	v2KeyCount           = 3
+)
+
+func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, error) { //nolint:gocyclo,funlen // Complex migration logic with multiple stages
 	if opts == nil {
 		opts = DefaultMigrationOptions()
 	}
@@ -36,24 +51,24 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	}
 
 	if opts.Progress != nil {
-		opts.Progress(0, 4, "Collecting keywords")
+		opts.Progress(stepCollectKeywords, migrationTotalSteps, "Collecting keywords")
 	}
 
 	keywords, err := ac.redisClient.SMembers(ac.ctx, ac.keywordKey()).Result()
 	if err != nil {
-		result.Status = "error"
+		result.Status = migrationStatusError
 		result.ErrorMessage = err.Error()
 		return result, err
 	}
 	result.Keywords = len(keywords)
 
 	if opts.Progress != nil {
-		opts.Progress(1, 4, "Collecting prefixes")
+		opts.Progress(stepCollectPrefixes, migrationTotalSteps, "Collecting prefixes")
 	}
 
 	prefixes, err := ac.redisClient.ZRange(ac.ctx, ac.prefixKey(), 0, -1).Result()
 	if err != nil {
-		result.Status = "error"
+		result.Status = migrationStatusError
 		result.ErrorMessage = err.Error()
 		return result, err
 	}
@@ -61,23 +76,23 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 
 	suffixes, err := ac.redisClient.ZRange(ac.ctx, ac.suffixKey(), 0, -1).Result()
 	if err != nil {
-		result.Status = "error"
+		result.Status = migrationStatusError
 		result.ErrorMessage = err.Error()
 		return result, err
 	}
 
 	if opts.Progress != nil {
-		opts.Progress(2, 4, "Collecting outputs")
+		opts.Progress(stepCollectOutputs, migrationTotalSteps, "Collecting outputs")
 	}
 
 	outputs := make(map[string][]string)
 	outputCount := 0
 	for _, prefix := range prefixes {
-		outs, err := ac.redisClient.SMembers(ac.ctx, ac.outputKey(prefix)).Result()
-		if err != nil && err != redis.Nil {
-			result.Status = "error"
-			result.ErrorMessage = err.Error()
-			return result, err
+		outs, outErr := ac.redisClient.SMembers(ac.ctx, ac.outputKey(prefix)).Result()
+		if outErr != nil && outErr != redis.Nil {
+			result.Status = migrationStatusError
+			result.ErrorMessage = outErr.Error()
+			return result, outErr
 		}
 		if len(outs) > 0 {
 			outputs[prefix] = outs
@@ -87,17 +102,17 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	result.OutputsKeys = outputCount
 
 	if opts.Progress != nil {
-		opts.Progress(3, 4, "Collecting nodes")
+		opts.Progress(stepCollectNodes, migrationTotalSteps, "Collecting nodes")
 	}
 
 	nodes := make(map[string][]string)
 	nodeCount := 0
 	for _, kw := range keywords {
-		n, err := ac.redisClient.SMembers(ac.ctx, ac.nodeKey(kw)).Result()
-		if err != nil && err != redis.Nil {
-			result.Status = "error"
-			result.ErrorMessage = err.Error()
-			return result, err
+		n, nodeErr := ac.redisClient.SMembers(ac.ctx, ac.nodeKey(kw)).Result()
+		if nodeErr != nil && nodeErr != redis.Nil {
+			result.Status = migrationStatusError
+			result.ErrorMessage = nodeErr.Error()
+			return result, nodeErr
 		}
 		if len(n) > 0 {
 			nodes[kw] = n
@@ -106,17 +121,17 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	}
 	result.NodesKeys = nodeCount
 
-	result.KeysBefore = 2 + result.Prefixes + result.Keywords
-	result.KeysAfter = 3
+	result.KeysBefore = keysBaseCount + result.Prefixes + result.Keywords
+	result.KeysAfter = v2KeyCount
 
 	if opts.DryRun {
-		result.Status = "dry-run"
+		result.Status = migrationStatusDryRun
 		result.DurationMs = time.Since(start).Milliseconds()
 		return result, nil
 	}
 
 	if opts.Progress != nil {
-		opts.Progress(4, 4, "Writing V2 structure")
+		opts.Progress(stepWriteV2Structure, migrationTotalSteps, "Writing V2 structure")
 	}
 
 	tempSuffix := fmt.Sprintf(":tmp:%d", time.Now().Unix())
@@ -134,11 +149,11 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 		"suffixes": mustJSON(suffixes),
 		"version":  time.Now().Unix(),
 	}
-	if err := ac.redisClient.HSet(ac.ctx, tempTrieKey, trieFields).Err(); err != nil {
+	if hsetErr := ac.redisClient.HSet(ac.ctx, tempTrieKey, trieFields).Err(); hsetErr != nil {
 		cleanup()
-		result.Status = "error"
-		result.ErrorMessage = err.Error()
-		return result, err
+		result.Status = migrationStatusError
+		result.ErrorMessage = hsetErr.Error()
+		return result, hsetErr
 	}
 
 	if len(outputs) > 0 {
@@ -146,11 +161,11 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 		for state, outs := range outputs {
 			outputFields[state] = mustJSON(outs)
 		}
-		if err := ac.redisClient.HSet(ac.ctx, tempOutputsKey, outputFields).Err(); err != nil {
+		if outputsErr := ac.redisClient.HSet(ac.ctx, tempOutputsKey, outputFields).Err(); outputsErr != nil {
 			cleanup()
-			result.Status = "error"
-			result.ErrorMessage = err.Error()
-			return result, err
+			result.Status = migrationStatusError
+			result.ErrorMessage = outputsErr.Error()
+			return result, outputsErr
 		}
 	}
 
@@ -159,11 +174,11 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 		for kw, states := range nodes {
 			nodeFields[kw] = mustJSON(states)
 		}
-		if err := ac.redisClient.HSet(ac.ctx, tempNodesKey, nodeFields).Err(); err != nil {
+		if nodesErr := ac.redisClient.HSet(ac.ctx, tempNodesKey, nodeFields).Err(); nodesErr != nil {
 			cleanup()
-			result.Status = "error"
-			result.ErrorMessage = err.Error()
-			return result, err
+			result.Status = migrationStatusError
+			result.ErrorMessage = nodesErr.Error()
+			return result, nodesErr
 		}
 	}
 
@@ -191,14 +206,14 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 
 	if err != nil {
 		cleanup()
-		result.Status = "error"
+		result.Status = migrationStatusError
 		result.ErrorMessage = err.Error()
 		return result, err
 	}
 
 	ac.schemaVersion = SchemaV2
 
-	result.Status = "success"
+	result.Status = migrationStatusSuccess
 	result.DurationMs = time.Since(start).Milliseconds()
 
 	return result, nil

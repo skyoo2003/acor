@@ -7,6 +7,8 @@ import (
 const (
 	SchemaV1 = 1
 	SchemaV2 = 2
+
+	defaultBatchSize = 1000
 )
 
 type MigrationOptions struct {
@@ -19,7 +21,7 @@ type MigrationOptions struct {
 
 func DefaultMigrationOptions() *MigrationOptions {
 	return &MigrationOptions{
-		BatchSize: 1000,
+		BatchSize: defaultBatchSize,
 	}
 }
 

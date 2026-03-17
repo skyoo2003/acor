@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	redis "github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v8"
+
 	"github.com/skyoo2003/acor/internal/pkg/utils"
 )
 
@@ -15,13 +16,15 @@ var ErrConcurrencyConflict = errors.New("concurrency conflict - please retry")
 
 const maxRetries = 3
 
+const luaKeys = 2
+
 func mustJSON(v interface{}) string {
 	b, _ := json.Marshal(v)
 	return string(b)
 }
 
 func (ac *AhoCorasick) findV2(text string) ([]string, error) {
-	if len(text) == 0 {
+	if text == "" {
 		return []string{}, nil
 	}
 
@@ -91,7 +94,7 @@ func (ac *AhoCorasick) findFailState(state string, prefixSet map[string]struct{}
 }
 
 func (ac *AhoCorasick) findIndexV2(text string) (map[string][]int, error) {
-	if len(text) == 0 {
+	if text == "" {
 		return map[string][]int{}, nil
 	}
 
@@ -238,7 +241,7 @@ func (ac *AhoCorasick) addV2(keyword string) (int, error) {
 	return 0, ErrConcurrencyConflict
 }
 
-func (ac *AhoCorasick) tryAddV2(keyword string) (int, error) {
+func (ac *AhoCorasick) tryAddV2(keyword string) (int, error) { //nolint:gocyclo,funlen // Complex optimistic locking with retry logic
 	trieData, err := ac.redisClient.HGetAll(ac.ctx, ac.trieKey()).Result()
 	if err != nil {
 		return 0, err
@@ -246,8 +249,8 @@ func (ac *AhoCorasick) tryAddV2(keyword string) (int, error) {
 
 	var keywords []string
 	if data, ok := trieData["keywords"]; ok {
-		if err := json.Unmarshal([]byte(data), &keywords); err != nil {
-			return 0, err
+		if unmarshalErr := json.Unmarshal([]byte(data), &keywords); unmarshalErr != nil {
+			return 0, unmarshalErr
 		}
 	}
 	keywordSet := make(map[string]struct{})
@@ -260,8 +263,8 @@ func (ac *AhoCorasick) tryAddV2(keyword string) (int, error) {
 
 	var prefixes []string
 	if data, ok := trieData["prefixes"]; ok {
-		if err := json.Unmarshal([]byte(data), &prefixes); err != nil {
-			return 0, err
+		if unmarshalErr := json.Unmarshal([]byte(data), &prefixes); unmarshalErr != nil {
+			return 0, unmarshalErr
 		}
 	}
 	prefixSet := make(map[string]struct{})
@@ -271,7 +274,7 @@ func (ac *AhoCorasick) tryAddV2(keyword string) (int, error) {
 
 	var oldVersion int64
 	if v, ok := trieData["version"]; ok {
-		if err := json.Unmarshal([]byte(v), &oldVersion); err != nil {
+		if unmarshalErr := json.Unmarshal([]byte(v), &oldVersion); unmarshalErr != nil {
 			oldVersion = 0
 		}
 	}
@@ -283,8 +286,8 @@ func (ac *AhoCorasick) tryAddV2(keyword string) (int, error) {
 	outputs := make(map[string][]string)
 	for state, jsonArr := range outputsRaw {
 		var arr []string
-		if err := json.Unmarshal([]byte(jsonArr), &arr); err != nil {
-			return 0, err
+		if unmarshalErr := json.Unmarshal([]byte(jsonArr), &arr); unmarshalErr != nil {
+			return 0, unmarshalErr
 		}
 		outputs[state] = arr
 	}
@@ -326,8 +329,8 @@ func (ac *AhoCorasick) tryAddV2(keyword string) (int, error) {
 
 	var suffixes []string
 	if data, ok := trieData["suffixes"]; ok {
-		if err := json.Unmarshal([]byte(data), &suffixes); err != nil {
-			return 0, err
+		if unmarshalErr := json.Unmarshal([]byte(data), &suffixes); unmarshalErr != nil {
+			return 0, unmarshalErr
 		}
 	}
 	suffixes = append(suffixes, newSuffixes...)
@@ -385,8 +388,10 @@ func (ac *AhoCorasick) addV2Script(ctx context.Context, client redis.UniversalCl
 		end
 
 		return 1
-	`, 2, args["trieKey"], args["outputsKey"], args["oldVersion"], args["newVersion"], args["keywords"], args["prefixes"], args["suffixes"], args["outputs"])
-	client.Process(ctx, cmd)
+	`, luaKeys, args["trieKey"], args["outputsKey"],
+		args["oldVersion"], args["newVersion"], args["keywords"],
+		args["prefixes"], args["suffixes"], args["outputs"])
+	_ = client.Process(ctx, cmd)
 	return cmd
 }
 
@@ -427,7 +432,7 @@ func (ac *AhoCorasick) removeV2(keyword string) (int, error) {
 	return 0, ErrConcurrencyConflict
 }
 
-func (ac *AhoCorasick) tryRemoveV2(keyword string) (int, error) {
+func (ac *AhoCorasick) tryRemoveV2(keyword string) (int, error) { //nolint:gocyclo,funlen // Complex optimistic locking with retry logic
 	trieData, err := ac.redisClient.HGetAll(ac.ctx, ac.trieKey()).Result()
 	if err != nil {
 		return 0, err
@@ -435,8 +440,8 @@ func (ac *AhoCorasick) tryRemoveV2(keyword string) (int, error) {
 
 	var keywords []string
 	if data, ok := trieData["keywords"]; ok {
-		if err := json.Unmarshal([]byte(data), &keywords); err != nil {
-			return 0, err
+		if unmarshalErr := json.Unmarshal([]byte(data), &keywords); unmarshalErr != nil {
+			return 0, unmarshalErr
 		}
 	}
 
@@ -459,14 +464,14 @@ func (ac *AhoCorasick) tryRemoveV2(keyword string) (int, error) {
 
 	var prefixes []string
 	if data, ok := trieData["prefixes"]; ok {
-		if err := json.Unmarshal([]byte(data), &prefixes); err != nil {
-			return 0, err
+		if unmarshalErr := json.Unmarshal([]byte(data), &prefixes); unmarshalErr != nil {
+			return 0, unmarshalErr
 		}
 	}
 
 	var oldVersion int64
 	if v, ok := trieData["version"]; ok {
-		if err := json.Unmarshal([]byte(v), &oldVersion); err != nil {
+		if unmarshalErr := json.Unmarshal([]byte(v), &oldVersion); unmarshalErr != nil {
 			oldVersion = 0
 		}
 	}
@@ -569,8 +574,10 @@ func (ac *AhoCorasick) removeV2Script(ctx context.Context, client redis.Universa
 		end
 
 		return 1
-	`, 2, args["trieKey"], args["outputsKey"], args["oldVersion"], args["newVersion"], args["keywords"], args["prefixes"], args["suffixes"], args["outputs"])
-	client.Process(ctx, cmd)
+	`, luaKeys, args["trieKey"], args["outputsKey"],
+		args["oldVersion"], args["newVersion"], args["keywords"],
+		args["prefixes"], args["suffixes"], args["outputs"])
+	_ = client.Process(ctx, cmd)
 	return cmd
 }
 

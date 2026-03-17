@@ -44,8 +44,8 @@ func createAhoCorasickV1(t *testing.T) (*AhoCorasick, *miniredis.Miniredis) {
 
 	mr := createTestRedisServer(t)
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	client.ZAdd(context.Background(), "{test}:prefix", &redis.Z{Score: 0, Member: ""})
-	client.Close()
+	_ = client.ZAdd(context.Background(), "{test}:prefix", &redis.Z{Score: 0, Member: ""}).Err()
+	_ = client.Close()
 
 	ac, err := Create(&AhoCorasickArgs{
 		Addr:          mr.Addr(),
@@ -660,8 +660,8 @@ func TestV1V2Compatibility(t *testing.T) {
 	}
 
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	client.ZAdd(context.Background(), "{v1test}:prefix", &redis.Z{Score: 0, Member: ""})
-	client.Close()
+	_ = client.ZAdd(context.Background(), "{v1test}:prefix", &redis.Z{Score: 0, Member: ""}).Err()
+	_ = client.Close()
 
 	args := &AhoCorasickArgs{Addr: mr.Addr(), Name: "v1test", SchemaVersion: SchemaV1}
 	acV1, err := Create(args)
@@ -670,14 +670,14 @@ func TestV1V2Compatibility(t *testing.T) {
 	}
 
 	for _, kw := range keywords {
-		acV1.Add(kw)
+		_, _ = acV1.Add(kw)
 	}
 
 	v1Results := make(map[string][]string)
 	for _, text := range testTexts {
 		v1Results[text], _ = acV1.Find(text)
 	}
-	acV1.Close()
+	_ = acV1.Close()
 
 	args = &AhoCorasickArgs{Addr: mr.Addr(), Name: "v1test", SchemaVersion: SchemaV1}
 	acMigrate, err := Create(args)
@@ -689,7 +689,7 @@ func TestV1V2Compatibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	acMigrate.Close()
+	_ = acMigrate.Close()
 
 	args = &AhoCorasickArgs{Addr: mr.Addr(), Name: "v1test"}
 	acV2, err := Create(args)
@@ -701,7 +701,7 @@ func TestV1V2Compatibility(t *testing.T) {
 	for _, text := range testTexts {
 		v2Results[text], _ = acV2.Find(text)
 	}
-	acV2.Close()
+	_ = acV2.Close()
 
 	for _, text := range testTexts {
 		if !equalStringSets(v1Results[text], v2Results[text]) {
@@ -710,7 +710,7 @@ func TestV1V2Compatibility(t *testing.T) {
 	}
 }
 
-func TestEndToEndV2(t *testing.T) {
+func TestEndToEndV2(t *testing.T) { //nolint:gocyclo // Integration test with multiple scenarios
 	mr := createTestRedisServer(t)
 
 	args := &AhoCorasickArgs{
@@ -722,7 +722,7 @@ func TestEndToEndV2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	if ac.SchemaVersion() != SchemaV2 {
 		t.Errorf("SchemaVersion() = %d, want %d", ac.SchemaVersion(), SchemaV2)
@@ -730,9 +730,9 @@ func TestEndToEndV2(t *testing.T) {
 
 	keywords := []string{"apple", "application", "apply", "banana"}
 	for _, kw := range keywords {
-		count, err := ac.Add(kw)
-		if err != nil {
-			t.Fatalf("Add(%s) error: %v", kw, err)
+		count, addErr := ac.Add(kw)
+		if addErr != nil {
+			t.Fatalf("Add(%s) error: %v", kw, addErr)
 		}
 		if count != 1 {
 			t.Errorf("Add(%s) = %d, want 1", kw, count)
