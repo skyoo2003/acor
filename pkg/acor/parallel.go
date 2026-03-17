@@ -81,17 +81,78 @@ func isBoundary(runes []rune, idx int, boundaryType ChunkBoundary) bool {
 	return false
 }
 
-func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]string, error) {
+func normalizeParallelOptions(opts *ParallelOptions) *ParallelOptions {
 	if opts == nil {
-		opts = DefaultParallelOptions()
+		return DefaultParallelOptions()
 	}
-
 	if opts.Workers <= 0 {
 		opts.Workers = runtime.NumCPU()
 	}
+	return opts
+}
+
+//nolint:gocritic // Returns channels for concurrent result collection
+func runStringWorkers(ac *AhoCorasick, chunks []chunk, workers int) (<-chan []string, <-chan error) {
+	results := make(chan []string, len(chunks))
+	errors := make(chan error, len(chunks))
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, workers)
+
+	for _, c := range chunks {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(c chunk) {
+			defer func() { <-sem }()
+			defer wg.Done()
+			matches, err := ac.Find(c.text)
+			if err != nil {
+				errors <- err
+				return
+			}
+			results <- matches
+		}(c)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+		close(errors)
+	}()
+
+	return results, errors
+}
+
+func collectStringResults(results <-chan []string, errors <-chan error) (map[string]struct{}, error) {
+	allMatches := make(map[string]struct{})
+	var firstErr error
+
+	for {
+		select {
+		case err, ok := <-errors:
+			if !ok {
+				return allMatches, firstErr
+			}
+			if firstErr == nil {
+				firstErr = err
+			}
+		case matches, ok := <-results:
+			if !ok {
+				return allMatches, firstErr
+			}
+			for _, m := range matches {
+				allMatches[m] = struct{}{}
+			}
+		}
+	}
+}
+
+func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]string, error) {
+	opts = normalizeParallelOptions(opts)
 	if opts.ChunkSize <= 0 {
 		return nil, ErrInvalidChunkSize
 	}
+
 	chunks := splitChunks(text, opts)
 	if len(chunks) == 0 {
 		return []string{}, nil
@@ -99,58 +160,11 @@ func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]strin
 	if len(chunks) == 1 {
 		return ac.Find(text)
 	}
-	results := make(chan []string, len(chunks))
-	errors := make(chan error, len(chunks))
-	var wg sync.WaitGroup
-	worker := func(c chunk) {
-		defer wg.Done()
-		matches, err := ac.Find(c.text)
-		if err != nil {
-			errors <- err
-			return
-		}
-		results <- matches
-	}
-	sem := make(chan struct{}, opts.Workers)
-	for _, c := range chunks {
-		wg.Add(1)
-		sem <- struct{}{}
-		go func(chunk chunk) {
-			defer func() { <-sem }()
-			worker(chunk)
-		}(c)
-	}
-	go func() {
-		wg.Wait()
-		close(results)
-		close(errors)
-	}()
 
-	allMatches := make(map[string]struct{})
-	var firstErr error
-	resultsChan, errorsChan := results, errors
-
-	for resultsChan != nil || errorsChan != nil {
-		select {
-		case err, ok := <-errorsChan:
-			if !ok {
-				errorsChan = nil
-			} else if firstErr == nil {
-				firstErr = err
-			}
-		case matches, ok := <-resultsChan:
-			if !ok {
-				resultsChan = nil
-			} else {
-				for _, m := range matches {
-					allMatches[m] = struct{}{}
-				}
-			}
-		}
-	}
-
-	if firstErr != nil {
-		return nil, firstErr
+	results, errors := runStringWorkers(ac, chunks, opts.Workers)
+	allMatches, err := collectStringResults(results, errors)
+	if err != nil {
+		return nil, err
 	}
 
 	unique := make([]string, 0, len(allMatches))
@@ -160,53 +174,31 @@ func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]strin
 	return unique, nil
 }
 
-func (ac *AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (map[string][]int, error) {
-	if opts == nil {
-		opts = DefaultParallelOptions()
-	}
+type indexedResult struct {
+	matches map[string][]int
+	offset  int
+}
 
-	if opts.Workers <= 0 {
-		opts.Workers = runtime.NumCPU()
-	}
-	if opts.ChunkSize <= 0 {
-		return nil, ErrInvalidChunkSize
-	}
-
-	chunks := splitChunks(text, opts)
-	if len(chunks) == 0 {
-		return map[string][]int{}, nil
-	}
-
-	if len(chunks) == 1 {
-		return ac.FindIndex(text)
-	}
-
-	type indexedResult struct {
-		matches map[string][]int
-		offset  int
-	}
-
+//nolint:gocritic // Returns channels for concurrent result collection
+func runIndexWorkers(ac *AhoCorasick, chunks []chunk, workers int) (<-chan indexedResult, <-chan error) {
 	results := make(chan indexedResult, len(chunks))
 	errors := make(chan error, len(chunks))
 
 	var wg sync.WaitGroup
-	worker := func(c chunk) {
-		defer wg.Done()
-		matches, err := ac.FindIndex(c.text)
-		if err != nil {
-			errors <- err
-			return
-		}
-		results <- indexedResult{matches: matches, offset: c.textOffset}
-	}
+	sem := make(chan struct{}, workers)
 
-	sem := make(chan struct{}, opts.Workers)
 	for _, c := range chunks {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(chunk chunk) {
+		go func(c chunk) {
 			defer func() { <-sem }()
-			worker(chunk)
+			defer wg.Done()
+			matches, err := ac.FindIndex(c.text)
+			if err != nil {
+				errors <- err
+				return
+			}
+			results <- indexedResult{matches: matches, offset: c.textOffset}
 		}(c)
 	}
 
@@ -216,37 +208,57 @@ func (ac *AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (ma
 		close(errors)
 	}()
 
+	return results, errors
+}
+
+func collectIndexResults(results <-chan indexedResult, errors <-chan error) (map[string]map[int]struct{}, error) {
 	allMatches := make(map[string]map[int]struct{})
 	var firstErr error
-	resultsChan, errorsChan := results, errors
 
-	for resultsChan != nil || errorsChan != nil {
+	for {
 		select {
-		case err, ok := <-errorsChan:
+		case err, ok := <-errors:
 			if !ok {
-				errorsChan = nil
-			} else if firstErr == nil {
+				return allMatches, firstErr
+			}
+			if firstErr == nil {
 				firstErr = err
 			}
-		case res, ok := <-resultsChan:
+		case res, ok := <-results:
 			if !ok {
-				resultsChan = nil
-			} else {
-				for keyword, indices := range res.matches {
-					if allMatches[keyword] == nil {
-						allMatches[keyword] = make(map[int]struct{})
-					}
-					for _, idx := range indices {
-						adjustedIdx := idx + res.offset
-						allMatches[keyword][adjustedIdx] = struct{}{}
-					}
+				return allMatches, firstErr
+			}
+			for keyword, indices := range res.matches {
+				if allMatches[keyword] == nil {
+					allMatches[keyword] = make(map[int]struct{})
+				}
+				for _, idx := range indices {
+					adjustedIdx := idx + res.offset
+					allMatches[keyword][adjustedIdx] = struct{}{}
 				}
 			}
 		}
 	}
+}
 
-	if firstErr != nil {
-		return nil, firstErr
+func (ac *AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (map[string][]int, error) {
+	opts = normalizeParallelOptions(opts)
+	if opts.ChunkSize <= 0 {
+		return nil, ErrInvalidChunkSize
+	}
+
+	chunks := splitChunks(text, opts)
+	if len(chunks) == 0 {
+		return map[string][]int{}, nil
+	}
+	if len(chunks) == 1 {
+		return ac.FindIndex(text)
+	}
+
+	results, errors := runIndexWorkers(ac, chunks, opts.Workers)
+	allMatches, err := collectIndexResults(results, errors)
+	if err != nil {
+		return nil, err
 	}
 
 	result := make(map[string][]int)

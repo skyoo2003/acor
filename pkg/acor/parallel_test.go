@@ -105,17 +105,18 @@ func TestFindParallelFallsBackToSequential(t *testing.T) {
 	defer func() { _ = ac.Close() }()
 	defer func() { _ = ac.Flush() }()
 
-	if _, err := ac.Add("test"); err != nil {
+	const testKeyword = "test"
+	if _, err := ac.Add(testKeyword); err != nil {
 		t.Fatal(err)
 	}
 
-	text := "test"
+	text := testKeyword
 	results, err := ac.FindParallel(text, &ParallelOptions{ChunkSize: 100})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(results) != 1 || results[0] != "test" {
+	if len(results) != 1 || results[0] != testKeyword {
 		t.Errorf("expected ['test'], got %v", results)
 	}
 }

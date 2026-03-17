@@ -66,7 +66,7 @@ func TestAddManyTransactional(t *testing.T) {
 }
 
 func TestAddManyTransactionalRollbackOnError(t *testing.T) {
-	ac, mr := createAhoCorasick(t)
+	ac, mr := createAhoCorasickV1(t)
 	defer mr.Close()
 	defer func() { _ = ac.Close() }()
 	defer func() { _ = ac.Flush() }()
