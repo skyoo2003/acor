@@ -88,3 +88,32 @@ func (ac *AhoCorasick) rollbackAdded(keywords []string) {
 	}
 	wg.Wait()
 }
+
+func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
+	result := &BatchResult{
+		Added:   make([]string, 0),
+		Failed:  make([]KeywordError, 0),
+		Skipped: make([]string, 0),
+	}
+
+	for _, keyword := range keywords {
+		keyword = strings.TrimSpace(keyword)
+		if keyword == "" {
+			continue
+		}
+
+		remaining, err := ac.Remove(keyword)
+		if err != nil {
+			result.Failed = append(result.Failed, KeywordError{
+				Keyword: keyword,
+				Error:   err,
+			})
+			continue
+		}
+
+		result.Added = append(result.Added, keyword)
+		_ = remaining
+	}
+
+	return result, nil
+}

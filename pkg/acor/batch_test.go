@@ -120,3 +120,31 @@ func TestAddManyTransactionalRollbackOnEmpty(t *testing.T) {
 		t.Errorf("expected rollback to remove he, found %d", len(results))
 	}
 }
+
+func TestRemoveMany(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	if _, err := ac.AddMany([]string{"he", "her", "him"}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := ac.RemoveMany([]string{"he", "her"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Added) != 2 {
+		t.Errorf("expected 2 removed, got %d", len(result.Added))
+	}
+
+	results, err := ac.Find("him")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0] != "him" {
+		t.Error("expected 'him' to remain")
+	}
+}
