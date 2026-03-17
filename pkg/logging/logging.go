@@ -2,6 +2,7 @@ package logging
 
 import (
 	"io"
+	"strings"
 
 	"github.com/rs/zerolog"
 )
@@ -13,7 +14,7 @@ type Logger struct {
 func NewLogger(w io.Writer, level string) *Logger {
 	zl := zerolog.New(w).With().Timestamp().Logger()
 
-	switch level {
+	switch strings.ToLower(level) {
 	case "debug":
 		zl = zl.Level(zerolog.DebugLevel)
 	case "info":

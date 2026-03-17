@@ -9,7 +9,10 @@ import (
 
 func TestGRPCUnaryInterceptor(t *testing.T) {
 	cfg := &Config{Enabled: false, ServiceName: "acor"}
-	tracer, _ := NewTracer(cfg)
+	tracer, err := NewTracer(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error from NewTracer: %v", err)
+	}
 
 	interceptor := GRPCUnaryInterceptor(tracer)
 
@@ -21,7 +24,7 @@ func TestGRPCUnaryInterceptor(t *testing.T) {
 		FullMethod: "/test.Service/Method",
 	}
 
-	_, err := interceptor(context.Background(), nil, info, handler)
+	_, err = interceptor(context.Background(), nil, info, handler)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
