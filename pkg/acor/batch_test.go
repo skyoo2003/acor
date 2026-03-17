@@ -65,6 +65,26 @@ func TestAddManyTransactional(t *testing.T) {
 	}
 }
 
+func TestAddManyTransactionalWithDuplicates(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	keywords := []string{"he", "he", "her"}
+	result, err := ac.AddMany(keywords, &BatchOptions{Mode: BatchModeTransactional})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Added) != 2 {
+		t.Errorf("expected 2 added, got %d", len(result.Added))
+	}
+	if len(result.Skipped) != 1 {
+		t.Errorf("expected 1 skipped, got %d", len(result.Skipped))
+	}
+}
+
 func TestAddManyTransactionalRollbackOnError(t *testing.T) {
 	ac, mr := createAhoCorasickV1(t)
 	defer mr.Close()
@@ -119,6 +139,14 @@ func TestAddManyTransactionalRollbackOnEmpty(t *testing.T) {
 	if len(results) != 0 {
 		t.Errorf("expected rollback to remove he, found %d", len(results))
 	}
+
+	results, err = ac.Find("existing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0] != "existing" {
+		t.Error("expected 'existing' to remain after rollback")
+	}
 }
 
 func TestRemoveMany(t *testing.T) {
@@ -146,6 +174,29 @@ func TestRemoveMany(t *testing.T) {
 	}
 	if len(results) != 1 || results[0] != "him" {
 		t.Error("expected 'him' to remain")
+	}
+}
+
+func TestRemoveManyWithDuplicates(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	if _, err := ac.AddMany([]string{"he", "her", "him"}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := ac.RemoveMany([]string{"he", "he", "her"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Removed) != 2 {
+		t.Errorf("expected 2 removed, got %d", len(result.Removed))
+	}
+	if len(result.Skipped) != 1 {
+		t.Errorf("expected 1 skipped duplicate, got %d", len(result.Skipped))
 	}
 }
 

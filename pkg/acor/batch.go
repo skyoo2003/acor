@@ -63,6 +63,7 @@ func (ac *AhoCorasick) addManyBestEffort(keywords []string, result *BatchResult)
 
 func (ac *AhoCorasick) addManyTransactional(keywords []string, result *BatchResult) (*BatchResult, error) {
 	added := make([]string, 0)
+	seen := make(map[string]bool)
 
 	for _, keyword := range keywords {
 		keyword = strings.TrimSpace(keyword)
@@ -70,6 +71,12 @@ func (ac *AhoCorasick) addManyTransactional(keywords []string, result *BatchResu
 			ac.rollbackAdded(added)
 			return nil, ErrEmptyKeyword
 		}
+
+		if seen[keyword] {
+			result.Skipped = append(result.Skipped, keyword)
+			continue
+		}
+		seen[keyword] = true
 
 		count, err := ac.Add(keyword)
 		if err != nil {
@@ -123,11 +130,19 @@ func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
 		Skipped: make([]string, 0),
 	}
 
+	seen := make(map[string]bool)
+
 	for _, keyword := range keywords {
 		keyword = strings.TrimSpace(keyword)
 		if keyword == "" {
 			continue
 		}
+
+		if seen[keyword] {
+			result.Skipped = append(result.Skipped, keyword)
+			continue
+		}
+		seen[keyword] = true
 
 		_, err := ac.Remove(keyword)
 		if err != nil {

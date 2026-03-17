@@ -186,20 +186,36 @@ func TestFindIndexParallel(t *testing.T) {
 		Overlap:   3,
 	}
 
-	results, err := ac.FindIndexParallel(text, opts)
+	parallelResults, err := ac.FindIndexParallel(text, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(results) == 0 {
+	if len(parallelResults) == 0 {
 		t.Error("expected some matches")
 	}
 
-	for keyword, indices := range results {
+	for keyword, indices := range parallelResults {
 		for _, idx := range indices {
 			if idx < 0 {
 				t.Errorf("negative index for %s: %d", keyword, idx)
 			}
+		}
+	}
+
+	sequentialResults, err := ac.FindIndex(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for keyword, expectedIndices := range sequentialResults {
+		parallelIndices, ok := parallelResults[keyword]
+		if !ok {
+			t.Errorf("keyword %s missing from parallel results", keyword)
+			continue
+		}
+		if !reflect.DeepEqual(parallelIndices, expectedIndices) {
+			t.Errorf("keyword %s: parallel indices %v != sequential indices %v", keyword, parallelIndices, expectedIndices)
 		}
 	}
 }
