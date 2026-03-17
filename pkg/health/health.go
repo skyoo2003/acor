@@ -1,5 +1,7 @@
 package health
 
+import "sync"
+
 type CheckResult struct {
 	Status  string      `json:"status"`
 	Latency int64       `json:"latency_ms,omitempty"`
@@ -11,6 +13,7 @@ type Checker interface {
 }
 
 type HealthChecker struct {
+	mu       sync.RWMutex
 	checkers map[string]Checker
 }
 
@@ -21,6 +24,8 @@ func NewChecker() *HealthChecker {
 }
 
 func (h *HealthChecker) Register(name string, checker Checker) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.checkers[name] = checker
 }
 
@@ -30,10 +35,17 @@ type OverallResult struct {
 }
 
 func (h *HealthChecker) Check() OverallResult {
-	checks := make(map[string]CheckResult)
+	h.mu.RLock()
+	snapshot := make(map[string]Checker, len(h.checkers))
+	for name, checker := range h.checkers {
+		snapshot[name] = checker
+	}
+	h.mu.RUnlock()
+
+	checks := make(map[string]CheckResult, len(snapshot))
 	overallStatus := "healthy"
 
-	for name, checker := range h.checkers {
+	for name, checker := range snapshot {
 		result := checker.Check()
 		checks[name] = result
 		if result.Status != "healthy" {
