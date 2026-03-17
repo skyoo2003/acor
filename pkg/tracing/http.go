@@ -10,6 +10,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+const (
+	errorStatusCodeThreshold = 400
+)
+
 func HTTPMiddleware(tracer *Tracer) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +35,7 @@ func HTTPMiddleware(tracer *Tracer) func(http.Handler) http.Handler {
 			span.SetAttributes(
 				attribute.Int("http.status_code", wrapped.statusCode),
 			)
-			if wrapped.statusCode >= 400 {
+			if wrapped.statusCode >= errorStatusCodeThreshold {
 				span.SetStatus(codes.Error, http.StatusText(wrapped.statusCode))
 			} else {
 				span.SetStatus(codes.Ok, "")

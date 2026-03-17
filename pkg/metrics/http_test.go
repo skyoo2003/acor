@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,12 +13,12 @@ func TestHTTPMiddleware(t *testing.T) {
 	reg := NewRegistry(prometheus.NewRegistry())
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	})
 
 	middleware := HTTPMiddleware(reg)(handler)
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	middleware.ServeHTTP(rec, req)

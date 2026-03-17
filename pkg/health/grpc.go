@@ -19,7 +19,7 @@ func (s *GRPCHealthServer) Check(ctx context.Context, req *grpc_health_v1.Health
 	result := s.checker.Check()
 
 	status := grpc_health_v1.HealthCheckResponse_SERVING
-	if result.Status != "healthy" {
+	if result.Status != StatusHealthy {
 		status = grpc_health_v1.HealthCheckResponse_NOT_SERVING
 	}
 
@@ -31,7 +31,7 @@ func (s *GRPCHealthServer) Check(ctx context.Context, req *grpc_health_v1.Health
 func (s *GRPCHealthServer) Watch(req *grpc_health_v1.HealthCheckRequest, stream grpc_health_v1.Health_WatchServer) error {
 	result := s.checker.Check()
 	status := grpc_health_v1.HealthCheckResponse_SERVING
-	if result.Status != "healthy" {
+	if result.Status != StatusHealthy {
 		status = grpc_health_v1.HealthCheckResponse_NOT_SERVING
 	}
 	return stream.Send(&grpc_health_v1.HealthCheckResponse{

@@ -30,5 +30,7 @@ func TestNewTracerDisabled(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	tracer.Shutdown()
+	if err := tracer.Shutdown(); err != nil {
+		t.Fatalf("unexpected shutdown error: %v", err)
+	}
 }

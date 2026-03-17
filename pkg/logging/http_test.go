@@ -2,6 +2,7 @@ package logging
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,7 +18,7 @@ func TestHTTPMiddleware(t *testing.T) {
 
 	middleware := HTTPMiddleware(logger)(handler)
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	middleware.ServeHTTP(rec, req)

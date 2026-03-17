@@ -1,6 +1,7 @@
 package health
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +15,7 @@ type mockChecker struct {
 
 func (m *mockChecker) Check() CheckResult {
 	return CheckResult{
-		Status:  map[bool]string{true: "healthy", false: "unhealthy"}[m.healthy],
+		Status:  map[bool]string{true: StatusHealthy, false: StatusUnhealthy}[m.healthy],
 		Latency: m.latency,
 		Details: nil,
 	}
@@ -26,7 +27,7 @@ func TestChecker(t *testing.T) {
 
 	result := checker.Check()
 
-	if result.Status != "healthy" {
+	if result.Status != StatusHealthy {
 		t.Errorf("expected healthy, got %s", result.Status)
 	}
 }
@@ -37,7 +38,7 @@ func TestCheckerUnhealthy(t *testing.T) {
 
 	result := checker.Check()
 
-	if result.Status != "unhealthy" {
+	if result.Status != StatusUnhealthy {
 		t.Errorf("expected unhealthy, got %s", result.Status)
 	}
 }
@@ -50,7 +51,7 @@ func TestHTTPHandlers(t *testing.T) {
 	RegisterHTTPHandlers(mux, checker)
 
 	t.Run("healthz", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/healthz", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/healthz", http.NoBody)
 		rec := httptest.NewRecorder()
 
 		mux.ServeHTTP(rec, req)
@@ -61,7 +62,7 @@ func TestHTTPHandlers(t *testing.T) {
 	})
 
 	t.Run("readyz", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/readyz", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/readyz", http.NoBody)
 		rec := httptest.NewRecorder()
 
 		mux.ServeHTTP(rec, req)
@@ -75,7 +76,7 @@ func TestHTTPHandlers(t *testing.T) {
 			t.Fatalf("failed to parse response: %v", err)
 		}
 
-		if result.Status != "healthy" {
+		if result.Status != StatusHealthy {
 			t.Errorf("expected healthy, got %s", result.Status)
 		}
 	})

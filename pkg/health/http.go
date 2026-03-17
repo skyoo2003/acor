@@ -29,12 +29,12 @@ func handleReadyz(checker *HealthChecker) http.HandlerFunc {
 		result := checker.Check()
 
 		statusCode := http.StatusOK
-		if result.Status != "healthy" {
+		if result.Status != StatusHealthy {
 			statusCode = http.StatusServiceUnavailable
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(statusCode)
-		json.NewEncoder(w).Encode(result)
+		_ = json.NewEncoder(w).Encode(result)
 	}
 }

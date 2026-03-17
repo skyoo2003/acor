@@ -11,6 +11,11 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
+)
+
+const (
+	shutdownTimeoutSec = 5
 )
 
 type Config struct {
@@ -29,7 +34,7 @@ func NewTracer(cfg *Config) (*Tracer, error) {
 	if !cfg.Enabled {
 		return &Tracer{
 			provider: nil,
-			Tracer:   trace.NewNoopTracerProvider().Tracer("acor"),
+			Tracer:   noop.NewTracerProvider().Tracer("acor"),
 		}, nil
 	}
 
@@ -83,7 +88,7 @@ func NewTracer(cfg *Config) (*Tracer, error) {
 
 func (t *Tracer) Shutdown() error {
 	if t.provider != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeoutSec*time.Second)
 		defer cancel()
 		return t.provider.Shutdown(ctx)
 	}

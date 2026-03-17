@@ -2,6 +2,11 @@ package health
 
 import "sync"
 
+const (
+	StatusHealthy   = "healthy"
+	StatusUnhealthy = "unhealthy"
+)
+
 type CheckResult struct {
 	Status  string      `json:"status"`
 	Latency int64       `json:"latency_ms,omitempty"`
@@ -43,13 +48,13 @@ func (h *HealthChecker) Check() OverallResult {
 	h.mu.RUnlock()
 
 	checks := make(map[string]CheckResult, len(snapshot))
-	overallStatus := "healthy"
+	overallStatus := StatusHealthy
 
 	for name, checker := range snapshot {
 		result := checker.Check()
 		checks[name] = result
-		if result.Status != "healthy" {
-			overallStatus = "unhealthy"
+		if result.Status != StatusHealthy {
+			overallStatus = StatusUnhealthy
 		}
 	}
 
