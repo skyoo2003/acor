@@ -10,6 +10,11 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const (
+	statusServerErrorThreshold = 500
+	statusClientErrorThreshold = 400
+)
+
 func HTTPMiddleware(logger *Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -22,9 +27,9 @@ func HTTPMiddleware(logger *Logger) func(http.Handler) http.Handler {
 
 			var event *zerolog.Event
 			switch {
-			case wrapped.statusCode >= 500:
+			case wrapped.statusCode >= statusServerErrorThreshold:
 				event = logger.Error()
-			case wrapped.statusCode >= 400:
+			case wrapped.statusCode >= statusClientErrorThreshold:
 				event = logger.Warn()
 			default:
 				event = logger.Info()
