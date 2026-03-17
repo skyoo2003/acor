@@ -120,6 +120,13 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	}
 
 	tempSuffix := fmt.Sprintf(":tmp:%d", time.Now().Unix())
+	tempTrieKey := ac.trieKey() + tempSuffix
+	tempOutputsKey := ac.outputsKey() + tempSuffix
+	tempNodesKey := ac.nodesKey() + tempSuffix
+
+	cleanup := func() {
+		ac.redisClient.Del(ac.ctx, tempTrieKey, tempOutputsKey, tempNodesKey)
+	}
 
 	trieFields := map[string]interface{}{
 		"keywords": mustJSON(keywords),
@@ -127,7 +134,8 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 		"suffixes": mustJSON(suffixes),
 		"version":  time.Now().Unix(),
 	}
-	if err := ac.redisClient.HSet(ac.ctx, ac.trieKey()+tempSuffix, trieFields).Err(); err != nil {
+	if err := ac.redisClient.HSet(ac.ctx, tempTrieKey, trieFields).Err(); err != nil {
+		cleanup()
 		result.Status = "error"
 		result.ErrorMessage = err.Error()
 		return result, err
@@ -138,7 +146,8 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 		for state, outs := range outputs {
 			outputFields[state] = mustJSON(outs)
 		}
-		if err := ac.redisClient.HSet(ac.ctx, ac.outputsKey()+tempSuffix, outputFields).Err(); err != nil {
+		if err := ac.redisClient.HSet(ac.ctx, tempOutputsKey, outputFields).Err(); err != nil {
+			cleanup()
 			result.Status = "error"
 			result.ErrorMessage = err.Error()
 			return result, err
@@ -150,7 +159,8 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 		for kw, states := range nodes {
 			nodeFields[kw] = mustJSON(states)
 		}
-		if err := ac.redisClient.HSet(ac.ctx, ac.nodesKey()+tempSuffix, nodeFields).Err(); err != nil {
+		if err := ac.redisClient.HSet(ac.ctx, tempNodesKey, nodeFields).Err(); err != nil {
+			cleanup()
 			result.Status = "error"
 			result.ErrorMessage = err.Error()
 			return result, err
@@ -168,18 +178,19 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 			}
 		}
 
-		pipe.Rename(ac.ctx, ac.trieKey()+tempSuffix, ac.trieKey())
+		pipe.Rename(ac.ctx, tempTrieKey, ac.trieKey())
 		if len(outputs) > 0 {
-			pipe.Rename(ac.ctx, ac.outputsKey()+tempSuffix, ac.outputsKey())
+			pipe.Rename(ac.ctx, tempOutputsKey, ac.outputsKey())
 		}
 		if len(nodes) > 0 {
-			pipe.Rename(ac.ctx, ac.nodesKey()+tempSuffix, ac.nodesKey())
+			pipe.Rename(ac.ctx, tempNodesKey, ac.nodesKey())
 		}
 
 		return nil
 	})
 
 	if err != nil {
+		cleanup()
 		result.Status = "error"
 		result.ErrorMessage = err.Error()
 		return result, err
@@ -198,13 +209,15 @@ func (ac *AhoCorasick) RollbackToV1() error {
 		return errors.New("V1 keys not found - rollback not possible")
 	}
 
-	ac.redisClient.Del(ac.ctx, ac.trieKey(), ac.outputsKey(), ac.nodesKey())
+	if _, err := ac.redisClient.Del(ac.ctx, ac.trieKey(), ac.outputsKey(), ac.nodesKey()).Result(); err != nil {
+		return fmt.Errorf("failed to delete V2 keys: %w", err)
+	}
 
 	ac.schemaVersion = SchemaV1
 
 	return nil
 }
 
-func parseJSON(data string, v interface{}) {
-	json.Unmarshal([]byte(data), v)
+func parseJSON(data string, v interface{}) error {
+	return json.Unmarshal([]byte(data), v)
 }

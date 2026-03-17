@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	redis "github.com/go-redis/redis/v8"
 
@@ -262,7 +263,22 @@ func (ac *AhoCorasick) SchemaVersion() int {
 }
 
 func (ac *AhoCorasick) init() error {
-	// Init trie root
+	if ac.schemaVersion == SchemaV2 {
+		exists := ac.redisClient.Exists(ac.ctx, ac.trieKey()).Val()
+		if exists == 0 {
+			_, err := ac.redisClient.HSet(ac.ctx, ac.trieKey(), map[string]interface{}{
+				"keywords": "[]",
+				"prefixes": "[\"\"]",
+				"suffixes": "[\"\"]",
+				"version":  time.Now().UnixNano(),
+			}).Result()
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	prefixKey := ac.prefixKey()
 	member := &redis.Z{
 		Score:  initScore,

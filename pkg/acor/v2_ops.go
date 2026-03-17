@@ -1,13 +1,19 @@
 package acor
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
 	redis "github.com/go-redis/redis/v8"
 	"github.com/skyoo2003/acor/internal/pkg/utils"
 )
+
+var ErrConcurrencyConflict = errors.New("concurrency conflict - please retry")
+
+const maxRetries = 3
 
 func mustJSON(v interface{}) string {
 	b, _ := json.Marshal(v)
@@ -100,14 +106,18 @@ func (ac *AhoCorasick) findIndexV2(text string) (map[string][]int, error) {
 	trieData := trieCmd.Val()
 	var prefixes []string
 	if data, ok := trieData["prefixes"]; ok {
-		json.Unmarshal([]byte(data), &prefixes)
+		if err := json.Unmarshal([]byte(data), &prefixes); err != nil {
+			return nil, err
+		}
 	}
 
 	outputsRaw := outputsCmd.Val()
 	outputs := make(map[string][]string)
 	for state, jsonArr := range outputsRaw {
 		var arr []string
-		json.Unmarshal([]byte(jsonArr), &arr)
+		if err := json.Unmarshal([]byte(jsonArr), &arr); err != nil {
+			return nil, err
+		}
 		outputs[state] = arr
 	}
 
@@ -128,19 +138,7 @@ func (ac *AhoCorasick) localFindIndex(text string, prefixes []string, outputs ma
 		nextState := string(append([]rune(state), char))
 
 		if _, exists := prefixSet[nextState]; !exists {
-			runes := []rune(nextState)
-			found := false
-			for i := 1; i < len(runes); i++ {
-				suffix := string(runes[i:])
-				if _, exists := prefixSet[suffix]; exists {
-					nextState = suffix
-					found = true
-					break
-				}
-			}
-			if !found {
-				nextState = ""
-			}
+			nextState = ac.findFailState(nextState, prefixSet)
 		}
 
 		state = nextState
@@ -157,16 +155,23 @@ func (ac *AhoCorasick) localFindIndex(text string, prefixes []string, outputs ma
 }
 
 func (ac *AhoCorasick) infoV2() (*AhoCorasickInfo, error) {
-	trieData := ac.redisClient.HGetAll(ac.ctx, ac.trieKey()).Val()
+	result, err := ac.redisClient.HGetAll(ac.ctx, ac.trieKey()).Result()
+	if err != nil {
+		return nil, err
+	}
 
 	var keywords []string
-	if data, ok := trieData["keywords"]; ok {
-		json.Unmarshal([]byte(data), &keywords)
+	if data, ok := result["keywords"]; ok {
+		if err := json.Unmarshal([]byte(data), &keywords); err != nil {
+			return nil, err
+		}
 	}
 
 	var prefixes []string
-	if data, ok := trieData["prefixes"]; ok {
-		json.Unmarshal([]byte(data), &prefixes)
+	if data, ok := result["prefixes"]; ok {
+		if err := json.Unmarshal([]byte(data), &prefixes); err != nil {
+			return nil, err
+		}
 	}
 
 	return &AhoCorasickInfo{
@@ -181,11 +186,16 @@ func (ac *AhoCorasick) suggestV2(input string) ([]string, error) {
 		return []string{}, nil
 	}
 
-	trieData := ac.redisClient.HGetAll(ac.ctx, ac.trieKey()).Val()
+	result, err := ac.redisClient.HGetAll(ac.ctx, ac.trieKey()).Result()
+	if err != nil {
+		return nil, err
+	}
 
 	var keywords []string
-	if data, ok := trieData["keywords"]; ok {
-		json.Unmarshal([]byte(data), &keywords)
+	if data, ok := result["keywords"]; ok {
+		if err := json.Unmarshal([]byte(data), &keywords); err != nil {
+			return nil, err
+		}
 	}
 
 	results := []string{}
@@ -217,19 +227,28 @@ func (ac *AhoCorasick) addV2(keyword string) (int, error) {
 		return 0, nil
 	}
 
-	pipe := ac.redisClient.Pipeline()
-	trieCmd := pipe.HGetAll(ac.ctx, ac.trieKey())
-	outputsCmd := pipe.HGetAll(ac.ctx, ac.outputsKey())
-	_, err := pipe.Exec(ac.ctx)
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		added, err := ac.tryAddV2(keyword)
+		if err == ErrConcurrencyConflict {
+			time.Sleep(time.Duration(attempt+1) * 10 * time.Millisecond)
+			continue
+		}
+		return added, err
+	}
+	return 0, ErrConcurrencyConflict
+}
+
+func (ac *AhoCorasick) tryAddV2(keyword string) (int, error) {
+	trieData, err := ac.redisClient.HGetAll(ac.ctx, ac.trieKey()).Result()
 	if err != nil {
 		return 0, err
 	}
 
-	trieData := trieCmd.Val()
-
 	var keywords []string
 	if data, ok := trieData["keywords"]; ok {
-		json.Unmarshal([]byte(data), &keywords)
+		if err := json.Unmarshal([]byte(data), &keywords); err != nil {
+			return 0, err
+		}
 	}
 	keywordSet := make(map[string]struct{})
 	for _, kw := range keywords {
@@ -241,18 +260,32 @@ func (ac *AhoCorasick) addV2(keyword string) (int, error) {
 
 	var prefixes []string
 	if data, ok := trieData["prefixes"]; ok {
-		json.Unmarshal([]byte(data), &prefixes)
+		if err := json.Unmarshal([]byte(data), &prefixes); err != nil {
+			return 0, err
+		}
 	}
 	prefixSet := make(map[string]struct{})
 	for _, p := range prefixes {
 		prefixSet[p] = struct{}{}
 	}
 
-	outputsRaw := outputsCmd.Val()
+	var oldVersion int64
+	if v, ok := trieData["version"]; ok {
+		if err := json.Unmarshal([]byte(v), &oldVersion); err != nil {
+			oldVersion = 0
+		}
+	}
+
+	outputsRaw, err := ac.redisClient.HGetAll(ac.ctx, ac.outputsKey()).Result()
+	if err != nil {
+		return 0, err
+	}
 	outputs := make(map[string][]string)
 	for state, jsonArr := range outputsRaw {
 		var arr []string
-		json.Unmarshal([]byte(jsonArr), &arr)
+		if err := json.Unmarshal([]byte(jsonArr), &arr); err != nil {
+			return 0, err
+		}
 		outputs[state] = arr
 	}
 
@@ -293,30 +326,68 @@ func (ac *AhoCorasick) addV2(keyword string) (int, error) {
 
 	var suffixes []string
 	if data, ok := trieData["suffixes"]; ok {
-		json.Unmarshal([]byte(data), &suffixes)
+		if err := json.Unmarshal([]byte(data), &suffixes); err != nil {
+			return 0, err
+		}
 	}
 	suffixes = append(suffixes, newSuffixes...)
 
-	_, err = ac.redisClient.TxPipelined(ac.ctx, func(pipe redis.Pipeliner) error {
-		pipe.HSet(ac.ctx, ac.trieKey(), map[string]interface{}{
-			"keywords": mustJSON(keywords),
-			"prefixes": mustJSON(prefixes),
-			"suffixes": mustJSON(suffixes),
-			"version":  time.Now().Unix(),
-		})
+	newVersion := time.Now().UnixNano()
 
-		for state, outs := range newOutputs {
-			pipe.HSet(ac.ctx, ac.outputsKey(), state, mustJSON(outs))
-		}
+	outputsToUpdate := make(map[string]string)
+	for state, outs := range newOutputs {
+		outputsToUpdate[state] = mustJSON(outs)
+	}
 
-		return nil
-	})
+	result, err := ac.addV2Script(ac.ctx, ac.redisClient, map[string]interface{}{
+		"trieKey":    ac.trieKey(),
+		"outputsKey": ac.outputsKey(),
+		"keywords":   mustJSON(keywords),
+		"prefixes":   mustJSON(prefixes),
+		"suffixes":   mustJSON(suffixes),
+		"newVersion": newVersion,
+		"oldVersion": oldVersion,
+		"outputs":    mustJSON(outputsToUpdate),
+	}).Result()
 
 	if err != nil {
 		return 0, err
 	}
 
+	if result == 0 {
+		return 0, ErrConcurrencyConflict
+	}
+
 	return 1, nil
+}
+
+func (ac *AhoCorasick) addV2Script(ctx context.Context, client redis.UniversalClient, args map[string]interface{}) *redis.IntCmd {
+	cmd := redis.NewIntCmd(ctx, "eval", `
+		local trieKey = KEYS[1]
+		local outputsKey = KEYS[2]
+		local oldVersion = tonumber(ARGV[1])
+		local newVersion = tonumber(ARGV[2])
+		local keywords = ARGV[3]
+		local prefixes = ARGV[4]
+		local suffixes = ARGV[5]
+		local outputsJson = ARGV[6]
+
+		local currentVersion = redis.call('HGET', trieKey, 'version')
+		if currentVersion and tonumber(currentVersion) ~= oldVersion then
+			return 0
+		end
+
+		redis.call('HSET', trieKey, 'keywords', keywords, 'prefixes', prefixes, 'suffixes', suffixes, 'version', newVersion)
+
+		local outputs = cjson.decode(outputsJson)
+		for state, jsonOuts in pairs(outputs) do
+			redis.call('HSET', outputsKey, state, jsonOuts)
+		end
+
+		return 1
+	`, 2, args["trieKey"], args["outputsKey"], args["oldVersion"], args["newVersion"], args["keywords"], args["prefixes"], args["suffixes"], args["outputs"])
+	client.Process(ctx, cmd)
+	return cmd
 }
 
 func (ac *AhoCorasick) computeOutputsV2(state string, prefixSet, keywordSet map[string]struct{}) []string {
@@ -345,22 +416,35 @@ func (ac *AhoCorasick) removeV2(keyword string) (int, error) {
 		return 0, nil
 	}
 
-	pipe := ac.redisClient.Pipeline()
-	trieCmd := pipe.HGetAll(ac.ctx, ac.trieKey())
-	_, err := pipe.Exec(ac.ctx)
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		removed, err := ac.tryRemoveV2(keyword)
+		if err == ErrConcurrencyConflict {
+			time.Sleep(time.Duration(attempt+1) * 10 * time.Millisecond)
+			continue
+		}
+		return removed, err
+	}
+	return 0, ErrConcurrencyConflict
+}
+
+func (ac *AhoCorasick) tryRemoveV2(keyword string) (int, error) {
+	trieData, err := ac.redisClient.HGetAll(ac.ctx, ac.trieKey()).Result()
 	if err != nil {
 		return 0, err
 	}
 
-	trieData := trieCmd.Val()
-
 	var keywords []string
 	if data, ok := trieData["keywords"]; ok {
-		json.Unmarshal([]byte(data), &keywords)
+		if err := json.Unmarshal([]byte(data), &keywords); err != nil {
+			return 0, err
+		}
 	}
 
 	keywordExists := false
-	newKeywords := make([]string, 0, len(keywords)-1)
+	newKeywords := make([]string, 0)
+	if len(keywords) > 0 {
+		newKeywords = make([]string, 0, len(keywords))
+	}
 	for _, kw := range keywords {
 		if kw == keyword {
 			keywordExists = true
@@ -375,7 +459,16 @@ func (ac *AhoCorasick) removeV2(keyword string) (int, error) {
 
 	var prefixes []string
 	if data, ok := trieData["prefixes"]; ok {
-		json.Unmarshal([]byte(data), &prefixes)
+		if err := json.Unmarshal([]byte(data), &prefixes); err != nil {
+			return 0, err
+		}
+	}
+
+	var oldVersion int64
+	if v, ok := trieData["version"]; ok {
+		if err := json.Unmarshal([]byte(v), &oldVersion); err != nil {
+			oldVersion = 0
+		}
 	}
 
 	keywordSet := make(map[string]struct{})
@@ -421,30 +514,77 @@ func (ac *AhoCorasick) removeV2(keyword string) (int, error) {
 		}
 	}
 
-	_, err = ac.redisClient.TxPipelined(ac.ctx, func(pipe redis.Pipeliner) error {
-		pipe.HSet(ac.ctx, ac.trieKey(), map[string]interface{}{
-			"keywords": mustJSON(newKeywords),
-			"prefixes": mustJSON(newPrefixes),
-			"suffixes": mustJSON(newSuffixes),
-			"version":  time.Now().Unix(),
-		})
+	newVersion := time.Now().UnixNano()
 
-		pipe.Del(ac.ctx, ac.outputsKey())
-		for state, outs := range newOutputs {
-			pipe.HSet(ac.ctx, ac.outputsKey(), state, mustJSON(outs))
-		}
+	outputsToSet := make(map[string]string)
+	for state, outs := range newOutputs {
+		outputsToSet[state] = mustJSON(outs)
+	}
 
-		return nil
-	})
+	result, err := ac.removeV2Script(ac.ctx, ac.redisClient, map[string]interface{}{
+		"trieKey":    ac.trieKey(),
+		"outputsKey": ac.outputsKey(),
+		"keywords":   mustJSON(newKeywords),
+		"prefixes":   mustJSON(newPrefixes),
+		"suffixes":   mustJSON(newSuffixes),
+		"newVersion": newVersion,
+		"oldVersion": oldVersion,
+		"outputs":    mustJSON(outputsToSet),
+	}).Result()
 
 	if err != nil {
 		return 0, err
 	}
 
+	if result == 0 {
+		return 0, ErrConcurrencyConflict
+	}
+
 	return len(newKeywords), nil
+}
+
+func (ac *AhoCorasick) removeV2Script(ctx context.Context, client redis.UniversalClient, args map[string]interface{}) *redis.IntCmd {
+	cmd := redis.NewIntCmd(ctx, "eval", `
+		local trieKey = KEYS[1]
+		local outputsKey = KEYS[2]
+		local oldVersion = tonumber(ARGV[1])
+		local newVersion = tonumber(ARGV[2])
+		local keywords = ARGV[3]
+		local prefixes = ARGV[4]
+		local suffixes = ARGV[5]
+		local outputsJson = ARGV[6]
+
+		local currentVersion = redis.call('HGET', trieKey, 'version')
+		if currentVersion and tonumber(currentVersion) ~= oldVersion then
+			return 0
+		end
+
+		redis.call('HSET', trieKey, 'keywords', keywords, 'prefixes', prefixes, 'suffixes', suffixes, 'version', newVersion)
+
+		redis.call('DEL', outputsKey)
+
+		local outputs = cjson.decode(outputsJson)
+		for state, jsonOuts in pairs(outputs) do
+			redis.call('HSET', outputsKey, state, jsonOuts)
+		end
+
+		return 1
+	`, 2, args["trieKey"], args["outputsKey"], args["oldVersion"], args["newVersion"], args["keywords"], args["prefixes"], args["suffixes"], args["outputs"])
+	client.Process(ctx, cmd)
+	return cmd
 }
 
 func (ac *AhoCorasick) flushV2() error {
 	_, err := ac.redisClient.Del(ac.ctx, ac.trieKey(), ac.outputsKey(), ac.nodesKey()).Result()
+	if err != nil {
+		return err
+	}
+
+	_, err = ac.redisClient.HSet(ac.ctx, ac.trieKey(), map[string]interface{}{
+		"keywords": "[]",
+		"prefixes": "[\"\"]",
+		"suffixes": "[\"\"]",
+		"version":  time.Now().UnixNano(),
+	}).Result()
 	return err
 }
