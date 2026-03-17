@@ -86,6 +86,8 @@ func (ac *AhoCorasick) addManyTransactional(keywords []string, result *BatchResu
 
 		if count > 0 {
 			added = append(added, keyword)
+		} else {
+			result.Skipped = append(result.Skipped, keyword)
 		}
 	}
 

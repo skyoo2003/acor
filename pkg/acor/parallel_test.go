@@ -218,4 +218,10 @@ func TestFindIndexParallel(t *testing.T) {
 			t.Errorf("keyword %s: parallel indices %v != sequential indices %v", keyword, parallelIndices, expectedIndices)
 		}
 	}
+
+	for keyword := range parallelResults {
+		if _, ok := sequentialResults[keyword]; !ok {
+			t.Errorf("unexpected keyword %s in parallel results", keyword)
+		}
+	}
 }
