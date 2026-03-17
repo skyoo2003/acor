@@ -19,9 +19,9 @@ func TestSplitChunksByWord(t *testing.T) {
 		t.Errorf("expected at least 2 chunks, got %d", len(chunks))
 	}
 
-	for i, chunk := range chunks {
-		if chunk.start > chunk.end {
-			t.Errorf("chunk %d has invalid bounds: start=%d, end=%d", i, chunk.start, chunk.end)
+	for i, c := range chunks {
+		if c.textOffset < 0 {
+			t.Errorf("chunk %d has invalid textOffset: %d", i, c.textOffset)
 		}
 	}
 }
@@ -40,9 +40,9 @@ func TestSplitChunksByLine(t *testing.T) {
 		t.Errorf("expected at least 2 chunks, got %d", len(chunks))
 	}
 
-	for i, chunk := range chunks {
-		if chunk.start > chunk.end {
-			t.Errorf("chunk %d has invalid bounds: start=%d, end=%d", i, chunk.start, chunk.end)
+	for i, c := range chunks {
+		if c.textOffset < 0 {
+			t.Errorf("chunk %d has invalid textOffset: %d", i, c.textOffset)
 		}
 	}
 }
@@ -61,9 +61,9 @@ func TestSplitChunksBySentence(t *testing.T) {
 		t.Errorf("expected at least 2 chunks, got %d", len(chunks))
 	}
 
-	for i, chunk := range chunks {
-		if chunk.start > chunk.end {
-			t.Errorf("chunk %d has invalid bounds: start=%d, end=%d", i, chunk.start, chunk.end)
+	for i, c := range chunks {
+		if c.textOffset < 0 {
+			t.Errorf("chunk %d has invalid textOffset: %d", i, c.textOffset)
 		}
 	}
 }

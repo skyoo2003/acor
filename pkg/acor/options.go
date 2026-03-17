@@ -21,6 +21,12 @@ const (
 	ChunkBoundaryLine
 )
 
+const (
+	DefaultChunkSize           = 1000
+	DefaultOverlap             = 0
+	defaultMaxBacktrackDivisor = 2
+)
+
 type ParallelOptions struct {
 	Workers   int
 	ChunkSize int
@@ -31,9 +37,9 @@ type ParallelOptions struct {
 func DefaultParallelOptions() *ParallelOptions {
 	return &ParallelOptions{
 		Workers:   runtime.NumCPU(),
-		ChunkSize: 1000,
+		ChunkSize: DefaultChunkSize,
 		Boundary:  ChunkBoundaryWord,
-		Overlap:   0,
+		Overlap:   DefaultOverlap,
 	}
 }
 

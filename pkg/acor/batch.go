@@ -99,7 +99,9 @@ func (ac *AhoCorasick) rollbackAdded(keywords []string) {
 				<-sem
 				wg.Done()
 			}()
-			_, _ = ac.Remove(k)
+			if _, err := ac.Remove(k); err != nil && ac.logger != nil {
+				ac.logger.Printf("rollback: failed to remove %q: %v", k, err)
+			}
 		}(keyword)
 	}
 	wg.Wait()
@@ -134,6 +136,9 @@ func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
 	return result, nil
 }
 
+// FindMany searches for keywords in multiple texts and returns a map of text to matches.
+// Note: If the same text appears multiple times in the input slice, only one result
+// entry will be stored (last occurrence wins).
 func (ac *AhoCorasick) FindMany(texts []string) (map[string][]string, error) {
 	results := make(map[string][]string)
 

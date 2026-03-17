@@ -8,8 +8,6 @@ import (
 
 type chunk struct {
 	text       string
-	start      int
-	end        int
 	textOffset int
 }
 
@@ -20,7 +18,7 @@ func splitChunks(text string, opts *ParallelOptions) []chunk {
 
 	runes := []rune(text)
 	if len(runes) <= opts.ChunkSize {
-		return []chunk{{text: text, start: 0, end: len(runes), textOffset: 0}}
+		return []chunk{{text: text, textOffset: 0}}
 	}
 
 	chunks := make([]chunk, 0)
@@ -31,14 +29,12 @@ func splitChunks(text string, opts *ParallelOptions) []chunk {
 		if end >= len(runes) {
 			chunks = append(chunks, chunk{
 				text:       string(runes[start:]),
-				start:      start,
-				end:        len(runes),
 				textOffset: start,
 			})
 			break
 		}
 
-		boundary := findBoundary(runes, end, opts.Boundary, opts.ChunkSize/2)
+		boundary := findBoundary(runes, end, opts.Boundary, opts.ChunkSize/defaultMaxBacktrackDivisor)
 		if boundary <= start {
 			boundary = end
 		}
@@ -46,8 +42,6 @@ func splitChunks(text string, opts *ParallelOptions) []chunk {
 		chunkText := string(runes[start:boundary])
 		chunks = append(chunks, chunk{
 			text:       chunkText,
-			start:      start,
-			end:        boundary,
 			textOffset: start,
 		})
 
@@ -132,10 +126,26 @@ func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]strin
 		close(errors)
 	}()
 
+	allMatches := make(map[string]struct{})
 	var firstErr error
-	for err := range errors {
-		if firstErr == nil {
-			firstErr = err
+	resultsChan, errorsChan := results, errors
+
+	for resultsChan != nil || errorsChan != nil {
+		select {
+		case err, ok := <-errorsChan:
+			if !ok {
+				errorsChan = nil
+			} else if firstErr == nil {
+				firstErr = err
+			}
+		case matches, ok := <-resultsChan:
+			if !ok {
+				resultsChan = nil
+			} else {
+				for _, m := range matches {
+					allMatches[m] = struct{}{}
+				}
+			}
 		}
 	}
 
@@ -143,12 +153,6 @@ func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]strin
 		return nil, firstErr
 	}
 
-	allMatches := make(map[string]struct{})
-	for matches := range results {
-		for _, m := range matches {
-			allMatches[m] = struct{}{}
-		}
-	}
 	unique := make([]string, 0, len(allMatches))
 	for m := range allMatches {
 		unique = append(unique, m)
@@ -212,28 +216,37 @@ func (ac *AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (ma
 		close(errors)
 	}()
 
+	allMatches := make(map[string]map[int]struct{})
 	var firstErr error
-	for err := range errors {
-		if firstErr == nil {
-			firstErr = err
+	resultsChan, errorsChan := results, errors
+
+	for resultsChan != nil || errorsChan != nil {
+		select {
+		case err, ok := <-errorsChan:
+			if !ok {
+				errorsChan = nil
+			} else if firstErr == nil {
+				firstErr = err
+			}
+		case res, ok := <-resultsChan:
+			if !ok {
+				resultsChan = nil
+			} else {
+				for keyword, indices := range res.matches {
+					if allMatches[keyword] == nil {
+						allMatches[keyword] = make(map[int]struct{})
+					}
+					for _, idx := range indices {
+						adjustedIdx := idx + res.offset
+						allMatches[keyword][adjustedIdx] = struct{}{}
+					}
+				}
+			}
 		}
 	}
 
 	if firstErr != nil {
 		return nil, firstErr
-	}
-
-	allMatches := make(map[string]map[int]struct{})
-	for res := range results {
-		for keyword, indices := range res.matches {
-			if allMatches[keyword] == nil {
-				allMatches[keyword] = make(map[int]struct{})
-			}
-			for _, idx := range indices {
-				adjustedIdx := idx + res.offset
-				allMatches[keyword][adjustedIdx] = struct{}{}
-			}
-		}
 	}
 
 	result := make(map[string][]int)
