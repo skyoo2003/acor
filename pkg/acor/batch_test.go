@@ -1,6 +1,7 @@
 package acor
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -44,5 +45,78 @@ func TestAddManyBestEffortWithDuplicates(t *testing.T) {
 	}
 	if len(result.Skipped) != 1 {
 		t.Errorf("expected 1 skipped, got %d", len(result.Skipped))
+	}
+}
+
+func TestAddManyTransactional(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	keywords := []string{"he", "her", "him"}
+	result, err := ac.AddMany(keywords, &BatchOptions{Mode: BatchModeTransactional})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Added) != 3 {
+		t.Errorf("expected 3 added, got %d", len(result.Added))
+	}
+}
+
+func TestAddManyTransactionalRollbackOnError(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	ac.buildTrieHook = func(prefix string) error {
+		if prefix == "her" {
+			return errors.New("forced failure")
+		}
+		return nil
+	}
+	defer func() { ac.buildTrieHook = nil }()
+
+	keywords := []string{"he", "her", "him"}
+	_, err := ac.AddMany(keywords, &BatchOptions{Mode: BatchModeTransactional})
+	if err == nil {
+		t.Fatal("expected error on transactional batch")
+	}
+
+	ac.buildTrieHook = nil
+
+	results, err := ac.Find("he")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 0 {
+		t.Errorf("expected rollback to remove all keywords, found %d", len(results))
+	}
+}
+
+func TestAddManyTransactionalRollbackOnEmpty(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	if _, err := ac.Add("existing"); err != nil {
+		t.Fatal(err)
+	}
+
+	keywords := []string{"he", "", "him"}
+	_, err := ac.AddMany(keywords, &BatchOptions{Mode: BatchModeTransactional})
+	if !errors.Is(err, ErrEmptyKeyword) {
+		t.Fatalf("expected ErrEmptyKeyword, got %v", err)
+	}
+
+	results, err := ac.Find("he")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 0 {
+		t.Errorf("expected rollback to remove he, found %d", len(results))
 	}
 }
