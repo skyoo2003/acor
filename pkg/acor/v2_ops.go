@@ -61,19 +61,7 @@ func (ac *AhoCorasick) localFind(text string, prefixes []string, outputs map[str
 		nextState := string(append([]rune(state), char))
 
 		if _, exists := prefixSet[nextState]; !exists {
-			runes := []rune(nextState)
-			found := false
-			for i := 1; i < len(runes); i++ {
-				suffix := string(runes[i:])
-				if _, exists := prefixSet[suffix]; exists {
-					nextState = suffix
-					found = true
-					break
-				}
-			}
-			if !found {
-				nextState = ""
-			}
+			nextState = ac.findFailState(nextState, prefixSet)
 		}
 
 		state = nextState
@@ -83,6 +71,17 @@ func (ac *AhoCorasick) localFind(text string, prefixes []string, outputs map[str
 	}
 
 	return matched
+}
+
+func (ac *AhoCorasick) findFailState(state string, prefixSet map[string]struct{}) string {
+	runes := []rune(state)
+	for i := 1; i < len(runes); i++ {
+		suffix := string(runes[i:])
+		if _, exists := prefixSet[suffix]; exists {
+			return suffix
+		}
+	}
+	return ""
 }
 
 func (ac *AhoCorasick) findIndexV2(text string) (map[string][]int, error) {

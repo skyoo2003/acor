@@ -704,3 +704,173 @@ func TestDetectSchema(t *testing.T) {
 		})
 	}
 }
+
+func TestV1V2Compatibility(t *testing.T) {
+	mr := createTestRedisServer(t)
+
+	keywords := []string{"he", "she", "his", "hers", "hello"}
+	testTexts := []string{
+		"he",
+		"she is here",
+		"this is his",
+		"hers is better",
+		"hello world",
+		"ushers",
+	}
+
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client.ZAdd(context.Background(), "{v1test}:prefix", &redis.Z{Score: 0, Member: ""})
+	client.Close()
+
+	args := &AhoCorasickArgs{Addr: mr.Addr(), Name: "v1test"}
+	acV1, err := Create(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, kw := range keywords {
+		acV1.Add(kw)
+	}
+
+	v1Results := make(map[string][]string)
+	for _, text := range testTexts {
+		v1Results[text], _ = acV1.Find(text)
+	}
+	acV1.Close()
+
+	args = &AhoCorasickArgs{Addr: mr.Addr(), Name: "v1test"}
+	acMigrate, err := Create(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = acMigrate.MigrateV1ToV2(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acMigrate.Close()
+
+	args = &AhoCorasickArgs{Addr: mr.Addr(), Name: "v1test"}
+	acV2, err := Create(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	v2Results := make(map[string][]string)
+	for _, text := range testTexts {
+		v2Results[text], _ = acV2.Find(text)
+	}
+	acV2.Close()
+
+	for _, text := range testTexts {
+		if !equalStringSets(v1Results[text], v2Results[text]) {
+			t.Errorf("Results differ for %q:\n  V1: %v\n  V2: %v", text, v1Results[text], v2Results[text])
+		}
+	}
+}
+
+func TestEndToEndV2(t *testing.T) {
+	mr := createTestRedisServer(t)
+
+	args := &AhoCorasickArgs{
+		Addr: mr.Addr(),
+		Name: "e2e",
+	}
+
+	ac, err := Create(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ac.Close()
+
+	if ac.SchemaVersion() != SchemaV2 {
+		t.Errorf("SchemaVersion() = %d, want %d", ac.SchemaVersion(), SchemaV2)
+	}
+
+	keywords := []string{"apple", "application", "apply", "banana"}
+	for _, kw := range keywords {
+		count, err := ac.Add(kw)
+		if err != nil {
+			t.Fatalf("Add(%s) error: %v", kw, err)
+		}
+		if count != 1 {
+			t.Errorf("Add(%s) = %d, want 1", kw, count)
+		}
+	}
+
+	matches, err := ac.Find("I have an apple application")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsAll(matches, "apple", "application") {
+		t.Errorf("Find() = %v, should contain apple, application", matches)
+	}
+
+	suggestions, err := ac.Suggest("app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsAll(suggestions, "apple", "application", "apply") {
+		t.Errorf("Suggest(app) = %v, should contain apple, application, apply", suggestions)
+	}
+
+	info, err := ac.Info()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Keywords != 4 {
+		t.Errorf("Info.Keywords = %d, want 4", info.Keywords)
+	}
+
+	count, err := ac.Remove("apple")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 3 {
+		t.Errorf("Remove(apple) = %d, want 3 (remaining)", count)
+	}
+
+	matches, _ = ac.Find("I have an apple")
+	if containsAll(matches, "apple") {
+		t.Error("Find should not match 'apple' after removal")
+	}
+
+	if err := ac.Flush(); err != nil {
+		t.Fatal(err)
+	}
+
+	info, _ = ac.Info()
+	if info.Keywords != 0 {
+		t.Errorf("After Flush, Keywords = %d, want 0", info.Keywords)
+	}
+}
+
+func equalStringSets(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	aSet := make(map[string]int)
+	for _, s := range a {
+		aSet[s]++
+	}
+	for _, s := range b {
+		aSet[s]--
+		if aSet[s] < 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func containsAll(slice []string, items ...string) bool {
+	set := make(map[string]struct{})
+	for _, s := range slice {
+		set[s] = struct{}{}
+	}
+	for _, item := range items {
+		if _, exists := set[item]; !exists {
+			return false
+		}
+	}
+	return true
+}
