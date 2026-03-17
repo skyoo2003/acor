@@ -1,0 +1,5 @@
+kind: Added
+body: Add V2 schema with 80-85% fewer Redis round trips and 99% fewer keys
+time: 2026-03-18T00:33:48.544989+09:00
+custom:
+    Issue: "83"

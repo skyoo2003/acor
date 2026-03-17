@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	redis "github.com/go-redis/redis/v8"
 
@@ -39,14 +40,15 @@ var (
 )
 
 type AhoCorasickArgs struct {
-	Addr       string // redis server address (ex) localhost:6379
-	Addrs      []string
-	MasterName string
-	RingAddrs  map[string]string
-	Password   string // redis password
-	DB         int    // redis db number
-	Name       string // pattern's collection name
-	Debug      bool   // debug flag
+	Addr          string // redis server address (ex) localhost:6379
+	Addrs         []string
+	MasterName    string
+	RingAddrs     map[string]string
+	Password      string // redis password
+	DB            int    // redis db number
+	Name          string // pattern's collection name
+	Debug         bool   // debug flag
+	SchemaVersion int    // 1: V1 (Legacy), 2 or 0: V2 (default)
 }
 
 type AhoCorasick struct {
@@ -55,6 +57,7 @@ type AhoCorasick struct {
 	name          string                // Pattern's collection name
 	logger        *log.Logger           // logger
 	buildTrieHook func(string) error
+	schemaVersion int // detected schema version
 }
 
 type AhoCorasickInfo struct {
@@ -74,11 +77,17 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	}
 
 	ac := &AhoCorasick{
-		redisClient: redisClient,
-		ctx:         context.Background(),
-		name:        args.Name,
-		logger:      logger,
+		redisClient:   redisClient,
+		ctx:           context.Background(),
+		name:          args.Name,
+		logger:        logger,
+		schemaVersion: args.SchemaVersion,
 	}
+
+	if ac.schemaVersion == 0 {
+		ac.schemaVersion = SchemaV2
+	}
+
 	if err := ac.init(); err != nil {
 		_ = ac.redisClient.Close()
 		return nil, err
@@ -237,8 +246,42 @@ func (ac *AhoCorasick) nodeKey(keyword string) string {
 	return fmt.Sprintf("%s:node:%s", ac.keyPrefix(), keyword)
 }
 
+func (ac *AhoCorasick) trieKey() string {
+	return fmt.Sprintf("%s:trie", ac.keyPrefix())
+}
+
+func (ac *AhoCorasick) outputsKey() string {
+	return fmt.Sprintf("%s:outputs", ac.keyPrefix())
+}
+
+func (ac *AhoCorasick) nodesKey() string {
+	return fmt.Sprintf("%s:nodes", ac.keyPrefix())
+}
+
+func (ac *AhoCorasick) SchemaVersion() int {
+	return ac.schemaVersion
+}
+
 func (ac *AhoCorasick) init() error {
-	// Init trie root
+	if ac.schemaVersion == SchemaV2 {
+		exists, err := ac.redisClient.Exists(ac.ctx, ac.trieKey()).Result()
+		if err != nil {
+			return fmt.Errorf("failed to check trie key: %w", err)
+		}
+		if exists == 0 {
+			_, err := ac.redisClient.HSet(ac.ctx, ac.trieKey(), map[string]interface{}{
+				"keywords": "[]",
+				"prefixes": "[\"\"]",
+				"suffixes": "[\"\"]",
+				"version":  time.Now().UnixNano(),
+			}).Result()
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	prefixKey := ac.prefixKey()
 	member := &redis.Z{
 		Score:  initScore,
@@ -258,6 +301,10 @@ func (ac *AhoCorasick) Close() error {
 }
 
 func (ac *AhoCorasick) Add(keyword string) (int, error) {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.addV2(keyword)
+	}
+
 	keyword = strings.TrimSpace(keyword)
 	keyword = strings.ToLower(keyword)
 
@@ -283,6 +330,10 @@ func (ac *AhoCorasick) Add(keyword string) (int, error) {
 }
 
 func (ac *AhoCorasick) Remove(keyword string) (int, error) {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.removeV2(keyword)
+	}
+
 	keyword = strings.TrimSpace(keyword)
 	keyword = strings.ToLower(keyword)
 
@@ -387,6 +438,10 @@ func (ac *AhoCorasick) removePrefixAndSuffix(keyword, prefix, suffix string) err
 }
 
 func (ac *AhoCorasick) Find(text string) ([]string, error) {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.findV2(text)
+	}
+
 	matched := make([]string, 0)
 	state := ""
 
@@ -435,6 +490,10 @@ func (ac *AhoCorasick) Find(text string) ([]string, error) {
 }
 
 func (ac *AhoCorasick) FindIndex(text string) (map[string][]int, error) {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.findIndexV2(text)
+	}
+
 	matched := make(map[string][]int)
 	state := ""
 	runeIndex := 0
@@ -485,6 +544,10 @@ func (ac *AhoCorasick) FindIndex(text string) (map[string][]int, error) {
 }
 
 func (ac *AhoCorasick) Flush() error {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.flushV2()
+	}
+
 	kKey := ac.keywordKey()
 	pKey := ac.prefixKey()
 	sKey := ac.suffixKey()
@@ -535,6 +598,10 @@ func (ac *AhoCorasick) Flush() error {
 }
 
 func (ac *AhoCorasick) Info() (*AhoCorasickInfo, error) {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.infoV2()
+	}
+
 	kKey := ac.keywordKey()
 	kCount, err := ac.redisClient.SCard(ac.ctx, kKey).Result()
 	if err != nil {
@@ -556,6 +623,10 @@ func (ac *AhoCorasick) Info() (*AhoCorasickInfo, error) {
 }
 
 func (ac *AhoCorasick) Suggest(input string) ([]string, error) {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.suggestV2(input)
+	}
+
 	var pKeywords []string
 
 	results := make([]string, 0)
@@ -595,6 +666,10 @@ func (ac *AhoCorasick) Suggest(input string) ([]string, error) {
 }
 
 func (ac *AhoCorasick) SuggestIndex(input string) (map[string][]int, error) {
+	if ac.schemaVersion == SchemaV2 {
+		return ac.suggestIndexV2(input)
+	}
+
 	var pKeywords []string
 
 	results := make(map[string][]int)
