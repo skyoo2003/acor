@@ -9,9 +9,14 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 
 	"github.com/skyoo2003/acor/pkg/acor"
+	"github.com/skyoo2003/acor/pkg/health"
+	"github.com/skyoo2003/acor/pkg/logging"
+	"github.com/skyoo2003/acor/pkg/metrics"
+	"github.com/skyoo2003/acor/pkg/tracing"
 )
 
 const (
@@ -90,6 +95,13 @@ type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
+type Observability struct {
+	Metrics *metrics.Registry
+	Logger  *logging.Logger
+	Tracer  *tracing.Tracer
+	Health  *health.HealthChecker
+}
+
 func NewAPI(service Service) *API {
 	return &API{service: service}
 }
@@ -121,6 +133,39 @@ func NewGRPCServer(service Service, opts ...grpc.ServerOption) *grpc.Server {
 	serverOpts := append([]grpc.ServerOption{grpc.ForceServerCodec(JSONCodec{})}, opts...)
 	grpcServer := grpc.NewServer(serverOpts...)
 	RegisterGRPCServer(grpcServer, NewAPI(service))
+	return grpcServer
+}
+
+func NewGRPCServerWithObservability(service Service, obs *Observability, opts ...grpc.ServerOption) *grpc.Server {
+	var serverOpts []grpc.ServerOption
+
+	var unaryInterceptors []grpc.UnaryServerInterceptor
+
+	if obs.Metrics != nil {
+		unaryInterceptors = append(unaryInterceptors, metrics.GRPCUnaryInterceptor(obs.Metrics))
+	}
+	if obs.Logger != nil {
+		unaryInterceptors = append(unaryInterceptors, logging.GRPCUnaryInterceptor(obs.Logger))
+	}
+	if obs.Tracer != nil {
+		unaryInterceptors = append(unaryInterceptors, tracing.GRPCUnaryInterceptor(obs.Tracer))
+	}
+
+	if len(unaryInterceptors) > 0 {
+		chained := grpc.ChainUnaryInterceptor(unaryInterceptors...)
+		serverOpts = append(serverOpts, chained)
+	}
+
+	serverOpts = append(serverOpts, grpc.ForceServerCodec(JSONCodec{}))
+	serverOpts = append(serverOpts, opts...)
+
+	grpcServer := grpc.NewServer(serverOpts...)
+	RegisterGRPCServer(grpcServer, NewAPI(service))
+
+	if obs.Health != nil {
+		grpc_health_v1.RegisterHealthServer(grpcServer, health.NewGRPCHealthServer(obs.Health))
+	}
+
 	return grpcServer
 }
 
