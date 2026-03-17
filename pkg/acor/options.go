@@ -44,6 +44,7 @@ type KeywordError struct {
 
 type BatchResult struct {
 	Added   []string
+	Removed []string
 	Failed  []KeywordError
 	Skipped []string
 }

@@ -46,8 +46,8 @@ func splitChunks(text string, opts *ParallelOptions) []chunk {
 		chunkText := string(runes[start:boundary])
 		chunks = append(chunks, chunk{
 			text:       chunkText,
-			start:      0,
-			end:        len(runes[start:boundary]),
+			start:      start,
+			end:        boundary,
 			textOffset: start,
 		})
 
@@ -62,9 +62,7 @@ func splitChunks(text string, opts *ParallelOptions) []chunk {
 }
 
 func findBoundary(runes []rune, target int, boundaryType ChunkBoundary, maxBacktrack int) int {
-	backtrack := 0
 	for i := target; i > target-maxBacktrack && i > 0; i-- {
-		backtrack++
 		if isBoundary(runes, i, boundaryType) {
 			return i
 		}
@@ -133,6 +131,18 @@ func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]strin
 		close(results)
 		close(errors)
 	}()
+
+	var firstErr error
+	for err := range errors {
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+
+	if firstErr != nil {
+		return nil, firstErr
+	}
+
 	allMatches := make(map[string]struct{})
 	for matches := range results {
 		for _, m := range matches {
@@ -201,6 +211,17 @@ func (ac *AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (ma
 		close(results)
 		close(errors)
 	}()
+
+	var firstErr error
+	for err := range errors {
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+
+	if firstErr != nil {
+		return nil, firstErr
+	}
 
 	allMatches := make(map[string]map[int]struct{})
 	for res := range results {

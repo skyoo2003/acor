@@ -136,8 +136,8 @@ func TestRemoveMany(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(result.Added) != 2 {
-		t.Errorf("expected 2 removed, got %d", len(result.Added))
+	if len(result.Removed) != 2 {
+		t.Errorf("expected 2 removed, got %d", len(result.Removed))
 	}
 
 	results, err := ac.Find("him")

@@ -12,6 +12,7 @@ func (ac *AhoCorasick) AddMany(keywords []string, opts *BatchOptions) (*BatchRes
 
 	result := &BatchResult{
 		Added:   make([]string, 0),
+		Removed: make([]string, 0),
 		Failed:  make([]KeywordError, 0),
 		Skipped: make([]string, 0),
 	}
@@ -78,11 +79,26 @@ func (ac *AhoCorasick) addManyTransactional(keywords []string, result *BatchResu
 }
 
 func (ac *AhoCorasick) rollbackAdded(keywords []string) {
+	if len(keywords) == 0 {
+		return
+	}
+
+	maxWorkers := 10
+	if len(keywords) < maxWorkers {
+		maxWorkers = len(keywords)
+	}
+
+	sem := make(chan struct{}, maxWorkers)
 	var wg sync.WaitGroup
+
 	for _, keyword := range keywords {
+		sem <- struct{}{}
 		wg.Add(1)
 		go func(k string) {
-			defer wg.Done()
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
 			_, _ = ac.Remove(k)
 		}(keyword)
 	}
@@ -92,6 +108,7 @@ func (ac *AhoCorasick) rollbackAdded(keywords []string) {
 func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
 	result := &BatchResult{
 		Added:   make([]string, 0),
+		Removed: make([]string, 0),
 		Failed:  make([]KeywordError, 0),
 		Skipped: make([]string, 0),
 	}
@@ -102,7 +119,7 @@ func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
 			continue
 		}
 
-		remaining, err := ac.Remove(keyword)
+		_, err := ac.Remove(keyword)
 		if err != nil {
 			result.Failed = append(result.Failed, KeywordError{
 				Keyword: keyword,
@@ -111,8 +128,7 @@ func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
 			continue
 		}
 
-		result.Added = append(result.Added, keyword)
-		_ = remaining
+		result.Removed = append(result.Removed, keyword)
 	}
 
 	return result, nil

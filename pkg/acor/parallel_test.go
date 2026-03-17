@@ -1,6 +1,7 @@
 package acor
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -38,6 +39,12 @@ func TestSplitChunksByLine(t *testing.T) {
 	if len(chunks) < 2 {
 		t.Errorf("expected at least 2 chunks, got %d", len(chunks))
 	}
+
+	for i, chunk := range chunks {
+		if chunk.start > chunk.end {
+			t.Errorf("chunk %d has invalid bounds: start=%d, end=%d", i, chunk.start, chunk.end)
+		}
+	}
 }
 
 func TestSplitChunksBySentence(t *testing.T) {
@@ -52,6 +59,12 @@ func TestSplitChunksBySentence(t *testing.T) {
 
 	if len(chunks) < 2 {
 		t.Errorf("expected at least 2 chunks, got %d", len(chunks))
+	}
+
+	for i, chunk := range chunks {
+		if chunk.start > chunk.end {
+			t.Errorf("chunk %d has invalid bounds: start=%d, end=%d", i, chunk.start, chunk.end)
+		}
 	}
 }
 
@@ -137,8 +150,17 @@ func TestBatchAddAndParallelFind(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(parallelResults) != len(sequentialResults) {
-		t.Errorf("parallel results (%d) != sequential results (%d)", len(parallelResults), len(sequentialResults))
+	seqSet := make(map[string]struct{})
+	for _, r := range sequentialResults {
+		seqSet[r] = struct{}{}
+	}
+	parSet := make(map[string]struct{})
+	for _, r := range parallelResults {
+		parSet[r] = struct{}{}
+	}
+
+	if !reflect.DeepEqual(seqSet, parSet) {
+		t.Errorf("parallel results %v != sequential results %v", parSet, seqSet)
 	}
 }
 
