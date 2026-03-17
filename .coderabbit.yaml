@@ -10,4 +10,6 @@ reviews:
   poem: false
   auto_review:
     enabled: true
-    incremental: true
+   auto_review:
+     enabled: true
+     auto_incremental_review: true
