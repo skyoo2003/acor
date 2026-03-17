@@ -106,3 +106,38 @@ func TestFindParallelFallsBackToSequential(t *testing.T) {
 		t.Errorf("expected ['test'], got %v", results)
 	}
 }
+
+func TestBatchAddAndParallelFind(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	keywords := []string{"apple", "application", "apply", "approach", "approximate"}
+	result, err := ac.AddMany(keywords, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Added) != len(keywords) {
+		t.Errorf("expected %d added, got %d", len(keywords), len(result.Added))
+	}
+
+	text := "I want to apply for an application. The approach is approximate."
+	sequentialResults, err := ac.Find(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parallelResults, err := ac.FindParallel(text, &ParallelOptions{
+		Workers:   2,
+		ChunkSize: 50,
+		Boundary:  ChunkBoundaryWord,
+		Overlap:   5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(parallelResults) != len(sequentialResults) {
+		t.Errorf("parallel results (%d) != sequential results (%d)", len(parallelResults), len(sequentialResults))
+	}
+}
