@@ -141,3 +141,42 @@ func TestBatchAddAndParallelFind(t *testing.T) {
 		t.Errorf("parallel results (%d) != sequential results (%d)", len(parallelResults), len(sequentialResults))
 	}
 }
+
+func TestFindIndexParallel(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	keywords := []string{"he", "her"}
+	for _, k := range keywords {
+		if _, err := ac.Add(k); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	text := "he is her friend"
+	opts := &ParallelOptions{
+		Workers:   2,
+		ChunkSize: 10,
+		Boundary:  ChunkBoundaryWord,
+		Overlap:   3,
+	}
+
+	results, err := ac.FindIndexParallel(text, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(results) == 0 {
+		t.Error("expected some matches")
+	}
+
+	for keyword, indices := range results {
+		for _, idx := range indices {
+			if idx < 0 {
+				t.Errorf("negative index for %s: %d", keyword, idx)
+			}
+		}
+	}
+}

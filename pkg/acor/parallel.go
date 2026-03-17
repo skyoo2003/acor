@@ -145,3 +145,82 @@ func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]strin
 	}
 	return unique, nil
 }
+
+func (ac *AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (map[string][]int, error) {
+	if opts == nil {
+		opts = DefaultParallelOptions()
+	}
+
+	if opts.Workers <= 0 {
+		opts.Workers = runtime.NumCPU()
+	}
+	if opts.ChunkSize <= 0 {
+		return nil, ErrInvalidChunkSize
+	}
+
+	chunks := splitChunks(text, opts)
+	if len(chunks) == 0 {
+		return map[string][]int{}, nil
+	}
+
+	if len(chunks) == 1 {
+		return ac.FindIndex(text)
+	}
+
+	type indexedResult struct {
+		matches map[string][]int
+		offset  int
+	}
+
+	results := make(chan indexedResult, len(chunks))
+	errors := make(chan error, len(chunks))
+
+	var wg sync.WaitGroup
+	worker := func(c chunk) {
+		defer wg.Done()
+		matches, err := ac.FindIndex(c.text)
+		if err != nil {
+			errors <- err
+			return
+		}
+		results <- indexedResult{matches: matches, offset: c.textOffset}
+	}
+
+	sem := make(chan struct{}, opts.Workers)
+	for _, c := range chunks {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(chunk chunk) {
+			defer func() { <-sem }()
+			worker(chunk)
+		}(c)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+		close(errors)
+	}()
+
+	allMatches := make(map[string]map[int]struct{})
+	for res := range results {
+		for keyword, indices := range res.matches {
+			if allMatches[keyword] == nil {
+				allMatches[keyword] = make(map[int]struct{})
+			}
+			for _, idx := range indices {
+				adjustedIdx := idx + res.offset
+				allMatches[keyword][adjustedIdx] = struct{}{}
+			}
+		}
+	}
+
+	result := make(map[string][]int)
+	for keyword, indices := range allMatches {
+		result[keyword] = make([]int, 0, len(indices))
+		for idx := range indices {
+			result[keyword] = append(result[keyword], idx)
+		}
+	}
+	return result, nil
+}
