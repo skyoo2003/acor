@@ -1,5 +1,3 @@
-language: ko-KR
-
 reviews:
   profile: assertive
   review_status: true
