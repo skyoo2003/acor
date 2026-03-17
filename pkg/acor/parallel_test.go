@@ -54,3 +54,55 @@ func TestSplitChunksBySentence(t *testing.T) {
 		t.Errorf("expected at least 2 chunks, got %d", len(chunks))
 	}
 }
+
+func TestFindParallel(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	keywords := []string{"he", "her", "him", "test"}
+	for _, k := range keywords {
+		if _, err := ac.Add(k); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	text := "he is here with him. this is a test of the system."
+	opts := &ParallelOptions{
+		Workers:   2,
+		ChunkSize: 20,
+		Boundary:  ChunkBoundaryWord,
+		Overlap:   3,
+	}
+
+	results, err := ac.FindParallel(text, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(results) == 0 {
+		t.Error("expected some matches")
+	}
+}
+
+func TestFindParallelFallsBackToSequential(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	if _, err := ac.Add("test"); err != nil {
+		t.Fatal(err)
+	}
+
+	text := "test"
+	results, err := ac.FindParallel(text, &ParallelOptions{ChunkSize: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(results) != 1 || results[0] != "test" {
+		t.Errorf("expected ['test'], got %v", results)
+	}
+}
