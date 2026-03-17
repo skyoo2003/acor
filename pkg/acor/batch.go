@@ -24,6 +24,8 @@ func (ac *AhoCorasick) AddMany(keywords []string, opts *BatchOptions) (*BatchRes
 }
 
 func (ac *AhoCorasick) addManyBestEffort(keywords []string, result *BatchResult) (*BatchResult, error) {
+	seen := make(map[string]bool)
+
 	for _, keyword := range keywords {
 		keyword = strings.TrimSpace(keyword)
 		if keyword == "" {
@@ -33,6 +35,12 @@ func (ac *AhoCorasick) addManyBestEffort(keywords []string, result *BatchResult)
 			})
 			continue
 		}
+
+		if seen[keyword] {
+			result.Skipped = append(result.Skipped, keyword)
+			continue
+		}
+		seen[keyword] = true
 
 		count, err := ac.Add(keyword)
 		if err != nil {

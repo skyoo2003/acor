@@ -2,6 +2,7 @@ package acor
 
 import (
 	"runtime"
+	"sort"
 	"sync"
 	"unicode"
 )
@@ -127,24 +128,30 @@ func collectStringResults(results <-chan []string, errors <-chan error) (map[str
 	allMatches := make(map[string]struct{})
 	var firstErr error
 
-	for {
+	resultsOpen, errorsOpen := true, true
+
+	for resultsOpen || errorsOpen {
 		select {
 		case err, ok := <-errors:
 			if !ok {
-				return allMatches, firstErr
+				errorsOpen = false
+				continue
 			}
 			if firstErr == nil {
 				firstErr = err
 			}
 		case matches, ok := <-results:
 			if !ok {
-				return allMatches, firstErr
+				resultsOpen = false
+				continue
 			}
 			for _, m := range matches {
 				allMatches[m] = struct{}{}
 			}
 		}
 	}
+
+	return allMatches, firstErr
 }
 
 func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]string, error) {
@@ -215,18 +222,22 @@ func collectIndexResults(results <-chan indexedResult, errors <-chan error) (map
 	allMatches := make(map[string]map[int]struct{})
 	var firstErr error
 
-	for {
+	resultsOpen, errorsOpen := true, true
+
+	for resultsOpen || errorsOpen {
 		select {
 		case err, ok := <-errors:
 			if !ok {
-				return allMatches, firstErr
+				errorsOpen = false
+				continue
 			}
 			if firstErr == nil {
 				firstErr = err
 			}
 		case res, ok := <-results:
 			if !ok {
-				return allMatches, firstErr
+				resultsOpen = false
+				continue
 			}
 			for keyword, indices := range res.matches {
 				if allMatches[keyword] == nil {
@@ -239,6 +250,8 @@ func collectIndexResults(results <-chan indexedResult, errors <-chan error) (map
 			}
 		}
 	}
+
+	return allMatches, firstErr
 }
 
 func (ac *AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (map[string][]int, error) {
@@ -263,10 +276,12 @@ func (ac *AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (ma
 
 	result := make(map[string][]int)
 	for keyword, indices := range allMatches {
-		result[keyword] = make([]int, 0, len(indices))
+		sortedIndices := make([]int, 0, len(indices))
 		for idx := range indices {
-			result[keyword] = append(result[keyword], idx)
+			sortedIndices = append(sortedIndices, idx)
 		}
+		sort.Ints(sortedIndices)
+		result[keyword] = sortedIndices
 	}
 	return result, nil
 }

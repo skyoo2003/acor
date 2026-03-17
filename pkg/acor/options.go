@@ -23,7 +23,7 @@ const (
 
 const (
 	DefaultChunkSize           = 1000
-	DefaultOverlap             = 0
+	DefaultOverlap             = 50
 	defaultMaxBacktrackDivisor = 2
 )
 
