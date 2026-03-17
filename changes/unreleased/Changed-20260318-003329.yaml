@@ -1,0 +1,5 @@
+kind: Changed
+body: Add SchemaVersion field to AhoCorasickArgs for explicit schema selection
+time: 2026-03-18T00:33:29.673616+09:00
+custom:
+    Issue: "83"

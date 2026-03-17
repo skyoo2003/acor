@@ -1,0 +1,5 @@
+kind: Added
+body: 'Add CLI commands: migrate, migrate-rollback, schema-version'
+time: 2026-03-18T00:32:48.563215+09:00
+custom:
+    Issue: "83"

@@ -92,13 +92,31 @@ func (f *fakeService) Flush() error {
 	return nil
 }
 
+func (f *fakeService) MigrateV1ToV2(opts *acor.MigrationOptions) (*acor.MigrationResult, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &acor.MigrationResult{Status: "success"}, nil
+}
+
+func (f *fakeService) RollbackToV1() error {
+	if f.err != nil {
+		return f.err
+	}
+	return nil
+}
+
+func (f *fakeService) SchemaVersion() int {
+	return acor.SchemaV2
+}
+
 func (f *fakeService) Close() error {
 	f.closed = true
 	return nil
 }
 
 func TestParseArgs(t *testing.T) {
-	parsed, remaining, err := parseArgs([]string{
+	parsed, _, remaining, err := parseArgs([]string{
 		"-addr", "127.0.0.1:6379",
 		"-addrs", "127.0.0.1:7000, 127.0.0.1:7001",
 		"-master-name", "mymaster",
@@ -149,7 +167,7 @@ func TestParseArgsRejectsInvalidTopologyFlags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := parseArgs(tt.args)
+			_, _, _, err := parseArgs(tt.args)
 			if err == nil {
 				t.Fatal("expected parseArgs to return an error")
 			}

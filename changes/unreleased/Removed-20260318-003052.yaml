@@ -1,0 +1,5 @@
+kind: Removed
+body: Remove unused BatchSize field from MigrationOptions (was never implemented)
+time: 2026-03-18T00:30:52.879786+09:00
+custom:
+    Issue: "83"

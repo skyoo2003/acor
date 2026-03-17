@@ -1,6 +1,7 @@
 package acor
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -29,6 +30,30 @@ func createAhoCorasick(t *testing.T) (*AhoCorasick, *miniredis.Miniredis) {
 		DB:       0,
 		Name:     "test",
 		Debug:    false,
+	})
+	if err != nil {
+		mr.Close()
+		t.Fatal(err)
+	}
+
+	return ac, mr
+}
+
+func createAhoCorasickV1(t *testing.T) (*AhoCorasick, *miniredis.Miniredis) {
+	t.Helper()
+
+	mr := createTestRedisServer(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	_ = client.ZAdd(context.Background(), "{test}:prefix", &redis.Z{Score: 0, Member: ""}).Err()
+	_ = client.Close()
+
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:          mr.Addr(),
+		Password:      "",
+		DB:            0,
+		Name:          "test",
+		Debug:         false,
+		SchemaVersion: SchemaV1,
 	})
 	if err != nil {
 		mr.Close()
@@ -328,7 +353,7 @@ func TestNewRedisClientSelectsClusterTopology(t *testing.T) {
 }
 
 func TestAddUsesCollectionScopedKeys(t *testing.T) {
-	ac, mr := createAhoCorasick(t)
+	ac, mr := createAhoCorasickV1(t)
 	defer mr.Close()
 	defer func() { _ = ac.Close() }()
 	defer func() { _ = ac.Flush() }()
@@ -461,7 +486,7 @@ func TestFindReturnsErrorWhenRedisUnavailable(t *testing.T) {
 func TestAddRollsBackPartialTrieWrites(t *testing.T) {
 	const input = "he"
 
-	ac, mr := createAhoCorasick(t)
+	ac, mr := createAhoCorasickV1(t)
 	defer mr.Close()
 	defer func() { _ = ac.Close() }()
 	defer func() { _ = ac.Flush() }()
@@ -504,7 +529,7 @@ func TestAddRollsBackPartialTrieWrites(t *testing.T) {
 func TestAddFailedReAddKeepsExistingKeywordState(t *testing.T) {
 	const input = "he"
 
-	ac, mr := createAhoCorasick(t)
+	ac, mr := createAhoCorasickV1(t)
 	defer mr.Close()
 	defer func() { _ = ac.Close() }()
 	defer func() { _ = ac.Flush() }()
@@ -554,7 +579,7 @@ func TestAddFailedReAddKeepsExistingKeywordState(t *testing.T) {
 func TestInfoSuggestAndSuggestIndexReturnErrorsWhenRedisUnavailable(t *testing.T) {
 	const input = "he"
 
-	ac, mr := createAhoCorasick(t)
+	ac, mr := createAhoCorasickV1(t)
 	defer func() { _ = ac.Close() }()
 
 	if _, err := ac.Add(input); err != nil {
@@ -597,4 +622,196 @@ func assertIndexResults(t *testing.T, actual, expected map[string][]int) {
 			}
 		}
 	}
+}
+
+func TestV2KeyHelpers(t *testing.T) {
+	ac := &AhoCorasick{name: "test"}
+
+	tests := []struct {
+		name     string
+		got      string
+		expected string
+	}{
+		{"trieKey", ac.trieKey(), "{test}:trie"},
+		{"outputsKey", ac.outputsKey(), "{test}:outputs"},
+		{"nodesKey", ac.nodesKey(), "{test}:nodes"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.got != tt.expected {
+				t.Errorf("%s() = %s, want %s", tt.name, tt.got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestV1V2Compatibility(t *testing.T) {
+	mr := createTestRedisServer(t)
+
+	keywords := []string{"he", "she", "his", "hers", "hello"}
+	testTexts := []string{
+		"he",
+		"she is here",
+		"this is his",
+		"hers is better",
+		"hello world",
+		"ushers",
+	}
+
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	_ = client.ZAdd(context.Background(), "{v1test}:prefix", &redis.Z{Score: 0, Member: ""}).Err()
+	_ = client.Close()
+
+	args := &AhoCorasickArgs{Addr: mr.Addr(), Name: "v1test", SchemaVersion: SchemaV1}
+	acV1, err := Create(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, kw := range keywords {
+		_, _ = acV1.Add(kw)
+	}
+
+	v1Results := make(map[string][]string)
+	for _, text := range testTexts {
+		v1Results[text], _ = acV1.Find(text)
+	}
+	_ = acV1.Close()
+
+	args = &AhoCorasickArgs{Addr: mr.Addr(), Name: "v1test", SchemaVersion: SchemaV1}
+	acMigrate, err := Create(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = acMigrate.MigrateV1ToV2(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = acMigrate.Close()
+
+	args = &AhoCorasickArgs{Addr: mr.Addr(), Name: "v1test"}
+	acV2, err := Create(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	v2Results := make(map[string][]string)
+	for _, text := range testTexts {
+		v2Results[text], _ = acV2.Find(text)
+	}
+	_ = acV2.Close()
+
+	for _, text := range testTexts {
+		if !equalStringSets(v1Results[text], v2Results[text]) {
+			t.Errorf("Results differ for %q:\n  V1: %v\n  V2: %v", text, v1Results[text], v2Results[text])
+		}
+	}
+}
+
+func TestEndToEndV2(t *testing.T) { //nolint:gocyclo // Integration test with multiple scenarios
+	mr := createTestRedisServer(t)
+
+	args := &AhoCorasickArgs{
+		Addr: mr.Addr(),
+		Name: "e2e",
+	}
+
+	ac, err := Create(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ac.Close() }()
+
+	if ac.SchemaVersion() != SchemaV2 {
+		t.Errorf("SchemaVersion() = %d, want %d", ac.SchemaVersion(), SchemaV2)
+	}
+
+	keywords := []string{"apple", "application", "apply", "banana"}
+	for _, kw := range keywords {
+		count, addErr := ac.Add(kw)
+		if addErr != nil {
+			t.Fatalf("Add(%s) error: %v", kw, addErr)
+		}
+		if count != 1 {
+			t.Errorf("Add(%s) = %d, want 1", kw, count)
+		}
+	}
+
+	matches, err := ac.Find("I have an apple application")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsAll(matches, "apple", "application") {
+		t.Errorf("Find() = %v, should contain apple, application", matches)
+	}
+
+	suggestions, err := ac.Suggest("app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsAll(suggestions, "apple", "application", "apply") {
+		t.Errorf("Suggest(app) = %v, should contain apple, application, apply", suggestions)
+	}
+
+	info, err := ac.Info()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Keywords != 4 {
+		t.Errorf("Info.Keywords = %d, want 4", info.Keywords)
+	}
+
+	count, err := ac.Remove("apple")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 3 {
+		t.Errorf("Remove(apple) = %d, want 3 (remaining)", count)
+	}
+
+	matches, _ = ac.Find("I have an apple")
+	if containsAll(matches, "apple") {
+		t.Error("Find should not match 'apple' after removal")
+	}
+
+	if err := ac.Flush(); err != nil {
+		t.Fatal(err)
+	}
+
+	info, _ = ac.Info()
+	if info.Keywords != 0 {
+		t.Errorf("After Flush, Keywords = %d, want 0", info.Keywords)
+	}
+}
+
+func equalStringSets(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	aSet := make(map[string]int)
+	for _, s := range a {
+		aSet[s]++
+	}
+	for _, s := range b {
+		aSet[s]--
+		if aSet[s] < 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func containsAll(slice []string, items ...string) bool {
+	set := make(map[string]struct{})
+	for _, s := range slice {
+		set[s] = struct{}{}
+	}
+	for _, item := range items {
+		if _, exists := set[item]; !exists {
+			return false
+		}
+	}
+	return true
 }
