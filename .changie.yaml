@@ -19,4 +19,3 @@ custom:
     label: Issue Number
     type: int
     minInt: 1
-

@@ -1,0 +1,5 @@
+kind: Added
+body: Add RollbackToV1() for safe rollback when V1 keys are kept
+time: 2026-03-18T00:33:29.669603+09:00
+custom:
+    Issue: "83"

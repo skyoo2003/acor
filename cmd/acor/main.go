@@ -29,6 +29,9 @@ Commands:
   suggest-index <input>
   info
   flush
+  migrate [options]
+  migrate-rollback
+  schema-version
 
 Global options:
   -addr string
@@ -47,6 +50,12 @@ Global options:
         Pattern collection name (default "default")
   -debug
         Enable debug logging
+
+Migrate options:
+  -dry-run
+        Preview migration without making changes
+  -keep-old-keys
+        Keep V1 keys after migration (for rollback)
 `
 )
 
@@ -59,28 +68,38 @@ type service interface {
 	SuggestIndex(string) (map[string][]int, error)
 	Info() (*acor.AhoCorasickInfo, error)
 	Flush() error
+	MigrateV1ToV2(*acor.MigrationOptions) (*acor.MigrationResult, error)
+	RollbackToV1() error
+	SchemaVersion() int
 	Close() error
 }
 
 type commandConfig struct {
-	addr       string
-	addrs      string
-	masterName string
-	ringAddrs  string
-	password   string
-	db         int
-	name       string
-	debug      bool
+	addr        string
+	addrs       string
+	masterName  string
+	ringAddrs   string
+	password    string
+	db          int
+	name        string
+	debug       bool
+	dryRun      bool
+	keepOldKeys bool
 }
 
-type commandRunner func(io.Writer, service, string) error
+type commandRunner func(io.Writer, service, string, *migrateOptions) error
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, createService))
 }
 
+type migrateOptions struct {
+	dryRun      bool
+	keepOldKeys bool
+}
+
 func run(args []string, stdout, stderr io.Writer, create func(*acor.AhoCorasickArgs) (service, error)) int {
-	config, remaining, err := parseArgs(args)
+	config, migrateOpts, remaining, err := parseArgs(args)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			_, _ = fmt.Fprint(stderr, usageText)
@@ -116,7 +135,7 @@ func run(args []string, stdout, stderr io.Writer, create func(*acor.AhoCorasickA
 	}
 	defer func() { _ = ac.Close() }()
 
-	if err := runner(stdout, ac, commandArg); err != nil {
+	if err := runner(stdout, ac, commandArg, migrateOpts); err != nil {
 		_, _ = fmt.Fprintln(stderr, err.Error())
 		return 1
 	}
@@ -124,7 +143,7 @@ func run(args []string, stdout, stderr io.Writer, create func(*acor.AhoCorasickA
 	return 0
 }
 
-func parseArgs(args []string) (*acor.AhoCorasickArgs, []string, error) {
+func parseArgs(args []string) (*acor.AhoCorasickArgs, *migrateOptions, []string, error) {
 	config := &commandConfig{}
 	fs := flag.NewFlagSet("acor", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -136,13 +155,15 @@ func parseArgs(args []string) (*acor.AhoCorasickArgs, []string, error) {
 	fs.IntVar(&config.db, "db", 0, "redis db number")
 	fs.StringVar(&config.name, "name", "default", "pattern collection name")
 	fs.BoolVar(&config.debug, "debug", false, "enable debug logging")
+	fs.BoolVar(&config.dryRun, "dry-run", false, "preview migration without making changes")
+	fs.BoolVar(&config.keepOldKeys, "keep-old-keys", false, "keep V1 keys after migration")
 	fs.Usage = func() {}
 
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			return nil, nil, flag.ErrHelp
+			return nil, nil, nil, flag.ErrHelp
 		}
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	config.name = strings.TrimSpace(config.name)
@@ -152,12 +173,17 @@ func parseArgs(args []string) (*acor.AhoCorasickArgs, []string, error) {
 
 	ringAddrs, err := parseRingAddrs(config.ringAddrs)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	addrs := parseCSV(config.addrs)
 	if strings.TrimSpace(config.addrs) != "" && len(addrs) == 0 {
-		return nil, nil, errors.New("addrs must contain at least one address")
+		return nil, nil, nil, errors.New("addrs must contain at least one address")
+	}
+
+	migrateOpts := &migrateOptions{
+		dryRun:      config.dryRun,
+		keepOldKeys: config.keepOldKeys,
 	}
 
 	return &acor.AhoCorasickArgs{
@@ -169,7 +195,7 @@ func parseArgs(args []string) (*acor.AhoCorasickArgs, []string, error) {
 		DB:         config.db,
 		Name:       config.name,
 		Debug:      config.debug,
-	}, fs.Args(), nil
+	}, migrateOpts, fs.Args(), nil
 }
 
 func parseCSV(raw string) []string {
@@ -233,6 +259,12 @@ func commandHandler(command string) (commandRunner, bool, error) {
 		return runInfo, false, nil
 	case "flush":
 		return runFlush, false, nil
+	case "migrate":
+		return runMigrate, false, nil
+	case "migrate-rollback":
+		return runMigrateRollback, false, nil
+	case "schema-version":
+		return runSchemaVersion, false, nil
 	default:
 		return nil, false, fmt.Errorf("unknown command %q", command)
 	}
@@ -256,7 +288,7 @@ func createService(args *acor.AhoCorasickArgs) (service, error) {
 	return acor.Create(args)
 }
 
-func runAdd(stdout io.Writer, ac service, input string) error {
+func runAdd(stdout io.Writer, ac service, input string, _ *migrateOptions) error {
 	count, err := ac.Add(input)
 	if err != nil {
 		return err
@@ -264,7 +296,7 @@ func runAdd(stdout io.Writer, ac service, input string) error {
 	return writeJSON(stdout, map[string]int{"count": count})
 }
 
-func runRemove(stdout io.Writer, ac service, input string) error {
+func runRemove(stdout io.Writer, ac service, input string, _ *migrateOptions) error {
 	count, err := ac.Remove(input)
 	if err != nil {
 		return err
@@ -272,7 +304,7 @@ func runRemove(stdout io.Writer, ac service, input string) error {
 	return writeJSON(stdout, map[string]int{"count": count})
 }
 
-func runFind(stdout io.Writer, ac service, input string) error {
+func runFind(stdout io.Writer, ac service, input string, _ *migrateOptions) error {
 	matches, err := ac.Find(input)
 	if err != nil {
 		return err
@@ -280,7 +312,7 @@ func runFind(stdout io.Writer, ac service, input string) error {
 	return writeJSON(stdout, map[string][]string{"matches": matches})
 }
 
-func runFindIndex(stdout io.Writer, ac service, input string) error {
+func runFindIndex(stdout io.Writer, ac service, input string, _ *migrateOptions) error {
 	matches, err := ac.FindIndex(input)
 	if err != nil {
 		return err
@@ -288,7 +320,7 @@ func runFindIndex(stdout io.Writer, ac service, input string) error {
 	return writeJSON(stdout, map[string]map[string][]int{"matches": matches})
 }
 
-func runSuggest(stdout io.Writer, ac service, input string) error {
+func runSuggest(stdout io.Writer, ac service, input string, _ *migrateOptions) error {
 	matches, err := ac.Suggest(input)
 	if err != nil {
 		return err
@@ -296,7 +328,7 @@ func runSuggest(stdout io.Writer, ac service, input string) error {
 	return writeJSON(stdout, map[string][]string{"matches": matches})
 }
 
-func runSuggestIndex(stdout io.Writer, ac service, input string) error {
+func runSuggestIndex(stdout io.Writer, ac service, input string, _ *migrateOptions) error {
 	matches, err := ac.SuggestIndex(input)
 	if err != nil {
 		return err
@@ -304,7 +336,7 @@ func runSuggestIndex(stdout io.Writer, ac service, input string) error {
 	return writeJSON(stdout, map[string]map[string][]int{"matches": matches})
 }
 
-func runInfo(stdout io.Writer, ac service, _ string) error {
+func runInfo(stdout io.Writer, ac service, _ string, _ *migrateOptions) error {
 	info, err := ac.Info()
 	if err != nil {
 		return err
@@ -315,11 +347,34 @@ func runInfo(stdout io.Writer, ac service, _ string) error {
 	})
 }
 
-func runFlush(stdout io.Writer, ac service, _ string) error {
+func runFlush(stdout io.Writer, ac service, _ string, _ *migrateOptions) error {
 	if err := ac.Flush(); err != nil {
 		return err
 	}
 	return writeJSON(stdout, map[string]string{"status": "ok"})
+}
+
+func runMigrate(stdout io.Writer, ac service, _ string, opts *migrateOptions) error {
+	result, err := ac.MigrateV1ToV2(&acor.MigrationOptions{
+		DryRun:      opts.dryRun,
+		KeepOldKeys: opts.keepOldKeys,
+	})
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, result)
+}
+
+func runMigrateRollback(stdout io.Writer, ac service, _ string, _ *migrateOptions) error {
+	if err := ac.RollbackToV1(); err != nil {
+		return err
+	}
+	return writeJSON(stdout, map[string]string{"status": "rolled_back"})
+}
+
+func runSchemaVersion(stdout io.Writer, ac service, _ string, _ *migrateOptions) error {
+	version := ac.SchemaVersion()
+	return writeJSON(stdout, map[string]int{"schema_version": version})
 }
 
 func writeJSON(w io.Writer, value interface{}) error {
