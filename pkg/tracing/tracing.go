@@ -2,6 +2,7 @@ package tracing
 
 import (
 	"context"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -53,8 +54,13 @@ func NewTracer(cfg *Config) (*Tracer, error) {
 		return nil, err
 	}
 
+	sampleRatio := cfg.SampleRatio
+	if sampleRatio < 0.0 || sampleRatio > 1.0 {
+		sampleRatio = 1.0
+	}
+
 	sampler := sdktrace.ParentBased(
-		sdktrace.TraceIDRatioBased(cfg.SampleRatio),
+		sdktrace.TraceIDRatioBased(sampleRatio),
 	)
 
 	provider := sdktrace.NewTracerProvider(
@@ -77,7 +83,9 @@ func NewTracer(cfg *Config) (*Tracer, error) {
 
 func (t *Tracer) Shutdown() error {
 	if t.provider != nil {
-		return t.provider.Shutdown(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return t.provider.Shutdown(ctx)
 	}
 	return nil
 }
