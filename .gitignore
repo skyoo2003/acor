@@ -10,4 +10,5 @@
 /docs/superpowers/
 /docs/plans/
 /docs/specs/
+/.worktrees/
 .DS_Store
