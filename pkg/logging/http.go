@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
 func HTTPMiddleware(logger *Logger) func(http.Handler) http.Handler {
@@ -18,7 +20,17 @@ func HTTPMiddleware(logger *Logger) func(http.Handler) http.Handler {
 
 			duration := time.Since(start)
 
-			logger.Info().
+			var event *zerolog.Event
+			switch {
+			case wrapped.statusCode >= 500:
+				event = logger.Error()
+			case wrapped.statusCode >= 400:
+				event = logger.Warn()
+			default:
+				event = logger.Info()
+			}
+
+			event.
 				Str("method", r.Method).
 				Str("path", r.URL.Path).
 				Int("status", wrapped.statusCode).
