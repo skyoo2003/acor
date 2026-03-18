@@ -1,5 +1,0 @@
-kind: Changed
-body: 'chore: update pre-commit hooks to latest versions'
-time: 2026-03-18T22:05:15.876919+09:00
-custom:
-    Issue: "88"
