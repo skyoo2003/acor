@@ -1,0 +1,5 @@
+kind: Added
+body: 'Add pkg/metrics: Prometheus metrics registry with HTTP/gRPC middleware'
+time: 2026-03-18T19:01:43.067007+09:00
+custom:
+    Issue: "85"

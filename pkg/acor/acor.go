@@ -39,6 +39,11 @@ var (
 	ErrRedisRingAddrs           = errors.New("redis ring requires at least one shard address")
 )
 
+type Logger interface {
+	Printf(format string, v ...interface{})
+	Println(v ...interface{})
+}
+
 type AhoCorasickArgs struct {
 	Addr          string // redis server address (ex) localhost:6379
 	Addrs         []string
@@ -48,6 +53,7 @@ type AhoCorasickArgs struct {
 	DB            int    // redis db number
 	Name          string // pattern's collection name
 	Debug         bool   // debug flag
+	Logger        Logger // Optional custom logger
 	SchemaVersion int    // 1: V1 (Legacy), 2 or 0: V2 (default)
 }
 
@@ -55,7 +61,7 @@ type AhoCorasick struct {
 	ctx           context.Context
 	redisClient   redis.UniversalClient // redis client
 	name          string                // Pattern's collection name
-	logger        *log.Logger           // logger
+	logger        Logger                // logger
 	buildTrieHook func(string) error
 	schemaVersion int // detected schema version
 }
@@ -66,9 +72,14 @@ type AhoCorasickInfo struct {
 }
 
 func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
-	logger := log.New(io.Discard, "ACOR: ", log.LstdFlags|log.Lshortfile)
+	stdLogger := log.New(io.Discard, "ACOR: ", log.LstdFlags|log.Lshortfile)
 	if args.Debug {
-		logger.SetOutput(os.Stdout)
+		stdLogger.SetOutput(os.Stdout)
+	}
+
+	var logger Logger = stdLogger
+	if args.Logger != nil {
+		logger = args.Logger
 	}
 
 	redisClient, err := newRedisClient(args)
