@@ -154,6 +154,7 @@ func collectStringResults(results <-chan []string, errors <-chan error) (map[str
 	return allMatches, firstErr
 }
 
+// FindParallel searches for keywords in text using parallel processing.
 func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]string, error) {
 	opts = normalizeParallelOptions(opts)
 	if opts.ChunkSize <= 0 {
@@ -254,6 +255,7 @@ func collectIndexResults(results <-chan indexedResult, errors <-chan error) (map
 	return allMatches, firstErr
 }
 
+// FindIndexParallel searches for keywords with indices using parallel processing.
 func (ac *AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (map[string][]int, error) {
 	opts = normalizeParallelOptions(opts)
 	if opts.ChunkSize <= 0 {

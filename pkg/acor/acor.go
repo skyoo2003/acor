@@ -32,18 +32,25 @@ const (
 )
 
 var (
-	ErrRedisAlreadyClosed       = errors.New("redis client was already closed")
+	// ErrRedisAlreadyClosed is returned when attempting to close an already closed Redis client.
+	ErrRedisAlreadyClosed = errors.New("redis client was already closed")
+	// ErrRedisConflictingTopology is returned when conflicting Redis topology settings are provided.
 	ErrRedisConflictingTopology = errors.New("redis topology settings are conflicting")
-	ErrRedisSentinelAddrs       = errors.New("redis sentinel requires at least one address")
-	ErrRedisClusterDB           = errors.New("redis cluster does not support DB selection")
-	ErrRedisRingAddrs           = errors.New("redis ring requires at least one shard address")
+	// ErrRedisSentinelAddrs is returned when sentinel mode is specified without addresses.
+	ErrRedisSentinelAddrs = errors.New("redis sentinel requires at least one address")
+	// ErrRedisClusterDB is returned when DB selection is used with cluster mode.
+	ErrRedisClusterDB = errors.New("redis cluster does not support DB selection")
+	// ErrRedisRingAddrs is returned when ring mode is specified without shard addresses.
+	ErrRedisRingAddrs = errors.New("redis ring requires at least one shard address")
 )
 
+// Logger defines the interface for logging operations used by AhoCorasick.
 type Logger interface {
 	Printf(format string, v ...interface{})
 	Println(v ...interface{})
 }
 
+// AhoCorasickArgs contains configuration options for creating an AhoCorasick instance.
 type AhoCorasickArgs struct {
 	Addr          string // redis server address (ex) localhost:6379
 	Addrs         []string
@@ -57,6 +64,7 @@ type AhoCorasickArgs struct {
 	SchemaVersion int    // 1: V1 (Legacy), 2 or 0: V2 (default)
 }
 
+// AhoCorasick represents an Aho-Corasick automaton backed by Redis.
 type AhoCorasick struct {
 	ctx           context.Context
 	redisClient   redis.UniversalClient // redis client
@@ -66,11 +74,13 @@ type AhoCorasick struct {
 	schemaVersion int // detected schema version
 }
 
+// AhoCorasickInfo contains statistics about the Aho-Corasick automaton.
 type AhoCorasickInfo struct {
 	Keywords int // Aho-Corasick keywords count
 	Nodes    int // Aho-Corasick nodes count
 }
 
+// Create initializes and returns a new AhoCorasick instance connected to Redis.
 func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	stdLogger := log.New(io.Discard, "ACOR: ", log.LstdFlags|log.Lshortfile)
 	if args.Debug {
@@ -269,6 +279,7 @@ func (ac *AhoCorasick) nodesKey() string {
 	return fmt.Sprintf("%s:nodes", ac.keyPrefix())
 }
 
+// SchemaVersion returns the current schema version used by the AhoCorasick instance.
 func (ac *AhoCorasick) SchemaVersion() int {
 	return ac.schemaVersion
 }
@@ -304,6 +315,7 @@ func (ac *AhoCorasick) init() error {
 	return nil
 }
 
+// Close closes the Redis client connection.
 func (ac *AhoCorasick) Close() error {
 	if ac.redisClient != nil {
 		return ac.redisClient.Close()
@@ -311,6 +323,7 @@ func (ac *AhoCorasick) Close() error {
 	return ErrRedisAlreadyClosed
 }
 
+// Add inserts a keyword into the Aho-Corasick automaton.
 func (ac *AhoCorasick) Add(keyword string) (int, error) {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.addV2(keyword)
@@ -340,6 +353,7 @@ func (ac *AhoCorasick) Add(keyword string) (int, error) {
 	return int(addedCount), nil
 }
 
+// Remove deletes a keyword from the Aho-Corasick automaton.
 func (ac *AhoCorasick) Remove(keyword string) (int, error) {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.removeV2(keyword)
@@ -448,6 +462,7 @@ func (ac *AhoCorasick) removePrefixAndSuffix(keyword, prefix, suffix string) err
 	return nil
 }
 
+// Find searches for all keywords in the given text and returns matched keywords.
 func (ac *AhoCorasick) Find(text string) ([]string, error) {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.findV2(text)
@@ -500,6 +515,7 @@ func (ac *AhoCorasick) Find(text string) ([]string, error) {
 	return matched, nil
 }
 
+// FindIndex searches for keywords in text and returns their start indices.
 func (ac *AhoCorasick) FindIndex(text string) (map[string][]int, error) {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.findIndexV2(text)
@@ -554,6 +570,7 @@ func (ac *AhoCorasick) FindIndex(text string) (map[string][]int, error) {
 	return matched, nil
 }
 
+// Flush removes all keywords and trie data from Redis.
 func (ac *AhoCorasick) Flush() error {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.flushV2()
@@ -608,6 +625,7 @@ func (ac *AhoCorasick) Flush() error {
 	return nil
 }
 
+// Info returns statistics about the Aho-Corasick automaton.
 func (ac *AhoCorasick) Info() (*AhoCorasickInfo, error) {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.infoV2()
@@ -633,6 +651,7 @@ func (ac *AhoCorasick) Info() (*AhoCorasickInfo, error) {
 	}, nil
 }
 
+// Suggest returns keywords that start with the given input prefix.
 func (ac *AhoCorasick) Suggest(input string) ([]string, error) {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.suggestV2(input)
@@ -676,6 +695,7 @@ func (ac *AhoCorasick) Suggest(input string) ([]string, error) {
 	return results, nil
 }
 
+// SuggestIndex returns keywords matching the prefix with their indices.
 func (ac *AhoCorasick) SuggestIndex(input string) (map[string][]int, error) {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.suggestIndexV2(input)
@@ -722,6 +742,7 @@ func (ac *AhoCorasick) SuggestIndex(input string) (map[string][]int, error) {
 	return results, nil
 }
 
+// Debug prints the current state of the Aho-Corasick automaton for debugging.
 func (ac *AhoCorasick) Debug() {
 	kKey := ac.keywordKey()
 	fmt.Println("-", ac.redisClient.SMembers(ac.ctx, kKey))

@@ -10,8 +10,11 @@ import (
 )
 
 var (
-	ErrAlreadyV2       = errors.New("collection is already on V2 schema")
+	// ErrAlreadyV2 is returned when attempting to migrate a collection that is already on V2 schema.
+	ErrAlreadyV2 = errors.New("collection is already on V2 schema")
+	// ErrNoDataToMigrate is returned when no V1 data is found to migrate.
 	ErrNoDataToMigrate = errors.New("no V1 data found to migrate")
+	// ErrMigrationInProg is returned when a migration is already in progress.
 	ErrMigrationInProg = errors.New("migration already in progress")
 )
 
@@ -55,6 +58,7 @@ func (ac *AhoCorasick) releaseMigrationLock() error {
 	return nil
 }
 
+// MigrateV1ToV2 migrates the collection from V1 schema to V2 schema.
 func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, error) { //nolint:gocyclo,funlen // Complex migration logic with multiple stages
 	if opts == nil {
 		opts = DefaultMigrationOptions()
@@ -262,6 +266,7 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	return result, nil
 }
 
+// RollbackToV1 reverts the collection from V2 schema back to V1 schema.
 func (ac *AhoCorasick) RollbackToV1() error {
 	v1Exists, err := ac.redisClient.Exists(ac.ctx, ac.keywordKey()).Result()
 	if err != nil {
