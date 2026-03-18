@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/go-redis/redis/v8 v8.11.5
-	google.golang.org/grpc v1.79.2
+	google.golang.org/grpc v1.79.3
 )
 
 require (
