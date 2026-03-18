@@ -59,8 +59,9 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement by
-[opening an issue](https://github.com/skyoo2003/acor/issues/new) in this repository.
+reported to the community leaders responsible for enforcement through
+[GitHub Security Advisory](https://github.com/skyoo2003/acor/security/advisories/new).
+This ensures confidential handling of sensitive reports.
 
 All complaints will be reviewed and investigated promptly and fairly.
 

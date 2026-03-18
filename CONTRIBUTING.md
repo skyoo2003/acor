@@ -14,7 +14,7 @@ Thank you for your interest in contributing to ACOR! This document provides guid
 
 ## Code of Conduct
 
-This project and everyone participating in it is governed by the [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior by [opening an issue](https://github.com/skyoo2003/acor/issues/new).
+This project and everyone participating in it is governed by the [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior through [GitHub Security Advisory](https://github.com/skyoo2003/acor/security/advisories/new).
 
 ## How Can I Contribute?
 
@@ -60,16 +60,22 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 ### Getting Started
 
 1. Fork the repository
+
 2. Clone your fork:
+
    ```sh
    git clone https://github.com/YOUR_USERNAME/acor.git
    cd acor
    ```
+
 3. Install dependencies:
+
    ```sh
    go mod download
    ```
+
 4. Set up git hooks (optional):
+
    ```sh
    make setup
    ```
@@ -128,7 +134,7 @@ This runs lint, test, and build.
 
 ### Commit Message Format
 
-```
+```text
 <type>: <subject>
 
 <body>

@@ -240,4 +240,4 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## License
 
-[MIT License](LICENSE) - Copyright (c) 2016-2026 Sung-Kyu Yoo
+[MIT License](LICENSE) - Copyright (c) 2016-2026 Sungkyu Yoo
