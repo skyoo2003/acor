@@ -103,6 +103,49 @@ The HTTP handler exposes JSON endpoints on `/v1/*` plus `/healthz`.
 
 The gRPC service name is `acor.server.v1.Acor` and mirrors the same operations.
 
+## Batch Operations
+
+For better performance when working with multiple keywords:
+
+```go
+// Add multiple keywords with transactional mode
+result, _ := ac.AddMany([]string{"he", "her", "him"}, &acor.BatchOptions{
+    Mode: acor.Transactional,
+})
+
+// Find matches in multiple texts
+matches, _ := ac.FindMany([]string{"he is him", "this is hers"})
+```
+
+## Parallel Matching
+
+Process large texts using multiple goroutines:
+
+```go
+matches, _ := ac.FindParallel(largeText, &acor.ParallelOptions{
+    Workers:       4,
+    ChunkBoundary: acor.ChunkWord,
+})
+```
+
+## Observability
+
+ACOR provides built-in observability packages:
+
+- **Metrics**: Prometheus metrics for HTTP, gRPC, and Redis
+- **Logging**: Structured JSON logging with zerolog
+- **Tracing**: OpenTelemetry distributed tracing
+- **Health**: Kubernetes-compatible health checks
+
+```go
+import (
+    "github.com/skyoo2003/acor/pkg/metrics"
+    "github.com/skyoo2003/acor/pkg/logging"
+    "github.com/skyoo2003/acor/pkg/tracing"
+    "github.com/skyoo2003/acor/pkg/health"
+)
+```
+
 ## Development Workflow
 
 Run local checks with:
