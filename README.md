@@ -1,6 +1,6 @@
 # ACOR
 
-**A**ho-**C**orasick automation working **O**n **R**edis — A Go library for efficient multi-pattern string matching backed by Redis.
++**A**ho-**C**orasick automaton working **O**n **R**edis — A Go library for efficient multi-pattern string matching backed by Redis.
 
 [![Current Release](https://img.shields.io/github/release/skyoo2003/acor.svg)](https://github.com/skyoo2003/acor/releases/latest)
 [![CI Status](https://github.com/skyoo2003/acor/actions/workflows/ci.yaml/badge.svg)](https://github.com/skyoo2003/acor/actions/workflows/ci.yaml)
@@ -164,6 +164,7 @@ matches, err := ac.FindMany([]string{"he is him", "this is hers"})
 ```
 
 **Batch Modes:**
+
 - `BestEffort`: Continues on errors, returns partial results
 - `Transactional`: Rolls back all changes if any error occurs
 
@@ -179,6 +180,7 @@ matches, err := ac.FindParallel(largeText, &acor.ParallelOptions{
 ```
 
 Chunk boundaries ensure matches aren't split across chunks:
+
 - `ChunkWord`: Split at word boundaries (default)
 - `ChunkLine`: Split at line breaks
 - `ChunkSentence`: Split at sentence endings
