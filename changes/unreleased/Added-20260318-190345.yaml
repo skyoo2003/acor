@@ -1,0 +1,5 @@
+kind: Added
+body: 'Add pkg/tracing: OpenTelemetry distributed tracing with HTTP/gRPC middleware'
+time: 2026-03-18T19:03:45.221894+09:00
+custom:
+    Issue: "85"
