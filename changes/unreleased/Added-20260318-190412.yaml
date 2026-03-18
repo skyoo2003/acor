@@ -1,0 +1,5 @@
+kind: Added
+body: 'Add pkg/logging: zerolog structured logging with HTTP/gRPC middleware'
+time: 2026-03-18T19:04:12.973998+09:00
+custom:
+    Issue: "85"

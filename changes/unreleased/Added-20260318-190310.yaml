@@ -1,0 +1,5 @@
+kind: Added
+body: Add observability integration to gRPC server (NewGRPCServerWithObservability)
+time: 2026-03-18T19:03:10.942714+09:00
+custom:
+    Issue: "85"
