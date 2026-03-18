@@ -17,7 +17,7 @@ All notable changes to this project will be documented in this file.
 
 ### Documentation
 
-- Add GitHub Pages documentation and deployment workflow ([#76](https://github.com/skyoo2003/acor/issues/76))## [v1.2.0](https://github.com/skyoo2003/acor/releases/tag/v1.2.0) - 2021-07-09
+- Add GitHub Pages documentation and deployment workflow ([#76](https://github.com/skyoo2003/acor/issues/76))
 
 ## [v1.2.0](https://github.com/skyoo2003/acor/releases/tag/v1.2.0) - 2021-07-09
 
