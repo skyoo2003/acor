@@ -1,0 +1,5 @@
+kind: Added
+body: Add batch operations (AddMany, RemoveMany, FindMany) with BestEffort and Transactional modes
+time: 2026-03-18T08:15:57.461985+09:00
+custom:
+    Issue: "84"

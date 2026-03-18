@@ -1,0 +1,5 @@
+kind: Added
+body: Add parallel matching (FindParallel, FindIndexParallel) with configurable chunk boundaries
+time: 2026-03-18T08:15:26.689629+09:00
+custom:
+    Issue: "84"

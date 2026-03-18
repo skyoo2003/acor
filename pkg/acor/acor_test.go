@@ -106,14 +106,17 @@ func TestAddAndRemove(t *testing.T) {
 
 func TestSuggest(t *testing.T) {
 	var results []string
-	const input = "he"
+	const (
+		input = "he"
+		her   = "her"
+	)
 
 	ac, mr := createAhoCorasick(t)
 	defer mr.Close()
 	defer func() { _ = ac.Close() }()
 	defer func() { _ = ac.Flush() }()
 
-	keywords := []string{"her", "he", "his"}
+	keywords := []string{her, "he", "his"}
 	for _, keyword := range keywords {
 		if _, err := ac.Add(keyword); err != nil {
 			t.Fatal(err)
@@ -132,7 +135,7 @@ func TestSuggest(t *testing.T) {
 	}
 	for _, result := range results {
 		switch result {
-		case "her", input:
+		case her, input:
 			continue
 		}
 		t.Error("results have invalid data")
