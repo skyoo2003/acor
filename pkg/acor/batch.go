@@ -5,6 +5,7 @@ import (
 	"sync"
 )
 
+// AddMany adds multiple keywords to the Aho-Corasick automaton in batch mode.
 func (ac *AhoCorasick) AddMany(keywords []string, opts *BatchOptions) (*BatchResult, error) {
 	if opts == nil {
 		opts = &BatchOptions{Mode: BatchModeBestEffort}
@@ -124,6 +125,7 @@ func (ac *AhoCorasick) rollbackAdded(keywords []string) {
 	wg.Wait()
 }
 
+// RemoveMany removes multiple keywords from the Aho-Corasick automaton.
 func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
 	result := &BatchResult{
 		Added:   make([]string, 0),

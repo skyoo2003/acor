@@ -13,6 +13,7 @@ import (
 	"github.com/skyoo2003/acor/internal/pkg/utils"
 )
 
+// ErrConcurrencyConflict is returned when an optimistic lock conflict occurs.
 var ErrConcurrencyConflict = errors.New("concurrency conflict - please retry")
 
 const maxRetries = 3

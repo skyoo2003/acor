@@ -1,6 +1,7 @@
 // Package utils stateless and useful functions or structs
 package utils
 
+// Reverse returns the input string with its characters in reverse order.
 func Reverse(s string) string {
 	r := []rune(s)
 	for i, j := 0, len(r)-1; i < len(r)/2; i, j = i+1, j-1 {
