@@ -1,5 +1,0 @@
-kind: Added
-body: 'Add pkg/health: Kubernetes-compatible health checks (liveness/readiness) for HTTP/gRPC'
-time: 2026-03-18T19:01:59.694063+09:00
-custom:
-    Issue: "85"

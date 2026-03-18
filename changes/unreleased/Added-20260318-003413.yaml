@@ -1,5 +1,0 @@
-kind: Added
-body: Add MigrateV1ToV2() with dry-run support and progress callbacks
-time: 2026-03-18T00:34:13.999445+09:00
-custom:
-    Issue: "83"
