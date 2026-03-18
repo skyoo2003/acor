@@ -29,7 +29,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Fixed NodeKey output was not writed ([#13](https://github.com/skyoo2003/acor/issues/13))
+- Fixed NodeKey output was not written ([#13](https://github.com/skyoo2003/acor/issues/13))
 
 ## [v1.1.0](https://github.com/skyoo2003/acor/releases/tag/v1.1.0) - 2020-11-17
 
