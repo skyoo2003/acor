@@ -430,7 +430,16 @@ func (ac *AhoCorasick) SuggestIndex(input string) (map[string][]int, error) {
 // Debug prints the current state of the Aho-Corasick automaton to stdout.
 // This includes keywords, prefixes, suffixes, outputs, and nodes.
 // Useful for debugging and understanding the trie structure.
+// Note: Output format differs between V1 and V2 schemas.
 func (ac *AhoCorasick) Debug() {
+	if ac.schemaVersion == SchemaV2 {
+		ac.debugV2()
+		return
+	}
+	ac.debugV1()
+}
+
+func (ac *AhoCorasick) debugV1() {
 	kKey := keywordKey(ac.name)
 	fmt.Println("-", ac.redisClient.SMembers(ac.ctx, kKey))
 
@@ -460,4 +469,36 @@ func (ac *AhoCorasick) Debug() {
 		nodes = append(nodes, nKeywords...)
 	}
 	fmt.Println("-", nodes)
+}
+
+func (ac *AhoCorasick) debugV2() {
+	trieData, err := ac.redisClient.HGetAll(ac.ctx, trieKey(ac.name)).Result()
+	if err != nil {
+		fmt.Println("Error reading trie:", err)
+		return
+	}
+	fmt.Println("Trie data:")
+	for key, value := range trieData {
+		fmt.Printf("  %s: %s\n", key, value)
+	}
+
+	outputsData, err := ac.redisClient.HGetAll(ac.ctx, outputsKey(ac.name)).Result()
+	if err != nil {
+		fmt.Println("Error reading outputs:", err)
+		return
+	}
+	fmt.Println("Outputs data:")
+	for key, value := range outputsData {
+		fmt.Printf("  %s: %s\n", key, value)
+	}
+
+	nodesData, err := ac.redisClient.HGetAll(ac.ctx, nodesKey(ac.name)).Result()
+	if err != nil {
+		fmt.Println("Error reading nodes:", err)
+		return
+	}
+	fmt.Println("Nodes data:")
+	for key, value := range nodesData {
+		fmt.Printf("  %s: %s\n", key, value)
+	}
 }
