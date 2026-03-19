@@ -1,10 +1,10 @@
 {
-  "code-block-style": { "style": "fenced" },
-  "code-fence-style": { "style": "backtick" },
-  "emphasis-style": { "style": "asterisk" },
-  "heading-style": { "style": "atx" },
-  "hr-style": { "style": "---" },
-  "line-length": { "strict": true, "code_blocks": false, "line_length": 320 },
+  "code-block-style": {"style": "fenced"},
+  "code-fence-style": {"style": "backtick"},
+  "emphasis-style": {"style": "asterisk"},
+  "heading-style": {"style": "atx"},
+  "hr-style": {"style": "---"},
+  "line-length": {"strict": true, "code_blocks": false, "line_length": 320},
   "link-image-style":
     {
       "autolink": false,
@@ -12,9 +12,9 @@
       "collapsed": false,
       "shortcut": false,
     },
-  "no-duplicate-heading": { "siblings_only": true },
-  "ol-prefix": { "style": "ordered" },
-  "strong-style": { "style": "asterisk" },
-  "table-pipe-style": { "style": "leading_and_trailing" },
-  "ul-style": { "style": "dash" },
+  "no-duplicate-heading": {"siblings_only": true},
+  "ol-prefix": {"style": "ordered"},
+  "strong-style": {"style": "asterisk"},
+  "table-pipe-style": {"style": "leading_and_trailing"},
+  "ul-style": {"style": "dash"},
 }
