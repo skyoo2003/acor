@@ -48,6 +48,7 @@ package main
 
 import (
     "context"
+    "fmt"
     "sync"
 
     "github.com/skyoo2003/acor/pkg/acor"
@@ -94,7 +95,11 @@ func (m *MemoryStorage) SAdd(ctx context.Context, key string, members ...interfa
         m.sets[key] = make(map[string]struct{})
     }
     for _, member := range members {
-        m.sets[key][member.(string)] = struct{}{}
+        s, ok := member.(string)
+        if !ok {
+            return fmt.Errorf("unsupported member type: %T", member)
+        }
+        m.sets[key][s] = struct{}{}
     }
     return nil
 }
