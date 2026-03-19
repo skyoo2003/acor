@@ -18,7 +18,11 @@ func Example_parallelMatching() {
 	}
 	defer func() { _ = ac.Close() }()
 
-	_, _ = ac.AddMany([]string{"foo", "bar", "baz"}, nil)
+	_, err = ac.AddMany([]string{"foo", "bar", "baz"}, nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to add keywords: %v\n", err)
+		return
+	}
 
 	largeText := "foo bar baz "
 	matches, err := ac.FindParallel(largeText, &acor.ParallelOptions{
