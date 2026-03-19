@@ -316,10 +316,12 @@ func (ac *AhoCorasick) init() error {
 // an AhoCorasick instance to release resources. Returns ErrRedisAlreadyClosed
 // if the connection was already closed.
 func (ac *AhoCorasick) Close() error {
-	if ac.redisClient != nil {
-		return ac.redisClient.Close()
+	if ac.redisClient == nil {
+		return ErrRedisAlreadyClosed
 	}
-	return ErrRedisAlreadyClosed
+	err := ac.redisClient.Close()
+	ac.redisClient = nil
+	return err
 }
 
 // Add inserts a keyword into the Aho-Corasick automaton.
