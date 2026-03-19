@@ -98,7 +98,13 @@ metadata:
   name: acor-app
 spec:
   replicas: 3
+  selector:
+    matchLabels:
+      app: acor-app
   template:
+    metadata:
+      labels:
+        app: acor-app
     spec:
       containers:
         - name: app
