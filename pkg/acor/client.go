@@ -21,7 +21,7 @@ func newRedisClient(args *AhoCorasickArgs) (redis.UniversalClient, error) {
 		return newRingRedisClient(args, ringAddrs), nil
 	case strings.TrimSpace(args.MasterName) != "":
 		return newSentinelRedisClient(args, addrs), nil
-	case len(addrs) > 0:
+	case len(args.Addrs) > 0:
 		return newClusterRedisClient(args, addrs)
 	default:
 		return newStandaloneRedisClient(args, addrs), nil
@@ -29,7 +29,7 @@ func newRedisClient(args *AhoCorasickArgs) (redis.UniversalClient, error) {
 }
 
 func validateRedisTopology(args *AhoCorasickArgs, addrs []string, ringAddrs map[string]string) error {
-	if strings.TrimSpace(args.Addr) != "" && len(addrs) > 0 {
+	if strings.TrimSpace(args.Addr) != "" && len(args.Addrs) > 0 {
 		return ErrRedisConflictingTopology
 	}
 
