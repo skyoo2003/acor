@@ -49,7 +49,7 @@ package main
 import (
     "context"
     "sync"
-    
+
     "github.com/skyoo2003/acor/pkg/acor"
 )
 
@@ -79,7 +79,11 @@ func (m *MemoryStorage) Get(ctx context.Context, key string) (string, error) {
 func (m *MemoryStorage) Set(ctx context.Context, key string, value interface{}) error {
     m.mu.Lock()
     defer m.mu.Unlock()
-    m.data[key] = value.(string)
+    s, ok := value.(string)
+    if !ok {
+        return fmt.Errorf("unsupported value type: %T", value)
+    }
+    m.data[key] = s
     return nil
 }
 
@@ -128,12 +132,12 @@ import (
 func TestWithMiniredis(t *testing.T) {
     mr, _ := miniredis.Run()
     defer mr.Close()
-    
+
     client := redis.NewClient(&redis.Options{
         Addr: mr.Addr(),
     })
     defer client.Close()
-    
+
     // Use client with ACOR
 }
 ```
