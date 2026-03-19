@@ -32,7 +32,7 @@ func validateRedisTopology(args *AhoCorasickArgs, addrs []string, ringAddrs map[
 	}
 
 	hasSentinel := strings.TrimSpace(args.MasterName) != ""
-	hasRing := len(ringAddrs) > 0 || len(args.RingAddrs) > 0
+	hasRing := len(ringAddrs) > 0
 	hasCluster := !hasSentinel && len(args.Addrs) > 0
 
 	selectedTopologies := 0
