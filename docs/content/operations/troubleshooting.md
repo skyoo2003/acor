@@ -173,9 +173,7 @@ redis GET on key "...": context deadline exceeded
 ### Enable Debug Logging
 
 ```go
-logger := logging.NewLogger(logging.Config{
-    Level: "debug",
-})
+logger := logging.NewLogger(os.Stdout, "debug")
 ```
 
 ### CLI Debug Mode
