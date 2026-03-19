@@ -84,11 +84,6 @@ func newOperationError(op string, schema int, err error) error {
 	return &OperationError{Op: op, Schema: schema, Err: err}
 }
 
-//nolint:unused
-func newOperationErrorWithKeyword(op, keyword string, schema int, err error) error {
-	return &OperationError{Op: op, Keyword: keyword, Schema: schema, Err: err}
-}
-
 func newValidationError(field string, value interface{}, msg string) error {
 	return &ValidationError{Field: field, Value: value, Message: msg}
 }
