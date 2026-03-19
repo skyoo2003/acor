@@ -105,11 +105,16 @@ import "github.com/skyoo2003/acor/pkg/tracing"
 ### OpenTelemetry Setup
 
 ```go
-tp, _ := tracing.NewTracerProvider(tracing.Config{
+tracer, err := tracing.NewTracer(&tracing.Config{
+    Enabled:     true,
     ServiceName: "my-service",
     Endpoint:    "localhost:4317",
+    SampleRatio: 1.0,
 })
-defer tp.Shutdown(context.Background())
+if err != nil {
+    // handle error
+}
+defer tracer.Shutdown()
 ```
 
 ### Spans
