@@ -80,6 +80,9 @@ func FuzzAdd(f *testing.F) {
 	defer func() { _ = ac.Close() }()
 
 	f.Fuzz(func(t *testing.T, keyword string) {
-		_, _ = ac.Add(keyword)
+		_, err := ac.Add(keyword)
+		if err != nil && err != ErrEmptyKeyword {
+			t.Logf("Add(%q) error: %v", keyword, err)
+		}
 	})
 }

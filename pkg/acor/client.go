@@ -1,7 +1,6 @@
 package acor
 
 import (
-	"context"
 	"strings"
 
 	redis "github.com/go-redis/redis/v8"
@@ -21,7 +20,7 @@ func newRedisClient(args *AhoCorasickArgs) (redis.UniversalClient, error) {
 	case strings.TrimSpace(args.MasterName) != "":
 		return newSentinelRedisClient(args, addrs), nil
 	case len(args.Addrs) > 0:
-		return newClusterRedisClient(args, addrs)
+		return newClusterRedisClient(args, addrs), nil
 	default:
 		return newStandaloneRedisClient(args, addrs), nil
 	}
@@ -52,7 +51,7 @@ func validateRedisTopology(args *AhoCorasickArgs, addrs []string, ringAddrs map[
 	if hasSentinel && len(addrs) == 0 {
 		return ErrRedisSentinelAddrs
 	}
-	if hasRing && len(ringAddrs) == 0 {
+	if len(args.RingAddrs) > 0 && len(ringAddrs) == 0 {
 		return ErrRedisRingAddrs
 	}
 	if hasCluster && args.DB != 0 {
@@ -79,15 +78,11 @@ func newSentinelRedisClient(args *AhoCorasickArgs, addrs []string) redis.Univers
 	})
 }
 
-func newClusterRedisClient(args *AhoCorasickArgs, addrs []string) (redis.UniversalClient, error) {
-	client := redis.NewClusterClient(&redis.ClusterOptions{
+func newClusterRedisClient(args *AhoCorasickArgs, addrs []string) redis.UniversalClient {
+	return redis.NewClusterClient(&redis.ClusterOptions{
 		Addrs:    addrs,
 		Password: args.Password,
 	})
-	if err := client.Ping(context.Background()).Err(); err != nil {
-		return nil, err
-	}
-	return client, nil
 }
 
 func newStandaloneRedisClient(args *AhoCorasickArgs, addrs []string) redis.UniversalClient {
