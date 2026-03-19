@@ -52,10 +52,13 @@ graph TB
 V2 is automatically used for new collections. No configuration needed.
 
 ```go
-ac, _ := acor.Create(&acor.AhoCorasickArgs{
+ac, err := acor.Create(&acor.AhoCorasickArgs{
     Addr: "localhost:6379",
     Name: "my-v2-collection",
 })
+if err != nil {
+    log.Fatal(err)
+}
 // Automatically uses V2 schema
 ```
 

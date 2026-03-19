@@ -98,7 +98,10 @@ opts := &acor.ParallelOptions{
 **Solution:** Ensure `Close()` is called only once, typically with `defer`:
 
 ```go
-ac, _ := acor.Create(args)
+ac, err := acor.Create(args)
+if err != nil {
+    log.Fatal(err)
+}
 defer ac.Close() // Called once at function exit
 ```
 
