@@ -38,7 +38,7 @@ result, err := ac.AddMany(keywords, &acor.BatchOptions{
 
 ### BestEffort
 
-Continues on errors, returns partial results:
+Continues on errors and returns partial results:
 
 ```go
 result, err := ac.AddMany(keywords, &acor.BatchOptions{
