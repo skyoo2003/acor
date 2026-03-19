@@ -59,13 +59,13 @@ if err != nil {
 
 ```go
 texts := []string{"he is him", "this is hers", "hello world"}
-matches, err := ac.FindMany(texts)
+results, err := ac.FindMany(texts)
 if err != nil {
     panic(err)
 }
 
-for i, m := range matches {
-    fmt.Printf("Text %d: %v\n", i, m)
+for text, matches := range results {
+    fmt.Printf("Text %q: %v\n", text, matches)
 }
 ```
 
