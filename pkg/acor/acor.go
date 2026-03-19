@@ -358,8 +358,8 @@ func (ac *AhoCorasick) Remove(keyword string) (int, error) {
 // Each keyword that appears in the text is included in the result (duplicates
 // may appear if a keyword matches multiple times).
 //
-// The matching is case-sensitive and matches the stored keyword casing.
-// Keywords are stored in lowercase, so matching is effectively case-insensitive.
+// Matching is case-insensitive because keywords are stored in lowercase and
+// input text is normalized to lowercase before matching.
 //
 // Returns an empty slice if no matches are found or text is empty.
 func (ac *AhoCorasick) Find(text string) ([]string, error) {
