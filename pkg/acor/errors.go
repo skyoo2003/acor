@@ -10,8 +10,9 @@ var (
 	ErrEmptyKeyword = errors.New("keyword cannot be empty")
 	// ErrInvalidChunkSize is returned when ParallelOptions.ChunkSize is <= 0.
 	ErrInvalidChunkSize = errors.New("chunk size must be positive")
-	// ErrInvalidWorkerCount is returned when ParallelOptions.Workers is < 0.
-	ErrInvalidWorkerCount = errors.New("worker count must be positive")
+	// ErrInvalidWorkerCount is returned when ParallelOptions.Workers is negative.
+	// Zero is valid and defaults to runtime.NumCPU().
+	ErrInvalidWorkerCount = errors.New("worker count cannot be negative")
 	// ErrNoBoundariesFound is returned when parallel processing cannot find
 	// suitable chunk boundaries in the text.
 	ErrNoBoundariesFound = errors.New("could not find suitable chunk boundaries")
