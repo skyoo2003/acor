@@ -2,6 +2,7 @@ package acor
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -197,18 +198,18 @@ func TestContextCancellation(t *testing.T) {
 	cancel()
 
 	_, err = ac.goWithContext(ctx, "", 'a')
-	if err == nil {
-		t.Error("expected error with canceled context")
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled error, got: %v", err)
 	}
 
 	_, err = ac.failWithContext(ctx, "test")
-	if err == nil {
-		t.Error("expected error with canceled context")
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled error, got: %v", err)
 	}
 
 	_, err = ac.outputWithContext(ctx, "test")
-	if err == nil {
-		t.Error("expected error with canceled context")
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled error, got: %v", err)
 	}
 }
 
