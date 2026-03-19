@@ -1,6 +1,6 @@
 package acor
 
-//go:generate mockgen -source=interfaces.go -destination=mock_storage.go -package acor
+//go:generate go run go.uber.org/mock/mockgen -source=interfaces.go -destination=mock_storage.go -package acor
 
 import "context"
 
