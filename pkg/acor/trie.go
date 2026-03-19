@@ -233,7 +233,7 @@ func (ac *AhoCorasick) buildOutputWithContext(ctx context.Context, state string)
 
 func (ac *AhoCorasick) pruneTrieWithContext(ctx context.Context, keyword string) error {
 	keywordRunes := []rune(keyword)
-	for idx := len(keywordRunes); idx >= 0; idx-- {
+	for idx := len(keywordRunes); idx > 0; idx-- {
 		prefix := string(keywordRunes[:idx])
 		suffix := utils.Reverse(prefix)
 
