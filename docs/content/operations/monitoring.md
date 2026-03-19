@@ -38,10 +38,14 @@ import "github.com/skyoo2003/acor/pkg/metrics"
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `acor_operations_total` | Counter | Total operations by type |
-| `acor_operation_duration` | Histogram | Operation latency |
-| `acor_keywords_count` | Gauge | Active keywords |
-| `acor_redis_errors` | Counter | Redis errors by type |
+| `acor_http_requests_total` | Counter | Total HTTP requests by method, path, status |
+| `acor_http_request_duration_seconds` | Histogram | HTTP request latency |
+| `acor_grpc_requests_total` | Counter | Total gRPC requests by method, status |
+| `acor_grpc_request_duration_seconds` | Histogram | gRPC request latency |
+| `acor_redis_operations_total` | Counter | Total Redis operations by type, status |
+| `acor_redis_operation_duration_seconds` | Histogram | Redis operation latency |
+| `acor_keywords_total` | Gauge | Number of registered keywords |
+| `acor_trie_nodes_total` | Gauge | Number of trie nodes |
 
 ### Exposing Metrics
 
@@ -52,9 +56,8 @@ import (
 )
 
 func main() {
-    ac, _ := acor.Create(&acor.AhoCorasickArgs{...})
-    
-    metrics.Register(ac)
+    registry := metrics.NewRegistry(nil)
+    _ = registry
     
     http.Handle("/metrics", promhttp.Handler())
     http.ListenAndServe(":8080", nil)
@@ -138,13 +141,13 @@ groups:
 - name: acor
   rules:
   - alert: HighLatency
-    expr: histogram_quantile(0.95, acor_operation_duration) > 0.1
+    expr: histogram_quantile(0.95, rate(acor_http_request_duration_seconds_bucket[5m])) > 0.1
     for: 5m
     annotations:
       summary: "ACOR operations are slow"
   
-  - alert: HighErrorRate
-    expr: rate(acor_redis_errors[5m]) > 0.1
+  - alert: HighRedisErrorRate
+    expr: rate(acor_redis_operations_total{status="error"}[5m]) > 0.1
     for: 5m
     annotations:
       summary: "High Redis error rate"
