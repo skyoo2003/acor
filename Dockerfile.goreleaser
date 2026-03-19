@@ -1,4 +1,4 @@
-FROM alpine:3.13.5
+FROM alpine:3.21
 
 VOLUME /acor
 WORKDIR /acor
