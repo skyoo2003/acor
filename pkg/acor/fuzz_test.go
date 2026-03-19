@@ -1,6 +1,7 @@
 package acor
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -81,7 +82,7 @@ func FuzzAdd(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, keyword string) {
 		_, err := ac.Add(keyword)
-		if err != nil && err != ErrEmptyKeyword {
+		if err != nil && !errors.Is(err, ErrEmptyKeyword) {
 			t.Logf("Add(%q) error: %v", keyword, err)
 		}
 	})
