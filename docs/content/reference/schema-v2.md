@@ -78,7 +78,7 @@ acor -name mycollection migrate
 
 Stores the serialized trie structure as a hash:
 
-```
+```text
 {collection}:trie
   state_0 -> {"children": {...}, "fail": "state_1"}
   state_1 -> {"children": {...}, "fail": ""}
@@ -88,7 +88,7 @@ Stores the serialized trie structure as a hash:
 
 Stores output keywords per state:
 
-```
+```text
 {collection}:outputs
   state_0 -> ["keyword1", "keyword2"]
   state_1 -> ["keyword3"]
@@ -98,7 +98,7 @@ Stores output keywords per state:
 
 Stores node-level metadata:
 
-```
+```text
 {collection}:nodes
   keyword1 -> {"count": 1, "depth": 3}
 ```

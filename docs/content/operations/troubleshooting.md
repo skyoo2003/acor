@@ -106,7 +106,7 @@ defer ac.Close() // Called once at function exit
 
 ### Connection Refused
 
-```
+```text
 redis GET on key "...": connection refused
 ```
 
@@ -118,7 +118,7 @@ redis GET on key "...": connection refused
 
 ### Authentication Failed
 
-```
+```text
 redis GET on key "...": NOAUTH Authentication required
 ```
 
@@ -134,7 +134,7 @@ args := &acor.AhoCorasickArgs{
 
 ### Timeout Errors
 
-```
+```text
 redis GET on key "...": context deadline exceeded
 ```
 
