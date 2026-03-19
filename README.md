@@ -28,7 +28,7 @@ ACOR implements the [Aho-Corasick algorithm](https://en.wikipedia.org/wiki/Aho%E
 
 ## Prerequisites
 
-- Go >= 1.24
+- Go >= 1.25
 - Redis >= 3.0
 
 ## Installation
