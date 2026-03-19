@@ -14,13 +14,13 @@ graph TB
     subgraph Application
         A[ACOR Client]
     end
-    
+
     subgraph Redis
         B[(Standalone)]
         C[(Sentinel)]
         D[(Cluster)]
     end
-    
+
     A --> B
     A --> C
     A --> D
@@ -31,12 +31,15 @@ graph TB
 Simplest deployment for development or small workloads:
 
 ```go
-ac, _ := acor.Create(&acor.AhoCorasickArgs{
+ac, err := acor.Create(&acor.AhoCorasickArgs{
     Addr:     "redis:6379",
     Password: os.Getenv("REDIS_PASSWORD"),
     DB:       0,
     Name:     "production",
 })
+if err != nil {
+  panic(err)
+}
 ```
 
 ## High Availability with Sentinel
@@ -98,23 +101,23 @@ spec:
   template:
     spec:
       containers:
-      - name: app
-        image: myapp:latest
-        envFrom:
-        - configMapRef:
-            name: acor-config
+        - name: app
+          image: myapp:latest
+          envFrom:
+            - configMapRef:
+                name: acor-config
 ```
 
 ## Docker Compose
 
 ```yaml
-version: '3.8'
+version: "3.8"
 services:
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
-  
+
   app:
     build: .
     depends_on:
