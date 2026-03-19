@@ -47,7 +47,7 @@ if err != nil {
 For production workloads requiring failover:
 
 ```go
-ac, _ := acor.Create(&acor.AhoCorasickArgs{
+ac, err := acor.Create(&acor.AhoCorasickArgs{
     Addrs: []string{
         "sentinel-1:26379",
         "sentinel-2:26379",
@@ -57,6 +57,9 @@ ac, _ := acor.Create(&acor.AhoCorasickArgs{
     Password:   os.Getenv("REDIS_PASSWORD"),
     Name:       "production",
 })
+if err != nil {
+    panic(err)
+}
 ```
 
 ## Cluster Deployment
@@ -64,7 +67,7 @@ ac, _ := acor.Create(&acor.AhoCorasickArgs{
 For horizontal scaling:
 
 ```go
-ac, _ := acor.Create(&acor.AhoCorasickArgs{
+ac, err := acor.Create(&acor.AhoCorasickArgs{
     Addrs: []string{
         "redis-node-1:7000",
         "redis-node-2:7000",
@@ -73,6 +76,9 @@ ac, _ := acor.Create(&acor.AhoCorasickArgs{
     Password: os.Getenv("REDIS_PASSWORD"),
     Name:     "production",
 })
+if err != nil {
+    panic(err)
+}
 ```
 
 ## Kubernetes Deployment
