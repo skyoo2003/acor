@@ -13,7 +13,9 @@ import (
 	"github.com/skyoo2003/acor/internal/pkg/utils"
 )
 
-// ErrConcurrencyConflict is returned when an optimistic lock conflict occurs.
+// ErrConcurrencyConflict is returned when an optimistic lock conflict occurs
+// during V2 schema write operations after exhausting all retry attempts.
+// The caller should retry the operation or investigate concurrent modifications.
 var ErrConcurrencyConflict = errors.New("concurrency conflict - please retry")
 
 const maxRetries = 3

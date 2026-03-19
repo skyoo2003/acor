@@ -6,6 +6,21 @@ import (
 )
 
 // AddMany adds multiple keywords to the Aho-Corasick automaton in batch mode.
+// This is more efficient than calling Add repeatedly for large keyword sets.
+//
+// The opts parameter controls error handling behavior:
+//   - nil or BatchModeBestEffort: continues on errors, returns partial results
+//   - BatchModeTransactional: rolls back on first error
+//
+// Duplicate keywords in the input are skipped and recorded in BatchResult.Skipped.
+//
+// Example:
+//
+//	result, err := ac.AddMany([]string{"foo", "bar", "baz"}, nil)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	fmt.Printf("Added %d, Failed %d\n", len(result.Added), len(result.Failed))
 func (ac *AhoCorasick) AddMany(keywords []string, opts *BatchOptions) (*BatchResult, error) {
 	if opts == nil {
 		opts = &BatchOptions{Mode: BatchModeBestEffort}
@@ -126,6 +141,16 @@ func (ac *AhoCorasick) rollbackAdded(keywords []string) {
 }
 
 // RemoveMany removes multiple keywords from the Aho-Corasick automaton.
+// This is more efficient than calling Remove repeatedly for large keyword sets.
+// Empty keywords and duplicates in the input are silently skipped.
+//
+// Example:
+//
+//	result, err := ac.RemoveMany([]string{"foo", "bar"})
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	fmt.Printf("Removed %d keywords\n", len(result.Removed))
 func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
 	result := &BatchResult{
 		Added:   make([]string, 0),
@@ -164,8 +189,16 @@ func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
 }
 
 // FindMany searches for keywords in multiple texts and returns a map of text to matches.
+// This is convenient when you need to match against many texts at once.
+//
 // Note: If the same text appears multiple times in the input slice, only one result
-// entry will be stored (last occurrence wins).
+// entry will be stored (last occurrence wins). For large batches, consider using
+// parallel processing with individual FindParallel calls.
+//
+// Example:
+//
+//	results, err := ac.FindMany([]string{"hello world", "goodbye world"})
+//	// results["hello world"] contains matches in that text
 func (ac *AhoCorasick) FindMany(texts []string) (map[string][]string, error) {
 	results := make(map[string][]string)
 

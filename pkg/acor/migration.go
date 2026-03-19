@@ -10,11 +10,14 @@ import (
 )
 
 var (
-	// ErrAlreadyV2 is returned when attempting to migrate a collection that is already on V2 schema.
+	// ErrAlreadyV2 is returned when attempting to migrate a collection that is
+	// already using the V2 schema.
 	ErrAlreadyV2 = errors.New("collection is already on V2 schema")
 	// ErrNoDataToMigrate is returned when no V1 data is found to migrate.
+	// This typically means the collection doesn't exist or was created with V2.
 	ErrNoDataToMigrate = errors.New("no V1 data found to migrate")
-	// ErrMigrationInProg is returned when a migration is already in progress.
+	// ErrMigrationInProg is returned when a migration is already in progress
+	// for the specified collection. Only one migration can run at a time.
 	ErrMigrationInProg = errors.New("migration already in progress")
 )
 
@@ -59,6 +62,29 @@ func (ac *AhoCorasick) releaseMigrationLock() error {
 }
 
 // MigrateV1ToV2 migrates the collection from V1 schema to V2 schema.
+// V2 offers better performance and uses only 3 Redis keys instead of many.
+//
+// The migration process:
+//  1. Acquires a migration lock to prevent concurrent migrations
+//  2. Collects all V1 data (keywords, prefixes, suffixes, outputs, nodes)
+//  3. Writes V2 structure to temporary keys
+//  4. Atomically swaps to V2 keys and optionally deletes V1 keys
+//  5. Releases the migration lock
+//
+// Use DryRun=true in opts to preview the migration without making changes.
+// The lock has a 5-minute TTL to handle client crashes.
+//
+// Example:
+//
+//	result, err := ac.MigrateV1ToV2(&acor.MigrationOptions{
+//	    Progress: func(done, total int, msg string) {
+//	        fmt.Printf("[%d/%d] %s\n", done, total, msg)
+//	    },
+//	})
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	fmt.Printf("Migrated %d keywords in %dms\n", result.Keywords, result.DurationMs)
 func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, error) { //nolint:gocyclo,funlen // Complex migration logic with multiple stages
 	if opts == nil {
 		opts = DefaultMigrationOptions()
@@ -267,6 +293,11 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 }
 
 // RollbackToV1 reverts the collection from V2 schema back to V1 schema.
+// This is only possible if the V1 keys were preserved during migration
+// (KeepOldKeys=true in MigrationOptions).
+//
+// Note: This deletes V2 keys and switches the instance to use V1 operations.
+// Any keywords added after migration to V2 will be lost.
 func (ac *AhoCorasick) RollbackToV1() error {
 	v1Exists, err := ac.redisClient.Exists(ac.ctx, keywordKey(ac.name)).Result()
 	if err != nil {

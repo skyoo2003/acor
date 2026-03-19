@@ -16,13 +16,14 @@ func TestRedisStorageImplementsKVStorage(t *testing.T) {
 	defer mr.Close()
 
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	storage := newRedisStorage(client)
 
 	var _ KVStorage = storage
 }
 
+//nolint:gocyclo
 func TestRedisStorageOperations(t *testing.T) {
 	mr, err := miniredis.Run()
 	if err != nil {
@@ -31,7 +32,7 @@ func TestRedisStorageOperations(t *testing.T) {
 	defer mr.Close()
 
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	storage := newRedisStorage(client)
 	ctx := context.Background()

@@ -23,7 +23,7 @@ func TestGoWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	ctx := context.Background()
 
@@ -35,8 +35,8 @@ func TestGoWithContext(t *testing.T) {
 		t.Errorf("expected empty state for non-existent prefix, got %s", nextState)
 	}
 
-	if err := ac._buildTrie("ab"); err != nil {
-		t.Fatal(err)
+	if buildErr := ac._buildTrie("ab"); buildErr != nil {
+		t.Fatal(buildErr)
 	}
 
 	nextState, err = ac.goWithContext(ctx, "", 'a')
@@ -63,7 +63,7 @@ func TestFailWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	ctx := context.Background()
 
@@ -91,7 +91,7 @@ func TestOutputWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	ctx := context.Background()
 
@@ -119,12 +119,12 @@ func TestBuildTrieWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	ctx := context.Background()
 
-	if err := ac.buildTrieWithContext(ctx, "test"); err != nil {
-		t.Errorf("buildTrieWithContext failed: %v", err)
+	if buildErr := ac.buildTrieWithContext(ctx, "test"); buildErr != nil {
+		t.Errorf("buildTrieWithContext failed: %v", buildErr)
 	}
 
 	pKey := prefixKey(ac.name)
@@ -163,16 +163,16 @@ func TestPruneTrieWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
-	if _, err := ac.Add("test"); err != nil {
-		t.Fatal(err)
+	if _, addErr := ac.Add("test"); addErr != nil {
+		t.Fatal(addErr)
 	}
 
 	ctx := context.Background()
 
-	if err := ac.pruneTrieWithContext(ctx, "test"); err != nil {
-		t.Errorf("pruneTrieWithContext failed: %v", err)
+	if pruneErr := ac.pruneTrieWithContext(ctx, "test"); pruneErr != nil {
+		t.Errorf("pruneTrieWithContext failed: %v", pruneErr)
 	}
 }
 
@@ -191,24 +191,24 @@ func TestContextCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	_, err = ac.goWithContext(ctx, "", 'a')
 	if err == nil {
-		t.Error("expected error with cancelled context")
+		t.Error("expected error with canceled context")
 	}
 
 	_, err = ac.failWithContext(ctx, "test")
 	if err == nil {
-		t.Error("expected error with cancelled context")
+		t.Error("expected error with canceled context")
 	}
 
 	_, err = ac.outputWithContext(ctx, "test")
 	if err == nil {
-		t.Error("expected error with cancelled context")
+		t.Error("expected error with canceled context")
 	}
 }
 
@@ -227,7 +227,7 @@ func TestContextTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
 	defer cancel()
@@ -254,7 +254,7 @@ func TestAppendMatchedIndexesWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	ctx := context.Background()
 	matched := make(map[string][]int)
@@ -288,16 +288,16 @@ func TestRemovePrefixAndSuffixWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
-	if _, err := ac.Add("test"); err != nil {
-		t.Fatal(err)
+	if _, addErr := ac.Add("test"); addErr != nil {
+		t.Fatal(addErr)
 	}
 
 	ctx := context.Background()
 
-	if err := ac.removePrefixAndSuffixWithContext(ctx, "test", "t", "t"); err != nil {
-		t.Errorf("removePrefixAndSuffixWithContext failed: %v", err)
+	if removeErr := ac.removePrefixAndSuffixWithContext(ctx, "test", "t", "t"); removeErr != nil {
+		t.Errorf("removePrefixAndSuffixWithContext failed: %v", removeErr)
 	}
 }
 
@@ -316,10 +316,10 @@ func TestWrapperMethodsUseContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
-	if err := ac._buildTrie("test"); err != nil {
-		t.Errorf("_buildTrie wrapper failed: %v", err)
+	if buildErr := ac._buildTrie("test"); buildErr != nil {
+		t.Errorf("_buildTrie wrapper failed: %v", buildErr)
 	}
 
 	nextState, err := ac._go("", 't')

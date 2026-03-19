@@ -15,10 +15,12 @@ func (ac *AhoCorasick) _buildTrie(keyword string) error {
 	return ac.buildTrieWithContext(ac.ctx, keyword)
 }
 
+//nolint:unused
 func (ac *AhoCorasick) _rebuildOutput(suffix string) error {
 	return ac.rebuildOutputWithContext(ac.ctx, suffix)
 }
 
+//nolint:unused
 func (ac *AhoCorasick) _buildOutput(state string) error {
 	return ac.buildOutputWithContext(ac.ctx, state)
 }
@@ -27,6 +29,7 @@ func (ac *AhoCorasick) pruneTrie(keyword string) error {
 	return ac.pruneTrieWithContext(ac.ctx, keyword)
 }
 
+//nolint:unused
 func (ac *AhoCorasick) removePrefixAndSuffix(keyword, prefix, suffix string) error {
 	return ac.removePrefixAndSuffixWithContext(ac.ctx, keyword, prefix, suffix)
 }
@@ -286,7 +289,7 @@ func (ac *AhoCorasick) removePrefixAndSuffixWithContext(ctx context.Context, key
 	return nil
 }
 
-func (ac *AhoCorasick) appendMatchedIndexesWithContext(ctx context.Context, matched map[string][]int, outputs []string, endIndex int) {
+func (ac *AhoCorasick) appendMatchedIndexesWithContext(_ context.Context, matched map[string][]int, outputs []string, endIndex int) {
 	for _, output := range outputs {
 		startIndex := endIndex - len([]rune(output))
 		matched[output] = append(matched[output], startIndex)
