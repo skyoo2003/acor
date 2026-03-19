@@ -34,8 +34,8 @@ func (ac *AhoCorasick) findV2(text string) ([]string, error) {
 	}
 
 	pipe := ac.redisClient.Pipeline()
-	trieCmd := pipe.HGetAll(ac.ctx, ac.trieKey())
-	outputsCmd := pipe.HGetAll(ac.ctx, ac.outputsKey())
+	trieCmd := pipe.HGetAll(ac.ctx, trieKey(ac.name))
+	outputsCmd := pipe.HGetAll(ac.ctx, outputsKey(ac.name))
 	_, err := pipe.Exec(ac.ctx)
 	if err != nil {
 		return nil, err
@@ -104,8 +104,8 @@ func (ac *AhoCorasick) findIndexV2(text string) (map[string][]int, error) {
 	}
 
 	pipe := ac.redisClient.Pipeline()
-	trieCmd := pipe.HGetAll(ac.ctx, ac.trieKey())
-	outputsCmd := pipe.HGetAll(ac.ctx, ac.outputsKey())
+	trieCmd := pipe.HGetAll(ac.ctx, trieKey(ac.name))
+	outputsCmd := pipe.HGetAll(ac.ctx, outputsKey(ac.name))
 	_, err := pipe.Exec(ac.ctx)
 	if err != nil {
 		return nil, err
@@ -163,7 +163,7 @@ func (ac *AhoCorasick) localFindIndex(text string, prefixes []string, outputs ma
 }
 
 func (ac *AhoCorasick) infoV2() (*AhoCorasickInfo, error) {
-	result, err := ac.redisClient.HGetAll(ac.ctx, ac.trieKey()).Result()
+	result, err := ac.redisClient.HGetAll(ac.ctx, trieKey(ac.name)).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func (ac *AhoCorasick) suggestV2(input string) ([]string, error) {
 		return []string{}, nil
 	}
 
-	result, err := ac.redisClient.HGetAll(ac.ctx, ac.trieKey()).Result()
+	result, err := ac.redisClient.HGetAll(ac.ctx, trieKey(ac.name)).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +247,7 @@ func (ac *AhoCorasick) addV2(keyword string) (int, error) {
 }
 
 func (ac *AhoCorasick) tryAddV2(keyword string) (int, error) { //nolint:gocyclo,funlen // Complex optimistic locking with retry logic
-	trieData, err := ac.redisClient.HGetAll(ac.ctx, ac.trieKey()).Result()
+	trieData, err := ac.redisClient.HGetAll(ac.ctx, trieKey(ac.name)).Result()
 	if err != nil {
 		return 0, err
 	}
@@ -284,7 +284,7 @@ func (ac *AhoCorasick) tryAddV2(keyword string) (int, error) { //nolint:gocyclo,
 		}
 	}
 
-	outputsRaw, err := ac.redisClient.HGetAll(ac.ctx, ac.outputsKey()).Result()
+	outputsRaw, err := ac.redisClient.HGetAll(ac.ctx, outputsKey(ac.name)).Result()
 	if err != nil {
 		return 0, err
 	}
@@ -348,8 +348,8 @@ func (ac *AhoCorasick) tryAddV2(keyword string) (int, error) { //nolint:gocyclo,
 	}
 
 	result, err := ac.addV2Script(ac.ctx, ac.redisClient, map[string]interface{}{
-		"trieKey":    ac.trieKey(),
-		"outputsKey": ac.outputsKey(),
+		"trieKey":    trieKey(ac.name),
+		"outputsKey": outputsKey(ac.name),
 		"keywords":   mustJSON(keywords),
 		"prefixes":   mustJSON(prefixes),
 		"suffixes":   mustJSON(suffixes),
@@ -438,7 +438,7 @@ func (ac *AhoCorasick) removeV2(keyword string) (int, error) {
 }
 
 func (ac *AhoCorasick) tryRemoveV2(keyword string) (int, error) { //nolint:gocyclo,funlen // Complex optimistic locking with retry logic
-	trieData, err := ac.redisClient.HGetAll(ac.ctx, ac.trieKey()).Result()
+	trieData, err := ac.redisClient.HGetAll(ac.ctx, trieKey(ac.name)).Result()
 	if err != nil {
 		return 0, err
 	}
@@ -532,8 +532,8 @@ func (ac *AhoCorasick) tryRemoveV2(keyword string) (int, error) { //nolint:gocyc
 	}
 
 	result, err := ac.removeV2Script(ac.ctx, ac.redisClient, map[string]interface{}{
-		"trieKey":    ac.trieKey(),
-		"outputsKey": ac.outputsKey(),
+		"trieKey":    trieKey(ac.name),
+		"outputsKey": outputsKey(ac.name),
 		"keywords":   mustJSON(newKeywords),
 		"prefixes":   mustJSON(newPrefixes),
 		"suffixes":   mustJSON(newSuffixes),
@@ -587,12 +587,12 @@ func (ac *AhoCorasick) removeV2Script(ctx context.Context, client redis.Universa
 }
 
 func (ac *AhoCorasick) flushV2() error {
-	_, err := ac.redisClient.Del(ac.ctx, ac.trieKey(), ac.outputsKey(), ac.nodesKey()).Result()
+	_, err := ac.redisClient.Del(ac.ctx, trieKey(ac.name), outputsKey(ac.name), nodesKey(ac.name)).Result()
 	if err != nil {
 		return err
 	}
 
-	_, err = ac.redisClient.HSet(ac.ctx, ac.trieKey(), map[string]interface{}{
+	_, err = ac.redisClient.HSet(ac.ctx, trieKey(ac.name), map[string]interface{}{
 		"keywords": "[]",
 		"prefixes": "[\"\"]",
 		"suffixes": "[\"\"]",

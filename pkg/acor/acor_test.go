@@ -366,11 +366,11 @@ func TestAddUsesCollectionScopedKeys(t *testing.T) {
 	}
 
 	keys := []string{
-		ac.keywordKey(),
-		ac.prefixKey(),
-		ac.suffixKey(),
-		ac.outputKey("he"),
-		ac.nodeKey("he"),
+		keywordKey(ac.name),
+		prefixKey(ac.name),
+		suffixKey(ac.name),
+		outputKey(ac.name, "he"),
+		nodeKey(ac.name, "he"),
 	}
 	for _, key := range keys {
 		if !mr.Exists(key) {
@@ -541,7 +541,7 @@ func TestAddFailedReAddKeepsExistingKeywordState(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pKey := ac.prefixKey()
+	pKey := prefixKey(ac.name)
 	if _, err := ac.redisClient.ZRem(ac.ctx, pKey, input).Result(); err != nil {
 		t.Fatal(err)
 	}
@@ -635,9 +635,9 @@ func TestV2KeyHelpers(t *testing.T) {
 		got      string
 		expected string
 	}{
-		{"trieKey", ac.trieKey(), "{test}:trie"},
-		{"outputsKey", ac.outputsKey(), "{test}:outputs"},
-		{"nodesKey", ac.nodesKey(), "{test}:nodes"},
+		{"trieKey", trieKey(ac.name), "{test}:trie"},
+		{"outputsKey", outputsKey(ac.name), "{test}:outputs"},
+		{"nodesKey", nodesKey(ac.name), "{test}:nodes"},
 	}
 
 	for _, tt := range tests {
