@@ -229,9 +229,8 @@ func TestContextTimeout(t *testing.T) {
 	}
 	defer func() { _ = ac.Close() }()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancel()
-	time.Sleep(1 * time.Millisecond)
 
 	_, err = ac.goWithContext(ctx, "", 'a')
 	if err == nil {
