@@ -146,7 +146,7 @@ groups:
   - name: acor
     rules:
       - alert: HighLatency
-        expr: histogram_quantile(0.95, rate(acor_operation_duration_bucket[5m])) > 0.1
+        expr: histogram_quantile(0.95, rate(acor_redis_operation_duration_seconds_bucket[5m])) > 0.1
         for: 5m
         annotations:
           summary: "ACOR operations are slow"
