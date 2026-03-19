@@ -22,6 +22,10 @@ const maxRetries = 3
 
 const luaKeys = 2
 
+// mustJSON marshals v to JSON string. Panics on marshal failure.
+// Note: json.Marshal rarely fails for the types used in this package
+// (strings, slices, maps). Consider using toJSON with error handling
+// for production use if type safety is a concern.
 func mustJSON(v interface{}) string {
 	b, err := json.Marshal(v)
 	if err != nil {
