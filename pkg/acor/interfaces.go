@@ -1,5 +1,7 @@
 package acor
 
+//go:generate mockgen -source=interfaces.go -destination=mock_storage.go -package acor
+
 import "context"
 
 type Z struct {
