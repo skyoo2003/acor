@@ -1,13 +1,6 @@
 package acor
 
-import (
-	"testing"
+var (
+	_ Matcher = (*AhoCorasick)(nil)
+	_ Indexer = (*AhoCorasick)(nil)
 )
-
-func TestMatcherInterfaceExists(t *testing.T) {
-	var _ Matcher = (*AhoCorasick)(nil)
-}
-
-func TestIndexerInterfaceExists(t *testing.T) {
-	var _ Indexer = (*AhoCorasick)(nil)
-}
