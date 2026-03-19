@@ -1,6 +1,7 @@
 package acor
 
 import (
+	"context"
 	"strings"
 
 	redis "github.com/go-redis/redis/v8"
@@ -79,10 +80,14 @@ func newSentinelRedisClient(args *AhoCorasickArgs, addrs []string) redis.Univers
 }
 
 func newClusterRedisClient(args *AhoCorasickArgs, addrs []string) (redis.UniversalClient, error) {
-	return redis.NewClusterClient(&redis.ClusterOptions{
+	client := redis.NewClusterClient(&redis.ClusterOptions{
 		Addrs:    addrs,
 		Password: args.Password,
-	}), nil
+	})
+	if err := client.Ping(context.Background()).Err(); err != nil {
+		return nil, err
+	}
+	return client, nil
 }
 
 func newStandaloneRedisClient(args *AhoCorasickArgs, addrs []string) redis.UniversalClient {
