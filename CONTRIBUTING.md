@@ -52,7 +52,7 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 
 ### Prerequisites
 
-- Go >= 1.24
+- Go >= 1.25
 - Redis >= 3.0 (for integration tests)
 - golangci-lint (for linting)
 - pre-commit (optional, for git hooks)
