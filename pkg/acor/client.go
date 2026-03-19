@@ -1,6 +1,8 @@
 package acor
 
 import (
+	"context"
+	"fmt"
 	"strings"
 
 	redis "github.com/go-redis/redis/v8"
@@ -20,7 +22,7 @@ func newRedisClient(args *AhoCorasickArgs) (redis.UniversalClient, error) {
 	case strings.TrimSpace(args.MasterName) != "":
 		return newSentinelRedisClient(args, addrs), nil
 	case len(args.Addrs) > 0:
-		return newClusterRedisClient(args, addrs), nil
+		return newClusterRedisClient(args, addrs)
 	default:
 		return newStandaloneRedisClient(args, addrs), nil
 	}
@@ -78,11 +80,17 @@ func newSentinelRedisClient(args *AhoCorasickArgs, addrs []string) redis.Univers
 	})
 }
 
-func newClusterRedisClient(args *AhoCorasickArgs, addrs []string) redis.UniversalClient {
-	return redis.NewClusterClient(&redis.ClusterOptions{
+func newClusterRedisClient(args *AhoCorasickArgs, addrs []string) (redis.UniversalClient, error) {
+	client := redis.NewClusterClient(&redis.ClusterOptions{
 		Addrs:    addrs,
 		Password: args.Password,
 	})
+	ctx := context.Background()
+	if err := client.Ping(ctx).Err(); err != nil {
+		client.Close()
+		return nil, fmt.Errorf("failed to connect to Redis cluster: %w", err)
+	}
+	return client, nil
 }
 
 func newStandaloneRedisClient(args *AhoCorasickArgs, addrs []string) redis.UniversalClient {
