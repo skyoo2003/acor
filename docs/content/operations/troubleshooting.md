@@ -67,13 +67,13 @@ opts := &acor.ParallelOptions{
 
 ### ErrInvalidWorkerCount
 
-**Cause:** Non-positive worker count in parallel matching.
+**Cause:** Negative worker count in parallel matching.
 
-**Solution:** Use positive values:
+**Solution:** Use non-negative values. Zero defaults to runtime.NumCPU():
 
 ```go
 opts := &acor.ParallelOptions{
-    Workers: runtime.NumCPU(), // Must be > 0
+    Workers: 0, // Defaults to runtime.NumCPU()
 }
 ```
 
