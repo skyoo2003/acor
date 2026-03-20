@@ -74,6 +74,10 @@ func (ac *AhoCorasick) addManyBestEffort(keywords []string, result *BatchResult)
 		}
 	}
 
+	if len(result.Added) > 0 {
+		ac.publishInvalidate()
+	}
+
 	return result, nil
 }
 
@@ -108,6 +112,9 @@ func (ac *AhoCorasick) addManyTransactional(keywords []string, result *BatchResu
 	}
 
 	result.Added = added
+	if len(added) > 0 {
+		ac.publishInvalidate()
+	}
 	return result, nil
 }
 
@@ -183,6 +190,10 @@ func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
 		}
 
 		result.Removed = append(result.Removed, keyword)
+	}
+
+	if len(result.Removed) > 0 {
+		ac.publishInvalidate()
 	}
 
 	return result, nil
