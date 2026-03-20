@@ -131,7 +131,7 @@ For testing, use miniredis which provides a Redis-compatible in-memory implement
 import (
     "testing"
     "github.com/alicebob/miniredis/v2"
-    "github.com/go-redis/redis/v8"
+    "github.com/redis/go-redis/v9"
 )
 
 func TestWithMiniredis(t *testing.T) {

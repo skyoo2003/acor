@@ -56,8 +56,9 @@ import (
 )
 
 func main() {
-    registry := metrics.NewRegistry(nil)
-    _ = registry
+    // nil registerer defaults to prometheus.DefaultRegisterer,
+    // which is what promhttp.Handler() serves
+    _ = metrics.NewRegistry(nil)
 
     http.Handle("/metrics", promhttp.Handler())
     http.ListenAndServe(":8080", nil)

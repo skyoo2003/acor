@@ -3,7 +3,6 @@ package acor
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"strings"
 
 	redis "github.com/go-redis/redis/v8"
@@ -135,7 +134,7 @@ func (ac *AhoCorasick) buildTrieWithContext(ctx context.Context, keyword string)
 			if err != nil {
 				return err
 			}
-			ac.logger.Println(fmt.Sprintf("_buildTrie(%s) > SISMEMBER key(%s) member(%v) : Exist(%t)", keyword, kKey, prefix, kExists))
+			ac.logger.Printf("_buildTrie(%s) > SISMEMBER key(%s) member(%v) : Exist(%t)", keyword, kKey, prefix, kExists)
 			if kExists {
 				if rebuildErr := ac.rebuildOutputWithContext(ctx, suffix); rebuildErr != nil {
 					return rebuildErr
@@ -277,14 +276,14 @@ func (ac *AhoCorasick) removePrefixAndSuffixWithContext(ctx context.Context, key
 	if err != nil {
 		return err
 	}
-	ac.logger.Println(fmt.Sprintf("Remove(%s) > ZREM key(%s) : Count(%d)", keyword, pKey, pRemovedCount))
+	ac.logger.Printf("Remove(%s) > ZREM key(%s) : Count(%d)", keyword, pKey, pRemovedCount)
 
 	sKey := suffixKey(ac.name)
 	sRemovedCount, err := ac.redisClient.ZRem(ctx, sKey, suffix).Result()
 	if err != nil {
 		return err
 	}
-	ac.logger.Println(fmt.Sprintf("Remove(%s) > ZREM key(%s) : Count(%d)", keyword, sKey, sRemovedCount))
+	ac.logger.Printf("Remove(%s) > ZREM key(%s) : Count(%d)", keyword, sKey, sRemovedCount)
 
 	return nil
 }

@@ -50,7 +50,7 @@ func validateRedisTopology(args *AhoCorasickArgs, addrs []string, ringAddrs map[
 	if selectedTopologies > 1 {
 		return ErrRedisConflictingTopology
 	}
-	if hasSentinel && len(addrs) == 0 {
+	if hasSentinel && len(args.Addrs) == 0 {
 		return ErrRedisSentinelAddrs
 	}
 	if len(args.RingAddrs) > 0 && len(ringAddrs) == 0 {

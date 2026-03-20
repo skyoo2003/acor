@@ -54,7 +54,7 @@ type ValidationError struct {
 	// Field is the name of the field that failed validation.
 	Field string
 	// Value is the invalid value that was provided.
-	Value interface{}
+	Value any
 	// Message describes why the validation failed.
 	Message string
 }
@@ -87,7 +87,7 @@ func newOperationError(op string, schema int, err error) error {
 	return &OperationError{Op: op, Schema: schema, Err: err}
 }
 
-func newValidationError(field string, value interface{}, msg string) error {
+func newValidationError(field string, value any, msg string) error {
 	return &ValidationError{Field: field, Value: value, Message: msg}
 }
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	redis "github.com/go-redis/redis/v8"
 )
 
 func TestGoWithContext(t *testing.T) {
@@ -172,8 +173,23 @@ func TestPruneTrieWithContext(t *testing.T) {
 
 	ctx := context.Background()
 
+	pKey := prefixKey(ac.name)
+	sKey := suffixKey(ac.name)
+	beforePCount, _ := ac.redisClient.ZCard(ctx, pKey).Result()
+	beforeSCount, _ := ac.redisClient.ZCard(ctx, sKey).Result()
+
 	if pruneErr := ac.pruneTrieWithContext(ctx, "test"); pruneErr != nil {
 		t.Errorf("pruneTrieWithContext failed: %v", pruneErr)
+	}
+
+	afterPCount, _ := ac.redisClient.ZCard(ctx, pKey).Result()
+	afterSCount, _ := ac.redisClient.ZCard(ctx, sKey).Result()
+
+	if afterPCount >= beforePCount {
+		t.Errorf("expected prefix count to decrease after pruning, before=%d after=%d", beforePCount, afterPCount)
+	}
+	if afterSCount >= beforeSCount {
+		t.Errorf("expected suffix count to decrease after pruning, before=%d after=%d", beforeSCount, afterSCount)
 	}
 }
 
@@ -296,8 +312,25 @@ func TestRemovePrefixAndSuffixWithContext(t *testing.T) {
 
 	ctx := context.Background()
 
+	pKey := prefixKey(ac.name)
+	sKey := suffixKey(ac.name)
+	_, pErrBefore := ac.redisClient.ZScore(ctx, pKey, "t").Result()
+	_, sErrBefore := ac.redisClient.ZScore(ctx, sKey, "t").Result()
+	pExistedBefore := pErrBefore == nil
+	sExistedBefore := sErrBefore == nil
+
 	if removeErr := ac.removePrefixAndSuffixWithContext(ctx, "test", "t", "t"); removeErr != nil {
 		t.Errorf("removePrefixAndSuffixWithContext failed: %v", removeErr)
+	}
+
+	_, pErr := ac.redisClient.ZScore(ctx, pKey, "t").Result()
+	_, sErr := ac.redisClient.ZScore(ctx, sKey, "t").Result()
+
+	if pExistedBefore && pErr != redis.Nil {
+		t.Error("expected prefix 't' to be removed after removePrefixAndSuffixWithContext")
+	}
+	if sExistedBefore && sErr != redis.Nil {
+		t.Error("expected suffix 't' to be removed after removePrefixAndSuffixWithContext")
 	}
 }
 

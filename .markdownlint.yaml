@@ -10,7 +10,7 @@
       "autolink": false,
       "inline": false,
       "collapsed": false,
-      "shortcut": false,
+      "shortcut": false
     },
   "no-duplicate-heading": {"siblings_only": true},
   "ol-prefix": {"style": "ordered"},
