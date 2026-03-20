@@ -22,3 +22,7 @@ go get -u github.com/skyoo2003/acor
 
 - [Installation](/getting-started/installation/) - Detailed setup instructions
 - [Quick Start](/getting-started/quick-start/) - Your first ACOR application
+
+## Continue Learning
+
+After getting started, explore the [Guides](/guides/) for advanced usage patterns.
