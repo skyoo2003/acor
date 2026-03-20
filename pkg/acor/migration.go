@@ -10,11 +10,14 @@ import (
 )
 
 var (
-	// ErrAlreadyV2 is returned when attempting to migrate a collection that is already on V2 schema.
+	// ErrAlreadyV2 is returned when attempting to migrate a collection that is
+	// already using the V2 schema.
 	ErrAlreadyV2 = errors.New("collection is already on V2 schema")
 	// ErrNoDataToMigrate is returned when no V1 data is found to migrate.
+	// This typically means the collection doesn't exist or was created with V2.
 	ErrNoDataToMigrate = errors.New("no V1 data found to migrate")
-	// ErrMigrationInProg is returned when a migration is already in progress.
+	// ErrMigrationInProg is returned when a migration is already in progress
+	// for the specified collection. Only one migration can run at a time.
 	ErrMigrationInProg = errors.New("migration already in progress")
 )
 
@@ -37,7 +40,7 @@ const (
 )
 
 func (ac *AhoCorasick) migrationLockKey() string {
-	return ac.keyPrefix() + migrationLockKeySuffix
+	return keyPrefix(ac.name) + migrationLockKeySuffix
 }
 
 func (ac *AhoCorasick) acquireMigrationLock() (bool, error) {
@@ -59,6 +62,29 @@ func (ac *AhoCorasick) releaseMigrationLock() error {
 }
 
 // MigrateV1ToV2 migrates the collection from V1 schema to V2 schema.
+// V2 offers better performance and uses only 3 Redis keys instead of many.
+//
+// The migration process:
+//  1. Acquires a migration lock to prevent concurrent migrations
+//  2. Collects all V1 data (keywords, prefixes, suffixes, outputs, nodes)
+//  3. Writes V2 structure to temporary keys
+//  4. Atomically swaps to V2 keys and optionally deletes V1 keys
+//  5. Releases the migration lock
+//
+// Use DryRun=true in opts to preview the migration without making changes.
+// The lock has a 5-minute TTL to handle client crashes.
+//
+// Example:
+//
+//	result, err := ac.MigrateV1ToV2(&acor.MigrationOptions{
+//	    Progress: func(done, total int, msg string) {
+//	        fmt.Printf("[%d/%d] %s\n", done, total, msg)
+//	    },
+//	})
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	fmt.Printf("Migrated %d keywords in %dms\n", result.Keywords, result.DurationMs)
 func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, error) { //nolint:gocyclo,funlen // Complex migration logic with multiple stages
 	if opts == nil {
 		opts = DefaultMigrationOptions()
@@ -81,7 +107,7 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 		DryRun:     opts.DryRun,
 	}
 
-	trieExists, err := ac.redisClient.Exists(ac.ctx, ac.trieKey()).Result()
+	trieExists, err := ac.redisClient.Exists(ac.ctx, trieKey(ac.name)).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to check V2 keys: %w", err)
 	}
@@ -89,7 +115,7 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 		return nil, ErrAlreadyV2
 	}
 
-	prefixExists, err := ac.redisClient.Exists(ac.ctx, ac.prefixKey()).Result()
+	prefixExists, err := ac.redisClient.Exists(ac.ctx, prefixKey(ac.name)).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to check V1 keys: %w", err)
 	}
@@ -101,7 +127,7 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 		opts.Progress(stepCollectKeywords, migrationTotalSteps, "Collecting keywords")
 	}
 
-	keywords, err := ac.redisClient.SMembers(ac.ctx, ac.keywordKey()).Result()
+	keywords, err := ac.redisClient.SMembers(ac.ctx, keywordKey(ac.name)).Result()
 	if err != nil {
 		result.Status = migrationStatusError
 		result.ErrorMessage = err.Error()
@@ -113,7 +139,7 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 		opts.Progress(stepCollectPrefixes, migrationTotalSteps, "Collecting prefixes")
 	}
 
-	prefixes, err := ac.redisClient.ZRange(ac.ctx, ac.prefixKey(), 0, -1).Result()
+	prefixes, err := ac.redisClient.ZRange(ac.ctx, prefixKey(ac.name), 0, -1).Result()
 	if err != nil {
 		result.Status = migrationStatusError
 		result.ErrorMessage = err.Error()
@@ -121,7 +147,7 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	}
 	result.Prefixes = len(prefixes)
 
-	suffixes, err := ac.redisClient.ZRange(ac.ctx, ac.suffixKey(), 0, -1).Result()
+	suffixes, err := ac.redisClient.ZRange(ac.ctx, suffixKey(ac.name), 0, -1).Result()
 	if err != nil {
 		result.Status = migrationStatusError
 		result.ErrorMessage = err.Error()
@@ -135,7 +161,7 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	outputs := make(map[string][]string)
 	outputCount := 0
 	for _, prefix := range prefixes {
-		outs, outErr := ac.redisClient.SMembers(ac.ctx, ac.outputKey(prefix)).Result()
+		outs, outErr := ac.redisClient.SMembers(ac.ctx, outputKey(ac.name, prefix)).Result()
 		if outErr != nil && outErr != redis.Nil {
 			result.Status = migrationStatusError
 			result.ErrorMessage = outErr.Error()
@@ -155,7 +181,7 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	nodes := make(map[string][]string)
 	nodeCount := 0
 	for _, kw := range keywords {
-		n, nodeErr := ac.redisClient.SMembers(ac.ctx, ac.nodeKey(kw)).Result()
+		n, nodeErr := ac.redisClient.SMembers(ac.ctx, nodeKey(ac.name, kw)).Result()
 		if nodeErr != nil && nodeErr != redis.Nil {
 			result.Status = migrationStatusError
 			result.ErrorMessage = nodeErr.Error()
@@ -182,9 +208,9 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	}
 
 	tempSuffix := fmt.Sprintf(":tmp:%d", time.Now().Unix())
-	tempTrieKey := ac.trieKey() + tempSuffix
-	tempOutputsKey := ac.outputsKey() + tempSuffix
-	tempNodesKey := ac.nodesKey() + tempSuffix
+	tempTrieKey := trieKey(ac.name) + tempSuffix
+	tempOutputsKey := outputsKey(ac.name) + tempSuffix
+	tempNodesKey := nodesKey(ac.name) + tempSuffix
 
 	cleanup := func() {
 		ac.redisClient.Del(ac.ctx, tempTrieKey, tempOutputsKey, tempNodesKey)
@@ -231,21 +257,21 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 
 	_, err = ac.redisClient.TxPipelined(ac.ctx, func(pipe redis.Pipeliner) error {
 		if !opts.KeepOldKeys {
-			pipe.Del(ac.ctx, ac.keywordKey(), ac.prefixKey(), ac.suffixKey())
+			pipe.Del(ac.ctx, keywordKey(ac.name), prefixKey(ac.name), suffixKey(ac.name))
 			for _, p := range prefixes {
-				pipe.Del(ac.ctx, ac.outputKey(p))
+				pipe.Del(ac.ctx, outputKey(ac.name, p))
 			}
 			for _, kw := range keywords {
-				pipe.Del(ac.ctx, ac.nodeKey(kw))
+				pipe.Del(ac.ctx, nodeKey(ac.name, kw))
 			}
 		}
 
-		pipe.Rename(ac.ctx, tempTrieKey, ac.trieKey())
+		pipe.Rename(ac.ctx, tempTrieKey, trieKey(ac.name))
 		if len(outputs) > 0 {
-			pipe.Rename(ac.ctx, tempOutputsKey, ac.outputsKey())
+			pipe.Rename(ac.ctx, tempOutputsKey, outputsKey(ac.name))
 		}
 		if len(nodes) > 0 {
-			pipe.Rename(ac.ctx, tempNodesKey, ac.nodesKey())
+			pipe.Rename(ac.ctx, tempNodesKey, nodesKey(ac.name))
 		}
 
 		return nil
@@ -267,8 +293,13 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 }
 
 // RollbackToV1 reverts the collection from V2 schema back to V1 schema.
+// This is only possible if the V1 keys were preserved during migration
+// (KeepOldKeys=true in MigrationOptions).
+//
+// Note: This deletes V2 keys and switches the instance to use V1 operations.
+// Any keywords added after migration to V2 will be lost.
 func (ac *AhoCorasick) RollbackToV1() error {
-	v1Exists, err := ac.redisClient.Exists(ac.ctx, ac.keywordKey()).Result()
+	v1Exists, err := ac.redisClient.Exists(ac.ctx, keywordKey(ac.name)).Result()
 	if err != nil {
 		return fmt.Errorf("failed to check V1 keys: %w", err)
 	}
@@ -276,7 +307,7 @@ func (ac *AhoCorasick) RollbackToV1() error {
 		return errors.New("V1 keys not found - rollback not possible")
 	}
 
-	if _, err := ac.redisClient.Del(ac.ctx, ac.trieKey(), ac.outputsKey(), ac.nodesKey()).Result(); err != nil {
+	if _, err := ac.redisClient.Del(ac.ctx, trieKey(ac.name), outputsKey(ac.name), nodesKey(ac.name)).Result(); err != nil {
 		return fmt.Errorf("failed to delete V2 keys: %w", err)
 	}
 

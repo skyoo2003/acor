@@ -155,6 +155,23 @@ func collectStringResults(results <-chan []string, errors <-chan error) (map[str
 }
 
 // FindParallel searches for keywords in text using parallel processing.
+// The text is split into chunks processed by multiple goroutines, which can
+// significantly improve performance for very large texts.
+//
+// If opts is nil, DefaultParallelOptions() is used. For small texts that fit
+// within a single chunk, this method delegates to Find without parallelization.
+//
+// Note: Due to chunk overlap for boundary handling, some matches may be reported
+// multiple times. The returned slice contains unique matches.
+//
+// Example:
+//
+//	opts := &acor.ParallelOptions{
+//	    Workers:   8,
+//	    ChunkSize: 5000,
+//	    Boundary:  acor.ChunkBoundaryLine,
+//	}
+//	matches, err := ac.FindParallel(largeLogFile, opts)
 func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]string, error) {
 	opts = normalizeParallelOptions(opts)
 	if opts.ChunkSize <= 0 {
@@ -256,6 +273,21 @@ func collectIndexResults(results <-chan indexedResult, errors <-chan error) (map
 }
 
 // FindIndexParallel searches for keywords with indices using parallel processing.
+// Similar to FindParallel but returns start positions for each match.
+// Index values are adjusted to reflect positions in the original text,
+// accounting for chunk offsets.
+//
+// The returned map has keywords as keys and sorted slices of unique start indices.
+// Due to chunk overlap, matches at chunk boundaries may have duplicate indices
+// that are automatically deduplicated.
+//
+// Example:
+//
+//	opts := acor.DefaultParallelOptions()
+//	matches, err := ac.FindIndexParallel(largeText, opts)
+//	for keyword, indices := range matches {
+//	    fmt.Printf("%s found at: %v\n", keyword, indices)
+//	}
 func (ac *AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (map[string][]int, error) {
 	opts = normalizeParallelOptions(opts)
 	if opts.ChunkSize <= 0 {
