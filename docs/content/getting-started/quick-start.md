@@ -103,3 +103,4 @@ args := &acor.AhoCorasickArgs{
 
 - [Batch Operations](/guides/batch-operations/) - Optimize bulk operations
 - [Parallel Matching](/guides/parallel-matching/) - Process large texts efficiently
+- [API Reference](/reference/api/) - Complete API documentation
