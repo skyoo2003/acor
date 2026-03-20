@@ -250,8 +250,8 @@ func TestContextTimeout(t *testing.T) {
 	defer cancel()
 
 	_, err = ac.goWithContext(ctx, "", 'a')
-	if err == nil {
-		t.Error("expected error with expired context")
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("expected context.DeadlineExceeded error, got: %v", err)
 	}
 }
 

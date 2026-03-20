@@ -135,7 +135,10 @@ import (
 )
 
 func TestWithMiniredis(t *testing.T) {
-    mr, _ := miniredis.Run()
+    mr, err := miniredis.Run()
+    if err != nil {
+        t.Fatal(err)
+    }
     defer mr.Close()
 
     client := redis.NewClient(&redis.Options{

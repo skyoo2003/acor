@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	redis "github.com/go-redis/redis/v8"
 )
@@ -35,7 +36,7 @@ func validateRedisTopology(args *AhoCorasickArgs, addrs []string, ringAddrs map[
 
 	hasSentinel := strings.TrimSpace(args.MasterName) != ""
 	hasRing := len(ringAddrs) > 0
-	hasCluster := !hasSentinel && len(addrs) > 0
+	hasCluster := !hasSentinel && len(addrs) > 1
 
 	selectedTopologies := 0
 	if hasSentinel {
@@ -85,7 +86,8 @@ func newClusterRedisClient(args *AhoCorasickArgs, addrs []string) (redis.Univers
 		Addrs:    addrs,
 		Password: args.Password,
 	})
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
 		_ = client.Close()
 		return nil, fmt.Errorf("failed to connect to Redis cluster: %w", err)

@@ -51,6 +51,8 @@ import "github.com/skyoo2003/acor/pkg/metrics"
 
 ```go
 import (
+    "net/http"
+
     "github.com/prometheus/client_golang/prometheus/promhttp"
     "github.com/skyoo2003/acor/pkg/metrics"
 )

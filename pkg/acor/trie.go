@@ -87,9 +87,6 @@ func (ac *AhoCorasick) failWithContext(ctx context.Context, inState string) (str
 func (ac *AhoCorasick) outputWithContext(ctx context.Context, inState string) ([]string, error) {
 	oKey := outputKey(ac.name, inState)
 	oKeywords, err := ac.redisClient.SMembers(ctx, oKey).Result()
-	if err == redis.Nil {
-		return make([]string, 0), nil
-	}
 	if err != nil {
 		return nil, err
 	}
