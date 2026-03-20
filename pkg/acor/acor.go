@@ -206,7 +206,9 @@ type AhoCorasick struct {
 	buildTrieHook func(string) error
 	schemaVersion int
 
-	cache *trieCache
+	cache  *trieCache
+	pubsub *redis.PubSub
+	stopCh chan struct{}
 }
 
 // AhoCorasickInfo contains statistics about the Aho-Corasick automaton.
@@ -278,6 +280,10 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 
 	if args.EnableCache {
 		ac.cache = &trieCache{}
+		if err := ac.startCacheListener(); err != nil {
+			_ = ac.redisClient.Close()
+			return nil, err
+		}
 	}
 
 	return ac, nil
@@ -327,6 +333,7 @@ func (ac *AhoCorasick) Close() error {
 	if ac.redisClient == nil {
 		return ErrRedisAlreadyClosed
 	}
+	ac.stopCacheListener()
 	err := ac.redisClient.Close()
 	ac.redisClient = nil
 	return err

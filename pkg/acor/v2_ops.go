@@ -330,9 +330,7 @@ func (ac *AhoCorasick) tryAddV2(keyword string) (int, error) { //nolint:gocyclo,
 		return 0, ErrConcurrencyConflict
 	}
 
-	if ac.cache != nil {
-		ac.cache.invalidate()
-	}
+	ac.publishInvalidate()
 
 	return 1, nil
 }
@@ -518,9 +516,7 @@ func (ac *AhoCorasick) tryRemoveV2(keyword string) (int, error) { //nolint:gocyc
 		return 0, ErrConcurrencyConflict
 	}
 
-	if ac.cache != nil {
-		ac.cache.invalidate()
-	}
+	ac.publishInvalidate()
 
 	return len(newKeywords), nil
 }
@@ -574,9 +570,7 @@ func (ac *AhoCorasick) flushV2() error {
 		return err
 	}
 
-	if ac.cache != nil {
-		ac.cache.invalidate()
-	}
+	ac.publishInvalidate()
 
 	return nil
 }
