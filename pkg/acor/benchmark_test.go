@@ -3,6 +3,7 @@ package acor
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -150,5 +151,63 @@ func BenchmarkAddV2(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = ac.Add(fmt.Sprintf("keyword%d", i))
+	}
+}
+
+func BenchmarkFind_WithCache(b *testing.B) {
+	mr, err := miniredis.Run()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer mr.Close()
+
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:        mr.Addr(),
+		Name:        "bench-cache",
+		EnableCache: true,
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer ac.Close()
+
+	for i := 0; i < 100; i++ {
+		ac.Add(fmt.Sprintf("keyword%d", i))
+	}
+
+	text := strings.Repeat("keyword50 keyword25 keyword75 ", 100)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ac.Find(text)
+	}
+}
+
+func BenchmarkFind_WithoutCache(b *testing.B) {
+	mr, err := miniredis.Run()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer mr.Close()
+
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:        mr.Addr(),
+		Name:        "bench-no-cache",
+		EnableCache: false,
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer ac.Close()
+
+	for i := 0; i < 100; i++ {
+		ac.Add(fmt.Sprintf("keyword%d", i))
+	}
+
+	text := strings.Repeat("keyword50 keyword25 keyword75 ", 100)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ac.Find(text)
 	}
 }
