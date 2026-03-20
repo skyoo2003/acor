@@ -98,6 +98,19 @@
 //	    ChunkSize: 10000,
 //	})
 //
+// # Local Caching
+//
+// For read-heavy workloads, enable local caching to eliminate Redis round-trips:
+//
+//	ac, _ := acor.Create(&acor.AhoCorasickArgs{
+//	    Addr:        "localhost:6379",
+//	    Name:        "my-collection",
+//	    EnableCache: true,
+//	})
+//
+// Cache synchronization uses Redis Pub/Sub. When any instance modifies the collection,
+// all instances receive an invalidation message and reload on next Find().
+//
 // # Thread Safety
 //
 // All operations are safe for concurrent use. V2 schema uses optimistic locking
@@ -189,6 +202,7 @@ type AhoCorasickArgs struct {
 	//   - 0 or 2: V2 schema (default, optimized, 3 keys)
 	//   - 1: V1 schema (legacy, multiple keys per prefix)
 	SchemaVersion int
+	EnableCache   bool
 }
 
 // AhoCorasick represents an Aho-Corasick automaton backed by Redis.
@@ -199,11 +213,15 @@ type AhoCorasickArgs struct {
 // All methods are safe for concurrent use across multiple goroutines.
 type AhoCorasick struct {
 	ctx           context.Context
-	redisClient   redis.UniversalClient // redis client
-	name          string                // Pattern's collection name
-	logger        Logger                // logger
+	redisClient   redis.UniversalClient
+	name          string
+	logger        Logger
 	buildTrieHook func(string) error
-	schemaVersion int // detected schema version
+	schemaVersion int
+
+	cache  *trieCache
+	pubsub *redis.PubSub
+	stopCh chan struct{}
 }
 
 // AhoCorasickInfo contains statistics about the Aho-Corasick automaton.
@@ -272,6 +290,15 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 		_ = ac.redisClient.Close()
 		return nil, err
 	}
+
+	if args.EnableCache {
+		ac.cache = &trieCache{}
+		if err := ac.startCacheListener(); err != nil {
+			_ = ac.redisClient.Close()
+			return nil, err
+		}
+	}
+
 	return ac, nil
 }
 
@@ -319,6 +346,7 @@ func (ac *AhoCorasick) Close() error {
 	if ac.redisClient == nil {
 		return ErrRedisAlreadyClosed
 	}
+	ac.stopCacheListener()
 	err := ac.redisClient.Close()
 	ac.redisClient = nil
 	return err
