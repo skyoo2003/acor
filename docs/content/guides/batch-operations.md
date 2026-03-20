@@ -84,3 +84,8 @@ type BatchResult struct {
 1. Use batch sizes between 100-1000 keywords
 2. Use `Transactional` mode when data consistency is critical
 3. Use `BestEffort` mode when partial success is acceptable
+
+## Next Steps
+
+- [Parallel Matching](/guides/parallel-matching/) - Process large texts efficiently
+- [API Reference](/reference/api/) - Complete API documentation

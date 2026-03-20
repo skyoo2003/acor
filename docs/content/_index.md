@@ -146,6 +146,14 @@ import (
 )
 ```
 
+## Documentation Sections
+
+- [Getting Started](/getting-started/) - Installation and quick start guide
+- [Guides](/guides/) - Batch operations and parallel matching
+- [Reference](/reference/) - API and schema documentation
+- [Operations](/operations/) - Deployment and monitoring
+- [Extending](/extending/) - Custom storage backends
+
 ## Development Workflow
 
 Run local checks with:
