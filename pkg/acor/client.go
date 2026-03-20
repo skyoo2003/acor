@@ -87,7 +87,7 @@ func newClusterRedisClient(args *AhoCorasickArgs, addrs []string) (redis.Univers
 	})
 	ctx := context.Background()
 	if err := client.Ping(ctx).Err(); err != nil {
-		client.Close()
+		_ = client.Close()
 		return nil, fmt.Errorf("failed to connect to Redis cluster: %w", err)
 	}
 	return client, nil
