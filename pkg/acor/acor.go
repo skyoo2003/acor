@@ -1,29 +1,119 @@
-// Package acor means Aho-Corasick automation working On Redis, Written in Go
+// Package acor implements an Aho-Corasick string matching automaton backed by Redis.
+//
+// ACOR (Aho-Corasick On Redis) provides efficient multi-pattern matching with O(n + m)
+// time complexity where n is the input text length and m is the total number of matches.
+// The automaton state is stored in Redis, enabling distributed access and persistence.
+//
+// # Features
+//
+//   - Redis-backed storage for distributed state and persistence
+//   - Support for multiple Redis topologies: Standalone, Sentinel, Cluster, and Ring
+//   - Two schema versions: V1 (legacy) and V2 (optimized with fewer keys)
+//   - Thread-safe operations with optimistic locking (V2)
+//   - Batch operations for bulk keyword management
+//   - Parallel text matching for improved performance on large texts
+//   - Prefix-based keyword suggestions
+//
+// # Quick Start
+//
+// Basic usage with a standalone Redis instance:
+//
+//	ac, err := acor.Create(&acor.AhoCorasickArgs{
+//	    Addr: "localhost:6379",
+//	    Name: "my-collection",
+//	})
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer ac.Close()
+//
+//	// Add keywords to the automaton
+//	ac.Add("hello")
+//	ac.Add("world")
+//
+//	// Find all matches in a text
+//	matches, err := ac.Find("hello world")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	fmt.Println(matches) // Output: [hello world]
+//
+// # Redis Topologies
+//
+// ACOR supports multiple Redis deployment modes:
+//
+// Standalone (default):
+//
+//	ac, _ := acor.Create(&acor.AhoCorasickArgs{
+//	    Addr: "localhost:6379",
+//	    Name: "my-collection",
+//	})
+//
+// Sentinel for high availability:
+//
+//	ac, _ := acor.Create(&acor.AhoCorasickArgs{
+//	    Addrs:      []string{"sentinel1:26379", "sentinel2:26379"},
+//	    MasterName: "mymaster",
+//	    Name:       "my-collection",
+//	})
+//
+// Cluster for horizontal scaling:
+//
+//	ac, _ := acor.Create(&acor.AhoCorasickArgs{
+//	    Addrs: []string{"node1:6379", "node2:6379", "node3:6379"},
+//	    Name:  "my-collection",
+//	})
+//
+// Ring for client-side sharding:
+//
+//	ac, _ := acor.Create(&acor.AhoCorasickArgs{
+//	    RingAddrs: map[string]string{
+//	        "shard1": "redis1:6379",
+//	        "shard2": "redis2:6379",
+//	    },
+//	    Name: "my-collection",
+//	})
+//
+// # Schema Versions
+//
+// V1 (SchemaVersion: 1): Legacy schema using multiple Redis keys for each prefix/suffix/output.
+// Suitable for small collections but creates many keys.
+//
+// V2 (SchemaVersion: 2, default): Optimized schema consolidating data into 3 keys.
+// Recommended for most use cases. Uses Lua scripts for atomic operations.
+//
+// # Batch Operations
+//
+// Use AddMany and RemoveMany for bulk operations:
+//
+//	result, err := ac.AddMany([]string{"foo", "bar", "baz"}, nil)
+//	fmt.Printf("Added: %d, Failed: %d\n", len(result.Added), len(result.Failed))
+//
+// # Parallel Matching
+//
+// For large texts, use FindParallel to split work across multiple goroutines:
+//
+//	matches, err := ac.FindParallel(largeText, &acor.ParallelOptions{
+//	    Workers:   8,
+//	    ChunkSize: 10000,
+//	})
+//
+// # Thread Safety
+//
+// All operations are safe for concurrent use. V2 schema uses optimistic locking
+// with automatic retries for write operations.
 package acor
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"strings"
 	"time"
 
 	redis "github.com/go-redis/redis/v8"
-
-	"github.com/skyoo2003/acor/internal/pkg/utils"
-)
-
-// Key type constants
-const (
-	KeywordKey = "%s:keyword"
-	PrefixKey  = "%s:prefix"
-	SuffixKey  = "%s:suffix"
-	OutputKey  = "%s:output"
-	NodeKey    = "%s:node"
 )
 
 const (
@@ -34,37 +124,79 @@ const (
 var (
 	// ErrRedisAlreadyClosed is returned when attempting to close an already closed Redis client.
 	ErrRedisAlreadyClosed = errors.New("redis client was already closed")
-	// ErrRedisConflictingTopology is returned when conflicting Redis topology settings are provided.
+	// ErrRedisConflictingTopology is returned when conflicting Redis topology settings are provided
+	// (e.g., specifying both sentinel and cluster addresses).
 	ErrRedisConflictingTopology = errors.New("redis topology settings are conflicting")
-	// ErrRedisSentinelAddrs is returned when sentinel mode is specified without addresses.
+	// ErrRedisSentinelAddrs is returned when sentinel mode is specified without at least one
+	// sentinel address in the Addrs field.
 	ErrRedisSentinelAddrs = errors.New("redis sentinel requires at least one address")
-	// ErrRedisClusterDB is returned when DB selection is used with cluster mode.
+	// ErrRedisClusterDB is returned when attempting to select a database (DB > 0) with
+	// cluster mode, which does not support database selection.
 	ErrRedisClusterDB = errors.New("redis cluster does not support DB selection")
-	// ErrRedisRingAddrs is returned when ring mode is specified without shard addresses.
+	// ErrRedisRingAddrs is returned when ring mode is specified without at least one
+	// shard address in the RingAddrs field.
 	ErrRedisRingAddrs = errors.New("redis ring requires at least one shard address")
 )
 
 // Logger defines the interface for logging operations used by AhoCorasick.
+// Implement this interface to provide custom logging behavior. By default,
+// a standard logger writing to io.Discard is used (or stdout when Debug is true).
 type Logger interface {
+	// Printf logs a formatted message.
 	Printf(format string, v ...interface{})
+	// Println logs a message with a newline.
 	Println(v ...interface{})
 }
 
 // AhoCorasickArgs contains configuration options for creating an AhoCorasick instance.
+// All fields are optional except Name, which identifies the pattern collection.
+//
+// # Redis Topology Selection
+//
+// The Redis topology is automatically determined based on which fields are set:
+//   - Ring: RingAddrs is set (map of shard names to addresses)
+//   - Sentinel: MasterName is set (Addrs used as sentinel addresses)
+//   - Cluster: Addrs has multiple entries (no MasterName)
+//   - Standalone: Addr is set (default: "localhost:6379")
 type AhoCorasickArgs struct {
-	Addr          string // redis server address (ex) localhost:6379
-	Addrs         []string
-	MasterName    string
-	RingAddrs     map[string]string
-	Password      string // redis password
-	DB            int    // redis db number
-	Name          string // pattern's collection name
-	Debug         bool   // debug flag
-	Logger        Logger // Optional custom logger
-	SchemaVersion int    // 1: V1 (Legacy), 2 or 0: V2 (default)
+	// Addr is the Redis server address for standalone mode (e.g., "localhost:6379").
+	// Ignored if Addrs or RingAddrs is set.
+	Addr string
+	// Addrs is a list of Redis addresses. Used for:
+	//   - Sentinel mode: list of sentinel addresses (requires MasterName)
+	//   - Cluster mode: list of cluster node addresses
+	Addrs []string
+	// MasterName specifies the master name for Sentinel mode.
+	// When set, Addrs is interpreted as sentinel addresses.
+	MasterName string
+	// RingAddrs maps shard names to addresses for Ring mode (client-side sharding).
+	// Example: {"shard1": "redis1:6379", "shard2": "redis2:6379"}
+	RingAddrs map[string]string
+	// Password is the Redis authentication password (optional).
+	Password string
+	// DB is the Redis database number to select (0-15, default: 0).
+	// Not supported in cluster mode.
+	DB int
+	// Name identifies the pattern collection. All keywords added to this instance
+	// are stored under this namespace in Redis. Required.
+	Name string
+	// Debug enables debug logging output to stdout.
+	Debug bool
+	// Logger provides a custom logger implementation. If nil and Debug is false,
+	// logging is disabled.
+	Logger Logger
+	// SchemaVersion specifies the storage schema to use:
+	//   - 0 or 2: V2 schema (default, optimized, 3 keys)
+	//   - 1: V1 schema (legacy, multiple keys per prefix)
+	SchemaVersion int
 }
 
 // AhoCorasick represents an Aho-Corasick automaton backed by Redis.
+// It provides efficient multi-pattern string matching with O(n + m) complexity
+// where n is the text length and m is the total match count.
+//
+// Instances are created using Create and should be closed with Close when done.
+// All methods are safe for concurrent use across multiple goroutines.
 type AhoCorasick struct {
 	ctx           context.Context
 	redisClient   redis.UniversalClient // redis client
@@ -75,12 +207,39 @@ type AhoCorasick struct {
 }
 
 // AhoCorasickInfo contains statistics about the Aho-Corasick automaton.
+// Returned by the Info method to provide insight into the current state.
 type AhoCorasickInfo struct {
-	Keywords int // Aho-Corasick keywords count
-	Nodes    int // Aho-Corasick nodes count
+	// Keywords is the number of keywords currently stored in the automaton.
+	Keywords int
+	// Nodes is the number of trie nodes (prefixes) in the automaton.
+	// This is typically larger than Keywords as it includes all prefixes.
+	Nodes int
 }
 
 // Create initializes and returns a new AhoCorasick instance connected to Redis.
+// It establishes the Redis connection based on the topology settings in args
+// and initializes the automaton's data structures.
+//
+// The Name field in args is required and identifies the pattern collection.
+// Multiple AhoCorasick instances with different names can coexist on the same
+// Redis server.
+//
+// Returns an error if:
+//   - Redis connection fails
+//   - Conflicting topology settings are provided
+//   - Required topology settings are missing (e.g., sentinel without addresses)
+//
+// Example:
+//
+//	ac, err := acor.Create(&acor.AhoCorasickArgs{
+//	    Addr:          "localhost:6379",
+//	    Name:          "my-patterns",
+//	    SchemaVersion: acor.SchemaV2,
+//	})
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer ac.Close()
 func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	stdLogger := log.New(io.Discard, "ACOR: ", log.LstdFlags|log.Lshortfile)
 	if args.Debug {
@@ -116,182 +275,20 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	return ac, nil
 }
 
-func newRedisClient(args *AhoCorasickArgs) (redis.UniversalClient, error) {
-	addrs := normalizeAddrs(args.Addr, args.Addrs)
-	ringAddrs := normalizeRingAddrs(args.RingAddrs)
-
-	if err := validateRedisTopology(args, addrs, ringAddrs); err != nil {
-		return nil, err
-	}
-
-	switch {
-	case len(ringAddrs) > 0:
-		return newRingRedisClient(args, ringAddrs), nil
-	case strings.TrimSpace(args.MasterName) != "":
-		return newSentinelRedisClient(args, addrs), nil
-	case len(args.Addrs) > 0:
-		return newClusterRedisClient(args, addrs)
-	default:
-		return newStandaloneRedisClient(args, addrs), nil
-	}
-}
-
-func validateRedisTopology(args *AhoCorasickArgs, addrs []string, ringAddrs map[string]string) error {
-	if strings.TrimSpace(args.Addr) != "" && len(args.Addrs) > 0 {
-		return ErrRedisConflictingTopology
-	}
-
-	hasSentinel := strings.TrimSpace(args.MasterName) != ""
-	hasRing := len(ringAddrs) > 0 || len(args.RingAddrs) > 0
-	hasCluster := !hasSentinel && len(args.Addrs) > 0
-
-	selectedTopologies := 0
-	if hasSentinel {
-		selectedTopologies++
-	}
-	if hasRing {
-		selectedTopologies++
-	}
-	if hasCluster {
-		selectedTopologies++
-	}
-	if selectedTopologies > 1 {
-		return ErrRedisConflictingTopology
-	}
-	if hasSentinel && len(addrs) == 0 {
-		return ErrRedisSentinelAddrs
-	}
-	if hasRing && len(ringAddrs) == 0 {
-		return ErrRedisRingAddrs
-	}
-	if hasCluster && args.DB != 0 {
-		return ErrRedisClusterDB
-	}
-
-	return nil
-}
-
-func newRingRedisClient(args *AhoCorasickArgs, ringAddrs map[string]string) redis.UniversalClient {
-	return redis.NewRing(&redis.RingOptions{
-		Addrs:    ringAddrs,
-		Password: args.Password,
-		DB:       args.DB,
-	})
-}
-
-func newSentinelRedisClient(args *AhoCorasickArgs, addrs []string) redis.UniversalClient {
-	return redis.NewFailoverClient(&redis.FailoverOptions{
-		SentinelAddrs: addrs,
-		MasterName:    strings.TrimSpace(args.MasterName),
-		Password:      args.Password,
-		DB:            args.DB,
-	})
-}
-
-func newClusterRedisClient(args *AhoCorasickArgs, addrs []string) (redis.UniversalClient, error) {
-	return redis.NewClusterClient(&redis.ClusterOptions{
-		Addrs:    addrs,
-		Password: args.Password,
-	}), nil
-}
-
-func newStandaloneRedisClient(args *AhoCorasickArgs, addrs []string) redis.UniversalClient {
-	addr := strings.TrimSpace(args.Addr)
-	if addr == "" && len(addrs) > 0 {
-		addr = addrs[0]
-	}
-	return redis.NewClient(&redis.Options{
-		Addr:     addr,
-		Password: args.Password,
-		DB:       args.DB,
-	})
-}
-
-func normalizeAddrs(addr string, addrs []string) []string {
-	normalized := make([]string, 0, len(addrs)+1)
-	seen := make(map[string]struct{}, len(addrs)+1)
-	appendAddr := func(value string) {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			return
-		}
-		if _, exists := seen[trimmed]; exists {
-			return
-		}
-		seen[trimmed] = struct{}{}
-		normalized = append(normalized, trimmed)
-	}
-
-	appendAddr(addr)
-	for _, candidate := range addrs {
-		appendAddr(candidate)
-	}
-
-	return normalized
-}
-
-func normalizeRingAddrs(addrs map[string]string) map[string]string {
-	normalized := make(map[string]string, len(addrs))
-	for name, addr := range addrs {
-		trimmedName := strings.TrimSpace(name)
-		trimmedAddr := strings.TrimSpace(addr)
-		if trimmedName == "" || trimmedAddr == "" {
-			continue
-		}
-		normalized[trimmedName] = trimmedAddr
-	}
-	return normalized
-}
-
-func (ac *AhoCorasick) keyPrefix() string {
-	return fmt.Sprintf("{%s}", ac.name)
-}
-
-func (ac *AhoCorasick) keywordKey() string {
-	return fmt.Sprintf("%s:keyword", ac.keyPrefix())
-}
-
-func (ac *AhoCorasick) prefixKey() string {
-	return fmt.Sprintf("%s:prefix", ac.keyPrefix())
-}
-
-func (ac *AhoCorasick) suffixKey() string {
-	return fmt.Sprintf("%s:suffix", ac.keyPrefix())
-}
-
-func (ac *AhoCorasick) outputKey(state string) string {
-	return fmt.Sprintf("%s:output:%s", ac.keyPrefix(), state)
-}
-
-func (ac *AhoCorasick) nodeKey(keyword string) string {
-	return fmt.Sprintf("%s:node:%s", ac.keyPrefix(), keyword)
-}
-
-func (ac *AhoCorasick) trieKey() string {
-	return fmt.Sprintf("%s:trie", ac.keyPrefix())
-}
-
-func (ac *AhoCorasick) outputsKey() string {
-	return fmt.Sprintf("%s:outputs", ac.keyPrefix())
-}
-
-func (ac *AhoCorasick) nodesKey() string {
-	return fmt.Sprintf("%s:nodes", ac.keyPrefix())
-}
-
 // SchemaVersion returns the current schema version used by the AhoCorasick instance.
+// Returns SchemaV1 (1) for legacy schema or SchemaV2 (2) for the optimized schema.
 func (ac *AhoCorasick) SchemaVersion() int {
 	return ac.schemaVersion
 }
 
 func (ac *AhoCorasick) init() error {
 	if ac.schemaVersion == SchemaV2 {
-		exists, err := ac.redisClient.Exists(ac.ctx, ac.trieKey()).Result()
+		exists, err := ac.redisClient.Exists(ac.ctx, trieKey(ac.name)).Result()
 		if err != nil {
 			return fmt.Errorf("failed to check trie key: %w", err)
 		}
 		if exists == 0 {
-			_, err := ac.redisClient.HSet(ac.ctx, ac.trieKey(), map[string]interface{}{
+			_, err := ac.redisClient.HSet(ac.ctx, trieKey(ac.name), map[string]interface{}{
 				"keywords": "[]",
 				"prefixes": "[\"\"]",
 				"suffixes": "[\"\"]",
@@ -304,7 +301,7 @@ func (ac *AhoCorasick) init() error {
 		return nil
 	}
 
-	prefixKey := ac.prefixKey()
+	prefixKey := prefixKey(ac.name)
 	member := &redis.Z{
 		Score:  initScore,
 		Member: "",
@@ -315,442 +312,141 @@ func (ac *AhoCorasick) init() error {
 	return nil
 }
 
-// Close closes the Redis client connection.
+// Close closes the Redis client connection. Always call Close when done with
+// an AhoCorasick instance to release resources. Returns ErrRedisAlreadyClosed
+// if the connection was already closed.
 func (ac *AhoCorasick) Close() error {
-	if ac.redisClient != nil {
-		return ac.redisClient.Close()
+	if ac.redisClient == nil {
+		return ErrRedisAlreadyClosed
 	}
-	return ErrRedisAlreadyClosed
+	err := ac.redisClient.Close()
+	ac.redisClient = nil
+	return err
 }
 
 // Add inserts a keyword into the Aho-Corasick automaton.
+// The keyword is normalized to lowercase before storage.
+//
+// Returns:
+//   - 1 if the keyword was successfully added
+//   - 0 if the keyword already exists (no duplicate is added)
+//   - error if the operation fails
+//
+// For V2 schema, this operation uses optimistic locking with automatic retries.
 func (ac *AhoCorasick) Add(keyword string) (int, error) {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.addV2(keyword)
 	}
-
-	keyword = strings.TrimSpace(keyword)
-	keyword = strings.ToLower(keyword)
-
-	keywordKey := ac.keywordKey()
-	addedCount, err := ac.redisClient.SAdd(ac.ctx, keywordKey, keyword).Result()
-	if err != nil {
-		return 0, err
-	}
-	ac.logger.Println(fmt.Sprintf(`Add(%s) > SADD {"key": "%s", "member": "%s", "count": %d}`, keyword, keywordKey, keyword, addedCount))
-
-	if err := ac._buildTrie(keyword); err != nil {
-		if addedCount == 0 {
-			return 0, err
-		}
-
-		if _, rollbackErr := ac.Remove(keyword); rollbackErr != nil {
-			return 0, fmt.Errorf("build trie: %w; rollback keyword: %v", err, rollbackErr)
-		}
-		return 0, err
-	}
-
-	return int(addedCount), nil
+	return ac.addV1(keyword)
 }
 
 // Remove deletes a keyword from the Aho-Corasick automaton.
+// The keyword is normalized to lowercase before lookup.
+// This operation also prunes any trie nodes that are no longer needed.
+//
+// Returns:
+//   - remaining keyword count after removal
+//   - error if the operation fails
+//
+// For V2 schema, this operation uses optimistic locking with automatic retries.
 func (ac *AhoCorasick) Remove(keyword string) (int, error) {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.removeV2(keyword)
 	}
-
-	keyword = strings.TrimSpace(keyword)
-	keyword = strings.ToLower(keyword)
-
-	nodeKey := ac.nodeKey(keyword)
-	nodes, err := ac.redisClient.SMembers(ac.ctx, nodeKey).Result()
-	if err != nil {
-		return 0, err
-	}
-	var removedCount int64
-	for _, node := range nodes {
-		oKey := ac.outputKey(node)
-		removedCount, err = ac.redisClient.SRem(ac.ctx, oKey, keyword).Result()
-		if err != nil {
-			return 0, err
-		}
-		ac.logger.Println(fmt.Sprintf("Remove(%s) > SREM key(%s) : Count(%d)", keyword, oKey, removedCount))
-	}
-
-	delCount, err := ac.redisClient.Del(ac.ctx, nodeKey).Result()
-	if err != nil {
-		return 0, err
-	}
-	ac.logger.Println(fmt.Sprintf("Remove(%s) > DEL key(%s) : Count(%d)", keyword, nodeKey, delCount))
-
-	err = ac.pruneTrie(keyword)
-	if err != nil {
-		return 0, err
-	}
-
-	kKey := ac.keywordKey()
-	kRemovedCount, err := ac.redisClient.SRem(ac.ctx, kKey, keyword).Result()
-	if err != nil {
-		return 0, err
-	}
-	ac.logger.Println(fmt.Sprintf("Remove(%s) > SREM key(%s) members(%s) : Count(%d)", keyword, kKey, keyword, kRemovedCount))
-
-	kMemberCount, err := ac.redisClient.SCard(ac.ctx, kKey).Result()
-	if err != nil {
-		return 0, err
-	}
-	ac.logger.Println(fmt.Sprintf("Remove(%s) > SCARD key(%s) : Count(%d)", keyword, kKey, kMemberCount))
-
-	return int(kMemberCount), nil
-}
-
-func (ac *AhoCorasick) pruneTrie(keyword string) error {
-	keywordRunes := []rune(keyword)
-	for idx := len(keywordRunes); idx >= 0; idx-- {
-		prefix := string(keywordRunes[:idx])
-		suffix := utils.Reverse(prefix)
-
-		kKey := ac.keywordKey()
-		kExists, err := ac.redisClient.SIsMember(ac.ctx, kKey, prefix).Result()
-		if err != nil {
-			return err
-		}
-		if kExists && idx != len(keywordRunes) {
-			break
-		}
-
-		pKey := ac.prefixKey()
-		pZRank, err := ac.redisClient.ZRank(ac.ctx, pKey, prefix).Result()
-		if err == redis.Nil {
-			break
-		}
-		if err != nil {
-			return err
-		}
-
-		pKeywords, err := ac.redisClient.ZRange(ac.ctx, pKey, pZRank+1, pZRank+1).Result()
-		if err != nil {
-			return err
-		}
-		if len(pKeywords) > 0 && strings.HasPrefix(pKeywords[0], prefix) {
-			break
-		}
-
-		if err := ac.removePrefixAndSuffix(keyword, prefix, suffix); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (ac *AhoCorasick) removePrefixAndSuffix(keyword, prefix, suffix string) error {
-	pKey := ac.prefixKey()
-	pRemovedCount, err := ac.redisClient.ZRem(ac.ctx, pKey, prefix).Result()
-	if err != nil {
-		return err
-	}
-	ac.logger.Println(fmt.Sprintf("Remove(%s) > ZREM key(%s) : Count(%d)", keyword, pKey, pRemovedCount))
-
-	sKey := ac.suffixKey()
-	sRemovedCount, err := ac.redisClient.ZRem(ac.ctx, sKey, suffix).Result()
-	if err != nil {
-		return err
-	}
-	ac.logger.Println(fmt.Sprintf("Remove(%s) > ZREM key(%s) : Count(%d)", keyword, sKey, sRemovedCount))
-
-	return nil
+	return ac.removeV1(keyword)
 }
 
 // Find searches for all keywords in the given text and returns matched keywords.
+// Each keyword that appears in the text is included in the result (duplicates
+// may appear if a keyword matches multiple times).
+//
+// Matching is case-insensitive because keywords are stored in lowercase and
+// input text is normalized to lowercase before matching.
+//
+// Returns an empty slice if no matches are found or text is empty.
 func (ac *AhoCorasick) Find(text string) ([]string, error) {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.findV2(text)
 	}
-
-	matched := make([]string, 0)
-	state := ""
-
-	for _, char := range text {
-		nextState, err := ac._go(state, char)
-		if err != nil {
-			return nil, err
-		}
-		if nextState == "" {
-			nextState, err = ac._fail(state)
-			if err != nil {
-				return nil, err
-			}
-			var afterNextState string
-			afterNextState, err = ac._go(nextState, char)
-			if err != nil {
-				return nil, err
-			}
-			if afterNextState == "" {
-				buffer := bytes.NewBufferString(nextState)
-				buffer.WriteRune(char)
-				afterNextState, err = ac._fail(buffer.String())
-				if err != nil {
-					return nil, err
-				}
-			}
-			nextState = afterNextState
-		}
-
-		outputs, err := ac._output(state)
-		if err != nil {
-			return nil, err
-		}
-		matched = append(matched, outputs...)
-		state = nextState
-	}
-
-	outputs, err := ac._output(state)
-	if err != nil {
-		return nil, err
-	}
-	matched = append(matched, outputs...)
-	ac.logger.Println(fmt.Sprintf("Find(%s) > Matched(%s) : Count(%d)", text, matched, len(matched)))
-
-	return matched, nil
+	return ac.findV1(text)
 }
 
 // FindIndex searches for keywords in text and returns their start indices.
+// The returned map has keywords as keys and slices of start positions (0-indexed)
+// as values.
+//
+// Example: For text "hello world" with keyword "world":
+//
+//	matches, _ := ac.FindIndex("hello world")
+//	// matches["world"] == []int{6}
 func (ac *AhoCorasick) FindIndex(text string) (map[string][]int, error) {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.findIndexV2(text)
 	}
-
-	matched := make(map[string][]int)
-	state := ""
-	runeIndex := 0
-
-	for _, char := range text {
-		nextState, err := ac._go(state, char)
-		if err != nil {
-			return nil, err
-		}
-		if nextState == "" {
-			nextState, err = ac._fail(state)
-			if err != nil {
-				return nil, err
-			}
-			var afterNextState string
-			afterNextState, err = ac._go(nextState, char)
-			if err != nil {
-				return nil, err
-			}
-			if afterNextState == "" {
-				buffer := bytes.NewBufferString(nextState)
-				buffer.WriteRune(char)
-				afterNextState, err = ac._fail(buffer.String())
-				if err != nil {
-					return nil, err
-				}
-			}
-			nextState = afterNextState
-		}
-
-		outputs, err := ac._output(state)
-		if err != nil {
-			return nil, err
-		}
-		ac.appendMatchedIndexes(matched, outputs, runeIndex)
-		state = nextState
-		runeIndex++
-	}
-
-	outputs, err := ac._output(state)
-	if err != nil {
-		return nil, err
-	}
-	ac.appendMatchedIndexes(matched, outputs, runeIndex)
-	ac.logger.Println(fmt.Sprintf("FindIndex(%s) > Matched(%v) : Count(%d)", text, matched, len(matched)))
-
-	return matched, nil
+	return ac.findIndexV1(text)
 }
 
-// Flush removes all keywords and trie data from Redis.
+// Flush removes all keywords and trie data from Redis for this collection.
+// Use with caution as this operation is irreversible. The collection remains
+// usable after flushing and can have new keywords added.
 func (ac *AhoCorasick) Flush() error {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.flushV2()
 	}
-
-	kKey := ac.keywordKey()
-	pKey := ac.prefixKey()
-	sKey := ac.suffixKey()
-
-	keywords, err := ac.redisClient.SMembers(ac.ctx, kKey).Result()
-	if err != nil {
-		return err
-	}
-	ac.logger.Println(fmt.Sprintf("Flush() > SMEMBERS Key(%s) : Members(%s)", kKey, keywords))
-
-	for _, keyword := range keywords {
-		oKey := ac.outputKey(keyword)
-		var oDelCount int64
-		oDelCount, err = ac.redisClient.Del(ac.ctx, oKey).Result()
-		if err != nil {
-			return err
-		}
-		ac.logger.Println(fmt.Sprintf("Flush() > DEL Key(%s) : Count(%d)", oKey, oDelCount))
-
-		nKey := ac.nodeKey(keyword)
-		var nDelCount int64
-		nDelCount, err = ac.redisClient.Del(ac.ctx, nKey).Result()
-		if err != nil {
-			return err
-		}
-		ac.logger.Println(fmt.Sprintf("Flush() > DEL Key(%s) : Count(%d)", nKey, nDelCount))
-	}
-
-	pDelCount, err := ac.redisClient.Del(ac.ctx, pKey).Result()
-	if err != nil {
-		return err
-	}
-	ac.logger.Println(fmt.Sprintf("Flush() > DEL Key(%s) : Count(%d)", pKey, pDelCount))
-
-	sDelCount, err := ac.redisClient.Del(ac.ctx, sKey).Result()
-	if err != nil {
-		return err
-	}
-	ac.logger.Println(fmt.Sprintf("Flush() > DEL Key(%s) : Count(%d)", sKey, sDelCount))
-
-	kDelCount, err := ac.redisClient.Del(ac.ctx, kKey).Result()
-	if err != nil {
-		return err
-	}
-	ac.logger.Println(fmt.Sprintf("Flush() > DEL Key(%s) : Count(%d)", kKey, kDelCount))
-
-	return nil
+	return ac.flushV1()
 }
 
-// Info returns statistics about the Aho-Corasick automaton.
+// Info returns statistics about the Aho-Corasick automaton including
+// the number of keywords and trie nodes currently stored.
 func (ac *AhoCorasick) Info() (*AhoCorasickInfo, error) {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.infoV2()
 	}
-
-	kKey := ac.keywordKey()
-	kCount, err := ac.redisClient.SCard(ac.ctx, kKey).Result()
-	if err != nil {
-		return nil, err
-	}
-	ac.logger.Println(fmt.Sprintf("Info() > SCARD Key(%s) : Count(%d)", kKey, kCount))
-
-	nKey := ac.prefixKey()
-	nCount, err := ac.redisClient.ZCard(ac.ctx, nKey).Result()
-	if err != nil {
-		return nil, err
-	}
-	ac.logger.Println(fmt.Sprintf("Info() > ZCARD Key(%s) : Count(%d)", nKey, nCount))
-
-	return &AhoCorasickInfo{
-		Keywords: int(kCount),
-		Nodes:    int(nCount),
-	}, nil
+	return ac.infoV1()
 }
 
 // Suggest returns keywords that start with the given input prefix.
+// This is useful for implementing autocomplete functionality.
+// The input is normalized to lowercase before matching.
+//
+// Returns an empty slice if no keywords match the prefix.
 func (ac *AhoCorasick) Suggest(input string) ([]string, error) {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.suggestV2(input)
 	}
-
-	var pKeywords []string
-
-	results := make([]string, 0)
-
-	kKey := ac.keywordKey()
-	pKey := ac.prefixKey()
-	pZRank, err := ac.redisClient.ZRank(ac.ctx, pKey, input).Result()
-	if err == redis.Nil {
-		return results, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	pKeywords, err = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Result()
-	if err != nil {
-		return nil, err
-	}
-	for len(pKeywords) > 0 {
-		pKeyword := pKeywords[0]
-		kExists, err := ac.redisClient.SIsMember(ac.ctx, kKey, pKeyword).Result()
-		if err != nil {
-			return nil, err
-		}
-		if kExists && strings.HasPrefix(pKeyword, input) {
-			results = append(results, pKeyword)
-		}
-
-		pZRank++
-		pKeywords, err = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Result()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return results, nil
+	return ac.suggestV1(input)
 }
 
 // SuggestIndex returns keywords matching the prefix with their indices.
+// Similar to Suggest but returns a map for consistency with FindIndex.
+// All matched keywords have an index of 0.
 func (ac *AhoCorasick) SuggestIndex(input string) (map[string][]int, error) {
 	if ac.schemaVersion == SchemaV2 {
 		return ac.suggestIndexV2(input)
 	}
-
-	var pKeywords []string
-
-	results := make(map[string][]int)
-
-	kKey := ac.keywordKey()
-	pKey := ac.prefixKey()
-	pZRank, err := ac.redisClient.ZRank(ac.ctx, pKey, input).Result()
-	if err == redis.Nil {
-		return results, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	pKeywords, err = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Result()
-	if err != nil {
-		return nil, err
-	}
-	for len(pKeywords) > 0 {
-		pKeyword := pKeywords[0]
-		kExists, err := ac.redisClient.SIsMember(ac.ctx, kKey, pKeyword).Result()
-		if err != nil {
-			return nil, err
-		}
-		if kExists && strings.HasPrefix(pKeyword, input) {
-			results[pKeyword] = append(results[pKeyword], 0)
-		}
-
-		pZRank++
-		pKeywords, err = ac.redisClient.ZRange(ac.ctx, pKey, pZRank, pZRank).Result()
-		if err != nil {
-			return nil, err
-		}
-		if len(pKeywords) > 0 && !strings.HasPrefix(pKeywords[0], input) {
-			break
-		}
-	}
-
-	return results, nil
+	return ac.suggestIndexV1(input)
 }
 
-// Debug prints the current state of the Aho-Corasick automaton for debugging.
+// Debug prints the current state of the Aho-Corasick automaton to stdout.
+// This includes keywords, prefixes, suffixes, outputs, and nodes.
+// Useful for debugging and understanding the trie structure.
+// Note: Output format differs between V1 and V2 schemas.
 func (ac *AhoCorasick) Debug() {
-	kKey := ac.keywordKey()
+	if ac.schemaVersion == SchemaV2 {
+		ac.debugV2()
+		return
+	}
+	ac.debugV1()
+}
+
+func (ac *AhoCorasick) debugV1() {
+	kKey := keywordKey(ac.name)
 	fmt.Println("-", ac.redisClient.SMembers(ac.ctx, kKey))
 
-	pKey := ac.prefixKey()
+	pKey := prefixKey(ac.name)
 	fmt.Println("-", ac.redisClient.ZRange(ac.ctx, pKey, 0, -1))
 
-	sKey := ac.suffixKey()
+	sKey := suffixKey(ac.name)
 	fmt.Println("-", ac.redisClient.ZRange(ac.ctx, sKey, 0, -1))
 
 	outputs := make([]string, 0)
@@ -768,197 +464,41 @@ func (ac *AhoCorasick) Debug() {
 	nodes := make([]string, 0)
 	kKeywords := ac.redisClient.SMembers(ac.ctx, kKey).Val()
 	for _, keyword := range kKeywords {
-		nKey := ac.nodeKey(keyword)
+		nKey := nodeKey(ac.name, keyword)
 		nKeywords := ac.redisClient.SMembers(ac.ctx, nKey).Val()
 		nodes = append(nodes, nKeywords...)
 	}
 	fmt.Println("-", nodes)
 }
 
-func (ac *AhoCorasick) _go(inState string, input rune) (string, error) {
-	buffer := bytes.NewBufferString(inState)
-	buffer.WriteRune(input)
-	nextState := buffer.String()
-
-	pKey := ac.prefixKey()
-	err := ac.redisClient.ZScore(ac.ctx, pKey, nextState).Err()
-	if err == redis.Nil {
-		return "", nil
-	}
+func (ac *AhoCorasick) debugV2() {
+	trieData, err := ac.redisClient.HGetAll(ac.ctx, trieKey(ac.name)).Result()
 	if err != nil {
-		return "", err
+		fmt.Println("Error reading trie:", err)
+		return
 	}
-	return nextState, nil
-}
+	fmt.Println("Trie data:")
+	for key, value := range trieData {
+		fmt.Printf("  %s: %s\n", key, value)
+	}
 
-func (ac *AhoCorasick) _fail(inState string) (string, error) {
-	pKey := ac.prefixKey()
-	idx := 0
-	inStateRunes := []rune(inState)
-	for idx < len(inStateRunes) {
-		nextState := string(inStateRunes[idx+1:])
-		err := ac.redisClient.ZScore(ac.ctx, pKey, nextState).Err()
-		if err == redis.Nil {
-			idx++
-			continue
-		}
-		if err != nil {
-			return "", err
-		}
-		return nextState, nil
-	}
-	return "", nil
-}
-
-func (ac *AhoCorasick) _output(inState string) ([]string, error) {
-	oKey := ac.outputKey(inState)
-	oKeywords, err := ac.redisClient.SMembers(ac.ctx, oKey).Result()
-	if err == redis.Nil {
-		return make([]string, 0), nil
-	}
+	outputsData, err := ac.redisClient.HGetAll(ac.ctx, outputsKey(ac.name)).Result()
 	if err != nil {
-		return nil, err
+		fmt.Println("Error reading outputs:", err)
+		return
 	}
-	return oKeywords, nil
-}
-
-func (ac *AhoCorasick) appendMatchedIndexes(matched map[string][]int, outputs []string, endIndex int) {
-	for _, output := range outputs {
-		startIndex := endIndex - len([]rune(output))
-		matched[output] = append(matched[output], startIndex)
-	}
-}
-
-func (ac *AhoCorasick) _buildTrie(keyword string) error {
-	keywordRunes := []rune(keyword)
-	for idx := range keywordRunes {
-		prefix := string(keywordRunes[:idx+1])
-		suffix := utils.Reverse(prefix)
-
-		ac.logger.Printf("_buildTrie(%s) > Prefix(%s) Suffix(%s)", keyword, prefix, suffix)
-
-		pKey := ac.prefixKey()
-		err := ac.redisClient.ZScore(ac.ctx, pKey, prefix).Err()
-		if err == redis.Nil {
-			sKey := ac.suffixKey()
-			pMember := &redis.Z{Score: memberScore, Member: prefix}
-			sMember := &redis.Z{Score: memberScore, Member: suffix}
-			if _, pipeErr := ac.redisClient.TxPipelined(ac.ctx, func(pipe redis.Pipeliner) error {
-				pipe.ZAdd(ac.ctx, pKey, pMember)
-				pipe.ZAdd(ac.ctx, sKey, sMember)
-				return nil
-			}); pipeErr != nil {
-				return pipeErr
-			}
-			if ac.buildTrieHook != nil {
-				if hookErr := ac.buildTrieHook(prefix); hookErr != nil {
-					return hookErr
-				}
-			}
-
-			if rebuildErr := ac._rebuildOutput(suffix); rebuildErr != nil {
-				return rebuildErr
-			}
-		} else if err != nil {
-			return err
-		} else {
-			kKey := ac.keywordKey()
-			kExists, err := ac.redisClient.SIsMember(ac.ctx, kKey, prefix).Result()
-			if err != nil {
-				return err
-			}
-			ac.logger.Println(fmt.Sprintf("_buildTrie(%s) > SISMEMBER key(%s) member(%v) : Exist(%t)", keyword, kKey, prefix, kExists))
-			if kExists {
-				if rebuildErr := ac._rebuildOutput(suffix); rebuildErr != nil {
-					return rebuildErr
-				}
-			}
-		}
+	fmt.Println("Outputs data:")
+	for key, value := range outputsData {
+		fmt.Printf("  %s: %s\n", key, value)
 	}
 
-	return nil
-}
-
-func (ac *AhoCorasick) _rebuildOutput(suffix string) error {
-	var sKeywords []string
-
-	sKey := ac.suffixKey()
-	sZRank, err := ac.redisClient.ZRank(ac.ctx, sKey, suffix).Result()
-	if err == redis.Nil {
-		return nil
-	}
+	nodesData, err := ac.redisClient.HGetAll(ac.ctx, nodesKey(ac.name)).Result()
 	if err != nil {
-		return err
+		fmt.Println("Error reading nodes:", err)
+		return
 	}
-
-	sKeywords, err = ac.redisClient.ZRange(ac.ctx, sKey, sZRank, sZRank).Result()
-	if err != nil {
-		return err
+	fmt.Println("Nodes data:")
+	for key, value := range nodesData {
+		fmt.Printf("  %s: %s\n", key, value)
 	}
-	for len(sKeywords) > 0 {
-		ac.logger.Printf("_rebuildOutput(%s) > Key(%s) ZRank(%d) Keywords(%s)", suffix, sKey, sZRank, sKeywords)
-
-		sKeyword := sKeywords[0]
-		if strings.HasPrefix(sKeyword, suffix) {
-			state := utils.Reverse(sKeyword)
-			if buildErr := ac._buildOutput(state); buildErr != nil {
-				return buildErr
-			}
-		} else {
-			break
-		}
-
-		sZRank++
-		sKeywords, err = ac.redisClient.ZRange(ac.ctx, sKey, sZRank, sZRank).Result()
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (ac *AhoCorasick) _buildOutput(state string) error {
-	outputs := make([]string, 0)
-
-	kKey := ac.keywordKey()
-	kExists, err := ac.redisClient.SIsMember(ac.ctx, kKey, state).Result()
-	if err != nil {
-		return err
-	}
-	if kExists {
-		outputs = append(outputs, state)
-	}
-
-	failState, err := ac._fail(state)
-	if err != nil {
-		return err
-	}
-	failOutputs, err := ac._output(failState)
-	if err != nil {
-		return err
-	}
-	if len(failOutputs) > 0 {
-		outputs = append(outputs, failOutputs...)
-	}
-
-	if len(outputs) > 0 {
-		oKey := ac.outputKey(state)
-		args := make([]interface{}, len(outputs))
-		for i, v := range outputs {
-			args[i] = v
-		}
-		if _, pipeErr := ac.redisClient.TxPipelined(ac.ctx, func(pipe redis.Pipeliner) error {
-			pipe.SAdd(ac.ctx, oKey, args...)
-			for _, output := range outputs {
-				nKey := ac.nodeKey(output)
-				pipe.SAdd(ac.ctx, nKey, state)
-			}
-			return nil
-		}); pipeErr != nil {
-			return pipeErr
-		}
-	}
-
-	return nil
 }
