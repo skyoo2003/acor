@@ -98,6 +98,19 @@
 //	    ChunkSize: 10000,
 //	})
 //
+// # Local Caching
+//
+// For read-heavy workloads, enable local caching to eliminate Redis round-trips:
+//
+//	ac, _ := acor.Create(&acor.AhoCorasickArgs{
+//	    Addr:        "localhost:6379",
+//	    Name:        "my-collection",
+//	    EnableCache: true,
+//	})
+//
+// Cache synchronization uses Redis Pub/Sub. When any instance modifies the collection,
+// all instances receive an invalidation message and reload on next Find().
+//
 // # Thread Safety
 //
 // All operations are safe for concurrent use. V2 schema uses optimistic locking
