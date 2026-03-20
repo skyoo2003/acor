@@ -149,8 +149,6 @@ import (
 ## Documentation Sections
 
 - [Getting Started][getting-started-link] - Installation and quick start guide
-
-- [Getting Started][getting-started-link] - Installation and quick start guide
 - [Guides][guides-link] - Usage patterns and advanced features
 - [Reference][reference-link] - API and schema documentation
 - [Operations][operations-link] - Deployment and monitoring
