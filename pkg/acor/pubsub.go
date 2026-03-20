@@ -44,7 +44,7 @@ func (ac *AhoCorasick) stopCacheListener() {
 		close(ac.stopCh)
 	}
 	if ac.pubsub != nil {
-		ac.pubsub.Close()
+		_ = ac.pubsub.Close()
 	}
 }
 

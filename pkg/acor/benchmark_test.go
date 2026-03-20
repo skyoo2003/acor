@@ -169,17 +169,17 @@ func BenchmarkFind_WithCache(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	for i := 0; i < 100; i++ {
-		ac.Add(fmt.Sprintf("keyword%d", i))
+		_, _ = ac.Add(fmt.Sprintf("keyword%d", i))
 	}
 
 	text := strings.Repeat("keyword50 keyword25 keyword75 ", 100)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ac.Find(text)
+		_, _ = ac.Find(text)
 	}
 }
 
@@ -198,16 +198,16 @@ func BenchmarkFind_WithoutCache(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	for i := 0; i < 100; i++ {
-		ac.Add(fmt.Sprintf("keyword%d", i))
+		_, _ = ac.Add(fmt.Sprintf("keyword%d", i))
 	}
 
 	text := strings.Repeat("keyword50 keyword25 keyword75 ", 100)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ac.Find(text)
+		_, _ = ac.Find(text)
 	}
 }

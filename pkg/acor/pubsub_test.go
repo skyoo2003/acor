@@ -18,10 +18,10 @@ func TestPubSub_Invalidate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create ac1 failed: %v", err)
 	}
-	defer ac1.Close()
+	defer func() { _ = ac1.Close() }()
 
-	ac1.Add("hello")
-	ac1.Find("hello world")
+	_, _ = ac1.Add("hello")
+	_, _ = ac1.Find("hello world")
 
 	if _, _, valid := ac1.cache.get(); !valid {
 		t.Fatal("expected cache to be valid after Find()")
@@ -35,9 +35,9 @@ func TestPubSub_Invalidate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create ac2 failed: %v", err)
 	}
-	defer ac2.Close()
+	defer func() { _ = ac2.Close() }()
 
-	ac2.Add("world")
+	_, _ = ac2.Add("world")
 
 	time.Sleep(100 * time.Millisecond)
 

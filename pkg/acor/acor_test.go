@@ -1822,7 +1822,7 @@ func TestCreate_WithCacheDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	if ac.cache != nil {
 		t.Error("expected cache to be nil when EnableCache=false")
@@ -1840,7 +1840,7 @@ func TestCreate_WithCacheEnabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	if ac.cache == nil {
 		t.Error("expected cache to be non-nil when EnableCache=true")
@@ -1858,18 +1858,19 @@ func TestCache_FindUsesLocalCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
-	if _, err := ac.Add("hello"); err != nil {
-		t.Fatal(err)
+	if _, addErr := ac.Add("hello"); addErr != nil {
+		t.Fatal(addErr)
 	}
 
 	results, err := ac.Find("hello world")
 	if err != nil {
 		t.Fatalf("Find failed: %v", err)
 	}
-	if len(results) != 1 || results[0] != "hello" {
-		t.Errorf("Find() = %v, want [hello]", results)
+	const wantKeyword = "hello"
+	if len(results) != 1 || results[0] != wantKeyword {
+		t.Errorf("Find() = %v, want [%s]", results, wantKeyword)
 	}
 
 	_, _, valid := ac.cache.get()
@@ -1897,7 +1898,7 @@ func TestCache_AddInvalidatesCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	if _, err := ac.Add("first"); err != nil {
 		t.Fatal(err)
