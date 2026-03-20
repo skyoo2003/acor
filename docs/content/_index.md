@@ -148,11 +148,19 @@ import (
 
 ## Documentation Sections
 
-- [Getting Started](/getting-started/) - Installation and quick start guide
-- [Guides](/guides/) - Usage patterns and advanced features
-- [Reference](/reference/) - API and schema documentation
-- [Operations](/operations/) - Deployment and monitoring
-- [Extending](/extending/) - Custom storage backends
+## Documentation Sections
+
+- [Getting Started][getting-started-link] - Installation and quick start guide
+- [Guides][guides-link] - Usage patterns and advanced features
+- [Reference][reference-link] - API and schema documentation
+- [Operations][operations-link] - Deployment and monitoring
+- [Extending][extending-link] - Custom storage backends
+
+[getting-started-link]: /getting-started/
+[guides-link]: /guides/
+[reference-link]: /reference/
+[operations-link]: /operations/
+[extending-link]: /extending/
 
 ## Development Workflow
 
