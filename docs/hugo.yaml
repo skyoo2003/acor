@@ -11,3 +11,31 @@ markup:
   goldmark:
     renderer:
       unsafe: true
+    extensions:
+      extras:
+        enable: true
+  highlight:
+    codeFences: true
+    guessSyntax: true
+    style: github
+  tableOfContents:
+    endLevel: 3
+    ordered: false
+    startLevel: 2
+menu:
+  main:
+    - name: Getting Started
+      url: /getting-started/
+      weight: 1
+    - name: Guides
+      url: /guides/
+      weight: 2
+    - name: Reference
+      url: /reference/
+      weight: 3
+    - name: Operations
+      url: /operations/
+      weight: 4
+    - name: Extending
+      url: /extending/
+      weight: 5
