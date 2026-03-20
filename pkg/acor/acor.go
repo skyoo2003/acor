@@ -189,11 +189,7 @@ type AhoCorasickArgs struct {
 	//   - 0 or 2: V2 schema (default, optimized, 3 keys)
 	//   - 1: V1 schema (legacy, multiple keys per prefix)
 	SchemaVersion int
-	// EnableCache enables local caching for read operations.
-	// When enabled, Find() and FindIndex() use a local cache to avoid
-	// Redis round-trips. Cache is invalidated via Pub/Sub when other
-	// instances modify the collection.
-	EnableCache bool
+	EnableCache   bool
 }
 
 // AhoCorasick represents an Aho-Corasick automaton backed by Redis.
@@ -210,9 +206,7 @@ type AhoCorasick struct {
 	buildTrieHook func(string) error
 	schemaVersion int
 
-	cache  *trieCache
-	pubsub *redis.PubSub
-	stopCh chan struct{}
+	cache *trieCache
 }
 
 // AhoCorasickInfo contains statistics about the Aho-Corasick automaton.
@@ -284,10 +278,6 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 
 	if args.EnableCache {
 		ac.cache = &trieCache{}
-		if err := ac.startCacheListener(); err != nil {
-			ac.logger.Printf("cache initialization failed: %v", err)
-			ac.cache = nil
-		}
 	}
 
 	return ac, nil

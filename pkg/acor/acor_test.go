@@ -1842,6 +1842,79 @@ func TestCreate_WithCacheEnabled(t *testing.T) {
 	}
 	defer ac.Close()
 
-	// Note: cache may be nil if pub/sub listener fails (graceful degradation)
-	// When pub/sub is fully implemented, cache should be non-nil
+	if ac.cache == nil {
+		t.Error("expected cache to be non-nil when EnableCache=true")
+	}
+}
+
+func TestCache_FindUsesLocalCache(t *testing.T) {
+	mr := miniredis.RunT(t)
+
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:        mr.Addr(),
+		Name:        "test-cache-find",
+		EnableCache: true,
+	})
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	defer ac.Close()
+
+	if _, err := ac.Add("hello"); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := ac.Find("hello world")
+	if err != nil {
+		t.Fatalf("Find failed: %v", err)
+	}
+	if len(results) != 1 || results[0] != "hello" {
+		t.Errorf("Find() = %v, want [hello]", results)
+	}
+
+	_, _, valid := ac.cache.get()
+	if !valid {
+		t.Error("expected cache to be valid after Find")
+	}
+
+	results2, err := ac.Find("hello there")
+	if err != nil {
+		t.Fatalf("Second Find failed: %v", err)
+	}
+	if len(results2) != 1 || results2[0] != "hello" {
+		t.Errorf("Second Find() = %v, want [hello]", results2)
+	}
+}
+
+func TestCache_AddInvalidatesCache(t *testing.T) {
+	mr := miniredis.RunT(t)
+
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:        mr.Addr(),
+		Name:        "test-cache-invalidate",
+		EnableCache: true,
+	})
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	defer ac.Close()
+
+	if _, err := ac.Add("first"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _ = ac.Find("first test")
+	_, _, valid := ac.cache.get()
+	if !valid {
+		t.Fatal("expected cache to be valid after Find")
+	}
+
+	if _, err := ac.Add("second"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, valid = ac.cache.get()
+	if valid {
+		t.Error("expected cache to be invalidated after Add")
+	}
 }
