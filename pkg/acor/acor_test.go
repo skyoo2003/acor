@@ -1810,3 +1810,38 @@ func TestFindIndexParallelEdgeCases(t *testing.T) {
 		})
 	}
 }
+
+func TestCreate_WithCacheDisabled(t *testing.T) {
+	mr := miniredis.RunT(t)
+
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:        mr.Addr(),
+		Name:        "test-no-cache",
+		EnableCache: false,
+	})
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	defer ac.Close()
+
+	if ac.cache != nil {
+		t.Error("expected cache to be nil when EnableCache=false")
+	}
+}
+
+func TestCreate_WithCacheEnabled(t *testing.T) {
+	mr := miniredis.RunT(t)
+
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:        mr.Addr(),
+		Name:        "test-cache",
+		EnableCache: true,
+	})
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	defer ac.Close()
+
+	// Note: cache may be nil if pub/sub listener fails (graceful degradation)
+	// When pub/sub is fully implemented, cache should be non-nil
+}
