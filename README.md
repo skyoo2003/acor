@@ -185,6 +185,29 @@ Chunk boundaries ensure matches aren't split across chunks:
 - `ChunkLine`: Split at line breaks
 - `ChunkSentence`: Split at sentence endings
 
+## Local Caching
+
+For read-heavy workloads, enable local caching to eliminate Redis round-trips:
+
+```go
+ac, _ := acor.Create(&acor.AhoCorasickArgs{
+    Addr:        "localhost:6379",
+    Name:        "my-collection",
+    EnableCache: true,
+})
+
+// First Find() loads from Redis (3 RTT)
+ac.Find("hello world")
+
+// Subsequent Find() uses local cache (0 RTT)
+ac.Find("another text")
+```
+
+**Cache Behavior:**
+- Cache is invalidated via Redis Pub/Sub when any instance modifies the collection
+- First Find() after invalidation reloads from Redis
+- Works with Standalone, Sentinel, Cluster, and Ring topologies
+
 ## Observability
 
 ACOR provides built-in observability support:
