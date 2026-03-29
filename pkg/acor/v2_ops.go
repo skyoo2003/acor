@@ -39,30 +39,9 @@ func (ac *AhoCorasick) findV2(text string) ([]string, error) {
 		return []string{}, nil
 	}
 
-	pipe := ac.redisClient.Pipeline()
-	trieCmd := pipe.HGetAll(ac.ctx, trieKey(ac.name))
-	outputsCmd := pipe.HGetAll(ac.ctx, outputsKey(ac.name))
-	_, err := pipe.Exec(ac.ctx)
+	prefixes, outputs, err := ac.getOrLoadCache()
 	if err != nil {
 		return nil, err
-	}
-
-	trieData := trieCmd.Val()
-	var prefixes []string
-	if data, ok := trieData["prefixes"]; ok {
-		if err := json.Unmarshal([]byte(data), &prefixes); err != nil {
-			return nil, err
-		}
-	}
-
-	outputsRaw := outputsCmd.Val()
-	outputs := make(map[string][]string)
-	for state, jsonArr := range outputsRaw {
-		var arr []string
-		if err := json.Unmarshal([]byte(jsonArr), &arr); err != nil {
-			return nil, err
-		}
-		outputs[state] = arr
 	}
 
 	return ac.localFind(text, prefixes, outputs), nil
@@ -109,30 +88,9 @@ func (ac *AhoCorasick) findIndexV2(text string) (map[string][]int, error) {
 		return map[string][]int{}, nil
 	}
 
-	pipe := ac.redisClient.Pipeline()
-	trieCmd := pipe.HGetAll(ac.ctx, trieKey(ac.name))
-	outputsCmd := pipe.HGetAll(ac.ctx, outputsKey(ac.name))
-	_, err := pipe.Exec(ac.ctx)
+	prefixes, outputs, err := ac.getOrLoadCache()
 	if err != nil {
 		return nil, err
-	}
-
-	trieData := trieCmd.Val()
-	var prefixes []string
-	if data, ok := trieData["prefixes"]; ok {
-		if err := json.Unmarshal([]byte(data), &prefixes); err != nil {
-			return nil, err
-		}
-	}
-
-	outputsRaw := outputsCmd.Val()
-	outputs := make(map[string][]string)
-	for state, jsonArr := range outputsRaw {
-		var arr []string
-		if err := json.Unmarshal([]byte(jsonArr), &arr); err != nil {
-			return nil, err
-		}
-		outputs[state] = arr
 	}
 
 	return ac.localFindIndex(text, prefixes, outputs), nil
@@ -372,6 +330,8 @@ func (ac *AhoCorasick) tryAddV2(keyword string) (int, error) { //nolint:gocyclo,
 		return 0, ErrConcurrencyConflict
 	}
 
+	ac.publishInvalidate()
+
 	return 1, nil
 }
 
@@ -556,6 +516,8 @@ func (ac *AhoCorasick) tryRemoveV2(keyword string) (int, error) { //nolint:gocyc
 		return 0, ErrConcurrencyConflict
 	}
 
+	ac.publishInvalidate()
+
 	return len(newKeywords), nil
 }
 
@@ -604,5 +566,11 @@ func (ac *AhoCorasick) flushV2() error {
 		"suffixes": "[\"\"]",
 		"version":  time.Now().UnixNano(),
 	}).Result()
-	return err
+	if err != nil {
+		return err
+	}
+
+	ac.publishInvalidate()
+
+	return nil
 }
