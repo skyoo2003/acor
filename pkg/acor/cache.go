@@ -8,9 +8,21 @@ import (
 
 type trieCache struct {
 	mu       sync.RWMutex
+	loadMu   sync.Mutex
 	prefixes []string
 	outputs  map[string][]string
 	valid    bool
+}
+
+func cloneOutputs(in map[string][]string) map[string][]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string][]string, len(in))
+	for k, v := range in {
+		out[k] = append([]string(nil), v...)
+	}
+	return out
 }
 
 func (c *trieCache) invalidate() {
@@ -22,44 +34,50 @@ func (c *trieCache) invalidate() {
 func (c *trieCache) set(prefixes []string, outputs map[string][]string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.prefixes = prefixes
-	c.outputs = outputs
+	c.prefixes = append([]string(nil), prefixes...)
+	c.outputs = cloneOutputs(outputs)
 	c.valid = true
 }
 
 func (c *trieCache) get() (prefixes []string, outputs map[string][]string, valid bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.prefixes, c.outputs, c.valid
+	return append([]string(nil), c.prefixes...), cloneOutputs(c.outputs), c.valid
 }
 
-func (ac *AhoCorasick) loadCache(ctx context.Context) error {
+func (ac *AhoCorasick) fetchTrieDataFromRedis(ctx context.Context) (prefixes []string, outputs map[string][]string, err error) {
 	pipe := ac.redisClient.Pipeline()
 	trieCmd := pipe.HGetAll(ctx, trieKey(ac.name))
 	outputsCmd := pipe.HGetAll(ctx, outputsKey(ac.name))
-	_, err := pipe.Exec(ctx)
-	if err != nil {
-		return err
+	if _, execErr := pipe.Exec(ctx); execErr != nil {
+		return nil, nil, execErr
 	}
 
 	trieData := trieCmd.Val()
-	var prefixes []string
 	if data, ok := trieData["prefixes"]; ok {
-		if err := json.Unmarshal([]byte(data), &prefixes); err != nil {
-			return err
+		if unmarshalErr := json.Unmarshal([]byte(data), &prefixes); unmarshalErr != nil {
+			return nil, nil, unmarshalErr
 		}
 	}
 
 	outputsRaw := outputsCmd.Val()
-	outputs := make(map[string][]string)
+	outputs = make(map[string][]string)
 	for state, jsonArr := range outputsRaw {
 		var arr []string
-		if err := json.Unmarshal([]byte(jsonArr), &arr); err != nil {
-			return err
+		if unmarshalErr := json.Unmarshal([]byte(jsonArr), &arr); unmarshalErr != nil {
+			return nil, nil, unmarshalErr
 		}
 		outputs[state] = arr
 	}
 
+	return prefixes, outputs, nil
+}
+
+func (ac *AhoCorasick) loadCache(ctx context.Context) error {
+	prefixes, outputs, err := ac.fetchTrieDataFromRedis(ctx)
+	if err != nil {
+		return err
+	}
 	ac.cache.set(prefixes, outputs)
 	return nil
 }
@@ -75,6 +93,15 @@ func (ac *AhoCorasick) getOrLoadCache() (prefixes []string, outputs map[string][
 		return
 	}
 
+	ac.cache.loadMu.Lock()
+	defer ac.cache.loadMu.Unlock()
+
+	// Double-check after acquiring lock
+	prefixes, outputs, valid = ac.cache.get()
+	if valid {
+		return
+	}
+
 	if err = ac.loadCache(ac.ctx); err != nil {
 		return
 	}
@@ -84,32 +111,5 @@ func (ac *AhoCorasick) getOrLoadCache() (prefixes []string, outputs map[string][
 }
 
 func (ac *AhoCorasick) loadCacheFromRedis() (prefixes []string, outputs map[string][]string, err error) {
-	pipe := ac.redisClient.Pipeline()
-	trieCmd := pipe.HGetAll(ac.ctx, trieKey(ac.name))
-	outputsCmd := pipe.HGetAll(ac.ctx, outputsKey(ac.name))
-	_, err = pipe.Exec(ac.ctx)
-	if err != nil {
-		return
-	}
-
-	trieData := trieCmd.Val()
-	if data, ok := trieData["prefixes"]; ok {
-		if jsonErr := json.Unmarshal([]byte(data), &prefixes); jsonErr != nil {
-			err = jsonErr
-			return
-		}
-	}
-
-	outputsRaw := outputsCmd.Val()
-	outputs = make(map[string][]string)
-	for state, jsonArr := range outputsRaw {
-		var arr []string
-		if jsonErr := json.Unmarshal([]byte(jsonArr), &arr); jsonErr != nil {
-			err = jsonErr
-			return
-		}
-		outputs[state] = arr
-	}
-
-	return
+	return ac.fetchTrieDataFromRedis(ac.ctx)
 }

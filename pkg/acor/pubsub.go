@@ -26,7 +26,9 @@ func (ac *AhoCorasick) startCacheListener() error {
 					return
 				}
 				if msg.Payload == ac.name {
-					ac.cache.invalidate()
+					if ac.cache != nil {
+						ac.cache.invalidate()
+					}
 				}
 			case <-ac.stopCh:
 				return
@@ -49,10 +51,13 @@ func (ac *AhoCorasick) stopCacheListener() {
 }
 
 func (ac *AhoCorasick) publishInvalidate() {
-	if ac.cache == nil {
-		return
+	if ac.cache != nil {
+		ac.cache.invalidate()
 	}
-	ac.cache.invalidate()
 	channel := invalidateChannelPrefix + ac.name
-	ac.redisClient.Publish(ac.ctx, channel, ac.name)
+	if err := ac.redisClient.Publish(ac.ctx, channel, ac.name).Err(); err != nil {
+		if ac.logger != nil {
+			ac.logger.Printf("failed to publish cache invalidation: channel=%s error=%v", channel, err)
+		}
+	}
 }

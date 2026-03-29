@@ -43,6 +43,38 @@ func TestTrieCache_SetAndGet(t *testing.T) {
 	}
 }
 
+func TestTrieCache_SetOverwritesPrevious(t *testing.T) {
+	cache := &trieCache{}
+
+	// Set "old" data
+	cache.set([]string{"old"}, map[string][]string{"old": {"old"}})
+
+	prefixes, _, valid := cache.get()
+	if !valid {
+		t.Fatal("expected cache to be valid after first set()")
+	}
+	if len(prefixes) != 1 || prefixes[0] != "old" {
+		t.Errorf("expected prefixes [old], got %v", prefixes)
+	}
+
+	// Set "new" data — should overwrite
+	cache.set([]string{"new"}, map[string][]string{"new": {"new"}})
+
+	prefixes, outputs, valid := cache.get()
+	if !valid {
+		t.Fatal("expected cache to be valid after second set()")
+	}
+	if len(prefixes) != 1 || prefixes[0] != "new" { //nolint:goconst // test value
+		t.Errorf("expected prefixes [new], got %v", prefixes)
+	}
+	if _, exists := outputs["old"]; exists {
+		t.Error("expected old key to be gone from outputs after overwrite")
+	}
+	if len(outputs["new"]) != 1 || outputs["new"][0] != "new" {
+		t.Errorf("expected outputs[new]=[new], got %v", outputs["new"])
+	}
+}
+
 func TestTrieCache_GetAfterInvalidate(t *testing.T) {
 	cache := &trieCache{
 		prefixes: []string{"a"},

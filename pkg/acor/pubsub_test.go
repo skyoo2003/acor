@@ -20,8 +20,12 @@ func TestPubSub_Invalidate(t *testing.T) {
 	}
 	defer func() { _ = ac1.Close() }()
 
-	_, _ = ac1.Add("hello")
-	_, _ = ac1.Find("hello world")
+	if _, err = ac1.Add("hello"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = ac1.Find("hello world"); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, _, valid := ac1.cache.get(); !valid {
 		t.Fatal("expected cache to be valid after Find()")
@@ -30,18 +34,23 @@ func TestPubSub_Invalidate(t *testing.T) {
 	ac2, err := Create(&AhoCorasickArgs{
 		Addr:        mr.Addr(),
 		Name:        "test-pubsub",
-		EnableCache: true,
+		EnableCache: false,
 	})
 	if err != nil {
 		t.Fatalf("Create ac2 failed: %v", err)
 	}
 	defer func() { _ = ac2.Close() }()
 
-	_, _ = ac2.Add("world")
-
-	time.Sleep(100 * time.Millisecond)
-
-	if _, _, valid := ac1.cache.get(); valid {
-		t.Error("expected ac1 cache to be invalidated after ac2.Add()")
+	if _, err := ac2.Add("world"); err != nil {
+		t.Fatal(err)
 	}
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if _, _, valid := ac1.cache.get(); !valid {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Error("expected ac1 cache to be invalidated after ac2.Add()")
 }

@@ -1919,3 +1919,105 @@ func TestCache_AddInvalidatesCache(t *testing.T) {
 		t.Error("expected cache to be invalidated after Add")
 	}
 }
+
+func TestCache_RemoveInvalidatesCache(t *testing.T) {
+	mr := miniredis.RunT(t)
+
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:        mr.Addr(),
+		Name:        "test-cache-remove",
+		EnableCache: true,
+	})
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	defer func() { _ = ac.Close() }()
+
+	if _, err := ac.Add("hello"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _ = ac.Find("hello world")
+	_, _, valid := ac.cache.get()
+	if !valid {
+		t.Fatal("expected cache to be valid after Find")
+	}
+
+	if _, err := ac.Remove("hello"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, valid = ac.cache.get()
+	if valid {
+		t.Error("expected cache to be invalidated after Remove")
+	}
+}
+
+func TestCache_FlushInvalidatesCache(t *testing.T) {
+	mr := miniredis.RunT(t)
+
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:        mr.Addr(),
+		Name:        "test-cache-flush",
+		EnableCache: true,
+	})
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	defer func() { _ = ac.Close() }()
+
+	if _, err := ac.Add("hello"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _ = ac.Find("hello world")
+	_, _, valid := ac.cache.get()
+	if !valid {
+		t.Fatal("expected cache to be valid after Find")
+	}
+
+	if err := ac.Flush(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, valid = ac.cache.get()
+	if valid {
+		t.Error("expected cache to be invalidated after Flush")
+	}
+}
+
+func TestCache_FindIndexUsesLocalCache(t *testing.T) {
+	mr := miniredis.RunT(t)
+
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:        mr.Addr(),
+		Name:        "test-cache-findindex",
+		EnableCache: true,
+	})
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	defer func() { _ = ac.Close() }()
+
+	if _, err = ac.Add("hello"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, valid := ac.cache.get()
+	if valid {
+		t.Fatal("expected cache to be invalid before FindIndex")
+	}
+
+	matches, err := ac.FindIndex("hello world")
+	if err != nil {
+		t.Fatalf("FindIndex failed: %v", err)
+	}
+	if len(matches) != 1 || len(matches["hello"]) != 1 {
+		t.Errorf("FindIndex() = %v, want matches with hello at one position", matches)
+	}
+
+	_, _, valid = ac.cache.get()
+	if !valid {
+		t.Error("expected cache to be valid after FindIndex")
+	}
+}

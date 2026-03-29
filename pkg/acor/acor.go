@@ -124,6 +124,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	redis "github.com/go-redis/redis/v8"
@@ -202,7 +203,11 @@ type AhoCorasickArgs struct {
 	//   - 0 or 2: V2 schema (default, optimized, 3 keys)
 	//   - 1: V1 schema (legacy, multiple keys per prefix)
 	SchemaVersion int
-	EnableCache   bool
+	// EnableCache enables local in-memory caching of trie data for Find/FindIndex operations.
+	// When enabled, prefixes and outputs are cached after the first read and invalidated
+	// via Redis Pub/Sub when any instance modifies the collection. Reduces Redis round-trips
+	// for read-heavy workloads at the cost of increased memory usage.
+	EnableCache bool
 }
 
 // AhoCorasick represents an Aho-Corasick automaton backed by Redis.
@@ -219,9 +224,10 @@ type AhoCorasick struct {
 	buildTrieHook func(string) error
 	schemaVersion int
 
-	cache  *trieCache
-	pubsub *redis.PubSub
-	stopCh chan struct{}
+	cache     *trieCache
+	pubsub    *redis.PubSub
+	stopCh    chan struct{}
+	closeOnce sync.Once
 }
 
 // AhoCorasickInfo contains statistics about the Aho-Corasick automaton.
@@ -343,13 +349,21 @@ func (ac *AhoCorasick) init() error {
 // an AhoCorasick instance to release resources. Returns ErrRedisAlreadyClosed
 // if the connection was already closed.
 func (ac *AhoCorasick) Close() error {
-	if ac.redisClient == nil {
+	var closeErr error
+	alreadyClosed := true
+	ac.closeOnce.Do(func() {
+		if ac.redisClient == nil {
+			return
+		}
+		alreadyClosed = false
+		ac.stopCacheListener()
+		closeErr = ac.redisClient.Close()
+		ac.redisClient = nil
+	})
+	if alreadyClosed {
 		return ErrRedisAlreadyClosed
 	}
-	ac.stopCacheListener()
-	err := ac.redisClient.Close()
-	ac.redisClient = nil
-	return err
+	return closeErr
 }
 
 // Add inserts a keyword into the Aho-Corasick automaton.
