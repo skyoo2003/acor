@@ -220,8 +220,11 @@ func TestRemoveManyBestEffort(t *testing.T) {
 	if len(result.Removed) != 2 {
 		t.Errorf("expected 2 removed, got %d", len(result.Removed))
 	}
+	if !equalStringSets(result.Removed, []string{"he", "him"}) {
+		t.Fatalf("unexpected removed set: %v", result.Removed)
+	}
 	if len(result.Failed) != 1 {
-		t.Errorf("expected 1 failed, got %d", len(result.Failed))
+		t.Fatalf("expected 1 failed, got %d", len(result.Failed))
 	}
 	if result.Failed[0].Keyword != "" {
 		t.Errorf("expected failed keyword '', got %q", result.Failed[0].Keyword)

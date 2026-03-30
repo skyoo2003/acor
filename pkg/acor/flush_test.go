@@ -28,24 +28,32 @@ func TestCache_FlushInvalidatesCache(t *testing.T) {
 	}
 	defer func() { _ = ac.Close() }()
 
-	if _, err := ac.Add("hello"); err != nil {
-		t.Fatal(err)
+	if _, addErr := ac.Add("hello"); addErr != nil {
+		t.Fatal(addErr)
 	}
 
-	if _, err := ac.Find("hello world"); err != nil {
-		t.Fatal(err)
+	if _, findErr := ac.Find("hello world"); findErr != nil {
+		t.Fatal(findErr)
 	}
 	_, _, valid := ac.cache.get()
 	if !valid {
 		t.Fatal("expected cache to be valid after Find")
 	}
 
-	if err := ac.Flush(); err != nil {
-		t.Fatal(err)
+	if flushErr := ac.Flush(); flushErr != nil {
+		t.Fatal(flushErr)
 	}
 
 	_, _, valid = ac.cache.get()
 	if valid {
 		t.Error("expected cache to be invalidated after Flush")
+	}
+
+	results, findErr := ac.Find("hello world")
+	if findErr != nil {
+		t.Fatal(findErr)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected no matches after Flush, got %v", results)
 	}
 }

@@ -283,8 +283,13 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	}
 
 	schemaVersion := args.SchemaVersion
-	if schemaVersion == 0 {
+	switch schemaVersion {
+	case 0, SchemaV2:
 		schemaVersion = SchemaV2
+	case SchemaV1:
+	default:
+		_ = redisClient.Close()
+		return nil, fmt.Errorf("unsupported schema version: %d", schemaVersion)
 	}
 
 	if args.EnableCache && schemaVersion == SchemaV1 {

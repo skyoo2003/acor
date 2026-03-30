@@ -260,6 +260,11 @@ func (o *v1Operations) info(ctx context.Context) (*AhoCorasickInfo, error) {
 }
 
 func (o *v1Operations) suggest(ctx context.Context, input string) ([]string, error) {
+	input = strings.ToLower(strings.TrimSpace(input))
+	if input == "" {
+		return []string{}, nil
+	}
+
 	var pKeywords []string
 
 	results := make([]string, 0)
@@ -302,6 +307,11 @@ func (o *v1Operations) suggest(ctx context.Context, input string) ([]string, err
 }
 
 func (o *v1Operations) suggestIndex(ctx context.Context, input string) (map[string][]int, error) {
+	input = strings.ToLower(strings.TrimSpace(input))
+	if input == "" {
+		return map[string][]int{}, nil
+	}
+
 	var pKeywords []string
 
 	results := make(map[string][]int)

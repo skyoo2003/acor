@@ -47,6 +47,7 @@ jobs:
       - name: Run test
         run: go test -race -v ./...
       - name: Check coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
         run: |
           go test -coverprofile=coverage.out -covermode=atomic ./...
           coverage=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | sed 's/%//')
