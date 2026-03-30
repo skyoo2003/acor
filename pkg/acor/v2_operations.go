@@ -62,7 +62,12 @@ func (o *v2Operations) add(ctx context.Context, keyword string) (int, error) {
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		added, err := o.tryAddV2(ctx, keyword)
 		if errors.Is(err, ErrConcurrencyConflict) {
-			time.Sleep(time.Duration(attempt+1) * 10 * time.Millisecond)
+			backoff := time.Duration(attempt+1) * retryBackoffBase
+			select {
+			case <-ctx.Done():
+				return 0, ctx.Err()
+			case <-time.After(backoff):
+			}
 			continue
 		}
 		return added, err
@@ -79,7 +84,12 @@ func (o *v2Operations) remove(ctx context.Context, keyword string) (int, error) 
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		removed, err := o.tryRemoveV2(ctx, keyword)
 		if errors.Is(err, ErrConcurrencyConflict) {
-			time.Sleep(time.Duration(attempt+1) * 10 * time.Millisecond)
+			backoff := time.Duration(attempt+1) * retryBackoffBase
+			select {
+			case <-ctx.Done():
+				return 0, ctx.Err()
+			case <-time.After(backoff):
+			}
 			continue
 		}
 		return removed, err
@@ -183,13 +193,13 @@ func (o *v2Operations) fetchTrieData(ctx context.Context) (prefixes []string, ou
 	trieResult := pipe.HGetAll(ctx, trieKey(o.name))
 	outputsResult := pipe.HGetAll(ctx, outputsKey(o.name))
 	if err := pipe.Exec(ctx); err != nil {
-		return nil, nil, err
+		return nil, nil, newRedisError("PIPELINE", trieKey(o.name), err)
 	}
 
 	trieData := trieResult.Val()
 	if data, ok := trieData["prefixes"]; ok {
 		if unmarshalErr := json.Unmarshal([]byte(data), &prefixes); unmarshalErr != nil {
-			return nil, nil, unmarshalErr
+			return nil, nil, newOperationError("unmarshal", SchemaV2, unmarshalErr)
 		}
 	}
 
@@ -198,7 +208,7 @@ func (o *v2Operations) fetchTrieData(ctx context.Context) (prefixes []string, ou
 	for state, jsonArr := range outputsRaw {
 		var arr []string
 		if unmarshalErr := json.Unmarshal([]byte(jsonArr), &arr); unmarshalErr != nil {
-			return nil, nil, unmarshalErr
+			return nil, nil, newOperationError("unmarshal", SchemaV2, unmarshalErr)
 		}
 		outputs[state] = arr
 	}
@@ -250,14 +260,14 @@ func (o *v2Operations) getOrLoadCache(ctx context.Context) (prefixes []string, o
 // publishInvalidate invalidates the local cache and publishes an invalidation
 // message so other instances refresh their caches.
 func (o *v2Operations) publishInvalidate(ctx context.Context) {
-	if o.cache != nil {
-		o.cache.invalidate()
-	}
 	channel := invalidateChannelPrefix + o.name
 	if err := o.storage.Publish(ctx, channel, o.name); err != nil {
 		if o.logger != nil {
 			o.logger.Printf("failed to publish cache invalidation: channel=%s error=%v", channel, err)
 		}
+	}
+	if o.cache != nil {
+		o.cache.invalidate()
 	}
 }
 

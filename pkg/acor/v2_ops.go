@@ -15,6 +15,8 @@ var ErrConcurrencyConflict = errors.New("concurrency conflict - please retry")
 
 const maxRetries = 3
 
+const retryBackoffBase = 10 * time.Millisecond
+
 const luaKeys = 2
 
 func mustJSON(v interface{}) string {

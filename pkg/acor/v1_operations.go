@@ -59,8 +59,10 @@ func (o *v1Operations) add(ctx context.Context, keyword string) (int, error) {
 }
 
 func (o *v1Operations) remove(ctx context.Context, keyword string) (int, error) {
-	keyword = strings.TrimSpace(keyword)
-	keyword = strings.ToLower(keyword)
+	keyword = strings.ToLower(strings.TrimSpace(keyword))
+	if keyword == "" {
+		return 0, nil
+	}
 
 	nodeKey := nodeKey(o.name, keyword)
 	nodes, err := o.storage.SMembers(ctx, nodeKey)

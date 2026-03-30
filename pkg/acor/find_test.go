@@ -388,8 +388,19 @@ func TestCache_FindUsesLocalCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Second Find failed: %v", err)
 	}
-	if len(results2) != 1 || results2[0] != "hello" {
-		t.Errorf("Second Find() = %v, want [hello]", results2)
+	if len(results2) != 1 || results2[0] != wantKeyword {
+		t.Errorf("Second Find() = %v, want [%s]", results2, wantKeyword)
+	}
+
+	// Stop Redis to prove reads come from local cache
+	mr.Close()
+
+	results3, err := ac.Find("hello again")
+	if err != nil {
+		t.Fatalf("Find after Redis stop failed: %v", err)
+	}
+	if len(results3) != 1 || results3[0] != wantKeyword {
+		t.Errorf("Find after Redis stop = %v, want [%s]", results3, wantKeyword)
 	}
 }
 
@@ -426,5 +437,16 @@ func TestCache_FindIndexUsesLocalCache(t *testing.T) {
 	_, _, valid = ac.cache.get()
 	if !valid {
 		t.Error("expected cache to be valid after FindIndex")
+	}
+
+	// Stop Redis to prove reads come from local cache
+	mr.Close()
+
+	matches2, err := ac.FindIndex("hello world")
+	if err != nil {
+		t.Fatalf("FindIndex after Redis stop failed: %v", err)
+	}
+	if len(matches2) != 1 || len(matches2["hello"]) != 1 {
+		t.Errorf("FindIndex after Redis stop = %v, want matches with hello", matches2)
 	}
 }

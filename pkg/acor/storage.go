@@ -108,7 +108,7 @@ func (s *redisStorage) Publish(ctx context.Context, channel string, message inte
 }
 
 func (s *redisStorage) Subscribe(ctx context.Context, channels ...string) Subscription {
-	return &redisSubscription{pubsub: s.client.Subscribe(ctx, channels...)}
+	return &redisSubscription{pubsub: s.client.Subscribe(ctx, channels...), done: make(chan struct{})}
 }
 
 func (s *redisStorage) Close() error {
@@ -124,9 +124,11 @@ func (r *redisStringMapResult) Val() map[string]string {
 }
 
 type redisSubscription struct {
-	pubsub *redis.PubSub
-	ch     chan PubSubMessage
-	once   sync.Once
+	pubsub    *redis.PubSub
+	ch        chan PubSubMessage
+	once      sync.Once
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 func (s *redisSubscription) Receive(ctx context.Context) error {
@@ -139,10 +141,23 @@ const pubsubChannelSize = 100
 func (s *redisSubscription) Channel() <-chan PubSubMessage {
 	s.once.Do(func() {
 		ch := make(chan PubSubMessage, pubsubChannelSize)
+		src := s.pubsub.Channel()
 		go func() {
 			defer close(ch)
-			for msg := range s.pubsub.Channel() {
-				ch <- PubSubMessage{Channel: msg.Channel, Payload: msg.Payload}
+			for {
+				select {
+				case <-s.done:
+					return
+				case msg, ok := <-src:
+					if !ok {
+						return
+					}
+					select {
+					case ch <- PubSubMessage{Channel: msg.Channel, Payload: msg.Payload}:
+					case <-s.done:
+						return
+					}
+				}
 			}
 		}()
 		s.ch = ch
@@ -151,7 +166,13 @@ func (s *redisSubscription) Channel() <-chan PubSubMessage {
 }
 
 func (s *redisSubscription) Close() error {
-	return s.pubsub.Close()
+	err := s.pubsub.Close()
+	s.closeOnce.Do(func() {
+		if s.done != nil {
+			close(s.done)
+		}
+	})
+	return err
 }
 
 type redisPipeliner struct {

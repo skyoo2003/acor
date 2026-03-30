@@ -26,10 +26,12 @@ func TestReverse(t *testing.T) {
 }
 
 func TestReverseDoubleApply(t *testing.T) {
-	original := "hello world"
-	reversed := Reverse(original)
-	doubleReversed := Reverse(reversed)
-	if doubleReversed != original {
-		t.Errorf("Reverse(Reverse(%q)) = %q, want %q", original, doubleReversed, original)
+	cases := []string{"hello world", "한글 테스트", "🎉🚀"}
+	for _, original := range cases {
+		reversed := Reverse(original)
+		doubleReversed := Reverse(reversed)
+		if doubleReversed != original {
+			t.Errorf("Reverse(Reverse(%q)) = %q, want %q", original, doubleReversed, original)
+		}
 	}
 }
