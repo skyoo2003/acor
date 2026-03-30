@@ -398,8 +398,6 @@ func (ac *AhoCorasick) Close() error {
 		alreadyClosed = false
 		ac.stopCacheListener()
 		closeErr = ac.storage.Close()
-		ac.storage = nil
-		ac.redisClient = nil
 	})
 	if alreadyClosed {
 		return ErrRedisAlreadyClosed

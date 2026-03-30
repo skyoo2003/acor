@@ -28,8 +28,10 @@ type v1Operations struct {
 // --- operations interface methods ---
 
 func (o *v1Operations) add(ctx context.Context, keyword string) (int, error) {
-	keyword = strings.TrimSpace(keyword)
-	keyword = strings.ToLower(keyword)
+	keyword = strings.ToLower(strings.TrimSpace(keyword))
+	if keyword == "" {
+		return 0, nil
+	}
 
 	keywordKey := keywordKey(o.name)
 
@@ -207,13 +209,18 @@ func (o *v1Operations) flush(ctx context.Context) error {
 	o.logger.Println(fmt.Sprintf("Flush() > SMEMBERS Key(%s) : Members(%s)", kKey, keywords))
 
 	for _, keyword := range keywords {
-		oKey := outputKey(o.name, keyword)
-		if err := o.storage.Del(ctx, oKey); err != nil {
-			return newRedisError("DEL", oKey, err)
-		}
-		o.logger.Println(fmt.Sprintf("Flush() > DEL Key(%s)", oKey))
-
 		nKey := nodeKey(o.name, keyword)
+		nodes, err := o.storage.SMembers(ctx, nKey)
+		if err != nil {
+			return newRedisError("SMEMBERS", nKey, err)
+		}
+		for _, node := range nodes {
+			oKey := outputKey(o.name, node)
+			if err := o.storage.Del(ctx, oKey); err != nil {
+				return newRedisError("DEL", oKey, err)
+			}
+			o.logger.Println(fmt.Sprintf("Flush() > DEL Key(%s)", oKey))
+		}
 		if err := o.storage.Del(ctx, nKey); err != nil {
 			return newRedisError("DEL", nKey, err)
 		}

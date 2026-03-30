@@ -244,13 +244,24 @@ func TestRemoveManyNilOpts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, err := ac.RemoveMany([]string{"he", "her"}, nil)
+	result, err := ac.RemoveMany([]string{"he", "nonexistent", "her"}, nil)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("nil opts should default to best-effort, got error: %v", err)
 	}
 
-	if len(result.Removed) != 2 {
-		t.Errorf("expected 2 removed, got %d", len(result.Removed))
+	if !equalStringSets(result.Removed, []string{"he", "nonexistent", "her"}) {
+		t.Fatalf("best-effort should continue on all keywords, got: %v", result.Removed)
+	}
+	if len(result.Failed) != 0 {
+		t.Fatalf("best-effort should not fail on nonexistent, got: %v", result.Failed)
+	}
+
+	results, findErr := ac.Find(testKeywordHim)
+	if findErr != nil {
+		t.Fatal(findErr)
+	}
+	if len(results) != 1 || results[0] != testKeywordHim {
+		t.Error("expected 'him' to remain")
 	}
 }
 

@@ -3,9 +3,10 @@ package acor
 import (
 	"testing"
 
-	miniredis "github.com/alicebob/miniredis/v2"
+	"github.com/alicebob/miniredis/v2"
 )
 
+// TestInitAndFlushAndClose exercises the init/flush/close lifecycle without caching.
 func TestInitAndFlushAndClose(t *testing.T) {
 	ac, mr := createAhoCorasick(t)
 	defer mr.Close()
