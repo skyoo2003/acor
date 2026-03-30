@@ -6,6 +6,7 @@ on:
       - master
     paths:
       - "**/*.go"
+      - "Makefile"
       - "docs/**"
       - "go.mod"
       - "go.sum"
@@ -16,6 +17,7 @@ on:
       - master
     paths:
       - "**/*.go"
+      - "Makefile"
       - "docs/**"
       - "go.mod"
       - "go.sum"
@@ -59,7 +61,7 @@ jobs:
       - name: Run fuzz testing
         if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
         run: |
-          go test -fuzz=FuzzFind -fuzztime=30s ./pkg/acor/...
-          go test -fuzz=FuzzAdd -fuzztime=30s ./pkg/acor/...
+          go test -fuzz=FuzzFind -fuzztime=30s ./pkg/acor
+          go test -fuzz=FuzzAdd -fuzztime=30s ./pkg/acor
       - name: Run build
         run: make build

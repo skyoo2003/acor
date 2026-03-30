@@ -142,7 +142,7 @@ func (o *v1Operations) find(ctx context.Context, text string) ([]string, error) 
 		return nil, newOperationError("find", SchemaV1, err)
 	}
 	matched = append(matched, outputs...)
-	o.logger.Println(fmt.Sprintf("Find(%s) > Matched(%s) : Count(%d)", text, matched, len(matched)))
+	o.logger.Println(fmt.Sprintf("Find(%s) > Matched(%v) : Count(%d)", text, matched, len(matched)))
 
 	return matched, nil
 }
