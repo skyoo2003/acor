@@ -367,13 +367,19 @@ func TestWrapperMethodsUseContext(t *testing.T) {
 	if err != nil {
 		t.Errorf("failNode wrapper failed: %v", err)
 	}
-	_ = failState
+	// Verify failState is non-empty (actual value depends on trie structure)
+	if failState == "" {
+		t.Error("failNode() returned empty state, expected non-empty")
+	}
 
 	outputs, err := ac.collectOutputs("test")
 	if err != nil {
 		t.Errorf("collectOutputs wrapper failed: %v", err)
 	}
-	_ = outputs
+	// Verify outputs is non-nil (can be empty if node has no outputs)
+	if outputs == nil {
+		t.Error("collectOutputs() returned nil, expected non-nil slice")
+	}
 
 	matched := make(map[string][]int)
 	ac.appendMatchedIndexes(matched, []string{"test"}, 4)
