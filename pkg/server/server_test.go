@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/skyoo2003/acor/pkg/acor"
+	"github.com/skyoo2003/acor/pkg/health"
 )
 
 const (
@@ -393,4 +394,179 @@ func assertIndexes(t *testing.T, actual, expected []int) {
 
 func closeClientConn(conn *grpc.ClientConn) {
 	_ = conn.Close()
+}
+
+func TestNewHTTPServer(t *testing.T) {
+	service := &fakeService{}
+	srv := NewHTTPServer("127.0.0.1:0", service)
+	if srv == nil {
+		t.Fatal("expected non-nil server")
+	}
+	if srv.Addr != "127.0.0.1:0" {
+		t.Errorf("Addr = %q, want %q", srv.Addr, "127.0.0.1:0")
+	}
+}
+
+func TestHTTPHandlerRemove(t *testing.T) {
+	service := &fakeService{removeCount: 1}
+	server := httptest.NewServer(NewHTTPHandler(service))
+	defer server.Close()
+
+	var body CountResponse
+	doJSONRequest(t, http.MethodPost, server.URL+"/v1/remove", KeywordRequest{Keyword: keywordHE}, &body)
+	if body.Count != 1 {
+		t.Fatalf("expected remove count 1, got %d", body.Count)
+	}
+	if service.lastKeyword != keywordHE {
+		t.Fatalf("expected remove keyword %q, got %q", keywordHE, service.lastKeyword)
+	}
+}
+
+func TestHTTPHandlerRemoveWrongMethod(t *testing.T) {
+	service := &fakeService{}
+	server := httptest.NewServer(NewHTTPHandler(service))
+	defer server.Close()
+
+	resp := doRawRequest(t, http.MethodGet, server.URL+"/v1/remove", nil)
+	defer closeReadCloser(resp.Body)
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status 405, got %d", resp.StatusCode)
+	}
+}
+
+func TestGRPCServerWithObservability(t *testing.T) {
+	service := &fakeService{
+		addCount:    1,
+		findMatches: []string{keywordHE},
+		info:        &acor.AhoCorasickInfo{Keywords: 1, Nodes: 2},
+	}
+
+	obs := &Observability{
+		Health: health.NewChecker(),
+	}
+
+	lis := bufconn.Listen(testBufSize)
+	grpcServer := NewGRPCServerWithObservability(service, obs)
+	defer grpcServer.Stop()
+
+	go func() {
+		_ = grpcServer.Serve(lis)
+	}()
+
+	conn := dialBufConn(t, lis)
+	defer closeClientConn(conn)
+
+	ctx := context.Background()
+
+	var addResp CountResponse
+	if err := conn.Invoke(ctx, GRPCMethodAdd, &KeywordRequest{Keyword: keywordHE}, &addResp); err != nil {
+		t.Fatal(err)
+	}
+	if addResp.Count != 1 {
+		t.Fatalf("expected add count 1, got %d", addResp.Count)
+	}
+
+	var findResp MatchesResponse
+	if err := conn.Invoke(ctx, GRPCMethodFind, &InputRequest{Input: inputHEHE}, &findResp); err != nil {
+		t.Fatal(err)
+	}
+	if len(findResp.Matches) != 1 || findResp.Matches[0] != keywordHE {
+		t.Fatalf("unexpected find matches %v", findResp.Matches)
+	}
+
+	var infoResp InfoResponse
+	if err := conn.Invoke(ctx, GRPCMethodInfo, &EmptyRequest{}, &infoResp); err != nil {
+		t.Fatal(err)
+	}
+	if infoResp.Keywords != 1 || infoResp.Nodes != 2 {
+		t.Fatalf("unexpected info response %+v", infoResp)
+	}
+}
+
+func TestGRPCServerWithNilObservability(t *testing.T) {
+	service := &fakeService{
+		addCount:    1,
+		findMatches: []string{keywordHE},
+	}
+
+	lis := bufconn.Listen(testBufSize)
+	grpcServer := NewGRPCServerWithObservability(service, nil)
+	defer grpcServer.Stop()
+
+	go func() {
+		_ = grpcServer.Serve(lis)
+	}()
+
+	conn := dialBufConn(t, lis)
+	defer closeClientConn(conn)
+
+	ctx := context.Background()
+
+	var addResp CountResponse
+	if err := conn.Invoke(ctx, GRPCMethodAdd, &KeywordRequest{Keyword: keywordHE}, &addResp); err != nil {
+		t.Fatal(err)
+	}
+	if addResp.Count != 1 {
+		t.Fatalf("expected add count 1, got %d", addResp.Count)
+	}
+}
+
+func TestHTTPHandlerHealthWrongMethod(t *testing.T) {
+	service := &fakeService{}
+	server := httptest.NewServer(NewHTTPHandler(service))
+	defer server.Close()
+
+	resp := doRawRequest(t, http.MethodPost, server.URL+"/healthz", nil)
+	defer closeReadCloser(resp.Body)
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status 405, got %d", resp.StatusCode)
+	}
+}
+
+func TestHTTPHandlerInfoWrongMethod(t *testing.T) {
+	service := &fakeService{}
+	server := httptest.NewServer(NewHTTPHandler(service))
+	defer server.Close()
+
+	resp := doRawRequest(t, http.MethodPost, server.URL+"/v1/info", nil)
+	defer closeReadCloser(resp.Body)
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status 405, got %d", resp.StatusCode)
+	}
+}
+
+func TestHTTPHandlerFlushWrongMethod(t *testing.T) {
+	service := &fakeService{}
+	server := httptest.NewServer(NewHTTPHandler(service))
+	defer server.Close()
+
+	resp := doRawRequest(t, http.MethodGet, server.URL+"/v1/flush", nil)
+	defer closeReadCloser(resp.Body)
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status 405, got %d", resp.StatusCode)
+	}
+}
+
+func TestHTTPHandlerFlushError(t *testing.T) {
+	service := &fakeService{flushErr: errors.New("flush failed")}
+	server := httptest.NewServer(NewHTTPHandler(service))
+	defer server.Close()
+
+	resp := doRawRequest(t, http.MethodPost, server.URL+"/v1/flush", mustJSONReader(t, EmptyRequest{}))
+	defer closeReadCloser(resp.Body)
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", resp.StatusCode)
+	}
+}
+
+func TestHTTPHandlerInfoError(t *testing.T) {
+	service := &fakeService{infoErr: errors.New("info failed")}
+	server := httptest.NewServer(NewHTTPHandler(service))
+	defer server.Close()
+
+	resp := doRawRequest(t, http.MethodGet, server.URL+"/v1/info", nil)
+	defer closeReadCloser(resp.Body)
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", resp.StatusCode)
+	}
 }
