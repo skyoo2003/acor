@@ -77,8 +77,7 @@ func (o *v2Operations) tryAddV2(ctx context.Context, keyword string) (int, error
 	}
 
 	keywordRunes := []rune(keyword)
-	newPrefixes := []string{}
-	newSuffixes := []string{}
+	var newPrefixes, newSuffixes []string
 
 	for i := 0; i < len(keywordRunes); i++ {
 		prefix := string(keywordRunes[:i+1])

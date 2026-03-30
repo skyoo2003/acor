@@ -157,7 +157,7 @@ result, err := ac.AddMany([]string{"he", "her", "him", "his"}, &acor.BatchOption
 })
 
 // Remove multiple keywords
-result, err := ac.RemoveMany([]string{"he", "her"})
+result, err = ac.RemoveMany([]string{"he", "her"}, nil)
 
 // Find matches in multiple texts
 matches, err := ac.FindMany([]string{"he is him", "this is hers"})
