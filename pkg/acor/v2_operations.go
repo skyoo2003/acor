@@ -152,7 +152,7 @@ func (o *v2Operations) suggest(ctx context.Context, input string) ([]string, err
 		}
 	}
 
-	results := []string{}
+	var results []string
 	for _, kw := range keywords {
 		if strings.HasPrefix(kw, input) {
 			results = append(results, kw)
