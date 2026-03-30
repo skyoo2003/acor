@@ -218,14 +218,16 @@ type AhoCorasickArgs struct {
 // All methods are safe for concurrent use across multiple goroutines.
 type AhoCorasick struct {
 	ctx           context.Context
-	redisClient   redis.UniversalClient
 	name          string
 	logger        Logger
+	storage       KVStorage             // DI: all Redis ops go through this
+	ops           operations            // Strategy: V1 or V2 implementation
+	redisClient   redis.UniversalClient // kept for migration.go (out of scope)
 	buildTrieHook func(string) error
-	schemaVersion int
+	schemaVersion int // kept for SchemaVersion() and migration.go
 
 	cache     *trieCache
-	pubsub    *redis.PubSub
+	pubsub    Subscription
 	stopCh    chan struct{}
 	closeOnce sync.Once
 }
@@ -280,27 +282,60 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 		return nil, err
 	}
 
+	schemaVersion := args.SchemaVersion
+	if schemaVersion == 0 {
+		schemaVersion = SchemaV2
+	}
+
+	if args.EnableCache && schemaVersion == SchemaV1 {
+		_ = redisClient.Close()
+		return nil, ErrCacheRequiresV2
+	}
+
+	storage := newRedisStorage(redisClient)
+
+	var cache *trieCache
+	if args.EnableCache {
+		cache = &trieCache{}
+	}
+
 	ac := &AhoCorasick{
 		redisClient:   redisClient,
+		storage:       storage,
 		ctx:           context.Background(),
 		name:          args.Name,
 		logger:        logger,
-		schemaVersion: args.SchemaVersion,
+		schemaVersion: schemaVersion,
+		cache:         cache,
 	}
 
-	if ac.schemaVersion == 0 {
-		ac.schemaVersion = SchemaV2
+	if schemaVersion == SchemaV2 {
+		ac.ops = &v2Operations{
+			storage: storage,
+			client:  redisClient,
+			name:    args.Name,
+			ctx:     ac.ctx,
+			cache:   cache,
+			logger:  logger,
+		}
+	} else {
+		ac.ops = &v1Operations{
+			storage: storage,
+			name:    args.Name,
+			ctx:     ac.ctx,
+			logger:  logger,
+			ac:      ac,
+		}
 	}
 
 	if err := ac.init(); err != nil {
-		_ = ac.redisClient.Close()
+		_ = storage.Close()
 		return nil, err
 	}
 
 	if args.EnableCache {
-		ac.cache = &trieCache{}
 		if err := ac.startCacheListener(); err != nil {
-			_ = ac.redisClient.Close()
+			_ = storage.Close()
 			return nil, err
 		}
 	}
@@ -316,17 +351,17 @@ func (ac *AhoCorasick) SchemaVersion() int {
 
 func (ac *AhoCorasick) init() error {
 	if ac.schemaVersion == SchemaV2 {
-		exists, err := ac.redisClient.Exists(ac.ctx, trieKey(ac.name)).Result()
+		exists, err := ac.storage.Exists(ac.ctx, trieKey(ac.name))
 		if err != nil {
 			return fmt.Errorf("failed to check trie key: %w", err)
 		}
 		if exists == 0 {
-			_, err := ac.redisClient.HSet(ac.ctx, trieKey(ac.name), map[string]interface{}{
+			err := ac.storage.HSet(ac.ctx, trieKey(ac.name), map[string]interface{}{
 				"keywords": "[]",
 				"prefixes": "[\"\"]",
 				"suffixes": "[\"\"]",
 				"version":  time.Now().UnixNano(),
-			}).Result()
+			})
 			if err != nil {
 				return err
 			}
@@ -335,11 +370,11 @@ func (ac *AhoCorasick) init() error {
 	}
 
 	prefixKey := prefixKey(ac.name)
-	member := &redis.Z{
+	member := &Z{
 		Score:  initScore,
 		Member: "",
 	}
-	if err := ac.redisClient.ZAdd(ac.ctx, prefixKey, member).Err(); err != nil {
+	if err := ac.storage.ZAdd(ac.ctx, prefixKey, member); err != nil {
 		return err
 	}
 	return nil
@@ -352,12 +387,12 @@ func (ac *AhoCorasick) Close() error {
 	var closeErr error
 	alreadyClosed := true
 	ac.closeOnce.Do(func() {
-		if ac.redisClient == nil {
+		if ac.storage == nil {
 			return
 		}
 		alreadyClosed = false
 		ac.stopCacheListener()
-		closeErr = ac.redisClient.Close()
+		closeErr = ac.storage.Close()
 		ac.redisClient = nil
 	})
 	if alreadyClosed {
@@ -376,97 +411,35 @@ func (ac *AhoCorasick) Close() error {
 //
 // For V2 schema, this operation uses optimistic locking with automatic retries.
 func (ac *AhoCorasick) Add(keyword string) (int, error) {
-	if ac.schemaVersion == SchemaV2 {
-		return ac.addV2(keyword)
-	}
-	return ac.addV1(keyword)
+	return ac.ops.add(ac.ctx, keyword)
 }
 
-// Remove deletes a keyword from the Aho-Corasick automaton.
-// The keyword is normalized to lowercase before lookup.
-// This operation also prunes any trie nodes that are no longer needed.
-//
-// Returns:
-//   - remaining keyword count after removal
-//   - error if the operation fails
-//
-// For V2 schema, this operation uses optimistic locking with automatic retries.
 func (ac *AhoCorasick) Remove(keyword string) (int, error) {
-	if ac.schemaVersion == SchemaV2 {
-		return ac.removeV2(keyword)
-	}
-	return ac.removeV1(keyword)
+	return ac.ops.remove(ac.ctx, keyword)
 }
 
-// Find searches for all keywords in the given text and returns matched keywords.
-// Each keyword that appears in the text is included in the result (duplicates
-// may appear if a keyword matches multiple times).
-//
-// Matching is case-insensitive because keywords are stored in lowercase and
-// input text is normalized to lowercase before matching.
-//
-// Returns an empty slice if no matches are found or text is empty.
 func (ac *AhoCorasick) Find(text string) ([]string, error) {
-	if ac.schemaVersion == SchemaV2 {
-		return ac.findV2(text)
-	}
-	return ac.findV1(text)
+	return ac.ops.find(ac.ctx, text)
 }
 
-// FindIndex searches for keywords in text and returns their start indices.
-// The returned map has keywords as keys and slices of start positions (0-indexed)
-// as values.
-//
-// Example: For text "hello world" with keyword "world":
-//
-//	matches, _ := ac.FindIndex("hello world")
-//	// matches["world"] == []int{6}
 func (ac *AhoCorasick) FindIndex(text string) (map[string][]int, error) {
-	if ac.schemaVersion == SchemaV2 {
-		return ac.findIndexV2(text)
-	}
-	return ac.findIndexV1(text)
+	return ac.ops.findIndex(ac.ctx, text)
 }
 
-// Flush removes all keywords and trie data from Redis for this collection.
-// Use with caution as this operation is irreversible. The collection remains
-// usable after flushing and can have new keywords added.
 func (ac *AhoCorasick) Flush() error {
-	if ac.schemaVersion == SchemaV2 {
-		return ac.flushV2()
-	}
-	return ac.flushV1()
+	return ac.ops.flush(ac.ctx)
 }
 
-// Info returns statistics about the Aho-Corasick automaton including
-// the number of keywords and trie nodes currently stored.
 func (ac *AhoCorasick) Info() (*AhoCorasickInfo, error) {
-	if ac.schemaVersion == SchemaV2 {
-		return ac.infoV2()
-	}
-	return ac.infoV1()
+	return ac.ops.info(ac.ctx)
 }
 
-// Suggest returns keywords that start with the given input prefix.
-// This is useful for implementing autocomplete functionality.
-// The input is normalized to lowercase before matching.
-//
-// Returns an empty slice if no keywords match the prefix.
 func (ac *AhoCorasick) Suggest(input string) ([]string, error) {
-	if ac.schemaVersion == SchemaV2 {
-		return ac.suggestV2(input)
-	}
-	return ac.suggestV1(input)
+	return ac.ops.suggest(ac.ctx, input)
 }
 
-// SuggestIndex returns keywords matching the prefix with their indices.
-// Similar to Suggest but returns a map for consistency with FindIndex.
-// All matched keywords have an index of 0.
 func (ac *AhoCorasick) SuggestIndex(input string) (map[string][]int, error) {
-	if ac.schemaVersion == SchemaV2 {
-		return ac.suggestIndexV2(input)
-	}
-	return ac.suggestIndexV1(input)
+	return ac.ops.suggestIndex(ac.ctx, input)
 }
 
 // Debug prints the current state of the Aho-Corasick automaton to stdout.
@@ -483,18 +456,20 @@ func (ac *AhoCorasick) Debug() {
 
 func (ac *AhoCorasick) debugV1() {
 	kKey := keywordKey(ac.name)
-	fmt.Println("-", ac.redisClient.SMembers(ac.ctx, kKey))
+	kMembers, _ := ac.storage.SMembers(ac.ctx, kKey)
+	fmt.Println("-", kMembers)
 
 	pKey := prefixKey(ac.name)
-	fmt.Println("-", ac.redisClient.ZRange(ac.ctx, pKey, 0, -1))
+	pMembers, _ := ac.storage.ZRange(ac.ctx, pKey, 0, -1)
+	fmt.Println("-", pMembers)
 
 	sKey := suffixKey(ac.name)
-	fmt.Println("-", ac.redisClient.ZRange(ac.ctx, sKey, 0, -1))
+	sMembers, _ := ac.storage.ZRange(ac.ctx, sKey, 0, -1)
+	fmt.Println("-", sMembers)
 
 	outputs := make([]string, 0)
-	pKeywords := ac.redisClient.ZRange(ac.ctx, pKey, 0, -1).Val()
-	for _, keyword := range pKeywords {
-		oKeywords, err := ac._output(keyword)
+	for _, keyword := range pMembers {
+		oKeywords, err := ac.collectOutputs(keyword)
 		if err != nil {
 			fmt.Println("-", err)
 			return
@@ -504,17 +479,16 @@ func (ac *AhoCorasick) debugV1() {
 	fmt.Println("-", outputs)
 
 	nodes := make([]string, 0)
-	kKeywords := ac.redisClient.SMembers(ac.ctx, kKey).Val()
-	for _, keyword := range kKeywords {
+	for _, keyword := range kMembers {
 		nKey := nodeKey(ac.name, keyword)
-		nKeywords := ac.redisClient.SMembers(ac.ctx, nKey).Val()
+		nKeywords, _ := ac.storage.SMembers(ac.ctx, nKey)
 		nodes = append(nodes, nKeywords...)
 	}
 	fmt.Println("-", nodes)
 }
 
 func (ac *AhoCorasick) debugV2() {
-	trieData, err := ac.redisClient.HGetAll(ac.ctx, trieKey(ac.name)).Result()
+	trieData, err := ac.storage.HGetAll(ac.ctx, trieKey(ac.name))
 	if err != nil {
 		fmt.Println("Error reading trie:", err)
 		return
@@ -524,7 +498,7 @@ func (ac *AhoCorasick) debugV2() {
 		fmt.Printf("  %s: %s\n", key, value)
 	}
 
-	outputsData, err := ac.redisClient.HGetAll(ac.ctx, outputsKey(ac.name)).Result()
+	outputsData, err := ac.storage.HGetAll(ac.ctx, outputsKey(ac.name))
 	if err != nil {
 		fmt.Println("Error reading outputs:", err)
 		return
@@ -534,7 +508,7 @@ func (ac *AhoCorasick) debugV2() {
 		fmt.Printf("  %s: %s\n", key, value)
 	}
 
-	nodesData, err := ac.redisClient.HGetAll(ac.ctx, nodesKey(ac.name)).Result()
+	nodesData, err := ac.storage.HGetAll(ac.ctx, nodesKey(ac.name))
 	if err != nil {
 		fmt.Println("Error reading nodes:", err)
 		return

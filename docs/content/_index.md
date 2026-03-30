@@ -110,7 +110,7 @@ For better performance when working with multiple keywords:
 ```go
 // Add multiple keywords with transactional mode
 result, _ := ac.AddMany([]string{"he", "her", "him"}, &acor.BatchOptions{
-    Mode: acor.Transactional,
+    Mode: acor.BatchModeTransactional,
 })
 
 // Find matches in multiple texts
@@ -124,7 +124,7 @@ Process large texts using multiple goroutines:
 ```go
 matches, _ := ac.FindParallel(largeText, &acor.ParallelOptions{
     Workers:       4,
-    ChunkBoundary: acor.ChunkWord,
+    Boundary: acor.ChunkBoundaryWord,
 })
 ```
 

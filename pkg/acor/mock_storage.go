@@ -12,6 +12,7 @@ package acor
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	gomock "go.uber.org/mock/gomock"
 )
@@ -142,6 +143,34 @@ func (mr *MockKVStorageMockRecorder) HSet(ctx, key any, values ...any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HSet", reflect.TypeOf((*MockKVStorage)(nil).HSet), varargs...)
 }
 
+// Pipeline mocks base method.
+func (m *MockKVStorage) Pipeline() Pipeliner {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Pipeline")
+	ret0, _ := ret[0].(Pipeliner)
+	return ret0
+}
+
+// Pipeline indicates an expected call of Pipeline.
+func (mr *MockKVStorageMockRecorder) Pipeline() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Pipeline", reflect.TypeOf((*MockKVStorage)(nil).Pipeline))
+}
+
+// Publish mocks base method.
+func (m *MockKVStorage) Publish(ctx context.Context, channel string, message any) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Publish", ctx, channel, message)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Publish indicates an expected call of Publish.
+func (mr *MockKVStorageMockRecorder) Publish(ctx, channel, message any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Publish", reflect.TypeOf((*MockKVStorage)(nil).Publish), ctx, channel, message)
+}
+
 // SAdd mocks base method.
 func (m *MockKVStorage) SAdd(ctx context.Context, key string, members ...any) error {
 	m.ctrl.T.Helper()
@@ -237,6 +266,40 @@ func (m *MockKVStorage) Set(ctx context.Context, key string, value any) error {
 func (mr *MockKVStorageMockRecorder) Set(ctx, key, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockKVStorage)(nil).Set), ctx, key, value)
+}
+
+// SetNX mocks base method.
+func (m *MockKVStorage) SetNX(ctx context.Context, key string, value any, expiration time.Duration) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNX", ctx, key, value, expiration)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetNX indicates an expected call of SetNX.
+func (mr *MockKVStorageMockRecorder) SetNX(ctx, key, value, expiration any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNX", reflect.TypeOf((*MockKVStorage)(nil).SetNX), ctx, key, value, expiration)
+}
+
+// Subscribe mocks base method.
+func (m *MockKVStorage) Subscribe(ctx context.Context, channels ...string) Subscription {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx}
+	for _, a := range channels {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Subscribe", varargs...)
+	ret0, _ := ret[0].(Subscription)
+	return ret0
+}
+
+// Subscribe indicates an expected call of Subscribe.
+func (mr *MockKVStorageMockRecorder) Subscribe(ctx any, channels ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx}, channels...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockKVStorage)(nil).Subscribe), varargs...)
 }
 
 // TxPipelined mocks base method.
@@ -351,6 +414,110 @@ func (mr *MockKVStorageMockRecorder) ZScore(ctx, key, member any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ZScore", reflect.TypeOf((*MockKVStorage)(nil).ZScore), ctx, key, member)
 }
 
+// MockStringMapResult is a mock of StringMapResult interface.
+type MockStringMapResult struct {
+	ctrl     *gomock.Controller
+	recorder *MockStringMapResultMockRecorder
+	isgomock struct{}
+}
+
+// MockStringMapResultMockRecorder is the mock recorder for MockStringMapResult.
+type MockStringMapResultMockRecorder struct {
+	mock *MockStringMapResult
+}
+
+// NewMockStringMapResult creates a new mock instance.
+func NewMockStringMapResult(ctrl *gomock.Controller) *MockStringMapResult {
+	mock := &MockStringMapResult{ctrl: ctrl}
+	mock.recorder = &MockStringMapResultMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockStringMapResult) EXPECT() *MockStringMapResultMockRecorder {
+	return m.recorder
+}
+
+// Val mocks base method.
+func (m *MockStringMapResult) Val() map[string]string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Val")
+	ret0, _ := ret[0].(map[string]string)
+	return ret0
+}
+
+// Val indicates an expected call of Val.
+func (mr *MockStringMapResultMockRecorder) Val() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Val", reflect.TypeOf((*MockStringMapResult)(nil).Val))
+}
+
+// MockSubscription is a mock of Subscription interface.
+type MockSubscription struct {
+	ctrl     *gomock.Controller
+	recorder *MockSubscriptionMockRecorder
+	isgomock struct{}
+}
+
+// MockSubscriptionMockRecorder is the mock recorder for MockSubscription.
+type MockSubscriptionMockRecorder struct {
+	mock *MockSubscription
+}
+
+// NewMockSubscription creates a new mock instance.
+func NewMockSubscription(ctrl *gomock.Controller) *MockSubscription {
+	mock := &MockSubscription{ctrl: ctrl}
+	mock.recorder = &MockSubscriptionMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockSubscription) EXPECT() *MockSubscriptionMockRecorder {
+	return m.recorder
+}
+
+// Channel mocks base method.
+func (m *MockSubscription) Channel() <-chan PubSubMessage {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Channel")
+	ret0, _ := ret[0].(<-chan PubSubMessage)
+	return ret0
+}
+
+// Channel indicates an expected call of Channel.
+func (mr *MockSubscriptionMockRecorder) Channel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Channel", reflect.TypeOf((*MockSubscription)(nil).Channel))
+}
+
+// Close mocks base method.
+func (m *MockSubscription) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockSubscriptionMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSubscription)(nil).Close))
+}
+
+// Receive mocks base method.
+func (m *MockSubscription) Receive(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Receive", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Receive indicates an expected call of Receive.
+func (mr *MockSubscriptionMockRecorder) Receive(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Receive", reflect.TypeOf((*MockSubscription)(nil).Receive), ctx)
+}
+
 // MockPipeliner is a mock of Pipeliner interface.
 type MockPipeliner struct {
 	ctrl     *gomock.Controller
@@ -392,6 +559,34 @@ func (mr *MockPipelinerMockRecorder) Del(ctx any, keys ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, keys...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Del", reflect.TypeOf((*MockPipeliner)(nil).Del), varargs...)
+}
+
+// Exec mocks base method.
+func (m *MockPipeliner) Exec(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Exec", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Exec indicates an expected call of Exec.
+func (mr *MockPipelinerMockRecorder) Exec(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exec", reflect.TypeOf((*MockPipeliner)(nil).Exec), ctx)
+}
+
+// HGetAll mocks base method.
+func (m *MockPipeliner) HGetAll(ctx context.Context, key string) StringMapResult {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HGetAll", ctx, key)
+	ret0, _ := ret[0].(StringMapResult)
+	return ret0
+}
+
+// HGetAll indicates an expected call of HGetAll.
+func (mr *MockPipelinerMockRecorder) HGetAll(ctx, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HGetAll", reflect.TypeOf((*MockPipeliner)(nil).HGetAll), ctx, key)
 }
 
 // HSet mocks base method.
@@ -605,16 +800,16 @@ func (mr *MockIndexerMockRecorder) Remove(keyword any) *gomock.Call {
 }
 
 // RemoveMany mocks base method.
-func (m *MockIndexer) RemoveMany(keywords []string) (*BatchResult, error) {
+func (m *MockIndexer) RemoveMany(keywords []string, opts *BatchOptions) (*BatchResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RemoveMany", keywords)
+	ret := m.ctrl.Call(m, "RemoveMany", keywords, opts)
 	ret0, _ := ret[0].(*BatchResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // RemoveMany indicates an expected call of RemoveMany.
-func (mr *MockIndexerMockRecorder) RemoveMany(keywords any) *gomock.Call {
+func (mr *MockIndexerMockRecorder) RemoveMany(keywords any, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMany", reflect.TypeOf((*MockIndexer)(nil).RemoveMany), keywords)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMany", reflect.TypeOf((*MockIndexer)(nil).RemoveMany), keywords, opts)
 }

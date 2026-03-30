@@ -1,6 +1,7 @@
 package acor
 
 import (
+	"context"
 	"runtime"
 	"sort"
 	"sync"
@@ -94,6 +95,11 @@ func normalizeParallelOptions(opts *ParallelOptions) *ParallelOptions {
 
 //nolint:gocritic // Returns channels for concurrent result collection
 func runStringWorkers(ac *AhoCorasick, chunks []chunk, workers int) (<-chan []string, <-chan error) {
+	return runStringWorkersCtx(ac.ctx, ac, chunks, workers)
+}
+
+//nolint:gocritic // Returns channels for concurrent result collection
+func runStringWorkersCtx(ctx context.Context, ac *AhoCorasick, chunks []chunk, workers int) (<-chan []string, <-chan error) {
 	results := make(chan []string, len(chunks))
 	errors := make(chan error, len(chunks))
 
@@ -106,7 +112,7 @@ func runStringWorkers(ac *AhoCorasick, chunks []chunk, workers int) (<-chan []st
 		go func(c chunk) {
 			defer func() { <-sem }()
 			defer wg.Done()
-			matches, err := ac.Find(c.text)
+			matches, err := ac.ops.find(ctx, c.text)
 			if err != nil {
 				errors <- err
 				return
@@ -183,7 +189,7 @@ func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]strin
 		return []string{}, nil
 	}
 	if len(chunks) == 1 {
-		return ac.Find(text)
+		return ac.ops.find(ac.ctx, text)
 	}
 
 	results, errors := runStringWorkers(ac, chunks, opts.Workers)
@@ -206,6 +212,11 @@ type indexedResult struct {
 
 //nolint:gocritic // Returns channels for concurrent result collection
 func runIndexWorkers(ac *AhoCorasick, chunks []chunk, workers int) (<-chan indexedResult, <-chan error) {
+	return runIndexWorkersCtx(ac.ctx, ac, chunks, workers)
+}
+
+//nolint:gocritic // Returns channels for concurrent result collection
+func runIndexWorkersCtx(ctx context.Context, ac *AhoCorasick, chunks []chunk, workers int) (<-chan indexedResult, <-chan error) {
 	results := make(chan indexedResult, len(chunks))
 	errors := make(chan error, len(chunks))
 
@@ -218,7 +229,7 @@ func runIndexWorkers(ac *AhoCorasick, chunks []chunk, workers int) (<-chan index
 		go func(c chunk) {
 			defer func() { <-sem }()
 			defer wg.Done()
-			matches, err := ac.FindIndex(c.text)
+			matches, err := ac.ops.findIndex(ctx, c.text)
 			if err != nil {
 				errors <- err
 				return
@@ -299,7 +310,7 @@ func (ac *AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (ma
 		return map[string][]int{}, nil
 	}
 	if len(chunks) == 1 {
-		return ac.FindIndex(text)
+		return ac.ops.findIndex(ac.ctx, text)
 	}
 
 	results, errors := runIndexWorkers(ac, chunks, opts.Workers)

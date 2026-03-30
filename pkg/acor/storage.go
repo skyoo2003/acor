@@ -2,6 +2,7 @@ package acor
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -93,8 +94,58 @@ func (s *redisStorage) TxPipelined(ctx context.Context, fn func(Pipeliner) error
 	return err
 }
 
+func (s *redisStorage) SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error) {
+	return s.client.SetNX(ctx, key, value, expiration).Result()
+}
+
+func (s *redisStorage) Pipeline() Pipeliner {
+	return &redisPipeliner{pipe: s.client.Pipeline()}
+}
+
+func (s *redisStorage) Publish(ctx context.Context, channel string, message interface{}) error {
+	return s.client.Publish(ctx, channel, message).Err()
+}
+
+func (s *redisStorage) Subscribe(ctx context.Context, channels ...string) Subscription {
+	return &redisSubscription{pubsub: s.client.Subscribe(ctx, channels...)}
+}
+
 func (s *redisStorage) Close() error {
 	return s.client.Close()
+}
+
+type redisStringMapResult struct {
+	cmd *redis.StringStringMapCmd
+}
+
+func (r *redisStringMapResult) Val() map[string]string {
+	return r.cmd.Val()
+}
+
+type redisSubscription struct {
+	pubsub *redis.PubSub
+}
+
+func (s *redisSubscription) Receive(ctx context.Context) error {
+	_, err := s.pubsub.Receive(ctx)
+	return err
+}
+
+const pubsubChannelSize = 100
+
+func (s *redisSubscription) Channel() <-chan PubSubMessage {
+	ch := make(chan PubSubMessage, pubsubChannelSize)
+	go func() {
+		defer close(ch)
+		for msg := range s.pubsub.Channel() {
+			ch <- PubSubMessage{Channel: msg.Channel, Payload: msg.Payload}
+		}
+	}()
+	return ch
+}
+
+func (s *redisSubscription) Close() error {
+	return s.pubsub.Close()
 }
 
 type redisPipeliner struct {
@@ -119,4 +170,13 @@ func (p *redisPipeliner) ZAdd(ctx context.Context, key string, members ...*Z) er
 
 func (p *redisPipeliner) Del(ctx context.Context, keys ...string) error {
 	return p.pipe.Del(ctx, keys...).Err()
+}
+
+func (p *redisPipeliner) HGetAll(ctx context.Context, key string) StringMapResult {
+	return &redisStringMapResult{cmd: p.pipe.HGetAll(ctx, key)}
+}
+
+func (p *redisPipeliner) Exec(ctx context.Context) error {
+	_, err := p.pipe.Exec(ctx)
+	return err
 }

@@ -153,7 +153,7 @@ ACOR supports batch operations for better performance when working with multiple
 ```go
 // Add multiple keywords at once
 result, err := ac.AddMany([]string{"he", "her", "him", "his"}, &acor.BatchOptions{
-    Mode: acor.Transactional, // or acor.BestEffort
+    Mode: acor.BatchModeTransactional, // or acor.BatchModeBestEffort
 })
 
 // Remove multiple keywords
@@ -165,8 +165,8 @@ matches, err := ac.FindMany([]string{"he is him", "this is hers"})
 
 **Batch Modes:**
 
-- `BestEffort`: Continues on errors, returns partial results
-- `Transactional`: Rolls back all changes if any error occurs
+- `BatchModeBestEffort`: Continues on errors, returns partial results
+- `BatchModeTransactional`: Rolls back all changes if any error occurs
 
 ## Parallel Matching
 
@@ -174,16 +174,16 @@ For large texts, use parallel matching to leverage multiple goroutines:
 
 ```go
 matches, err := ac.FindParallel(largeText, &acor.ParallelOptions{
-    Workers:       4,
-    ChunkBoundary: acor.ChunkWord, // ChunkWord, ChunkLine, or ChunkSentence
+    Workers:  4,
+    Boundary: acor.ChunkBoundaryWord, // ChunkBoundaryWord, ChunkBoundaryLine, or ChunkBoundarySentence
 })
 ```
 
 Chunk boundaries ensure matches aren't split across chunks:
 
-- `ChunkWord`: Split at word boundaries (default)
-- `ChunkLine`: Split at line breaks
-- `ChunkSentence`: Split at sentence endings
+- `ChunkBoundaryWord`: Split at word boundaries (default)
+- `ChunkBoundaryLine`: Split at line breaks
+- `ChunkBoundarySentence`: Split at sentence endings
 
 ## Local Caching
 

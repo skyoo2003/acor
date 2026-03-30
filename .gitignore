@@ -12,3 +12,4 @@
 /docs/specs/
 /.worktrees/
 .DS_Store
+/coverage.out

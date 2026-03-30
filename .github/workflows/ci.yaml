@@ -25,11 +25,12 @@ on:
 jobs:
   build:
     name: CI
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         go-version: ["1.25", "1.26"]
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v6.0.2
       - name: Set up Go ${{ matrix.go-version }}
@@ -41,7 +42,21 @@ jobs:
         uses: golangci/golangci-lint-action@v9.2.0
         with:
           version: v2.11.3
+      - name: Run go vet
+        run: go vet ./...
       - name: Run test
-        run: make test
+        run: go test -race -v ./...
+      - name: Check coverage
+        run: |
+          go test -coverprofile=coverage.out -covermode=atomic ./...
+          coverage=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | sed 's/%//')
+          echo "Coverage: ${coverage}%"
+          if [ "$(echo "$coverage < 70" | bc)" -eq 1 ]; then
+            echo "Coverage ${coverage}% is below threshold 70%"
+            exit 1
+          fi
+      - name: Run fuzz testing
+        continue-on-error: true
+        run: go test -fuzz=Fuzz -fuzztime=30s ./pkg/acor/...
       - name: Run build
         run: make build

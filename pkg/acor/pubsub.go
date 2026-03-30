@@ -8,10 +8,9 @@ const invalidateChannelPrefix = "acor:invalidate:"
 
 func (ac *AhoCorasick) startCacheListener() error {
 	channel := invalidateChannelPrefix + ac.name
-	pubsub := ac.redisClient.Subscribe(ac.ctx, channel)
+	pubsub := ac.storage.Subscribe(ac.ctx, channel)
 
-	_, err := pubsub.Receive(ac.ctx)
-	if err != nil {
+	if err := pubsub.Receive(ac.ctx); err != nil {
 		return fmt.Errorf("pub/sub connection failed: %w", err)
 	}
 
@@ -19,9 +18,10 @@ func (ac *AhoCorasick) startCacheListener() error {
 	ac.stopCh = make(chan struct{})
 
 	go func() {
+		msgCh := pubsub.Channel()
 		for {
 			select {
-			case msg, ok := <-pubsub.Channel():
+			case msg, ok := <-msgCh:
 				if !ok {
 					return
 				}
@@ -47,17 +47,5 @@ func (ac *AhoCorasick) stopCacheListener() {
 	}
 	if ac.pubsub != nil {
 		_ = ac.pubsub.Close()
-	}
-}
-
-func (ac *AhoCorasick) publishInvalidate() {
-	if ac.cache != nil {
-		ac.cache.invalidate()
-	}
-	channel := invalidateChannelPrefix + ac.name
-	if err := ac.redisClient.Publish(ac.ctx, channel, ac.name).Err(); err != nil {
-		if ac.logger != nil {
-			ac.logger.Printf("failed to publish cache invalidation: channel=%s error=%v", channel, err)
-		}
 	}
 }
