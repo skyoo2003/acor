@@ -63,7 +63,7 @@ func assertV1RedisError(t *testing.T, err error, wantOp string) {
 		t.Error("RedisError.Err (inner) should not be nil")
 	}
 
-	if unwrapped := errors.Unwrap(err); unwrapped == nil {
+	if unwrapped := errors.Unwrap(redisErr); unwrapped == nil {
 		t.Error("errors.Unwrap should return non-nil inner error")
 	}
 }

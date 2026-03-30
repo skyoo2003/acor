@@ -393,6 +393,7 @@ func (ac *AhoCorasick) Close() error {
 		alreadyClosed = false
 		ac.stopCacheListener()
 		closeErr = ac.storage.Close()
+		ac.storage = nil
 		ac.redisClient = nil
 	})
 	if alreadyClosed {
@@ -468,13 +469,13 @@ func (ac *AhoCorasick) debugV1() {
 	fmt.Println("-", sMembers)
 
 	outputs := make([]string, 0)
-	for _, keyword := range pMembers {
-		oKeywords, err := ac.collectOutputs(keyword)
+	for _, prefix := range pMembers {
+		oOutputs, err := ac.collectOutputs(prefix)
 		if err != nil {
 			fmt.Println("-", err)
 			return
 		}
-		outputs = append(outputs, oKeywords...)
+		outputs = append(outputs, oOutputs...)
 	}
 	fmt.Println("-", outputs)
 

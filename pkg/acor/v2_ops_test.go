@@ -58,12 +58,12 @@ func TestV2Find(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got, err := ac.findV2(context.Background(), tt.input)
+			got, err := ac.ops.find(context.Background(), tt.input)
 			if err != nil {
-				t.Fatalf("findV2() error: %v", err)
+				t.Fatalf("ops.find() error: %v", err)
 			}
 			if !equalStringSlices(got, tt.expected) {
-				t.Errorf("findV2(%q) = %v, want %v", tt.input, got, tt.expected)
+				t.Errorf("ops.find(%q) = %v, want %v", tt.input, got, tt.expected)
 			}
 		})
 	}

@@ -32,7 +32,9 @@ func TestCache_FlushInvalidatesCache(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _ = ac.Find("hello world")
+	if _, err := ac.Find("hello world"); err != nil {
+		t.Fatal(err)
+	}
 	_, _, valid := ac.cache.get()
 	if !valid {
 		t.Fatal("expected cache to be valid after Find")

@@ -252,15 +252,5 @@ func (ac *AhoCorasick) rollbackRemoved(ctx context.Context, keywords []string) {
 //	results, err := ac.FindMany([]string{"hello world", "goodbye world"})
 //	// results["hello world"] contains matches in that text
 func (ac *AhoCorasick) FindMany(texts []string) (map[string][]string, error) {
-	results := make(map[string][]string)
-
-	for _, text := range texts {
-		matches, err := ac.ops.find(ac.ctx, text)
-		if err != nil {
-			return nil, err
-		}
-		results[text] = matches
-	}
-
-	return results, nil
+	return ac.FindManyContext(ac.ctx, texts)
 }

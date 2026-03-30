@@ -189,7 +189,7 @@ func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]strin
 		return []string{}, nil
 	}
 	if len(chunks) == 1 {
-		return ac.ops.find(ac.ctx, text)
+		return ac.Find(text)
 	}
 
 	results, errors := runStringWorkers(ac, chunks, opts.Workers)
@@ -310,7 +310,7 @@ func (ac *AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (ma
 		return map[string][]int{}, nil
 	}
 	if len(chunks) == 1 {
-		return ac.ops.findIndex(ac.ctx, text)
+		return ac.FindIndex(text)
 	}
 
 	results, errors := runIndexWorkers(ac, chunks, opts.Workers)

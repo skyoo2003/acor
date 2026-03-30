@@ -68,7 +68,7 @@ func assertRedisError(t *testing.T, err error, wantOp string) {
 		t.Error("RedisError.Err (inner) should not be nil")
 	}
 
-	if unwrapped := errors.Unwrap(err); unwrapped == nil {
+	if unwrapped := errors.Unwrap(redisErr); unwrapped == nil {
 		t.Error("errors.Unwrap should return non-nil inner error")
 	}
 }
@@ -77,7 +77,7 @@ func TestV2InfoRedisError(t *testing.T) {
 	ac := setupV2WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	_, err := ac.infoV2(context.Background())
+	_, err := ac.Info()
 	assertRedisError(t, err, "HGETALL")
 }
 
@@ -85,7 +85,7 @@ func TestV2SuggestRedisError(t *testing.T) {
 	ac := setupV2WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	_, err := ac.suggestV2(context.Background(), "he")
+	_, err := ac.Suggest("he")
 	assertRedisError(t, err, "HGETALL")
 }
 
@@ -109,7 +109,7 @@ func TestV2FlushRedisError(t *testing.T) {
 	ac := setupV2WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	err := ac.flushV2(context.Background())
+	err := ac.Flush()
 	assertRedisError(t, err, "DEL")
 }
 
@@ -117,7 +117,7 @@ func TestV2ErrorsAreUnwrappable(t *testing.T) {
 	ac := setupV2WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	_, err := ac.infoV2(context.Background())
+	_, err := ac.Info()
 	if err == nil {
 		t.Fatal("expected error")
 	}

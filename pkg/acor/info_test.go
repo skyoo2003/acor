@@ -137,12 +137,18 @@ func TestV1V2Compatibility(t *testing.T) {
 	}
 
 	for _, kw := range keywords {
-		_, _ = acV1.Add(kw)
+		if _, addErr := acV1.Add(kw); addErr != nil {
+			t.Fatalf("V1 Add(%q) error: %v", kw, addErr)
+		}
 	}
 
 	v1Results := make(map[string][]string)
 	for _, text := range testTexts {
-		v1Results[text], _ = acV1.Find(text)
+		results, findErr := acV1.Find(text)
+		if findErr != nil {
+			t.Fatalf("V1 Find(%q) error: %v", text, findErr)
+		}
+		v1Results[text] = results
 	}
 	_ = acV1.Close()
 
@@ -166,7 +172,11 @@ func TestV1V2Compatibility(t *testing.T) {
 
 	v2Results := make(map[string][]string)
 	for _, text := range testTexts {
-		v2Results[text], _ = acV2.Find(text)
+		results, err := acV2.Find(text)
+		if err != nil {
+			t.Fatalf("V2 Find(%q) error: %v", text, err)
+		}
+		v2Results[text] = results
 	}
 	_ = acV2.Close()
 
@@ -278,7 +288,7 @@ func TestMigrationResultStats(t *testing.T) {
 	}
 }
 
-func TestMigrationErrorPaths(t *testing.T) {
+func TestMigrationSuccess(t *testing.T) {
 	ac, mr := createAhoCorasickV1(t)
 	defer mr.Close()
 	defer func() { _ = ac.Close() }()

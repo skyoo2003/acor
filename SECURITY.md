@@ -6,7 +6,12 @@ The following versions of ACOR are currently supported with security updates:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| latest  | :white_check_mark: |
+| 2.x     | :white_check_mark: |
+| 1.8+    | :white_check_mark: |
+| < 1.8   | :x:                |
+
+"Supported" means the version receives security patches. Unsupported versions
+will not receive security fixes.
 
 ## Reporting a Vulnerability
 
@@ -14,7 +19,7 @@ If you discover a security vulnerability within ACOR, please report it responsib
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them privately through [GitHub Security Advisories](https://github.com/skyoo2003/acor/security/advisories/new).
+Instead, please report them privately through [GitHub Security Advisories][security-advisories].
 
 When reporting, please include:
 
@@ -43,4 +48,6 @@ We follow a coordinated disclosure process and will work with reporters to:
 
 ## License
 
-This security policy is part of the [MIT License](LICENSE) project.
+This security policy is part of the [MIT License][mit-license] project.
+
+[mit-license]: LICENSE

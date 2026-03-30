@@ -299,8 +299,8 @@ func TestRemoveManyTransactionalRollbackOnError(t *testing.T) {
 		if findErr != nil {
 			t.Fatal(findErr)
 		}
-		if len(results) == 0 {
-			t.Errorf("expected rollback to restore %q, but it was not found", kw)
+		if !containsAll(results, kw) {
+			t.Errorf("expected rollback to restore %q, got %v", kw, results)
 		}
 	}
 }

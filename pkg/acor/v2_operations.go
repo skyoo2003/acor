@@ -3,6 +3,7 @@ package acor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -60,7 +61,7 @@ func (o *v2Operations) add(ctx context.Context, keyword string) (int, error) {
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		added, err := o.tryAddV2(ctx, keyword)
-		if err == ErrConcurrencyConflict {
+		if errors.Is(err, ErrConcurrencyConflict) {
 			time.Sleep(time.Duration(attempt+1) * 10 * time.Millisecond)
 			continue
 		}
@@ -77,7 +78,7 @@ func (o *v2Operations) remove(ctx context.Context, keyword string) (int, error) 
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		removed, err := o.tryRemoveV2(ctx, keyword)
-		if err == ErrConcurrencyConflict {
+		if errors.Is(err, ErrConcurrencyConflict) {
 			time.Sleep(time.Duration(attempt+1) * 10 * time.Millisecond)
 			continue
 		}
@@ -102,7 +103,7 @@ func (o *v2Operations) flush(ctx context.Context) error {
 		return newRedisError("HSET", trieKey(o.name), err)
 	}
 
-	o.publishInvalidate()
+	o.publishInvalidate(ctx)
 
 	return nil
 }
@@ -248,12 +249,12 @@ func (o *v2Operations) getOrLoadCache(ctx context.Context) (prefixes []string, o
 
 // publishInvalidate invalidates the local cache and publishes an invalidation
 // message so other instances refresh their caches.
-func (o *v2Operations) publishInvalidate() {
+func (o *v2Operations) publishInvalidate(ctx context.Context) {
 	if o.cache != nil {
 		o.cache.invalidate()
 	}
 	channel := invalidateChannelPrefix + o.name
-	if err := o.storage.Publish(o.ctx, channel, o.name); err != nil {
+	if err := o.storage.Publish(ctx, channel, o.name); err != nil {
 		if o.logger != nil {
 			o.logger.Printf("failed to publish cache invalidation: channel=%s error=%v", channel, err)
 		}

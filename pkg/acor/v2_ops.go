@@ -145,7 +145,7 @@ func (o *v2Operations) tryAddV2(ctx context.Context, keyword string) (int, error
 		return 0, ErrConcurrencyConflict
 	}
 
-	o.publishInvalidate()
+	o.publishInvalidate(ctx)
 
 	return 1, nil
 }
@@ -263,13 +263,13 @@ func (o *v2Operations) tryRemoveV2(ctx context.Context, keyword string) (int, er
 		return 0, ErrConcurrencyConflict
 	}
 
-	o.publishInvalidate()
+	o.publishInvalidate(ctx)
 
 	return len(newKeywords), nil
 }
 
 func (o *v2Operations) computeOutputsV2(state string, prefixSet, keywordSet map[string]struct{}) []string {
-	outputs := []string{}
+	var outputs []string
 
 	if _, isKeyword := keywordSet[state]; isKeyword {
 		outputs = append(outputs, state)
@@ -288,26 +288,18 @@ func (o *v2Operations) computeOutputsV2(state string, prefixSet, keywordSet map[
 	return outputs
 }
 
-func (ac *AhoCorasick) findV2(ctx context.Context, text string) ([]string, error) {
-	return ac.ops.find(ctx, text)
-}
-
-func (ac *AhoCorasick) infoV2(ctx context.Context) (*AhoCorasickInfo, error) {
-	return ac.ops.info(ctx)
-}
-
-func (ac *AhoCorasick) suggestV2(ctx context.Context, input string) ([]string, error) {
-	return ac.ops.suggest(ctx, input)
-}
-
-func (ac *AhoCorasick) flushV2(ctx context.Context) error {
-	return ac.ops.flush(ctx)
-}
-
 func (ac *AhoCorasick) tryAddV2(ctx context.Context, keyword string) (int, error) {
-	return ac.ops.(*v2Operations).tryAddV2(ctx, keyword)
+	v2Ops, ok := ac.ops.(*v2Operations)
+	if !ok {
+		return 0, fmt.Errorf("internal error: tryAddV2 called on non-v2 operations strategy")
+	}
+	return v2Ops.tryAddV2(ctx, keyword)
 }
 
 func (ac *AhoCorasick) tryRemoveV2(ctx context.Context, keyword string) (int, error) {
-	return ac.ops.(*v2Operations).tryRemoveV2(ctx, keyword)
+	v2Ops, ok := ac.ops.(*v2Operations)
+	if !ok {
+		return 0, fmt.Errorf("internal error: tryRemoveV2 called on non-v2 operations strategy")
+	}
+	return v2Ops.tryRemoveV2(ctx, keyword)
 }

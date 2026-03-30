@@ -293,6 +293,9 @@ func (o *v1Operations) suggest(ctx context.Context, input string) ([]string, err
 		if err != nil {
 			return nil, newRedisError("ZRANGE", pKey, err)
 		}
+		if len(pKeywords) > 0 && !strings.HasPrefix(pKeywords[0], input) {
+			break
+		}
 	}
 
 	return results, nil

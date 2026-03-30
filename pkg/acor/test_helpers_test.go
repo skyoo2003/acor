@@ -43,8 +43,14 @@ func createAhoCorasickV1(t *testing.T) (*AhoCorasick, *miniredis.Miniredis) {
 
 	mr := createTestRedisServer(t)
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	_ = client.ZAdd(context.Background(), "{test}:prefix", &redis.Z{Score: 0, Member: ""}).Err()
-	_ = client.Close()
+	if err := client.ZAdd(context.Background(), "{test}:prefix", &redis.Z{Score: 0, Member: ""}).Err(); err != nil {
+		mr.Close()
+		t.Fatalf("failed to seed V1 prefix data: %v", err)
+	}
+	if err := client.Close(); err != nil {
+		mr.Close()
+		t.Fatalf("failed to close V1 seed client: %v", err)
+	}
 
 	ac, err := Create(&AhoCorasickArgs{
 		Addr:          mr.Addr(),

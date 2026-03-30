@@ -1,3 +1,5 @@
+# Pull Request
+
 ## Description
 
 <!-- Describe your changes and the purpose of this PR -->
@@ -18,6 +20,7 @@
 <!-- Ensure your PR meets the following requirements -->
 
 - [ ] Tests pass (`make test`)
+- [ ] Vet passes (`make vet`)
 - [ ] Linting passes (`make lint`)
 - [ ] Build succeeds (`make build`)
 - [ ] Documentation updated if needed

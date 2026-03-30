@@ -11,6 +11,7 @@ func (ac *AhoCorasick) startCacheListener() error {
 	pubsub := ac.storage.Subscribe(ac.ctx, channel)
 
 	if err := pubsub.Receive(ac.ctx); err != nil {
+		_ = pubsub.Close()
 		return fmt.Errorf("pub/sub connection failed: %w", err)
 	}
 

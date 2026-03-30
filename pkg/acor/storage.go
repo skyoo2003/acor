@@ -2,6 +2,7 @@ package acor
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -124,6 +125,8 @@ func (r *redisStringMapResult) Val() map[string]string {
 
 type redisSubscription struct {
 	pubsub *redis.PubSub
+	ch     chan PubSubMessage
+	once   sync.Once
 }
 
 func (s *redisSubscription) Receive(ctx context.Context) error {
@@ -134,14 +137,17 @@ func (s *redisSubscription) Receive(ctx context.Context) error {
 const pubsubChannelSize = 100
 
 func (s *redisSubscription) Channel() <-chan PubSubMessage {
-	ch := make(chan PubSubMessage, pubsubChannelSize)
-	go func() {
-		defer close(ch)
-		for msg := range s.pubsub.Channel() {
-			ch <- PubSubMessage{Channel: msg.Channel, Payload: msg.Payload}
-		}
-	}()
-	return ch
+	s.once.Do(func() {
+		ch := make(chan PubSubMessage, pubsubChannelSize)
+		go func() {
+			defer close(ch)
+			for msg := range s.pubsub.Channel() {
+				ch <- PubSubMessage{Channel: msg.Channel, Payload: msg.Payload}
+			}
+		}()
+		s.ch = ch
+	})
+	return s.ch
 }
 
 func (s *redisSubscription) Close() error {

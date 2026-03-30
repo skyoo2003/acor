@@ -56,7 +56,7 @@ jobs:
             exit 1
           fi
       - name: Run fuzz testing
-        continue-on-error: true
+        if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
         run: go test -fuzz=Fuzz -fuzztime=30s ./pkg/acor/...
       - name: Run build
         run: make build

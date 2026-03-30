@@ -161,7 +161,7 @@ func TestNewRedisClientRejectsInvalidTopologyConfigurations(t *testing.T) {
 	}
 }
 
-func TestCloseWithNilClient(t *testing.T) {
+func TestCloseWithNilStorage(t *testing.T) {
 	ac := &AhoCorasick{redisClient: nil}
 	if err := ac.Close(); err != ErrRedisAlreadyClosed {
 		t.Errorf("Close() with nil client error = %v, want ErrRedisAlreadyClosed", err)

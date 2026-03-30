@@ -13,3 +13,4 @@
 /.worktrees/
 .DS_Store
 /coverage.out
+/coverage.html
