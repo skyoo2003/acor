@@ -58,3 +58,33 @@ func TestCache_FlushInvalidatesCache(t *testing.T) {
 		t.Fatalf("expected no matches after Flush, got %v", results)
 	}
 }
+
+func TestV1FlushClearsPersistedMatches(t *testing.T) {
+	ac, mr := createAhoCorasickV1(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+
+	if _, addErr := ac.Add("hello"); addErr != nil {
+		t.Fatal(addErr)
+	}
+
+	results, findErr := ac.Find("hello world")
+	if findErr != nil {
+		t.Fatal(findErr)
+	}
+	if len(results) == 0 {
+		t.Fatal("expected matches before Flush")
+	}
+
+	if flushErr := ac.Flush(); flushErr != nil {
+		t.Fatal(flushErr)
+	}
+
+	results, findErr = ac.Find("hello world")
+	if findErr != nil {
+		t.Fatal(findErr)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected no matches after V1 Flush, got %v", results)
+	}
+}

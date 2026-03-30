@@ -49,10 +49,10 @@ func (o *v1Operations) add(ctx context.Context, keyword string) (int, error) {
 	o.logger.Println(fmt.Sprintf(`Add(%s) > SADD {"key": "%s", "member": "%s"}`, keyword, keywordKey, keyword))
 
 	if err := o.ac.buildTrieWithContext(ctx, keyword); err != nil {
-		if _, rollbackErr := o.ac.removeV1(ctx, keyword); rollbackErr != nil {
-			return 0, fmt.Errorf("build trie: %w; rollback keyword: %v", err, rollbackErr)
+		if _, rollbackErr := o.ac.removeV1(context.Background(), keyword); rollbackErr != nil {
+			return 0, newOperationError("add", SchemaV1, fmt.Errorf("build trie: %w; rollback keyword: %v", err, rollbackErr))
 		}
-		return 0, err
+		return 0, newOperationError("add", SchemaV1, err)
 	}
 
 	return 1, nil
@@ -81,7 +81,7 @@ func (o *v1Operations) remove(ctx context.Context, keyword string) (int, error) 
 	o.logger.Println(fmt.Sprintf("Remove(%s) > DEL key(%s)", keyword, nodeKey))
 
 	if pruneErr := o.ac.pruneTrieWithContext(ctx, keyword); pruneErr != nil {
-		return 0, pruneErr
+		return 0, newOperationError("remove", SchemaV1, pruneErr)
 	}
 
 	kKey := keywordKey(o.name)
