@@ -4,11 +4,11 @@
 
 The following versions of ACOR are currently supported with security updates:
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 2.x     | :white_check_mark: |
-| 1.8+    | :white_check_mark: |
-| < 1.8   | :x:                |
+| Version | Supported |
+| ------- | --------- |
+| v2.x    | ✅        |
+| v1.8+   | ✅        |
+| < v1.8  | ❌        |
 
 "Supported" means the version receives security patches. Unsupported versions
 will not receive security fixes.
@@ -51,3 +51,5 @@ We follow a coordinated disclosure process and will work with reporters to:
 This security policy is part of the [MIT License][mit-license] project.
 
 [mit-license]: LICENSE
+
+[security-advisories]: https://github.com/skyoo2003/acor/security/advisories/new
