@@ -50,7 +50,7 @@ Add multiple keywords in a batch.
 
 ```go
 result, err := ac.AddMany([]string{"a", "b", "c"}, &acor.BatchOptions{
-    Mode: acor.Transactional,
+    Mode: acor.BatchModeTransactional,
 })
 ```
 
@@ -103,8 +103,8 @@ Find matches using parallel processing.
 
 ```go
 matches, err := ac.FindParallel(largeText, &acor.ParallelOptions{
-    Workers:       4,
-    ChunkBoundary: acor.ChunkWord,
+    Workers:   4,
+    Boundary:  acor.ChunkBoundaryWord,
 })
 ```
 
@@ -177,18 +177,18 @@ type BatchResult struct {
 
 ```go
 type ParallelOptions struct {
-    Workers       int
-    ChunkSize     int
-    ChunkBoundary ChunkBoundaryType
+    Workers   int
+    ChunkSize int
+    Boundary  ChunkBoundary
 }
 ```
 
-### ChunkBoundaryType
+### ChunkBoundary
 
 ```go
 const (
-    ChunkWord     ChunkBoundaryType = iota
-    ChunkLine
-    ChunkSentence
+    ChunkBoundaryWord     ChunkBoundary = iota
+    ChunkBoundaryLine
+    ChunkBoundarySentence
 )
 ```

@@ -10,22 +10,18 @@ import (
 	"github.com/skyoo2003/acor/internal/pkg/utils"
 )
 
-func (ac *AhoCorasick) _buildTrie(keyword string) error {
+func (ac *AhoCorasick) buildTrie(keyword string) error {
 	return ac.buildTrieWithContext(ac.ctx, keyword)
 }
 
 //nolint:unused
-func (ac *AhoCorasick) _rebuildOutput(suffix string) error {
+func (ac *AhoCorasick) rebuildOutput(suffix string) error {
 	return ac.rebuildOutputWithContext(ac.ctx, suffix)
 }
 
 //nolint:unused
-func (ac *AhoCorasick) _buildOutput(state string) error {
+func (ac *AhoCorasick) buildOutput(state string) error {
 	return ac.buildOutputWithContext(ac.ctx, state)
-}
-
-func (ac *AhoCorasick) pruneTrie(keyword string) error {
-	return ac.pruneTrieWithContext(ac.ctx, keyword)
 }
 
 //nolint:unused
@@ -33,15 +29,15 @@ func (ac *AhoCorasick) removePrefixAndSuffix(keyword, prefix, suffix string) err
 	return ac.removePrefixAndSuffixWithContext(ac.ctx, keyword, prefix, suffix)
 }
 
-func (ac *AhoCorasick) _go(inState string, input rune) (string, error) {
+func (ac *AhoCorasick) gotoNode(inState string, input rune) (string, error) {
 	return ac.goWithContext(ac.ctx, inState, input)
 }
 
-func (ac *AhoCorasick) _fail(inState string) (string, error) {
+func (ac *AhoCorasick) failNode(inState string) (string, error) {
 	return ac.failWithContext(ac.ctx, inState)
 }
 
-func (ac *AhoCorasick) _output(inState string) ([]string, error) {
+func (ac *AhoCorasick) collectOutputs(inState string) ([]string, error) {
 	return ac.outputWithContext(ac.ctx, inState)
 }
 
@@ -55,7 +51,7 @@ func (ac *AhoCorasick) goWithContext(ctx context.Context, inState string, input 
 	nextState := buffer.String()
 
 	pKey := prefixKey(ac.name)
-	err := ac.redisClient.ZScore(ctx, pKey, nextState).Err()
+	_, err := ac.storage.ZScore(ctx, pKey, nextState)
 	if err == redis.Nil {
 		return "", nil
 	}
@@ -71,7 +67,7 @@ func (ac *AhoCorasick) failWithContext(ctx context.Context, inState string) (str
 	inStateRunes := []rune(inState)
 	for idx < len(inStateRunes) {
 		nextState := string(inStateRunes[idx+1:])
-		err := ac.redisClient.ZScore(ctx, pKey, nextState).Err()
+		_, err := ac.storage.ZScore(ctx, pKey, nextState)
 		if err == redis.Nil {
 			idx++
 			continue
@@ -86,7 +82,7 @@ func (ac *AhoCorasick) failWithContext(ctx context.Context, inState string) (str
 
 func (ac *AhoCorasick) outputWithContext(ctx context.Context, inState string) ([]string, error) {
 	oKey := outputKey(ac.name, inState)
-	oKeywords, err := ac.redisClient.SMembers(ctx, oKey).Result()
+	oKeywords, err := ac.storage.SMembers(ctx, oKey)
 	if err != nil {
 		return nil, err
 	}
@@ -99,17 +95,17 @@ func (ac *AhoCorasick) buildTrieWithContext(ctx context.Context, keyword string)
 		prefix := string(keywordRunes[:idx+1])
 		suffix := utils.Reverse(prefix)
 
-		ac.logger.Printf("_buildTrie(%s) > Prefix(%s) Suffix(%s)", keyword, prefix, suffix)
+		ac.logger.Printf("buildTrie(%s) > Prefix(%s) Suffix(%s)", keyword, prefix, suffix)
 
 		pKey := prefixKey(ac.name)
-		err := ac.redisClient.ZScore(ctx, pKey, prefix).Err()
+		_, err := ac.storage.ZScore(ctx, pKey, prefix)
 		if err == redis.Nil {
 			sKey := suffixKey(ac.name)
-			pMember := &redis.Z{Score: memberScore, Member: prefix}
-			sMember := &redis.Z{Score: memberScore, Member: suffix}
-			if _, pipeErr := ac.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-				pipe.ZAdd(ctx, pKey, pMember)
-				pipe.ZAdd(ctx, sKey, sMember)
+			pMember := &Z{Score: memberScore, Member: prefix}
+			sMember := &Z{Score: memberScore, Member: suffix}
+			if pipeErr := ac.storage.TxPipelined(ctx, func(pipe Pipeliner) error {
+				_ = pipe.ZAdd(ctx, pKey, pMember)
+				_ = pipe.ZAdd(ctx, sKey, sMember)
 				return nil
 			}); pipeErr != nil {
 				return pipeErr
@@ -127,11 +123,11 @@ func (ac *AhoCorasick) buildTrieWithContext(ctx context.Context, keyword string)
 			return err
 		} else {
 			kKey := keywordKey(ac.name)
-			kExists, err := ac.redisClient.SIsMember(ctx, kKey, prefix).Result()
+			kExists, err := ac.storage.SIsMember(ctx, kKey, prefix)
 			if err != nil {
 				return err
 			}
-			ac.logger.Printf("_buildTrie(%s) > SISMEMBER key(%s) member(%v) : Exist(%t)", keyword, kKey, prefix, kExists)
+			ac.logger.Printf("buildTrie(%s) > SISMEMBER key(%s) member(%v) : Exist(%t)", keyword, kKey, prefix, kExists)
 			if kExists {
 				if rebuildErr := ac.rebuildOutputWithContext(ctx, suffix); rebuildErr != nil {
 					return rebuildErr
@@ -147,7 +143,7 @@ func (ac *AhoCorasick) rebuildOutputWithContext(ctx context.Context, suffix stri
 	var sKeywords []string
 
 	sKey := suffixKey(ac.name)
-	sZRank, err := ac.redisClient.ZRank(ctx, sKey, suffix).Result()
+	sZRank, err := ac.storage.ZRank(ctx, sKey, suffix)
 	if err == redis.Nil {
 		return nil
 	}
@@ -155,12 +151,12 @@ func (ac *AhoCorasick) rebuildOutputWithContext(ctx context.Context, suffix stri
 		return err
 	}
 
-	sKeywords, err = ac.redisClient.ZRange(ctx, sKey, sZRank, sZRank).Result()
+	sKeywords, err = ac.storage.ZRange(ctx, sKey, sZRank, sZRank)
 	if err != nil {
 		return err
 	}
 	for len(sKeywords) > 0 {
-		ac.logger.Printf("_rebuildOutput(%s) > Key(%s) ZRank(%d) Keywords(%s)", suffix, sKey, sZRank, sKeywords)
+		ac.logger.Printf("rebuildOutput(%s) > Key(%s) ZRank(%d) Keywords(%v)", suffix, sKey, sZRank, sKeywords)
 
 		sKeyword := sKeywords[0]
 		if strings.HasPrefix(sKeyword, suffix) {
@@ -173,7 +169,7 @@ func (ac *AhoCorasick) rebuildOutputWithContext(ctx context.Context, suffix stri
 		}
 
 		sZRank++
-		sKeywords, err = ac.redisClient.ZRange(ctx, sKey, sZRank, sZRank).Result()
+		sKeywords, err = ac.storage.ZRange(ctx, sKey, sZRank, sZRank)
 		if err != nil {
 			return err
 		}
@@ -186,7 +182,7 @@ func (ac *AhoCorasick) buildOutputWithContext(ctx context.Context, state string)
 	outputs := make([]string, 0)
 
 	kKey := keywordKey(ac.name)
-	kExists, err := ac.redisClient.SIsMember(ctx, kKey, state).Result()
+	kExists, err := ac.storage.SIsMember(ctx, kKey, state)
 	if err != nil {
 		return err
 	}
@@ -212,11 +208,11 @@ func (ac *AhoCorasick) buildOutputWithContext(ctx context.Context, state string)
 		for i, v := range outputs {
 			args[i] = v
 		}
-		if _, pipeErr := ac.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-			pipe.SAdd(ctx, oKey, args...)
+		if pipeErr := ac.storage.TxPipelined(ctx, func(pipe Pipeliner) error {
+			_ = pipe.SAdd(ctx, oKey, args...)
 			for _, output := range outputs {
 				nKey := nodeKey(ac.name, output)
-				pipe.SAdd(ctx, nKey, state)
+				_ = pipe.SAdd(ctx, nKey, state)
 			}
 			return nil
 		}); pipeErr != nil {
@@ -234,7 +230,7 @@ func (ac *AhoCorasick) pruneTrieWithContext(ctx context.Context, keyword string)
 		suffix := utils.Reverse(prefix)
 
 		kKey := keywordKey(ac.name)
-		kExists, err := ac.redisClient.SIsMember(ctx, kKey, prefix).Result()
+		kExists, err := ac.storage.SIsMember(ctx, kKey, prefix)
 		if err != nil {
 			return err
 		}
@@ -243,7 +239,7 @@ func (ac *AhoCorasick) pruneTrieWithContext(ctx context.Context, keyword string)
 		}
 
 		pKey := prefixKey(ac.name)
-		pZRank, err := ac.redisClient.ZRank(ctx, pKey, prefix).Result()
+		pZRank, err := ac.storage.ZRank(ctx, pKey, prefix)
 		if err == redis.Nil {
 			break
 		}
@@ -251,7 +247,7 @@ func (ac *AhoCorasick) pruneTrieWithContext(ctx context.Context, keyword string)
 			return err
 		}
 
-		pKeywords, err := ac.redisClient.ZRange(ctx, pKey, pZRank+1, pZRank+1).Result()
+		pKeywords, err := ac.storage.ZRange(ctx, pKey, pZRank+1, pZRank+1)
 		if err != nil {
 			return err
 		}
@@ -269,18 +265,18 @@ func (ac *AhoCorasick) pruneTrieWithContext(ctx context.Context, keyword string)
 
 func (ac *AhoCorasick) removePrefixAndSuffixWithContext(ctx context.Context, keyword, prefix, suffix string) error {
 	pKey := prefixKey(ac.name)
-	pRemovedCount, err := ac.redisClient.ZRem(ctx, pKey, prefix).Result()
+	err := ac.storage.ZRem(ctx, pKey, prefix)
 	if err != nil {
 		return err
 	}
-	ac.logger.Printf("Remove(%s) > ZREM key(%s) : Count(%d)", keyword, pKey, pRemovedCount)
+	ac.logger.Printf("Remove(%s) > ZREM key(%s)", keyword, pKey)
 
 	sKey := suffixKey(ac.name)
-	sRemovedCount, err := ac.redisClient.ZRem(ctx, sKey, suffix).Result()
+	err = ac.storage.ZRem(ctx, sKey, suffix)
 	if err != nil {
 		return err
 	}
-	ac.logger.Printf("Remove(%s) > ZREM key(%s) : Count(%d)", keyword, sKey, sRemovedCount)
+	ac.logger.Printf("Remove(%s) > ZREM key(%s)", keyword, sKey)
 
 	return nil
 }

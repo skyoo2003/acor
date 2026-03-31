@@ -48,10 +48,12 @@ func NewTracer(cfg *Config) (*Tracer, error) {
 		return nil, err
 	}
 
-	res, err := resource.Merge(
-		resource.Default(),
-		resource.NewWithAttributes(
-			semconv.SchemaURL,
+	res, err := resource.New(
+		ctx,
+		resource.WithFromEnv(),
+		resource.WithHost(),
+		resource.WithTelemetrySDK(),
+		resource.WithAttributes(
 			semconv.ServiceName(cfg.ServiceName),
 		),
 	)
