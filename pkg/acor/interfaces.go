@@ -134,6 +134,8 @@ type Indexer interface {
 	AddMany(keywords []string, opts *BatchOptions) (*BatchResult, error)
 	// Remove deletes a single keyword.
 	Remove(keyword string) (int, error)
-	// RemoveMany deletes multiple keywords with batch options.
-	RemoveMany(keywords []string, opts *BatchOptions) (*BatchResult, error)
+	// RemoveMany deletes multiple keywords.
+	RemoveMany(keywords []string) (*BatchResult, error)
+	// RemoveManyWithOptions deletes multiple keywords with batch options.
+	RemoveManyWithOptions(keywords []string, opts *BatchOptions) (*BatchResult, error)
 }

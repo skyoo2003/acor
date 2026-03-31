@@ -68,10 +68,11 @@ func (ac *AhoCorasick) addManyTransactional(ctx context.Context, keywords []stri
 	added := make([]string, 0)
 	seen := make(map[string]bool)
 
+	rollbackCtx := context.WithoutCancel(ctx)
 	for _, keyword := range keywords {
 		keyword = strings.TrimSpace(keyword)
 		if keyword == "" {
-			ac.rollbackAdded(ctx, added)
+			ac.rollbackAdded(rollbackCtx, added)
 			return nil, ErrEmptyKeyword
 		}
 
@@ -83,7 +84,7 @@ func (ac *AhoCorasick) addManyTransactional(ctx context.Context, keywords []stri
 
 		count, err := ac.ops.add(ctx, keyword)
 		if err != nil {
-			ac.rollbackAdded(ctx, added)
+			ac.rollbackAdded(rollbackCtx, added)
 			return nil, err
 		}
 
@@ -129,21 +130,21 @@ func (ac *AhoCorasick) rollbackAdded(ctx context.Context, keywords []string) {
 
 // RemoveMany removes multiple keywords from the Aho-Corasick automaton.
 // This is more efficient than calling Remove repeatedly for large keyword sets.
-//
-// The opts parameter controls error handling behavior:
-//   - nil or BatchModeBestEffort: continues on errors, returns partial results
-//   - BatchModeTransactional: rolls back on first error
-//
-// Duplicate keywords in the input are skipped and recorded in BatchResult.Skipped.
+// Uses best-effort mode by default. Use RemoveManyWithOptions for batch mode control.
 //
 // Example:
 //
-//	result, err := ac.RemoveMany([]string{"foo", "bar"}, nil)
+//	result, err := ac.RemoveMany([]string{"foo", "bar"})
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
 //	fmt.Printf("Removed %d keywords\n", len(result.Removed))
-func (ac *AhoCorasick) RemoveMany(keywords []string, opts *BatchOptions) (*BatchResult, error) {
+func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
+	return ac.RemoveManyContext(ac.ctx, keywords, nil)
+}
+
+// RemoveManyWithOptions removes multiple keywords with batch options.
+func (ac *AhoCorasick) RemoveManyWithOptions(keywords []string, opts *BatchOptions) (*BatchResult, error) {
 	return ac.RemoveManyContext(ac.ctx, keywords, opts)
 }
 
@@ -185,10 +186,11 @@ func (ac *AhoCorasick) removeManyTransactional(ctx context.Context, keywords []s
 	removed := make([]string, 0)
 	seen := make(map[string]bool)
 
+	rollbackCtx := context.WithoutCancel(ctx)
 	for _, keyword := range keywords {
 		keyword = strings.TrimSpace(keyword)
 		if keyword == "" {
-			ac.rollbackRemoved(ctx, removed)
+			ac.rollbackRemoved(rollbackCtx, removed)
 			return nil, ErrEmptyKeyword
 		}
 
@@ -200,7 +202,7 @@ func (ac *AhoCorasick) removeManyTransactional(ctx context.Context, keywords []s
 
 		_, err := ac.ops.remove(ctx, keyword)
 		if err != nil {
-			ac.rollbackRemoved(ctx, removed)
+			ac.rollbackRemoved(rollbackCtx, removed)
 			return nil, err
 		}
 

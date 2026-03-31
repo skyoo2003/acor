@@ -210,7 +210,7 @@ func (o *v1Operations) flush(ctx context.Context) error {
 	if err != nil {
 		return newRedisError("SMEMBERS", kKey, err)
 	}
-	o.logger.Println(fmt.Sprintf("Flush() > SMEMBERS Key(%s) : Members(%s)", kKey, keywords))
+	o.logger.Println(fmt.Sprintf("Flush() > SMEMBERS Key(%s) : Members(%v)", kKey, keywords))
 
 	bgCtx := context.Background()
 	for _, keyword := range keywords {

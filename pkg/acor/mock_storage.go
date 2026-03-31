@@ -802,16 +802,31 @@ func (mr *MockIndexerMockRecorder) Remove(keyword any) *gomock.Call {
 }
 
 // RemoveMany mocks base method.
-func (m *MockIndexer) RemoveMany(keywords []string, opts *BatchOptions) (*BatchResult, error) {
+func (m *MockIndexer) RemoveMany(keywords []string) (*BatchResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RemoveMany", keywords, opts)
+	ret := m.ctrl.Call(m, "RemoveMany", keywords)
 	ret0, _ := ret[0].(*BatchResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // RemoveMany indicates an expected call of RemoveMany.
-func (mr *MockIndexerMockRecorder) RemoveMany(keywords any, opts any) *gomock.Call {
+func (mr *MockIndexerMockRecorder) RemoveMany(keywords any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMany", reflect.TypeOf((*MockIndexer)(nil).RemoveMany), keywords, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMany", reflect.TypeOf((*MockIndexer)(nil).RemoveMany), keywords)
+}
+
+// RemoveManyWithOptions mocks base method.
+func (m *MockIndexer) RemoveManyWithOptions(keywords []string, opts *BatchOptions) (*BatchResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveManyWithOptions", keywords, opts)
+	ret0, _ := ret[0].(*BatchResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemoveManyWithOptions indicates an expected call of RemoveManyWithOptions.
+func (mr *MockIndexerMockRecorder) RemoveManyWithOptions(keywords any, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveManyWithOptions", reflect.TypeOf((*MockIndexer)(nil).RemoveManyWithOptions), keywords, opts)
 }

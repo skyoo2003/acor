@@ -110,11 +110,12 @@ func (ac *AhoCorasick) FindParallelContext(ctx context.Context, text string, opt
 		return []string{}, nil
 	}
 	if len(chunks) == 1 {
-		return ac.ops.find(ctx, text)
+		return ac.FindContext(ctx, text)
 	}
 
 	results, errors := runStringWorkersCtx(ctx, ac, chunks, opts.Workers)
 	allMatches, err := collectOrderedStringResults(results, errors)
+
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +134,7 @@ func (ac *AhoCorasick) FindIndexParallelContext(ctx context.Context, text string
 		return map[string][]int{}, nil
 	}
 	if len(chunks) == 1 {
-		return ac.ops.findIndex(ctx, text)
+		return ac.FindIndexContext(ctx, text)
 	}
 
 	results, errors := runIndexWorkersCtx(ctx, ac, chunks, opts.Workers)

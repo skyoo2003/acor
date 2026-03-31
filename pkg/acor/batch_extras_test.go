@@ -88,7 +88,7 @@ func TestRemoveManyBestEffortWithError(t *testing.T) {
 
 	mr2.Close()
 
-	result, err := ac.RemoveMany([]string{"he"}, &BatchOptions{Mode: BatchModeBestEffort})
+	result, err := ac.RemoveManyWithOptions([]string{"he"}, &BatchOptions{Mode: BatchModeBestEffort})
 	if err != nil {
 		t.Fatalf("best-effort should not return error: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestRemoveManyTransactionalWithDuplicates(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, err := ac.RemoveMany([]string{"he", "he", "her"}, &BatchOptions{Mode: BatchModeTransactional})
+	result, err := ac.RemoveManyWithOptions([]string{"he", "he", "her"}, &BatchOptions{Mode: BatchModeTransactional})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,7 +337,7 @@ func TestAddManyBestEffortDuplicateInput(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, err := ac.RemoveMany([]string{"he", "", "him"}, &BatchOptions{Mode: BatchModeBestEffort})
+	result, err := ac.RemoveManyWithOptions([]string{"he", "", "him"}, &BatchOptions{Mode: BatchModeBestEffort})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -359,7 +359,7 @@ func TestRemoveManyTransactionalWithEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := ac.RemoveMany([]string{"he", "", "him"}, &BatchOptions{Mode: BatchModeTransactional})
+	_, err := ac.RemoveManyWithOptions([]string{"he", "", "him"}, &BatchOptions{Mode: BatchModeTransactional})
 	if !errors.Is(err, ErrEmptyKeyword) {
 		t.Fatalf("expected ErrEmptyKeyword, got %v", err)
 	}
@@ -1012,7 +1012,7 @@ func TestRemoveManyTransactionalDuplicate(t *testing.T) {
 
 	_, _ = ac.Add("he")
 
-	result, err := ac.RemoveMany([]string{"he", "he"}, &BatchOptions{Mode: BatchModeTransactional})
+	result, err := ac.RemoveManyWithOptions([]string{"he", "he"}, &BatchOptions{Mode: BatchModeTransactional})
 	if err != nil {
 		t.Fatalf("RemoveMany transactional error: %v", err)
 	}

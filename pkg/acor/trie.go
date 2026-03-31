@@ -156,7 +156,7 @@ func (ac *AhoCorasick) rebuildOutputWithContext(ctx context.Context, suffix stri
 		return err
 	}
 	for len(sKeywords) > 0 {
-		ac.logger.Printf("rebuildOutput(%s) > Key(%s) ZRank(%d) Keywords(%s)", suffix, sKey, sZRank, sKeywords)
+		ac.logger.Printf("rebuildOutput(%s) > Key(%s) ZRank(%d) Keywords(%v)", suffix, sKey, sZRank, sKeywords)
 
 		sKeyword := sKeywords[0]
 		if strings.HasPrefix(sKeyword, suffix) {

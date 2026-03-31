@@ -398,6 +398,7 @@ func (ac *AhoCorasick) Close() error {
 		alreadyClosed = false
 		ac.stopCacheListener()
 		closeErr = ac.storage.Close()
+		ac.storage = nil
 	})
 	if alreadyClosed {
 		return ErrRedisAlreadyClosed
@@ -495,14 +496,14 @@ func (ac *AhoCorasick) debugV1() {
 	fmt.Println("-", outputs)
 
 	nodes := make([]string, 0)
-	for _, keyword := range kMembers {
-		nKey := nodeKey(ac.name, keyword)
-		nKeywords, err := ac.storage.SMembers(ac.ctx, nKey)
+	for _, kw := range kMembers {
+		nKey := nodeKey(ac.name, kw)
+		nodeMembers, err := ac.storage.SMembers(ac.ctx, nKey)
 		if err != nil {
 			fmt.Println("-", err)
 			continue
 		}
-		nodes = append(nodes, nKeywords...)
+		nodes = append(nodes, nodeMembers...)
 	}
 	fmt.Println("-", nodes)
 }
