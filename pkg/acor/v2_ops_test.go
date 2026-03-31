@@ -2,6 +2,8 @@ package acor
 
 import (
 	"context"
+	"io"
+	"log"
 	"testing"
 
 	redis "github.com/go-redis/redis/v8"
@@ -12,11 +14,20 @@ func TestV2Find(t *testing.T) {
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer func() { _ = client.Close() }()
 
+	storage := newRedisStorage(client)
 	ac := &AhoCorasick{
 		redisClient:   client,
+		storage:       storage,
 		ctx:           context.Background(),
 		name:          "test",
 		schemaVersion: SchemaV2,
+	}
+	ac.ops = &v2Operations{
+		storage: storage,
+		client:  client,
+		name:    "test",
+		ctx:     ac.ctx,
+		logger:  log.New(io.Discard, "", 0),
 	}
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
@@ -47,12 +58,12 @@ func TestV2Find(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got, err := ac.findV2(tt.input)
+			got, err := ac.ops.find(context.Background(), tt.input)
 			if err != nil {
-				t.Fatalf("findV2() error: %v", err)
+				t.Fatalf("ops.find() error: %v", err)
 			}
 			if !equalStringSlices(got, tt.expected) {
-				t.Errorf("findV2(%q) = %v, want %v", tt.input, got, tt.expected)
+				t.Errorf("ops.find(%q) = %v, want %v", tt.input, got, tt.expected)
 			}
 		})
 	}

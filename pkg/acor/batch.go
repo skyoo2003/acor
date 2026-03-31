@@ -1,6 +1,7 @@
 package acor
 
 import (
+	"context"
 	"strings"
 	"sync"
 )
@@ -22,24 +23,10 @@ import (
 //	}
 //	fmt.Printf("Added %d, Failed %d\n", len(result.Added), len(result.Failed))
 func (ac *AhoCorasick) AddMany(keywords []string, opts *BatchOptions) (*BatchResult, error) {
-	if opts == nil {
-		opts = &BatchOptions{Mode: BatchModeBestEffort}
-	}
-
-	result := &BatchResult{
-		Added:   make([]string, 0),
-		Removed: make([]string, 0),
-		Failed:  make([]KeywordError, 0),
-		Skipped: make([]string, 0),
-	}
-
-	if opts.Mode == BatchModeTransactional {
-		return ac.addManyTransactional(keywords, result)
-	}
-	return ac.addManyBestEffort(keywords, result)
+	return ac.AddManyContext(ac.ctx, keywords, opts)
 }
 
-func (ac *AhoCorasick) addManyBestEffort(keywords []string, result *BatchResult) (*BatchResult, error) {
+func (ac *AhoCorasick) addManyBestEffort(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
 	seen := make(map[string]bool)
 
 	for _, keyword := range keywords {
@@ -58,7 +45,7 @@ func (ac *AhoCorasick) addManyBestEffort(keywords []string, result *BatchResult)
 		}
 		seen[keyword] = true
 
-		count, err := ac.Add(keyword)
+		count, err := ac.ops.add(ctx, keyword)
 		if err != nil {
 			result.Failed = append(result.Failed, KeywordError{
 				Keyword: keyword,
@@ -77,14 +64,15 @@ func (ac *AhoCorasick) addManyBestEffort(keywords []string, result *BatchResult)
 	return result, nil
 }
 
-func (ac *AhoCorasick) addManyTransactional(keywords []string, result *BatchResult) (*BatchResult, error) {
+func (ac *AhoCorasick) addManyTransactional(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
 	added := make([]string, 0)
 	seen := make(map[string]bool)
 
+	rollbackCtx := context.WithoutCancel(ctx)
 	for _, keyword := range keywords {
 		keyword = strings.TrimSpace(keyword)
 		if keyword == "" {
-			ac.rollbackAdded(added)
+			ac.rollbackAdded(rollbackCtx, added)
 			return nil, ErrEmptyKeyword
 		}
 
@@ -94,9 +82,9 @@ func (ac *AhoCorasick) addManyTransactional(keywords []string, result *BatchResu
 		}
 		seen[keyword] = true
 
-		count, err := ac.Add(keyword)
+		count, err := ac.ops.add(ctx, keyword)
 		if err != nil {
-			ac.rollbackAdded(added)
+			ac.rollbackAdded(rollbackCtx, added)
 			return nil, err
 		}
 
@@ -111,7 +99,7 @@ func (ac *AhoCorasick) addManyTransactional(keywords []string, result *BatchResu
 	return result, nil
 }
 
-func (ac *AhoCorasick) rollbackAdded(keywords []string) {
+func (ac *AhoCorasick) rollbackAdded(ctx context.Context, keywords []string) {
 	if len(keywords) == 0 {
 		return
 	}
@@ -132,7 +120,7 @@ func (ac *AhoCorasick) rollbackAdded(keywords []string) {
 				<-sem
 				wg.Done()
 			}()
-			if _, err := ac.Remove(k); err != nil && ac.logger != nil {
+			if _, err := ac.ops.remove(ctx, k); err != nil && ac.logger != nil {
 				ac.logger.Printf("rollback: failed to remove %q: %v", k, err)
 			}
 		}(keyword)
@@ -142,7 +130,7 @@ func (ac *AhoCorasick) rollbackAdded(keywords []string) {
 
 // RemoveMany removes multiple keywords from the Aho-Corasick automaton.
 // This is more efficient than calling Remove repeatedly for large keyword sets.
-// Empty keywords and duplicates in the input are silently skipped.
+// Uses best-effort mode by default. Use RemoveManyWithOptions for batch mode control.
 //
 // Example:
 //
@@ -152,18 +140,24 @@ func (ac *AhoCorasick) rollbackAdded(keywords []string) {
 //	}
 //	fmt.Printf("Removed %d keywords\n", len(result.Removed))
 func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
-	result := &BatchResult{
-		Added:   make([]string, 0),
-		Removed: make([]string, 0),
-		Failed:  make([]KeywordError, 0),
-		Skipped: make([]string, 0),
-	}
+	return ac.RemoveManyContext(ac.ctx, keywords, nil)
+}
 
+// RemoveManyWithOptions removes multiple keywords with batch options.
+func (ac *AhoCorasick) RemoveManyWithOptions(keywords []string, opts *BatchOptions) (*BatchResult, error) {
+	return ac.RemoveManyContext(ac.ctx, keywords, opts)
+}
+
+func (ac *AhoCorasick) removeManyBestEffort(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
 	seen := make(map[string]bool)
 
 	for _, keyword := range keywords {
 		keyword = strings.TrimSpace(keyword)
 		if keyword == "" {
+			result.Failed = append(result.Failed, KeywordError{
+				Keyword: keyword,
+				Error:   ErrEmptyKeyword,
+			})
 			continue
 		}
 
@@ -173,7 +167,7 @@ func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
 		}
 		seen[keyword] = true
 
-		_, err := ac.Remove(keyword)
+		_, err := ac.ops.remove(ctx, keyword)
 		if err != nil {
 			result.Failed = append(result.Failed, KeywordError{
 				Keyword: keyword,
@@ -188,6 +182,66 @@ func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
 	return result, nil
 }
 
+func (ac *AhoCorasick) removeManyTransactional(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
+	removed := make([]string, 0)
+	seen := make(map[string]bool)
+
+	rollbackCtx := context.WithoutCancel(ctx)
+	for _, keyword := range keywords {
+		keyword = strings.TrimSpace(keyword)
+		if keyword == "" {
+			ac.rollbackRemoved(rollbackCtx, removed)
+			return nil, ErrEmptyKeyword
+		}
+
+		if seen[keyword] {
+			result.Skipped = append(result.Skipped, keyword)
+			continue
+		}
+		seen[keyword] = true
+
+		_, err := ac.ops.remove(ctx, keyword)
+		if err != nil {
+			ac.rollbackRemoved(rollbackCtx, removed)
+			return nil, err
+		}
+
+		removed = append(removed, keyword)
+	}
+
+	result.Removed = removed
+	return result, nil
+}
+
+func (ac *AhoCorasick) rollbackRemoved(ctx context.Context, keywords []string) {
+	if len(keywords) == 0 {
+		return
+	}
+
+	maxWorkers := 10
+	if len(keywords) < maxWorkers {
+		maxWorkers = len(keywords)
+	}
+
+	sem := make(chan struct{}, maxWorkers)
+	var wg sync.WaitGroup
+
+	for _, keyword := range keywords {
+		sem <- struct{}{}
+		wg.Add(1)
+		go func(k string) {
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
+			if _, err := ac.ops.add(ctx, k); err != nil && ac.logger != nil {
+				ac.logger.Printf("rollback: failed to re-add %q: %v", k, err)
+			}
+		}(keyword)
+	}
+	wg.Wait()
+}
+
 // FindMany searches for keywords in multiple texts and returns a map of text to matches.
 // This is convenient when you need to match against many texts at once.
 //
@@ -200,15 +254,5 @@ func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
 //	results, err := ac.FindMany([]string{"hello world", "goodbye world"})
 //	// results["hello world"] contains matches in that text
 func (ac *AhoCorasick) FindMany(texts []string) (map[string][]string, error) {
-	results := make(map[string][]string)
-
-	for _, text := range texts {
-		matches, err := ac.Find(text)
-		if err != nil {
-			return nil, err
-		}
-		results[text] = matches
-	}
-
-	return results, nil
+	return ac.FindManyContext(ac.ctx, texts)
 }

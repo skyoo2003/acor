@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://skyoo2003.github.io/acor/
+    about: Check the documentation before opening an issue.
+  - name: Security Policy
+    url: https://github.com/skyoo2003/acor/security/advisories/new
+    about: Please use the private disclosure path for vulnerabilities.

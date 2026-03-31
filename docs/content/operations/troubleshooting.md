@@ -86,7 +86,7 @@ opts := &acor.ParallelOptions{
 ```go
 opts := &acor.ParallelOptions{
     Workers:       4,
-    ChunkBoundary: acor.ChunkWord,
+    Boundary: acor.ChunkBoundaryWord,
     ChunkSize:     100, // Smaller chunks
 }
 ```

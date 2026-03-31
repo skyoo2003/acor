@@ -37,7 +37,7 @@ func TestGoWithContext(t *testing.T) {
 		t.Errorf("expected empty state for non-existent prefix, got %s", nextState)
 	}
 
-	if buildErr := ac._buildTrie("ab"); buildErr != nil {
+	if buildErr := ac.buildTrie("ab"); buildErr != nil {
 		t.Fatal(buildErr)
 	}
 
@@ -351,29 +351,35 @@ func TestWrapperMethodsUseContext(t *testing.T) {
 	}
 	defer func() { _ = ac.Close() }()
 
-	if buildErr := ac._buildTrie("test"); buildErr != nil {
-		t.Errorf("_buildTrie wrapper failed: %v", buildErr)
+	if buildErr := ac.buildTrie("test"); buildErr != nil {
+		t.Errorf("buildTrie wrapper failed: %v", buildErr)
 	}
 
-	nextState, err := ac._go("", 't')
+	nextState, err := ac.gotoNode("", 't')
 	if err != nil {
-		t.Errorf("_go wrapper failed: %v", err)
+		t.Errorf("gotoNode wrapper failed: %v", err)
 	}
 	if nextState != "t" {
 		t.Errorf("expected state 't', got %s", nextState)
 	}
 
-	failState, err := ac._fail("test")
+	failState, err := ac.failNode("test")
 	if err != nil {
-		t.Errorf("_fail wrapper failed: %v", err)
+		t.Errorf("failNode wrapper failed: %v", err)
 	}
-	_ = failState
+	// Verify failState is non-empty (actual value depends on trie structure)
+	if failState == "" {
+		t.Error("failNode() returned empty state, expected non-empty")
+	}
 
-	outputs, err := ac._output("test")
+	outputs, err := ac.collectOutputs("test")
 	if err != nil {
-		t.Errorf("_output wrapper failed: %v", err)
+		t.Errorf("collectOutputs wrapper failed: %v", err)
 	}
-	_ = outputs
+	// Verify outputs is non-nil (can be empty if node has no outputs)
+	if outputs == nil {
+		t.Error("collectOutputs() returned nil, expected non-nil slice")
+	}
 
 	matched := make(map[string][]int)
 	ac.appendMatchedIndexes(matched, []string{"test"}, 4)

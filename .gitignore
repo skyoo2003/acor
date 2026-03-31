@@ -12,3 +12,8 @@
 /docs/specs/
 /.worktrees/
 .DS_Store
+/coverage.out
+/coverage.html
+acor.test
+cov*.out
+coverage*.out

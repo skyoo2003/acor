@@ -15,7 +15,7 @@ Batch operations reduce network round-trips by grouping multiple operations toge
 
 ```go
 result, err := ac.AddMany([]string{"he", "her", "him", "his"}, &acor.BatchOptions{
-    Mode: acor.Transactional,
+    Mode: acor.BatchModeTransactional,
 })
 if err != nil {
     panic(err)
@@ -32,7 +32,7 @@ Rolls back all changes if any error occurs:
 
 ```go
 result, err := ac.AddMany(keywords, &acor.BatchOptions{
-    Mode: acor.Transactional,
+    Mode: acor.BatchModeTransactional,
 })
 ```
 
@@ -42,7 +42,7 @@ Continues on errors and returns partial results:
 
 ```go
 result, err := ac.AddMany(keywords, &acor.BatchOptions{
-    Mode: acor.BestEffort,
+    Mode: acor.BatchModeBestEffort,
 })
 ```
 
@@ -82,8 +82,8 @@ type BatchResult struct {
 ## Performance Tips
 
 1. Use batch sizes between 100-1000 keywords
-2. Use `Transactional` mode when data consistency is critical
-3. Use `BestEffort` mode when partial success is acceptable
+2. Use `BatchModeTransactional` when data consistency is critical
+3. Use `BatchModeBestEffort` when partial success is acceptable
 
 ## Next Steps
 

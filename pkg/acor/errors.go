@@ -22,6 +22,9 @@ var (
 	// ErrStreamInterrupted is returned when stream processing is interrupted
 	// before completion.
 	ErrStreamInterrupted = errors.New("stream processing was interrupted")
+	// ErrCacheRequiresV2 is returned when cache is enabled with V1 schema.
+	// Cache functionality requires V2 schema for Pub/Sub invalidation support.
+	ErrCacheRequiresV2 = errors.New("local cache requires V2 schema")
 )
 
 // OperationError represents an error that occurred during an automaton operation.

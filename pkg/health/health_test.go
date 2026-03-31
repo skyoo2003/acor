@@ -81,3 +81,62 @@ func TestHTTPHandlers(t *testing.T) {
 		}
 	})
 }
+
+func TestHTTPHandlersWrongMethod(t *testing.T) {
+	checker := NewChecker()
+	mux := http.NewServeMux()
+	RegisterHTTPHandlers(mux, checker)
+
+	t.Run("healthz wrong method", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), "POST", "/healthz", http.NoBody)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Errorf("expected %d, got %d", http.StatusMethodNotAllowed, rec.Code)
+		}
+	})
+
+	t.Run("readyz wrong method", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), "POST", "/readyz", http.NoBody)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Errorf("expected %d, got %d", http.StatusMethodNotAllowed, rec.Code)
+		}
+	})
+}
+
+func TestHTTPHandlersReadyzUnhealthy(t *testing.T) {
+	checker := NewChecker()
+	checker.Register("db", &mockChecker{healthy: false, latency: 1})
+	mux := http.NewServeMux()
+	RegisterHTTPHandlers(mux, checker)
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/readyz", http.NoBody)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected %d, got %d", http.StatusServiceUnavailable, rec.Code)
+	}
+}
+
+func TestCheckerEmpty(t *testing.T) {
+	checker := NewChecker()
+	result := checker.Check()
+	if result.Status != StatusHealthy {
+		t.Errorf("empty checker should be healthy, got %s", result.Status)
+	}
+}
+
+func TestCheckerMultiple(t *testing.T) {
+	checker := NewChecker()
+	checker.Register("healthy", &mockChecker{healthy: true, latency: 1})
+	checker.Register("unhealthy", &mockChecker{healthy: false, latency: 2})
+	result := checker.Check()
+	if result.Status != StatusUnhealthy {
+		t.Errorf("expected unhealthy when any check fails, got %s", result.Status)
+	}
+	if len(result.Checks) != 2 {
+		t.Errorf("expected 2 checks, got %d", len(result.Checks))
+	}
+}

@@ -5,6 +5,8 @@ import (
 	"testing"
 )
 
+const testKeywordHim = "him"
+
 func TestAddManyBestEffort(t *testing.T) {
 	ac, mr := createAhoCorasick(t)
 	defer mr.Close()
@@ -168,11 +170,11 @@ func TestRemoveMany(t *testing.T) {
 		t.Errorf("expected 2 removed, got %d", len(result.Removed))
 	}
 
-	results, err := ac.Find("him")
+	results, err := ac.Find(testKeywordHim)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 1 || results[0] != "him" {
+	if len(results) != 1 || results[0] != testKeywordHim {
 		t.Error("expected 'him' to remain")
 	}
 }
@@ -197,6 +199,126 @@ func TestRemoveManyWithDuplicates(t *testing.T) {
 	}
 	if len(result.Skipped) != 1 {
 		t.Errorf("expected 1 skipped duplicate, got %d", len(result.Skipped))
+	}
+}
+
+func TestRemoveManyBestEffort(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	if _, err := ac.AddMany([]string{"he", "her", "him"}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := ac.RemoveManyWithOptions([]string{"he", "", "him"}, &BatchOptions{Mode: BatchModeBestEffort})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Removed) != 2 {
+		t.Errorf("expected 2 removed, got %d", len(result.Removed))
+	}
+	if !equalStringSets(result.Removed, []string{"he", "him"}) {
+		t.Fatalf("unexpected removed set: %v", result.Removed)
+	}
+	if len(result.Failed) != 1 {
+		t.Fatalf("expected 1 failed, got %d", len(result.Failed))
+	}
+	if result.Failed[0].Keyword != "" {
+		t.Errorf("expected failed keyword '', got %q", result.Failed[0].Keyword)
+	}
+	if !errors.Is(result.Failed[0].Error, ErrEmptyKeyword) {
+		t.Errorf("expected ErrEmptyKeyword, got %v", result.Failed[0].Error)
+	}
+}
+
+func TestRemoveManyNilOpts(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	if _, err := ac.AddMany([]string{"he", "her", "him"}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := ac.RemoveMany([]string{"he", "", "her"})
+	if err != nil {
+		t.Fatalf("nil opts should default to best-effort, got error: %v", err)
+	}
+
+	if !equalStringSets(result.Removed, []string{"he", "her"}) {
+		t.Fatalf("best-effort should continue on all keywords, got: %v", result.Removed)
+	}
+	if len(result.Failed) != 1 {
+		t.Fatalf("expected 1 failed, got %d", len(result.Failed))
+	}
+	if result.Failed[0].Keyword != "" || !errors.Is(result.Failed[0].Error, ErrEmptyKeyword) {
+		t.Fatalf("unexpected failed entry: %+v", result.Failed[0])
+	}
+
+	results, findErr := ac.Find(testKeywordHim)
+	if findErr != nil {
+		t.Fatal(findErr)
+	}
+	if len(results) != 1 || results[0] != testKeywordHim {
+		t.Error("expected 'him' to remain")
+	}
+}
+
+func TestRemoveManyTransactional(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	if _, err := ac.AddMany([]string{"he", "her", "him"}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := ac.RemoveManyWithOptions([]string{"he", "her"}, &BatchOptions{Mode: BatchModeTransactional})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Removed) != 2 {
+		t.Errorf("expected 2 removed, got %d", len(result.Removed))
+	}
+
+	results, err := ac.Find(testKeywordHim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0] != testKeywordHim {
+		t.Error("expected 'him' to remain")
+	}
+}
+
+func TestRemoveManyTransactionalRollbackOnError(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	if _, err := ac.AddMany([]string{"he", "her", "him"}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := ac.RemoveManyWithOptions([]string{"he", "", "him"}, &BatchOptions{Mode: BatchModeTransactional})
+	if !errors.Is(err, ErrEmptyKeyword) {
+		t.Fatalf("expected ErrEmptyKeyword, got %v", err)
+	}
+
+	for _, kw := range []string{"he", "her", "him"} {
+		results, findErr := ac.Find(kw)
+		if findErr != nil {
+			t.Fatal(findErr)
+		}
+		if !containsAll(results, kw) {
+			t.Errorf("expected rollback to restore %q, got %v", kw, results)
+		}
 	}
 }
 
