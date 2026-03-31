@@ -379,3 +379,13 @@ func TestCreate_V2WithCache_Succeeds(t *testing.T) {
 		t.Error("expected cache to be initialized with V2 schema")
 	}
 }
+
+func TestNormalizeAddrsDeduplicates(t *testing.T) {
+	result := normalizeAddrs("  localhost:6379  ", []string{"localhost:6379", "  localhost:6379"})
+	if len(result) != 1 {
+		t.Fatalf("expected 1 unique addr, got %d: %v", len(result), result)
+	}
+	if result[0] != "localhost:6379" {
+		t.Fatalf("expected localhost:6379, got %s", result[0])
+	}
+}
