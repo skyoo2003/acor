@@ -17,10 +17,18 @@ func setupV1WithError(t *testing.T) *AhoCorasick {
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 
 	// Seed some V1 data so operations can start before the server closes
-	client.SAdd(context.Background(), keywordKey("test"), "he", "she")
-	client.ZAdd(context.Background(), prefixKey("test"), &redis.Z{Score: 0, Member: "h"}, &redis.Z{Score: 1, Member: "s"})
-	client.SAdd(context.Background(), nodeKey("test", "he"), "he")
-	client.SAdd(context.Background(), outputKey("test", "he"), "he")
+	if err := client.SAdd(context.Background(), keywordKey("test"), "he", "she").Err(); err != nil {
+		t.Fatalf("failed to seed keywords: %v", err)
+	}
+	if err := client.ZAdd(context.Background(), prefixKey("test"), &redis.Z{Score: 0, Member: "h"}, &redis.Z{Score: 1, Member: "s"}).Err(); err != nil {
+		t.Fatalf("failed to seed prefixes: %v", err)
+	}
+	if err := client.SAdd(context.Background(), nodeKey("test", "he"), "he").Err(); err != nil {
+		t.Fatalf("failed to seed node: %v", err)
+	}
+	if err := client.SAdd(context.Background(), outputKey("test", "he"), "he").Err(); err != nil {
+		t.Fatalf("failed to seed output: %v", err)
+	}
 
 	storage := newRedisStorage(client)
 	ac := &AhoCorasick{

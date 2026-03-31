@@ -449,6 +449,10 @@ func TestGRPCServerWithObservability(t *testing.T) {
 	grpcServer := NewGRPCServerWithObservability(service, obs)
 	defer grpcServer.Stop()
 
+	if _, ok := grpcServer.GetServiceInfo()["grpc.health.v1.Health"]; !ok {
+		t.Fatal("expected gRPC health service to be registered")
+	}
+
 	go func() {
 		_ = grpcServer.Serve(lis)
 	}()
@@ -492,6 +496,10 @@ func TestGRPCServerWithNilObservability(t *testing.T) {
 	lis := bufconn.Listen(testBufSize)
 	grpcServer := NewGRPCServerWithObservability(service, nil)
 	defer grpcServer.Stop()
+
+	if _, ok := grpcServer.GetServiceInfo()["grpc.health.v1.Health"]; ok {
+		t.Fatal("did not expect gRPC health service to be registered with nil observability")
+	}
 
 	go func() {
 		_ = grpcServer.Serve(lis)

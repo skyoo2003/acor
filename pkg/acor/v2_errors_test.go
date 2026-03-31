@@ -16,16 +16,20 @@ func setupV2WithError(t *testing.T) *AhoCorasick {
 	mr := createTestRedisServer(t)
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 
-	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
+	if err := client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
 		"keywords": `["he","she"]`,
 		"prefixes": `["","h","he","s","sh","she"]`,
 		"suffixes": `["","e","eh","s","hs","ehs"]`,
 		"version":  "100",
-	})
-	client.HSet(context.Background(), "{test}:outputs", map[string]interface{}{
+	}).Err(); err != nil {
+		t.Fatalf("failed to seed trie data: %v", err)
+	}
+	if err := client.HSet(context.Background(), "{test}:outputs", map[string]interface{}{
 		"he":  `["he"]`,
 		"she": `["he","she"]`,
-	})
+	}).Err(); err != nil {
+		t.Fatalf("failed to seed output data: %v", err)
+	}
 
 	storage := newRedisStorage(client)
 	ac := &AhoCorasick{

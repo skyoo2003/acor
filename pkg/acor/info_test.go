@@ -127,8 +127,12 @@ func TestV1V2Compatibility(t *testing.T) {
 	}
 
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	_ = client.ZAdd(context.Background(), "{v1test}:prefix", &redis.Z{Score: 0, Member: ""}).Err()
-	_ = client.Close()
+	if err := client.ZAdd(context.Background(), "{v1test}:prefix", &redis.Z{Score: 0, Member: ""}).Err(); err != nil {
+		t.Fatalf("failed to seed V1 prefix: %v", err)
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("failed to close seed client: %v", err)
+	}
 
 	args := &AhoCorasickArgs{Addr: mr.Addr(), Name: "v1test", SchemaVersion: SchemaV1}
 	acV1, err := Create(args)
