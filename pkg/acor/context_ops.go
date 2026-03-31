@@ -114,16 +114,11 @@ func (ac *AhoCorasick) FindParallelContext(ctx context.Context, text string, opt
 	}
 
 	results, errors := runStringWorkersCtx(ctx, ac, chunks, opts.Workers)
-	allMatches, err := collectStringResults(results, errors)
+	allMatches, err := collectOrderedStringResults(results, errors)
 	if err != nil {
 		return nil, err
 	}
-
-	unique := make([]string, 0, len(allMatches))
-	for m := range allMatches {
-		unique = append(unique, m)
-	}
-	return unique, nil
+	return allMatches, nil
 }
 
 // FindIndexParallelContext searches for keywords with indices using parallel processing with context.

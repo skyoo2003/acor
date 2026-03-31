@@ -94,22 +94,30 @@ func normalizeParallelOptions(opts *ParallelOptions) *ParallelOptions {
 }
 
 //nolint:gocritic // Returns channels for concurrent result collection
-func runStringWorkers(ac *AhoCorasick, chunks []chunk, workers int) (<-chan []string, <-chan error) {
+func runStringWorkers(ac *AhoCorasick, chunks []chunk, workers int) (<-chan indexedStringResult, <-chan error) {
 	return runStringWorkersCtx(ac.ctx, ac, chunks, workers)
 }
 
 //nolint:gocritic // Returns channels for concurrent result collection
-func runStringWorkersCtx(ctx context.Context, ac *AhoCorasick, chunks []chunk, workers int) (<-chan []string, <-chan error) {
-	results := make(chan []string, len(chunks))
+func runStringWorkersCtx(ctx context.Context, ac *AhoCorasick, chunks []chunk, workers int) (<-chan indexedStringResult, <-chan error) {
+	results := make(chan indexedStringResult, len(chunks))
 	errors := make(chan error, len(chunks))
 
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, workers)
 
-	for _, c := range chunks {
+	for i, c := range chunks {
+		select {
+		case <-ctx.Done():
+			wg.Wait()
+			close(results)
+			close(errors)
+			return results, errors
+		default:
+		}
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(c chunk) {
+		go func(i int, c chunk) {
 			defer func() { <-sem }()
 			defer wg.Done()
 			matches, err := ac.ops.find(ctx, c.text)
@@ -117,8 +125,8 @@ func runStringWorkersCtx(ctx context.Context, ac *AhoCorasick, chunks []chunk, w
 				errors <- err
 				return
 			}
-			results <- matches
-		}(c)
+			results <- indexedStringResult{matches: matches, chunkIndex: i}
+		}(i, c)
 	}
 
 	go func() {
@@ -130,8 +138,9 @@ func runStringWorkersCtx(ctx context.Context, ac *AhoCorasick, chunks []chunk, w
 	return results, errors
 }
 
-func collectStringResults(results <-chan []string, errors <-chan error) (map[string]struct{}, error) {
-	allMatches := make(map[string]struct{})
+// collectOrderedStringResults collects matches preserving chunk order and multiplicity.
+func collectOrderedStringResults(results <-chan indexedStringResult, errors <-chan error) ([]string, error) {
+	var allChunkResults []indexedStringResult
 	var firstErr error
 
 	resultsOpen, errorsOpen := true, true
@@ -146,15 +155,22 @@ func collectStringResults(results <-chan []string, errors <-chan error) (map[str
 			if firstErr == nil {
 				firstErr = err
 			}
-		case matches, ok := <-results:
+		case res, ok := <-results:
 			if !ok {
 				resultsOpen = false
 				continue
 			}
-			for _, m := range matches {
-				allMatches[m] = struct{}{}
-			}
+			allChunkResults = append(allChunkResults, res)
 		}
+	}
+
+	sort.Slice(allChunkResults, func(i, j int) bool {
+		return allChunkResults[i].chunkIndex < allChunkResults[j].chunkIndex
+	})
+
+	var allMatches []string
+	for _, r := range allChunkResults {
+		allMatches = append(allMatches, r.matches...)
 	}
 
 	return allMatches, firstErr
@@ -193,21 +209,21 @@ func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]strin
 	}
 
 	results, errors := runStringWorkers(ac, chunks, opts.Workers)
-	allMatches, err := collectStringResults(results, errors)
+	allMatches, err := collectOrderedStringResults(results, errors)
 	if err != nil {
 		return nil, err
 	}
-
-	unique := make([]string, 0, len(allMatches))
-	for m := range allMatches {
-		unique = append(unique, m)
-	}
-	return unique, nil
+	return allMatches, nil
 }
 
 type indexedResult struct {
 	matches map[string][]int
 	offset  int
+}
+
+type indexedStringResult struct {
+	matches    []string
+	chunkIndex int
 }
 
 //nolint:gocritic // Returns channels for concurrent result collection
@@ -224,6 +240,14 @@ func runIndexWorkersCtx(ctx context.Context, ac *AhoCorasick, chunks []chunk, wo
 	sem := make(chan struct{}, workers)
 
 	for _, c := range chunks {
+		select {
+		case <-ctx.Done():
+			wg.Wait()
+			close(results)
+			close(errors)
+			return results, errors
+		default:
+		}
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(c chunk) {
