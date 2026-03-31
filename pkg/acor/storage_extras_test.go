@@ -10,6 +10,8 @@ import (
 )
 
 func TestRedisStorageSetNX(t *testing.T) {
+	const testValue = "value"
+
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
@@ -20,7 +22,7 @@ func TestRedisStorageSetNX(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("sets new key successfully", func(t *testing.T) {
-		ok, err := store.SetNX(ctx, "test-key", "value", 10*time.Second)
+		ok, err := store.SetNX(ctx, "test-key", testValue, 10*time.Second)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -32,8 +34,8 @@ func TestRedisStorageSetNX(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Get() error: %v", err)
 		}
-		if got != "value" {
-			t.Errorf("Get() = %q, want %q", got, "value")
+		if got != testValue {
+			t.Errorf("Get() = %q, want %q", got, testValue)
 		}
 	})
 
@@ -50,8 +52,8 @@ func TestRedisStorageSetNX(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Get() error: %v", err)
 		}
-		if got != "value" {
-			t.Errorf("Get() = %q, want %q", got, "value")
+		if got != testValue {
+			t.Errorf("Get() = %q, want %q", got, testValue)
 		}
 	})
 
@@ -264,7 +266,7 @@ func TestRedisStorageExists(t *testing.T) {
 		t.Errorf("expected 0 existing, got %d", count)
 	}
 
-	if err := store.Set(ctx, "key1", "val"); err != nil {
+	if setErr := store.Set(ctx, "key1", "val"); setErr != nil {
 		t.Fatal(err)
 	}
 
@@ -380,7 +382,7 @@ func TestRedisStorageZOperations(t *testing.T) {
 		t.Errorf("ZCard = %d, want 2", card)
 	}
 
-	if err := store.ZRem(ctx, "zset", "a"); err != nil {
+	if remErr := store.ZRem(ctx, "zset", "a"); remErr != nil {
 		t.Fatal(err)
 	}
 

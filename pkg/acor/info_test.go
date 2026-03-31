@@ -91,12 +91,10 @@ func TestV2KeyHelpers(t *testing.T) {
 }
 
 func TestInfoSuggestAndSuggestIndexReturnErrorsWhenRedisUnavailable(t *testing.T) {
-	const input = "he"
-
 	ac, mr := createAhoCorasickV1(t)
 	defer func() { _ = ac.Close() }()
 
-	if _, err := ac.Add(input); err != nil {
+	if _, err := ac.Add(testKeywordHE); err != nil {
 		t.Fatal(err)
 	}
 
@@ -105,10 +103,10 @@ func TestInfoSuggestAndSuggestIndexReturnErrorsWhenRedisUnavailable(t *testing.T
 	if _, err := ac.Info(); err == nil {
 		t.Fatal("expected info to return an error")
 	}
-	if _, err := ac.Suggest(input); err == nil {
+	if _, err := ac.Suggest(testKeywordHE); err == nil {
 		t.Fatal("expected suggest to return an error")
 	}
-	if _, err := ac.SuggestIndex(input); err == nil {
+	if _, err := ac.SuggestIndex(testKeywordHE); err == nil {
 		t.Fatal("expected suggest index to return an error")
 	}
 }

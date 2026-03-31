@@ -11,6 +11,8 @@ import (
 	redis "github.com/go-redis/redis/v8"
 )
 
+const testMigrationLockKey = "{test}:migration_lock"
+
 func TestAddManyBestEffortWithEmpty(t *testing.T) {
 	ac, mr := createAhoCorasick(t)
 	defer mr.Close()
@@ -43,15 +45,15 @@ func TestAddManyBestEffortSkipped(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	keywords := []string{"he", "him"}
+	keywords := []string{testKeywordHE, testKeywordHim}
 	result, err := ac.AddMany(keywords, &BatchOptions{Mode: BatchModeBestEffort})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Skipped) != 1 || result.Skipped[0] != "he" {
+	if len(result.Skipped) != 1 || result.Skipped[0] != testKeywordHE {
 		t.Errorf("expected he to be skipped, got %v", result.Skipped)
 	}
-	if len(result.Added) != 1 || result.Added[0] != "him" {
+	if len(result.Added) != 1 || result.Added[0] != testKeywordHim {
 		t.Errorf("expected him to be added, got %v", result.Added)
 	}
 }
@@ -183,9 +185,9 @@ func TestBatchResultFields(t *testing.T) {
 }
 
 func TestKeywordErrorStruct(t *testing.T) {
-	ke := KeywordError{Keyword: "test", Error: ErrEmptyKeyword}
-	if ke.Keyword != "test" {
-		t.Errorf("Keyword = %q, want %q", ke.Keyword, "test")
+	ke := KeywordError{Keyword: testKeywordTest, Error: ErrEmptyKeyword}
+	if ke.Keyword != testKeywordTest {
+		t.Errorf("Keyword = %q, want %q", ke.Keyword, testKeywordTest)
 	}
 	if !errors.Is(ke.Error, ErrEmptyKeyword) {
 		t.Errorf("Error = %v, want ErrEmptyKeyword", ke.Error)
@@ -193,12 +195,12 @@ func TestKeywordErrorStruct(t *testing.T) {
 }
 
 func TestSplitChunksSmallText(t *testing.T) {
-	chunks := splitChunks("hello", &ParallelOptions{ChunkSize: 100})
+	chunks := splitChunks(testKeywordHello, &ParallelOptions{ChunkSize: 100})
 	if len(chunks) != 1 {
 		t.Fatalf("expected 1 chunk for small text, got %d", len(chunks))
 	}
-	if chunks[0].text != "hello" {
-		t.Errorf("chunk text = %q, want %q", chunks[0].text, "hello")
+	if chunks[0].text != testKeywordHello {
+		t.Errorf("chunk text = %q, want %q", chunks[0].text, testKeywordHello)
 	}
 }
 
@@ -455,8 +457,8 @@ func TestCreateWithDebug(t *testing.T) {
 	}
 	defer func() { _ = ac.Close() }()
 
-	if _, err := ac.Add("hello"); err != nil {
-		t.Fatal(err)
+	if _, addErr := ac.Add("hello"); addErr != nil {
+		t.Fatal(addErr)
 	}
 
 	matched, err := ac.Find("hello world")
@@ -636,8 +638,8 @@ func TestV1Info(t *testing.T) {
 		t.Errorf("empty Info().Keywords = %d, want 0", info.Keywords)
 	}
 
-	if _, err := ac.Add("hello"); err != nil {
-		t.Fatal(err)
+	if _, addErr := ac.Add("hello"); addErr != nil {
+		t.Fatal(addErr)
 	}
 
 	info, err = ac.Info()
@@ -780,8 +782,8 @@ func TestMigrationConstants(t *testing.T) {
 func TestMigrationLockKey(t *testing.T) {
 	ac := &AhoCorasick{name: "test"}
 	key := ac.migrationLockKey()
-	if key != "{test}:migration_lock" {
-		t.Errorf("migrationLockKey() = %q, want {test}:migration_lock", key)
+	if key != testMigrationLockKey {
+		t.Errorf("migrationLockKey() = %q, want %q", key, testMigrationLockKey)
 	}
 }
 
@@ -990,7 +992,7 @@ func TestMigrationInProgress(t *testing.T) {
 
 func TestRemoveManyBestEffortError(t *testing.T) {
 	ac, _ := createAhoCorasick(t)
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -1000,13 +1002,13 @@ func TestRemoveManyBestEffortError(t *testing.T) {
 		t.Fatalf("best-effort should not return error, got: %v", err)
 	}
 	if len(result.Failed) == 0 {
-		t.Error("expected some failed removals in best-effort mode with cancelled context")
+		t.Error("expected some failed removals in best-effort mode with canceled context")
 	}
 }
 
 func TestRemoveManyTransactionalDuplicate(t *testing.T) {
 	ac, _ := createAhoCorasick(t)
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	_, _ = ac.Add("he")
 
@@ -1021,14 +1023,14 @@ func TestRemoveManyTransactionalDuplicate(t *testing.T) {
 
 func TestRemoveManyTransactionalError(t *testing.T) {
 	ac, _ := createAhoCorasick(t)
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	_, err := ac.RemoveManyContext(ctx, []string{"keyword1"}, &BatchOptions{Mode: BatchModeTransactional})
 	if err == nil {
-		t.Fatal("expected error from cancelled context in RemoveMany transactional")
+		t.Fatal("expected error from canceled context in RemoveMany transactional")
 	}
 }
 
@@ -1083,7 +1085,7 @@ func TestTryAddV2OnNonV2Ops(t *testing.T) {
 		},
 	}
 
-	_, err := ac.tryAddV2(context.Background(), "he")
+	err := ac.tryAddV2(context.Background(), "he")
 	if err == nil {
 		t.Fatal("expected error when tryAddV2 called on non-v2 ops")
 	}
@@ -1110,7 +1112,7 @@ func TestTryRemoveV2OnNonV2Ops(t *testing.T) {
 		},
 	}
 
-	_, err := ac.tryRemoveV2(context.Background(), "he")
+	err := ac.tryRemoveV2(context.Background(), "he")
 	if err == nil {
 		t.Fatal("expected error when tryRemoveV2 called on non-v2 ops")
 	}
@@ -1289,7 +1291,7 @@ func TestV2InfoBadPrefixesJSON(t *testing.T) {
 
 func TestAddManyBestEffortError(t *testing.T) {
 	ac, _ := createAhoCorasick(t)
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -1299,7 +1301,7 @@ func TestAddManyBestEffortError(t *testing.T) {
 		t.Fatalf("best-effort should not return error, got: %v", err)
 	}
 	if len(result.Failed) == 0 {
-		t.Error("expected some failed adds in best-effort mode with cancelled context")
+		t.Error("expected some failed adds in best-effort mode with canceled context")
 	}
 }
 
@@ -1335,14 +1337,14 @@ func TestRollbackAddedWithLogger(t *testing.T) {
 
 func TestFindManyContextError(t *testing.T) {
 	ac, _ := createAhoCorasick(t)
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	_, err := ac.FindManyContext(ctx, []string{"hello world"})
 	if err == nil {
-		t.Fatal("expected error from cancelled context in FindManyContext")
+		t.Fatal("expected error from canceled context in FindManyContext")
 	}
 }
 
@@ -1542,7 +1544,7 @@ func TestV2SuggestIndexError(t *testing.T) {
 
 func TestRollbackAddedEmpty(t *testing.T) {
 	ac, _ := createAhoCorasick(t)
-	defer ac.Close()
+	defer func() { _ = ac.Close() }()
 
 	ac.rollbackAdded(context.Background(), []string{})
 }

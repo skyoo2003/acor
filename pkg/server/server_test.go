@@ -26,6 +26,7 @@ const (
 	inputHEHE   = "hehe"
 	statusOK    = "ok"
 	testBufSize = 1024 * 1024
+	codecName   = "acor-json"
 )
 
 type fakeService struct {
@@ -616,144 +617,121 @@ func TestHandlersWithInterceptor(t *testing.T) {
 		return handler(ctx, req)
 	}
 
-	t.Run("add", func(t *testing.T) {
-		capturedMethod = ""
-		resp, err := addHandler(api, context.Background(), func(v interface{}) error {
-			v.(*KeywordRequest).Keyword = keywordHE
-			return nil
-		}, interceptor)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if resp.(*CountResponse).Count != 1 {
-			t.Fatalf("expected count 1, got %d", resp.(*CountResponse).Count)
-		}
-		if capturedMethod != GRPCMethodAdd {
-			t.Fatalf("expected method %q, got %q", GRPCMethodAdd, capturedMethod)
-		}
-	})
+	for _, tt := range interceptorTests {
+		t.Run(tt.name, func(t *testing.T) {
+			capturedMethod = ""
+			resp, err := tt.handler(api, context.Background(), tt.decoder, interceptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tt.check(t, resp)
+			if capturedMethod != tt.wantMethod {
+				t.Fatalf("expected method %q, got %q", tt.wantMethod, capturedMethod)
+			}
+		})
+	}
+}
 
-	t.Run("remove", func(t *testing.T) {
-		capturedMethod = ""
-		resp, err := removeHandler(api, context.Background(), func(v interface{}) error {
-			v.(*KeywordRequest).Keyword = keywordHE
-			return nil
-		}, interceptor)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if resp.(*CountResponse).Count != 2 {
-			t.Fatalf("expected count 2, got %d", resp.(*CountResponse).Count)
-		}
-		if capturedMethod != GRPCMethodRemove {
-			t.Fatalf("expected method %q, got %q", GRPCMethodRemove, capturedMethod)
-		}
-	})
-
-	t.Run("find", func(t *testing.T) {
-		capturedMethod = ""
-		resp, err := findHandler(api, context.Background(), func(v interface{}) error {
-			v.(*InputRequest).Input = inputHEHE
-			return nil
-		}, interceptor)
-		if err != nil {
-			t.Fatal(err)
-		}
-		matches := resp.(*MatchesResponse).Matches
-		if len(matches) != 1 || matches[0] != keywordHE {
-			t.Fatalf("unexpected matches %v", matches)
-		}
-		if capturedMethod != GRPCMethodFind {
-			t.Fatalf("expected method %q, got %q", GRPCMethodFind, capturedMethod)
-		}
-	})
-
-	t.Run("findIndex", func(t *testing.T) {
-		capturedMethod = ""
-		resp, err := findIndexHandler(api, context.Background(), func(v interface{}) error {
-			v.(*InputRequest).Input = inputHEHE
-			return nil
-		}, interceptor)
-		if err != nil {
-			t.Fatal(err)
-		}
-		matches := resp.(*MatchIndexesResponse).Matches
-		if len(matches) != 1 {
-			t.Fatalf("unexpected matches %v", matches)
-		}
-		if capturedMethod != GRPCMethodFindIndex {
-			t.Fatalf("expected method %q, got %q", GRPCMethodFindIndex, capturedMethod)
-		}
-	})
-
-	t.Run("suggest", func(t *testing.T) {
-		capturedMethod = ""
-		resp, err := suggestHandler(api, context.Background(), func(v interface{}) error {
-			v.(*InputRequest).Input = keywordHE
-			return nil
-		}, interceptor)
-		if err != nil {
-			t.Fatal(err)
-		}
-		matches := resp.(*MatchesResponse).Matches
-		if len(matches) != 1 || matches[0] != keywordHE {
-			t.Fatalf("unexpected matches %v", matches)
-		}
-		if capturedMethod != GRPCMethodSuggest {
-			t.Fatalf("expected method %q, got %q", GRPCMethodSuggest, capturedMethod)
-		}
-	})
-
-	t.Run("suggestIndex", func(t *testing.T) {
-		capturedMethod = ""
-		resp, err := suggestIndexHandler(api, context.Background(), func(v interface{}) error {
-			v.(*InputRequest).Input = keywordHE
-			return nil
-		}, interceptor)
-		if err != nil {
-			t.Fatal(err)
-		}
-		matches := resp.(*MatchIndexesResponse).Matches
-		if len(matches) != 1 {
-			t.Fatalf("unexpected matches %v", matches)
-		}
-		if capturedMethod != GRPCMethodSuggestIndex {
-			t.Fatalf("expected method %q, got %q", GRPCMethodSuggestIndex, capturedMethod)
-		}
-	})
-
-	t.Run("info", func(t *testing.T) {
-		capturedMethod = ""
-		resp, err := infoHandler(api, context.Background(), func(v interface{}) error {
-			return nil
-		}, interceptor)
-		if err != nil {
-			t.Fatal(err)
-		}
-		info := resp.(*InfoResponse)
-		if info.Keywords != 3 || info.Nodes != 4 {
-			t.Fatalf("unexpected info %+v", info)
-		}
-		if capturedMethod != GRPCMethodInfo {
-			t.Fatalf("expected method %q, got %q", GRPCMethodInfo, capturedMethod)
-		}
-	})
-
-	t.Run("flush", func(t *testing.T) {
-		capturedMethod = ""
-		resp, err := flushHandler(api, context.Background(), func(v interface{}) error {
-			return nil
-		}, interceptor)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if resp.(*StatusResponse).Status != statusOK {
-			t.Fatalf("expected status %q, got %q", statusOK, resp.(*StatusResponse).Status)
-		}
-		if capturedMethod != GRPCMethodFlush {
-			t.Fatalf("expected method %q, got %q", GRPCMethodFlush, capturedMethod)
-		}
-	})
+var interceptorTests = []struct {
+	name       string
+	handler    grpc.MethodHandler
+	decoder    func(interface{}) error
+	check      func(t *testing.T, resp interface{})
+	wantMethod string
+}{
+	{
+		name:    "add",
+		handler: addHandler,
+		decoder: func(v interface{}) error { v.(*KeywordRequest).Keyword = keywordHE; return nil },
+		check: func(t *testing.T, resp interface{}) {
+			if resp.(*CountResponse).Count != 1 {
+				t.Fatalf("expected count 1, got %d", resp.(*CountResponse).Count)
+			}
+		},
+		wantMethod: GRPCMethodAdd,
+	},
+	{
+		name:    "remove",
+		handler: removeHandler,
+		decoder: func(v interface{}) error { v.(*KeywordRequest).Keyword = keywordHE; return nil },
+		check: func(t *testing.T, resp interface{}) {
+			if resp.(*CountResponse).Count != 2 {
+				t.Fatalf("expected count 2, got %d", resp.(*CountResponse).Count)
+			}
+		},
+		wantMethod: GRPCMethodRemove,
+	},
+	{
+		name:    "find",
+		handler: findHandler,
+		decoder: func(v interface{}) error { v.(*InputRequest).Input = inputHEHE; return nil },
+		check: func(t *testing.T, resp interface{}) {
+			matches := resp.(*MatchesResponse).Matches
+			if len(matches) != 1 || matches[0] != keywordHE {
+				t.Fatalf("unexpected matches %v", matches)
+			}
+		},
+		wantMethod: GRPCMethodFind,
+	},
+	{
+		name:    "findIndex",
+		handler: findIndexHandler,
+		decoder: func(v interface{}) error { v.(*InputRequest).Input = inputHEHE; return nil },
+		check: func(t *testing.T, resp interface{}) {
+			matches := resp.(*MatchIndexesResponse).Matches
+			if len(matches) != 1 {
+				t.Fatalf("unexpected matches %v", matches)
+			}
+		},
+		wantMethod: GRPCMethodFindIndex,
+	},
+	{
+		name:    "suggest",
+		handler: suggestHandler,
+		decoder: func(v interface{}) error { v.(*InputRequest).Input = keywordHE; return nil },
+		check: func(t *testing.T, resp interface{}) {
+			matches := resp.(*MatchesResponse).Matches
+			if len(matches) != 1 || matches[0] != keywordHE {
+				t.Fatalf("unexpected matches %v", matches)
+			}
+		},
+		wantMethod: GRPCMethodSuggest,
+	},
+	{
+		name:    "suggestIndex",
+		handler: suggestIndexHandler,
+		decoder: func(v interface{}) error { v.(*InputRequest).Input = keywordHE; return nil },
+		check: func(t *testing.T, resp interface{}) {
+			matches := resp.(*MatchIndexesResponse).Matches
+			if len(matches) != 1 {
+				t.Fatalf("unexpected matches %v", matches)
+			}
+		},
+		wantMethod: GRPCMethodSuggestIndex,
+	},
+	{
+		name:    "info",
+		handler: infoHandler,
+		decoder: func(v interface{}) error { return nil },
+		check: func(t *testing.T, resp interface{}) {
+			info := resp.(*InfoResponse)
+			if info.Keywords != 3 || info.Nodes != 4 {
+				t.Fatalf("unexpected info %+v", info)
+			}
+		},
+		wantMethod: GRPCMethodInfo,
+	},
+	{
+		name:    "flush",
+		handler: flushHandler,
+		decoder: func(v interface{}) error { return nil },
+		check: func(t *testing.T, resp interface{}) {
+			if resp.(*StatusResponse).Status != statusOK {
+				t.Fatalf("expected status %q, got %q", statusOK, resp.(*StatusResponse).Status)
+			}
+		},
+		wantMethod: GRPCMethodFlush,
+	},
 }
 
 func TestHandlersDecoderError(t *testing.T) {
@@ -790,8 +768,9 @@ func TestHandlersInterceptorError(t *testing.T) {
 	api := NewAPI(&fakeService{})
 
 	interceptorErr := errors.New("interceptor failed")
-	errInterceptor := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		return nil, interceptorErr
+	var nilResp interface{}
+	errInterceptor := func(_ context.Context, _ interface{}, _ *grpc.UnaryServerInfo, _ grpc.UnaryHandler) (interface{}, error) {
+		return nilResp, interceptorErr
 	}
 
 	tests := []struct {
@@ -958,8 +937,8 @@ func TestJSONCodec(t *testing.T) {
 	codec := JSONCodec{}
 
 	t.Run("name", func(t *testing.T) {
-		if codec.Name() != "acor-json" {
-			t.Fatalf("expected name %q, got %q", "acor-json", codec.Name())
+		if codec.Name() != codecName {
+			t.Fatalf("expected name %q, got %q", codecName, codec.Name())
 		}
 	})
 

@@ -361,8 +361,6 @@ func TestAddUsesCollectionScopedKeys(t *testing.T) {
 }
 
 func TestAddRollsBackPartialTrieWrites(t *testing.T) {
-	const input = "he"
-
 	ac, mr := createAhoCorasickV1(t)
 	defer mr.Close()
 	defer func() { _ = ac.Close() }()
@@ -370,13 +368,13 @@ func TestAddRollsBackPartialTrieWrites(t *testing.T) {
 
 	hookErr := errors.New("forced build trie failure")
 	ac.buildTrieHook = func(prefix string) error {
-		if prefix == input {
+		if prefix == testKeywordHE {
 			return hookErr
 		}
 		return nil
 	}
 
-	addedCount, err := ac.Add(input)
+	addedCount, err := ac.Add(testKeywordHE)
 	if !errors.Is(err, hookErr) {
 		t.Fatalf("expected add to fail with hook error, got %v", err)
 	}
@@ -386,7 +384,7 @@ func TestAddRollsBackPartialTrieWrites(t *testing.T) {
 
 	ac.buildTrieHook = nil
 
-	results, err := ac.Find(input)
+	results, err := ac.Find(testKeywordHE)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -394,7 +392,7 @@ func TestAddRollsBackPartialTrieWrites(t *testing.T) {
 		t.Fatalf("expected no matches after rollback, got %v", results)
 	}
 
-	indexResults, err := ac.FindIndex(input)
+	indexResults, err := ac.FindIndex(testKeywordHE)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -409,12 +407,10 @@ func TestAddFailedReAddKeepsExistingKeywordState(t *testing.T) {
 	defer func() { _ = ac.Close() }()
 	defer func() { _ = ac.Flush() }()
 
-	// Add an initial keyword that should remain intact after a failed add.
-	if _, err := ac.Add("he"); err != nil {
+	if _, err := ac.Add(testKeywordHE); err != nil {
 		t.Fatal(err)
 	}
 
-	// Set up a hook that forces buildTrie to fail for a new keyword "hi".
 	hookErr := errors.New("forced buildTrie failure")
 	ac.buildTrieHook = func(prefix string) error {
 		if prefix == "hi" {
@@ -423,8 +419,6 @@ func TestAddFailedReAddKeepsExistingKeywordState(t *testing.T) {
 		return nil
 	}
 
-	// Adding "hi" should fail because buildTrie returns hookErr.
-	// The rollback should remove the partially-added "hi" keyword.
 	addedCount, err := ac.Add("hi")
 	if !errors.Is(err, hookErr) {
 		t.Fatalf("expected add to fail with hook error, got %v", err)
@@ -435,20 +429,19 @@ func TestAddFailedReAddKeepsExistingKeywordState(t *testing.T) {
 
 	ac.buildTrieHook = nil
 
-	// The original keyword "he" must still be findable.
-	results, err := ac.Find("he")
+	results, err := ac.Find(testKeywordHE)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 1 || results[0] != "he" {
+	if len(results) != 1 || results[0] != testKeywordHE {
 		t.Fatalf("expected existing keyword 'he' to remain after failed re-add, got %v", results)
 	}
 
-	indexResults, err := ac.FindIndex("he")
+	indexResults, err := ac.FindIndex(testKeywordHE)
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertIndexResults(t, indexResults, map[string][]int{"he": {0}})
+	assertIndexResults(t, indexResults, map[string][]int{testKeywordHE: {0}})
 }
 
 func TestCache_AddInvalidatesCache(t *testing.T) {

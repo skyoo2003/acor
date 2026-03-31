@@ -97,7 +97,7 @@ func TestV2TryAddRedisError(t *testing.T) {
 	ac := setupV2WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	_, err := ac.tryAddV2(context.Background(), "him")
+	err := ac.tryAddV2(context.Background(), "him")
 	assertRedisError(t, err, "HGETALL")
 }
 
@@ -105,7 +105,7 @@ func TestV2TryRemoveRedisError(t *testing.T) {
 	ac := setupV2WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	_, err := ac.tryRemoveV2(context.Background(), "he")
+	err := ac.tryRemoveV2(context.Background(), "he")
 	assertRedisError(t, err, "HGETALL")
 }
 

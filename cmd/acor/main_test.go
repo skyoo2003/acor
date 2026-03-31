@@ -12,6 +12,8 @@ import (
 const (
 	collectionNameSample = "sample"
 	commandFind          = "find"
+	testKeywordHello     = "hello"
+	testKeywordHE        = "he"
 )
 
 type fakeService struct {
@@ -125,7 +127,7 @@ func TestParseArgs(t *testing.T) {
 		"-db", "2",
 		"-name", collectionNameSample,
 		"-debug",
-		commandFind, "hello",
+		commandFind, testKeywordHello,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -149,7 +151,7 @@ func TestParseArgs(t *testing.T) {
 	if parsed.Password != "secret" || parsed.DB != 2 || parsed.Name != collectionNameSample || !parsed.Debug {
 		t.Fatalf("unexpected parsed args: %+v", parsed)
 	}
-	if len(remaining) != 2 || remaining[0] != commandFind || remaining[1] != "hello" {
+	if len(remaining) != 2 || remaining[0] != commandFind || remaining[1] != testKeywordHello {
 		t.Fatalf("unexpected remaining args: %v", remaining)
 	}
 }
@@ -183,7 +185,7 @@ func TestRunAddCommand(t *testing.T) {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
-	exitCode := run([]string{"-name", collectionNameSample, "add", "he"}, stdout, stderr, func(args *acor.AhoCorasickArgs) (service, error) {
+	exitCode := run([]string{"-name", collectionNameSample, "add", testKeywordHE}, stdout, stderr, func(args *acor.AhoCorasickArgs) (service, error) {
 		if args.Name != collectionNameSample {
 			t.Fatalf("expected collection name to be forwarded, got %q", args.Name)
 		}
@@ -196,7 +198,7 @@ func TestRunAddCommand(t *testing.T) {
 	if stdout.String() != "{\"count\":1}\n" {
 		t.Fatalf("unexpected stdout %q", stdout.String())
 	}
-	if fake.lastKeyword != "he" {
+	if fake.lastKeyword != testKeywordHE {
 		t.Fatalf("expected add to receive keyword, got %q", fake.lastKeyword)
 	}
 	if !fake.closed {
@@ -265,7 +267,7 @@ func TestRunReturnsServiceErrors(t *testing.T) {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
-	exitCode := run([]string{"find", "he"}, stdout, stderr, func(*acor.AhoCorasickArgs) (service, error) {
+	exitCode := run([]string{"find", testKeywordHE}, stdout, stderr, func(*acor.AhoCorasickArgs) (service, error) {
 		return fake, nil
 	})
 
@@ -282,15 +284,15 @@ func TestRunRemoveCommand(t *testing.T) {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
-	exitCode := run([]string{"-name", "test", "remove", "he"}, stdout, stderr, func(args *acor.AhoCorasickArgs) (service, error) {
+	exitCode := run([]string{"-name", "test", "remove", testKeywordHE}, stdout, stderr, func(args *acor.AhoCorasickArgs) (service, error) {
 		return fake, nil
 	})
 
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d with stderr %q", exitCode, stderr.String())
 	}
-	if fake.lastKeyword != "he" {
-		t.Fatalf("expected keyword %q, got %q", "he", fake.lastKeyword)
+	if fake.lastKeyword != testKeywordHE {
+		t.Fatalf("expected keyword %q, got %q", testKeywordHE, fake.lastKeyword)
 	}
 	if stdout.String() != "{\"count\":2}\n" {
 		t.Fatalf("unexpected stdout %q", stdout.String())
@@ -301,19 +303,19 @@ func TestRunRemoveCommand(t *testing.T) {
 }
 
 func TestRunFindIndexCommand(t *testing.T) {
-	fake := &fakeService{findIndexes: map[string][]int{"he": {0, 1}}}
+	fake := &fakeService{findIndexes: map[string][]int{testKeywordHE: {0, 1}}}
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
-	exitCode := run([]string{"find-index", "hello"}, stdout, stderr, func(*acor.AhoCorasickArgs) (service, error) {
+	exitCode := run([]string{"find-index", testKeywordHello}, stdout, stderr, func(*acor.AhoCorasickArgs) (service, error) {
 		return fake, nil
 	})
 
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d with stderr %q", exitCode, stderr.String())
 	}
-	if fake.lastInput != "hello" {
-		t.Fatalf("expected input %q, got %q", "hello", fake.lastInput)
+	if fake.lastInput != testKeywordHello {
+		t.Fatalf("expected input %q, got %q", testKeywordHello, fake.lastInput)
 	}
 	if stdout.String() != "{\"matches\":{\"he\":[0,1]}}\n" {
 		t.Fatalf("unexpected stdout %q", stdout.String())
@@ -321,7 +323,7 @@ func TestRunFindIndexCommand(t *testing.T) {
 }
 
 func TestRunSuggestCommand(t *testing.T) {
-	fake := &fakeService{suggestMatches: []string{"hello", "help"}}
+	fake := &fakeService{suggestMatches: []string{testKeywordHello, "help"}}
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
@@ -341,19 +343,19 @@ func TestRunSuggestCommand(t *testing.T) {
 }
 
 func TestRunSuggestIndexCommand(t *testing.T) {
-	fake := &fakeService{suggestIndexes: map[string][]int{"he": {0, 1}, "her": {0, 2}}}
+	fake := &fakeService{suggestIndexes: map[string][]int{testKeywordHE: {0, 1}, "her": {0, 2}}}
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
-	exitCode := run([]string{"suggest-index", "he"}, stdout, stderr, func(*acor.AhoCorasickArgs) (service, error) {
+	exitCode := run([]string{"suggest-index", testKeywordHE}, stdout, stderr, func(*acor.AhoCorasickArgs) (service, error) {
 		return fake, nil
 	})
 
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d with stderr %q", exitCode, stderr.String())
 	}
-	if fake.lastInput != "he" {
-		t.Fatalf("expected input %q, got %q", "he", fake.lastInput)
+	if fake.lastInput != testKeywordHE {
+		t.Fatalf("expected input %q, got %q", testKeywordHE, fake.lastInput)
 	}
 	if stdout.String() != "{\"matches\":{\"he\":[0,1],\"her\":[0,2]}}\n" {
 		t.Fatalf("unexpected stdout %q", stdout.String())
@@ -538,7 +540,12 @@ func TestParseRingAddrs(t *testing.T) {
 		{name: "empty string", input: "", want: nil, wantErr: false},
 		{name: "spaces only", input: "  ", want: nil, wantErr: false},
 		{name: "valid pair", input: "shard-1=localhost:7000", want: map[string]string{"shard-1": "localhost:7000"}, wantErr: false},
-		{name: "valid multiple pairs", input: "shard-1=localhost:7000,shard-2=localhost:7001", want: map[string]string{"shard-1": "localhost:7000", "shard-2": "localhost:7001"}, wantErr: false},
+		{
+			name:    "valid multiple pairs",
+			input:   "shard-1=localhost:7000,shard-2=localhost:7001",
+			want:    map[string]string{"shard-1": "localhost:7000", "shard-2": "localhost:7001"},
+			wantErr: false,
+		},
 		{name: "missing equals sign", input: "shard-1", want: nil, wantErr: true},
 		{name: "empty name", input: "=localhost:7000", want: nil, wantErr: true},
 		{name: "empty addr", input: "shard-1=", want: nil, wantErr: true},
@@ -636,7 +643,7 @@ func TestCommandArgument(t *testing.T) {
 		want     string
 		wantErr  bool
 	}{
-		{name: "needs arg with one arg", command: "find", args: []string{"hello"}, needsArg: true, want: "hello", wantErr: false},
+		{name: "needs arg with one arg", command: "find", args: []string{testKeywordHello}, needsArg: true, want: testKeywordHello, wantErr: false},
 		{name: "needs arg with no args", command: "find", args: []string{}, needsArg: true, want: "", wantErr: true},
 		{name: "needs arg with too many args", command: "find", args: []string{"a", "b"}, needsArg: true, want: "", wantErr: true},
 		{name: "no arg needed with no args", command: "info", args: []string{}, needsArg: false, want: "", wantErr: false},

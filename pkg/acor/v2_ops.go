@@ -276,18 +276,20 @@ func (o *v2Operations) computeOutputsV2(state string, prefixSet, keywordSet map[
 	return outputs
 }
 
-func (ac *AhoCorasick) tryAddV2(ctx context.Context, keyword string) (int, error) {
+func (ac *AhoCorasick) tryAddV2(ctx context.Context, keyword string) error {
 	v2Ops, ok := ac.ops.(*v2Operations)
 	if !ok {
-		return 0, fmt.Errorf("internal error: tryAddV2 called on non-v2 operations strategy")
+		return fmt.Errorf("internal error: tryAddV2 called on non-v2 operations strategy")
 	}
-	return v2Ops.tryAddV2(ctx, keyword)
+	_, err := v2Ops.tryAddV2(ctx, keyword)
+	return err
 }
 
-func (ac *AhoCorasick) tryRemoveV2(ctx context.Context, keyword string) (int, error) {
+func (ac *AhoCorasick) tryRemoveV2(ctx context.Context, keyword string) error {
 	v2Ops, ok := ac.ops.(*v2Operations)
 	if !ok {
-		return 0, fmt.Errorf("internal error: tryRemoveV2 called on non-v2 operations strategy")
+		return fmt.Errorf("internal error: tryRemoveV2 called on non-v2 operations strategy")
 	}
-	return v2Ops.tryRemoveV2(ctx, keyword)
+	_, err := v2Ops.tryRemoveV2(ctx, keyword)
+	return err
 }

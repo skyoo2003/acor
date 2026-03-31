@@ -8,6 +8,13 @@ import (
 	redis "github.com/go-redis/redis/v8"
 )
 
+// Shared test constants used across multiple test files.
+const (
+	testKeywordHE    = "he"
+	testKeywordTest  = "test"
+	testKeywordHello = "hello"
+)
+
 func createTestRedisServer(t *testing.T) *miniredis.Miniredis {
 	t.Helper()
 

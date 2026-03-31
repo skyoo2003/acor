@@ -62,28 +62,26 @@ func TestV2RemoveRetryContextCancellation(t *testing.T) {
 
 	_, err := ops.remove(ctx, "he")
 	if err == nil {
-		t.Fatal("expected error from cancelled context")
+		t.Fatal("expected error from canceled context")
 	}
 	if ctx.Err() == nil {
 		t.Fatal("expected context.Canceled or context.DeadlineExceeded")
 	}
 }
 
-func TestV2AddRetryContextCancellation(t *testing.T) {
+func TestV2OperationsAddCanceledContext(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
 	ops := newTestV2Ops(t, mr)
 	defer func() { _ = ops.client.Close() }()
 
-	seedV2Trie(t, mr, []string{"he", "she"})
-
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	_, err := ops.add(ctx, "him")
 	if err == nil {
-		t.Fatal("expected error from cancelled context")
+		t.Fatal("expected error from canceled context")
 	}
 	if ctx.Err() == nil {
 		t.Fatal("expected context.Canceled or context.DeadlineExceeded")
@@ -713,10 +711,6 @@ func TestV2LocalFindIndexWithLongText(t *testing.T) {
 
 func TestNewTrieCache(t *testing.T) {
 	cache := &trieCache{}
-	if cache == nil {
-		t.Fatal("&trieCache{} returned nil")
-	}
-
 	_, _, valid := cache.get()
 	if valid {
 		t.Error("new cache should not be valid")
@@ -1235,15 +1229,15 @@ func TestV2RemoveAllKeywords(t *testing.T) {
 
 	ctx := context.Background()
 
-	removed, err := ops.remove(ctx, "he")
+	_, err := ops.remove(ctx, "he")
 	if err != nil {
 		t.Fatal(err)
 	}
-	removed, err = ops.remove(ctx, "she")
+	_, err = ops.remove(ctx, "she")
 	if err != nil {
 		t.Fatal(err)
 	}
-	removed, err = ops.remove(ctx, "his")
+	removed, err := ops.remove(ctx, "his")
 	if err != nil {
 		t.Fatal(err)
 	}
