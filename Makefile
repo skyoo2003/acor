@@ -30,7 +30,8 @@ lint-fix:
 	@golangci-lint run --fix ./...
 
 fuzz:
-	@go test -fuzz=Fuzz -fuzztime=30s ./pkg/acor/...
+	@go test -fuzz=FuzzFind -fuzztime=30s ./pkg/acor
+	@go test -fuzz=FuzzAdd -fuzztime=30s ./pkg/acor
 
 race:
 	@go test -race ./...
