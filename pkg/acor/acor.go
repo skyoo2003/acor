@@ -460,15 +460,27 @@ func (ac *AhoCorasick) Debug() {
 
 func (ac *AhoCorasick) debugV1() {
 	kKey := keywordKey(ac.name)
-	kMembers, _ := ac.storage.SMembers(ac.ctx, kKey)
+	kMembers, err := ac.storage.SMembers(ac.ctx, kKey)
+	if err != nil {
+		fmt.Println("-", err)
+		return
+	}
 	fmt.Println("-", kMembers)
 
 	pKey := prefixKey(ac.name)
-	pMembers, _ := ac.storage.ZRange(ac.ctx, pKey, 0, -1)
+	pMembers, err := ac.storage.ZRange(ac.ctx, pKey, 0, -1)
+	if err != nil {
+		fmt.Println("-", err)
+		return
+	}
 	fmt.Println("-", pMembers)
 
 	sKey := suffixKey(ac.name)
-	sMembers, _ := ac.storage.ZRange(ac.ctx, sKey, 0, -1)
+	sMembers, err := ac.storage.ZRange(ac.ctx, sKey, 0, -1)
+	if err != nil {
+		fmt.Println("-", err)
+		return
+	}
 	fmt.Println("-", sMembers)
 
 	outputs := make([]string, 0)
@@ -485,7 +497,11 @@ func (ac *AhoCorasick) debugV1() {
 	nodes := make([]string, 0)
 	for _, keyword := range kMembers {
 		nKey := nodeKey(ac.name, keyword)
-		nKeywords, _ := ac.storage.SMembers(ac.ctx, nKey)
+		nKeywords, err := ac.storage.SMembers(ac.ctx, nKey)
+		if err != nil {
+			fmt.Println("-", err)
+			continue
+		}
 		nodes = append(nodes, nKeywords...)
 	}
 	fmt.Println("-", nodes)

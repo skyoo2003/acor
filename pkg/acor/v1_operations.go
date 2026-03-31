@@ -3,6 +3,7 @@ package acor
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -20,7 +21,7 @@ var _ operations = (*v1Operations)(nil)
 type v1Operations struct {
 	storage KVStorage
 	name    string
-	ctx     context.Context
+	ctx     context.Context // ctx is unused; methods receive context as parameter
 	logger  Logger
 	ac      *AhoCorasick // for trie.go helper access (temporary, cleaned up in T15)
 }
@@ -69,30 +70,31 @@ func (o *v1Operations) remove(ctx context.Context, keyword string) (int, error) 
 	if err != nil {
 		return 0, newRedisError("SMEMBERS", nodeKey, err)
 	}
+	bgCtx := context.Background()
 	for _, node := range nodes {
 		oKey := outputKey(o.name, node)
-		if sremErr := o.storage.SRem(ctx, oKey, keyword); sremErr != nil {
+		if sremErr := o.storage.SRem(bgCtx, oKey, keyword); sremErr != nil {
 			return 0, newRedisError("SREM", oKey, sremErr)
 		}
 		o.logger.Println(fmt.Sprintf("Remove(%s) > SREM key(%s)", keyword, oKey))
 	}
 
-	if delErr := o.storage.Del(ctx, nodeKey); delErr != nil {
+	if delErr := o.storage.Del(bgCtx, nodeKey); delErr != nil {
 		return 0, newRedisError("DEL", nodeKey, delErr)
 	}
 	o.logger.Println(fmt.Sprintf("Remove(%s) > DEL key(%s)", keyword, nodeKey))
 
-	if pruneErr := o.ac.pruneTrieWithContext(ctx, keyword); pruneErr != nil {
+	if pruneErr := o.ac.pruneTrieWithContext(bgCtx, keyword); pruneErr != nil {
 		return 0, newOperationError("remove", SchemaV1, pruneErr)
 	}
 
 	kKey := keywordKey(o.name)
-	if sremErr := o.storage.SRem(ctx, kKey, keyword); sremErr != nil {
+	if sremErr := o.storage.SRem(bgCtx, kKey, keyword); sremErr != nil {
 		return 0, newRedisError("SREM", kKey, sremErr)
 	}
 	o.logger.Println(fmt.Sprintf("Remove(%s) > SREM key(%s) members(%s)", keyword, kKey, keyword))
 
-	kMemberCount, err := o.storage.SCard(ctx, kKey)
+	kMemberCount, err := o.storage.SCard(bgCtx, kKey)
 	if err != nil {
 		return 0, newRedisError("SCARD", kKey, err)
 	}
@@ -210,6 +212,7 @@ func (o *v1Operations) flush(ctx context.Context) error {
 	}
 	o.logger.Println(fmt.Sprintf("Flush() > SMEMBERS Key(%s) : Members(%s)", kKey, keywords))
 
+	bgCtx := context.Background()
 	for _, keyword := range keywords {
 		nKey := nodeKey(o.name, keyword)
 		nodes, err := o.storage.SMembers(ctx, nKey)
@@ -218,28 +221,28 @@ func (o *v1Operations) flush(ctx context.Context) error {
 		}
 		for _, node := range nodes {
 			oKey := outputKey(o.name, node)
-			if err := o.storage.Del(ctx, oKey); err != nil {
+			if err := o.storage.Del(bgCtx, oKey); err != nil {
 				return newRedisError("DEL", oKey, err)
 			}
 			o.logger.Println(fmt.Sprintf("Flush() > DEL Key(%s)", oKey))
 		}
-		if err := o.storage.Del(ctx, nKey); err != nil {
+		if err := o.storage.Del(bgCtx, nKey); err != nil {
 			return newRedisError("DEL", nKey, err)
 		}
 		o.logger.Println(fmt.Sprintf("Flush() > DEL Key(%s)", nKey))
 	}
 
-	if err := o.storage.Del(ctx, pKey); err != nil {
+	if err := o.storage.Del(bgCtx, pKey); err != nil {
 		return newRedisError("DEL", pKey, err)
 	}
 	o.logger.Println(fmt.Sprintf("Flush() > DEL Key(%s)", pKey))
 
-	if err := o.storage.Del(ctx, sKey); err != nil {
+	if err := o.storage.Del(bgCtx, sKey); err != nil {
 		return newRedisError("DEL", sKey, err)
 	}
 	o.logger.Println(fmt.Sprintf("Flush() > DEL Key(%s)", sKey))
 
-	if err := o.storage.Del(ctx, kKey); err != nil {
+	if err := o.storage.Del(bgCtx, kKey); err != nil {
 		return newRedisError("DEL", kKey, err)
 	}
 	o.logger.Println(fmt.Sprintf("Flush() > DEL Key(%s)", kKey))
@@ -281,7 +284,7 @@ func (o *v1Operations) suggest(ctx context.Context, input string) ([]string, err
 	kKey := keywordKey(o.name)
 	pKey := prefixKey(o.name)
 	pZRank, err := o.storage.ZRank(ctx, pKey, input)
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return results, nil
 	}
 	if err != nil {
@@ -328,7 +331,7 @@ func (o *v1Operations) suggestIndex(ctx context.Context, input string) (map[stri
 	kKey := keywordKey(o.name)
 	pKey := prefixKey(o.name)
 	pZRank, err := o.storage.ZRank(ctx, pKey, input)
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return results, nil
 	}
 	if err != nil {
