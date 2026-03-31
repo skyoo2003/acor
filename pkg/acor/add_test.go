@@ -306,7 +306,9 @@ func TestV2RemoveNonExistent(t *testing.T) {
 	}
 }
 
-func TestV2RemoveConcurrencyRetry(t *testing.T) {
+// TestV2RemoveSimple verifies basic V2 keyword removal.
+// Concurrency retry testing requires a custom mock that induces ErrConcurrencyConflict.
+func TestV2RemoveSimple(t *testing.T) {
 	ac, mr := createAhoCorasick(t)
 	defer mr.Close()
 	defer func() { _ = ac.Close() }()

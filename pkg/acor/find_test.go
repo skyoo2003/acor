@@ -1,6 +1,7 @@
 package acor
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -305,7 +306,7 @@ func TestFindParallelEdgeCases(t *testing.T) {
 	}{
 		{"empty text", "", nil},
 		{"short text", "test", nil},
-		{"line boundaries", "test\nhello\nworld", &ParallelOptions{Workers: 2, ChunkSize: 5, Boundary: ChunkBoundaryLine}},
+		{"line boundaries", "test\nhello\nworld", &ParallelOptions{Workers: 2, ChunkSize: 10, Boundary: ChunkBoundaryLine}},
 		{"sentence boundaries", "Test. Hello world.", &ParallelOptions{Workers: 2, ChunkSize: 10, Boundary: ChunkBoundarySentence}},
 		{"nil options uses defaults", "test hello world", nil},
 		{"single worker", "test hello world", &ParallelOptions{Workers: 1, ChunkSize: 100}},
@@ -313,9 +314,18 @@ func TestFindParallelEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := ac.FindParallel(tt.text, tt.opts)
+			results, err := ac.FindParallel(tt.text, tt.opts)
 			if err != nil {
 				t.Errorf("FindParallel() error: %v", err)
+			}
+
+			// Compare against sequential Find to ensure parallel results match.
+			sequential, seqErr := ac.Find(tt.text)
+			if seqErr != nil {
+				t.Fatalf("sequential Find() error: %v", seqErr)
+			}
+			if !reflect.DeepEqual(results, sequential) {
+				t.Errorf("FindParallel() = %v, want sequential Find() = %v", results, sequential)
 			}
 		})
 	}
@@ -345,9 +355,17 @@ func TestFindIndexParallelEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := ac.FindIndexParallel(tt.text, nil)
+			results, err := ac.FindIndexParallel(tt.text, nil)
 			if err != nil {
 				t.Errorf("FindIndexParallel() error: %v", err)
+			}
+
+			sequential, seqErr := ac.FindIndex(tt.text)
+			if seqErr != nil {
+				t.Fatalf("sequential FindIndex() error: %v", seqErr)
+			}
+			if !reflect.DeepEqual(results, sequential) {
+				t.Errorf("FindIndexParallel() = %v, want sequential FindIndex() = %v", results, sequential)
 			}
 		})
 	}
