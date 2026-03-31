@@ -2,7 +2,10 @@ package acor
 
 //go:generate go run go.uber.org/mock/mockgen -source=interfaces.go -destination=mock_storage.go -package acor
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Z represents a sorted set member with score, compatible with Redis ZSET operations.
 type Z struct {
@@ -55,7 +58,39 @@ type KVStorage interface {
 	Exists(ctx context.Context, keys ...string) (int64, error)
 	// TxPipelined executes commands in a transaction pipeline.
 	TxPipelined(ctx context.Context, fn func(Pipeliner) error) error
+	// SetNX sets a value only if the key does not exist. Returns true if the key was set.
+	SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error)
+	// Pipeline returns a non-transactional pipeline for batching commands.
+	Pipeline() Pipeliner
+	// Publish sends a message to a pub/sub channel.
+	Publish(ctx context.Context, channel string, message interface{}) error
+	// Subscribe subscribes to pub/sub channels and returns a Subscription.
+	Subscribe(ctx context.Context, channels ...string) Subscription
 	// Close closes the storage connection.
+	Close() error
+}
+
+// StringMapResult represents a deferred string map result from a pipeline HGetAll operation.
+type StringMapResult interface {
+	// Val returns the map result. Must be called after Exec on the pipeline.
+	Val() map[string]string
+}
+
+// PubSubMessage represents a message received from a pub/sub subscription.
+type PubSubMessage struct {
+	// Channel is the name of the pub/sub channel the message was published to.
+	Channel string
+	// Payload is the content of the message.
+	Payload string
+}
+
+// Subscription defines the interface for a pub/sub subscription.
+type Subscription interface {
+	// Receive waits for a subscription confirmation from the server.
+	Receive(ctx context.Context) error
+	// Channel returns a channel that delivers incoming messages.
+	Channel() <-chan PubSubMessage
+	// Close closes the subscription and releases resources.
 	Close() error
 }
 
@@ -66,10 +101,15 @@ type Pipeliner interface {
 	SAdd(ctx context.Context, key string, members ...interface{}) error
 	// HSet sets hash fields in the pipeline.
 	HSet(ctx context.Context, key string, values ...interface{}) error
+	// HGetAll retrieves all field-value pairs from a hash in the pipeline.
+	// Returns a deferred result that can be read after Exec is called.
+	HGetAll(ctx context.Context, key string) StringMapResult
 	// ZAdd adds sorted set members in the pipeline.
 	ZAdd(ctx context.Context, key string, members ...*Z) error
 	// Del deletes keys in the pipeline.
 	Del(ctx context.Context, keys ...string) error
+	// Exec executes all commands in the pipeline.
+	Exec(ctx context.Context) error
 }
 
 // Matcher defines the interface for text matching operations.
@@ -96,4 +136,6 @@ type Indexer interface {
 	Remove(keyword string) (int, error)
 	// RemoveMany deletes multiple keywords.
 	RemoveMany(keywords []string) (*BatchResult, error)
+	// RemoveManyWithOptions deletes multiple keywords with batch options.
+	RemoveManyWithOptions(keywords []string, opts *BatchOptions) (*BatchResult, error)
 }

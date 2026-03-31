@@ -16,7 +16,7 @@ Parallel matching splits text into chunks and processes them concurrently, signi
 ```go
 matches, err := ac.FindParallel(largeText, &acor.ParallelOptions{
     Workers:       4,
-    ChunkBoundary: acor.ChunkWord,
+    Boundary: acor.ChunkBoundaryWord,
 })
 if err != nil {
     panic(err)
@@ -27,36 +27,36 @@ if err != nil {
 
 Chunk boundaries ensure matches aren't split across chunks:
 
-### ChunkWord (default)
+### ChunkBoundaryWord (default)
 
 Splits at word boundaries, ideal for natural language text:
 
 ```go
 opts := &acor.ParallelOptions{
     Workers:       4,
-    ChunkBoundary: acor.ChunkWord,
+    Boundary: acor.ChunkBoundaryWord,
 }
 ```
 
-### ChunkLine
+### ChunkBoundaryLine
 
 Splits at line breaks, ideal for log files:
 
 ```go
 opts := &acor.ParallelOptions{
     Workers:       4,
-    ChunkBoundary: acor.ChunkLine,
+    Boundary: acor.ChunkBoundaryLine,
 }
 ```
 
-### ChunkSentence
+### ChunkBoundarySentence
 
 Splits at sentence endings, ideal for document processing:
 
 ```go
 opts := &acor.ParallelOptions{
     Workers:       4,
-    ChunkBoundary: acor.ChunkSentence,
+    Boundary: acor.ChunkBoundarySentence,
 }
 ```
 

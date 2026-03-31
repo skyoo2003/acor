@@ -2,6 +2,8 @@ package acor
 
 import (
 	"context"
+	"sync"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -93,8 +95,84 @@ func (s *redisStorage) TxPipelined(ctx context.Context, fn func(Pipeliner) error
 	return err
 }
 
+func (s *redisStorage) SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error) {
+	return s.client.SetNX(ctx, key, value, expiration).Result()
+}
+
+func (s *redisStorage) Pipeline() Pipeliner {
+	return &redisPipeliner{pipe: s.client.Pipeline()}
+}
+
+func (s *redisStorage) Publish(ctx context.Context, channel string, message interface{}) error {
+	return s.client.Publish(ctx, channel, message).Err()
+}
+
+func (s *redisStorage) Subscribe(ctx context.Context, channels ...string) Subscription {
+	return &redisSubscription{pubsub: s.client.Subscribe(ctx, channels...), done: make(chan struct{})}
+}
+
 func (s *redisStorage) Close() error {
 	return s.client.Close()
+}
+
+type redisStringMapResult struct {
+	cmd *redis.StringStringMapCmd
+}
+
+func (r *redisStringMapResult) Val() map[string]string {
+	return r.cmd.Val()
+}
+
+type redisSubscription struct {
+	pubsub    *redis.PubSub
+	ch        chan PubSubMessage
+	once      sync.Once
+	done      chan struct{}
+	closeOnce sync.Once
+}
+
+func (s *redisSubscription) Receive(ctx context.Context) error {
+	_, err := s.pubsub.Receive(ctx)
+	return err
+}
+
+const pubsubChannelSize = 100
+
+func (s *redisSubscription) Channel() <-chan PubSubMessage {
+	s.once.Do(func() {
+		ch := make(chan PubSubMessage, pubsubChannelSize)
+		src := s.pubsub.Channel()
+		go func() {
+			defer close(ch)
+			for {
+				select {
+				case <-s.done:
+					return
+				case msg, ok := <-src:
+					if !ok {
+						return
+					}
+					select {
+					case ch <- PubSubMessage{Channel: msg.Channel, Payload: msg.Payload}:
+					case <-s.done:
+						return
+					}
+				}
+			}
+		}()
+		s.ch = ch
+	})
+	return s.ch
+}
+
+func (s *redisSubscription) Close() error {
+	err := s.pubsub.Close()
+	s.closeOnce.Do(func() {
+		if s.done != nil {
+			close(s.done)
+		}
+	})
+	return err
 }
 
 type redisPipeliner struct {
@@ -119,4 +197,13 @@ func (p *redisPipeliner) ZAdd(ctx context.Context, key string, members ...*Z) er
 
 func (p *redisPipeliner) Del(ctx context.Context, keys ...string) error {
 	return p.pipe.Del(ctx, keys...).Err()
+}
+
+func (p *redisPipeliner) HGetAll(ctx context.Context, key string) StringMapResult {
+	return &redisStringMapResult{cmd: p.pipe.HGetAll(ctx, key)}
+}
+
+func (p *redisPipeliner) Exec(ctx context.Context) error {
+	_, err := p.pipe.Exec(ctx)
+	return err
 }
