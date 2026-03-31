@@ -7,7 +7,7 @@ The following versions of ACOR are currently supported with security updates:
 | Version | Supported |
 | ------- | --------- |
 | v2.x    | ✅        |
-| v1.8+   | ✅        |
+| v1.8 - v1.x | ✅        |
 | < v1.8  | ❌        |
 
 "Supported" means the version receives security patches. Unsupported versions
@@ -48,7 +48,7 @@ We follow a coordinated disclosure process and will work with reporters to:
 
 ## License
 
-This security policy is part of the [MIT License][mit-license] project.
+ACOR is licensed under the [MIT License][mit-license].
 
 [mit-license]: LICENSE
 
