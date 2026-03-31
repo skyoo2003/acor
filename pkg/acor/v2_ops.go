@@ -65,19 +65,6 @@ func (o *v2Operations) tryAddV2(ctx context.Context, keyword string) (int, error
 		}
 	}
 
-	outputsRaw, err := o.storage.HGetAll(ctx, outputsKey(o.name))
-	if err != nil {
-		return 0, newRedisError("HGETALL", outputsKey(o.name), err)
-	}
-	outputs := make(map[string][]string)
-	for state, jsonArr := range outputsRaw {
-		var arr []string
-		if unmarshalErr := json.Unmarshal([]byte(jsonArr), &arr); unmarshalErr != nil {
-			return 0, newOperationError("unmarshal", SchemaV2, unmarshalErr)
-		}
-		outputs[state] = arr
-	}
-
 	keywordRunes := []rune(keyword)
 	var newPrefixes, newSuffixes []string
 

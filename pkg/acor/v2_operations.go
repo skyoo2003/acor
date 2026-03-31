@@ -37,7 +37,7 @@ func (o *v2Operations) find(ctx context.Context, text string) ([]string, error) 
 		return nil, err
 	}
 
-	return o.localFind(text, prefixes, outputs), nil
+	return o.localFind(ctx, text, prefixes, outputs), nil
 }
 
 func (o *v2Operations) findIndex(ctx context.Context, text string) (map[string][]int, error) {
@@ -50,7 +50,7 @@ func (o *v2Operations) findIndex(ctx context.Context, text string) (map[string][
 		return nil, err
 	}
 
-	return o.localFindIndex(text, prefixes, outputs), nil
+	return o.localFindIndex(ctx, text, prefixes, outputs), nil
 }
 
 func (o *v2Operations) add(ctx context.Context, keyword string) (int, error) {
@@ -273,7 +273,7 @@ func (o *v2Operations) publishInvalidate(ctx context.Context) {
 
 // --- local computation helpers (pure functions on v2Operations receiver) ---
 
-func (o *v2Operations) localFind(text string, prefixes []string, outputs map[string][]string) []string {
+func (o *v2Operations) localFind(ctx context.Context, text string, prefixes []string, outputs map[string][]string) []string {
 	prefixSet := make(map[string]struct{})
 	for _, p := range prefixes {
 		prefixSet[p] = struct{}{}
@@ -282,7 +282,14 @@ func (o *v2Operations) localFind(text string, prefixes []string, outputs map[str
 	matched := make([]string, 0)
 	state := ""
 
-	for _, char := range text {
+	for i, char := range text {
+		if i%1000 == 0 {
+			select {
+			case <-ctx.Done():
+				return matched
+			default:
+			}
+		}
 		nextState := string(append([]rune(state), char))
 
 		if _, exists := prefixSet[nextState]; !exists {
@@ -298,7 +305,7 @@ func (o *v2Operations) localFind(text string, prefixes []string, outputs map[str
 	return matched
 }
 
-func (o *v2Operations) localFindIndex(text string, prefixes []string, outputs map[string][]string) map[string][]int {
+func (o *v2Operations) localFindIndex(ctx context.Context, text string, prefixes []string, outputs map[string][]string) map[string][]int {
 	prefixSet := make(map[string]struct{})
 	for _, p := range prefixes {
 		prefixSet[p] = struct{}{}
@@ -308,7 +315,14 @@ func (o *v2Operations) localFindIndex(text string, prefixes []string, outputs ma
 	state := ""
 	runeIndex := 0
 
-	for _, char := range text {
+	for i, char := range text {
+		if i%1000 == 0 {
+			select {
+			case <-ctx.Done():
+				return matched
+			default:
+			}
+		}
 		nextState := string(append([]rune(state), char))
 
 		if _, exists := prefixSet[nextState]; !exists {
