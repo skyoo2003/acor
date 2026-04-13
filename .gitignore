@@ -17,3 +17,4 @@
 acor.test
 cov*.out
 coverage*.out
+/tmp/
