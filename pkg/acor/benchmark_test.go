@@ -13,6 +13,15 @@ import (
 
 const benchmarkInputText = "ushers hello world benchmark test"
 
+func toJSONOrFatal(tb testing.TB, v interface{}) string {
+	tb.Helper()
+	result, err := toJSON(v)
+	if err != nil {
+		tb.Fatalf("toJSON(%T) failed: %v", v, err)
+	}
+	return result
+}
+
 func BenchmarkFindV1(b *testing.B) {
 	mr := miniredis.RunT(b)
 
@@ -63,9 +72,9 @@ func BenchmarkFindV2(b *testing.B) {
 	}
 
 	client.HSet(context.Background(), "{bench}:trie", map[string]interface{}{
-		"keywords": mustJSON(keywords),
-		"prefixes": mustJSON(prefixes),
-		"suffixes": mustJSON(suffixes),
+		"keywords": toJSONOrFatal(b, keywords),
+		"prefixes": toJSONOrFatal(b, prefixes),
+		"suffixes": toJSONOrFatal(b, suffixes),
 		"version":  time.Now().Unix(),
 	})
 

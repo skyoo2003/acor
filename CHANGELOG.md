@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v1.5.0](https://github.com/skyoo2003/acor/releases/tag/v1.5.0) - 2026-04-13
+
+### Added
+
+- Add local caching for Find/FindIndex operations with Redis Pub/Sub invalidation ([#99](https://github.com/skyoo2003/acor/issues/99))
+- Add *Context variants for all public API methods (AddContext, FindContext, etc.) ([#96](https://github.com/skyoo2003/acor/issues/96))
+- Add BatchOptions support to RemoveMany for API symmetry with AddMany ([#96](https://github.com/skyoo2003/acor/issues/96))
+- Add V1+Cache guard to prevent unsupported schema/cache configuration ([#96](https://github.com/skyoo2003/acor/issues/96))
+- Add internal Operations interface with Strategy pattern for V1/V2 dispatch ([#102](https://github.com/skyoo2003/acor/issues/102))
+- Add KVStorage interface for Redis dependency injection ([#102](https://github.com/skyoo2003/acor/issues/102))
+- Add redisStorage adapter wrapping go-redis UniversalClient ([#102](https://github.com/skyoo2003/acor/issues/102))
+- Add CI hardening: race detector, coverage threshold (70%), and fuzz testing ([#96](https://github.com/skyoo2003/acor/issues/96))
+- Add Makefile targets: vet, lint-fix, fuzz, race ([#96](https://github.com/skyoo2003/acor/issues/96))
+- Add Issue/PR templates and SECURITY.md ([#96](https://github.com/skyoo2003/acor/issues/96))
+
+### Changed
+
+- Go required version 1.25 or higher ([#97](https://github.com/skyoo2003/acor/issues/97))
+- Refactor AhoCorasick struct to use KVStorage DI and operations Strategy pattern ([#102](https://github.com/skyoo2003/acor/issues/102))
+- Activate error helpers (newRedisError, newOperationError) in V1 and V2 operations ([#96](https://github.com/skyoo2003/acor/issues/96))
+- Replace mustJSON panic with toJSON error return for safer error propagation ([#96](https://github.com/skyoo2003/acor/issues/96))
+- Rename underscore-prefixed methods in trie.go (buildTrie, gotoNode, failNode, collectOutputs) ([#96](https://github.com/skyoo2003/acor/issues/96))
+- Split monolithic test file into feature-specific test files ([#96](https://github.com/skyoo2003/acor/issues/96))
+- Fix README example API names (BatchModeTransactional, ChunkBoundaryWord, Boundary) ([#96](https://github.com/skyoo2003/acor/issues/96))
+- Bump dependencies: go-redis, gRPC, OpenTelemetry, zerolog ([#100](https://github.com/skyoo2003/acor/issues/100), [#103](https://github.com/skyoo2003/acor/issues/103))
+- Bump CI dependencies: GitHub Actions ([#101](https://github.com/skyoo2003/acor/issues/101))
+
+### Removed
+
+- Remove unused non-Context wrapper functions in trie.go ([#96](https://github.com/skyoo2003/acor/issues/96))
+
+### Documentation
+
+- Add cross-references between Hugo documentation pages ([#98](https://github.com/skyoo2003/acor/issues/98))
+- Add comprehensive Hugo documentation: guides, API reference, deployment, monitoring, troubleshooting ([#96](https://github.com/skyoo2003/acor/issues/96))
+
 ## [v1.4.0](https://github.com/skyoo2003/acor/releases/tag/v1.4.0) - 2026-03-18
 
 ### Added

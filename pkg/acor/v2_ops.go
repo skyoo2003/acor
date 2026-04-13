@@ -19,12 +19,12 @@ const retryBackoffBase = 10 * time.Millisecond
 
 const luaKeys = 2
 
-func mustJSON(v interface{}) string {
+func toJSON(v interface{}) (string, error) {
 	b, err := json.Marshal(v)
 	if err != nil {
-		panic(fmt.Sprintf("json.Marshal failed: %v", err))
+		return "", fmt.Errorf("json.Marshal failed: %w", err)
 	}
-	return string(b)
+	return string(b), nil
 }
 
 func (o *v2Operations) tryAddV2(ctx context.Context, keyword string) (int, error) { //nolint:gocyclo,funlen
@@ -111,19 +111,33 @@ func (o *v2Operations) tryAddV2(ctx context.Context, keyword string) (int, error
 
 	outputsToUpdate := make(map[string]string)
 	for state, outs := range newOutputs {
-		outputsToUpdate[state] = mustJSON(outs)
+		jsonOuts, marshalErr := toJSON(outs)
+		if marshalErr != nil {
+			return 0, newOperationError("marshal", SchemaV2, marshalErr)
+		}
+		outputsToUpdate[state] = jsonOuts
 	}
 
-	result, err := o.addV2Script(ctx, o.client, map[string]interface{}{
+	args := map[string]interface{}{
 		"trieKey":    trieKey(o.name),
 		"outputsKey": outputsKey(o.name),
-		"keywords":   mustJSON(keywords),
-		"prefixes":   mustJSON(prefixes),
-		"suffixes":   mustJSON(suffixes),
 		"newVersion": newVersion,
 		"oldVersion": oldVersion,
-		"outputs":    mustJSON(outputsToUpdate),
-	}).Result()
+	}
+	if args["keywords"], err = toJSON(keywords); err != nil {
+		return 0, newOperationError("marshal", SchemaV2, err)
+	}
+	if args["prefixes"], err = toJSON(prefixes); err != nil {
+		return 0, newOperationError("marshal", SchemaV2, err)
+	}
+	if args["suffixes"], err = toJSON(suffixes); err != nil {
+		return 0, newOperationError("marshal", SchemaV2, err)
+	}
+	if args["outputs"], err = toJSON(outputsToUpdate); err != nil {
+		return 0, newOperationError("marshal", SchemaV2, err)
+	}
+
+	result, err := o.addV2Script(ctx, o.client, args).Result()
 
 	if err != nil {
 		return 0, newRedisError("EVAL", trieKey(o.name), err)
@@ -229,19 +243,33 @@ func (o *v2Operations) tryRemoveV2(ctx context.Context, keyword string) (int, er
 
 	outputsToSet := make(map[string]string)
 	for state, outs := range newOutputs {
-		outputsToSet[state] = mustJSON(outs)
+		jsonOuts, marshalErr := toJSON(outs)
+		if marshalErr != nil {
+			return 0, newOperationError("marshal", SchemaV2, marshalErr)
+		}
+		outputsToSet[state] = jsonOuts
 	}
 
-	result, err := o.removeV2Script(ctx, o.client, map[string]interface{}{
+	args := map[string]interface{}{
 		"trieKey":    trieKey(o.name),
 		"outputsKey": outputsKey(o.name),
-		"keywords":   mustJSON(newKeywords),
-		"prefixes":   mustJSON(newPrefixes),
-		"suffixes":   mustJSON(newSuffixes),
 		"newVersion": newVersion,
 		"oldVersion": oldVersion,
-		"outputs":    mustJSON(outputsToSet),
-	}).Result()
+	}
+	if args["keywords"], err = toJSON(newKeywords); err != nil {
+		return 0, newOperationError("marshal", SchemaV2, err)
+	}
+	if args["prefixes"], err = toJSON(newPrefixes); err != nil {
+		return 0, newOperationError("marshal", SchemaV2, err)
+	}
+	if args["suffixes"], err = toJSON(newSuffixes); err != nil {
+		return 0, newOperationError("marshal", SchemaV2, err)
+	}
+	if args["outputs"], err = toJSON(outputsToSet); err != nil {
+		return 0, newOperationError("marshal", SchemaV2, err)
+	}
+
+	result, err := o.removeV2Script(ctx, o.client, args).Result()
 
 	if err != nil {
 		return 0, newRedisError("EVAL", trieKey(o.name), err)
