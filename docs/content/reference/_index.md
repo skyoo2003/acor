@@ -9,10 +9,10 @@ Technical reference documentation for ACOR.
 
 ## Sections
 
-- [API Reference](/reference/api/) - Public API documentation
-- [Schema V1](/reference/schema-v1/) - Legacy schema details
-- [Schema V2](/reference/schema-v2/) - Optimized schema (recommended)
+- [API Reference](api/) - Public API documentation
+- [Schema V1](schema-v1/) - Legacy schema details
+- [Schema V2](schema-v2/) - Optimized schema (recommended)
 
 ## Navigation
 
-← [Guides](/guides/) | [Operations](/operations/) →
+← [Guides](../guides/) | [Operations](../operations/) →

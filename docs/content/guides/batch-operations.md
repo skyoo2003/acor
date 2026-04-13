@@ -87,5 +87,5 @@ type BatchResult struct {
 
 ## Next Steps
 
-- [Parallel Matching](/guides/parallel-matching/) - Process large texts efficiently
-- [API Reference](/reference/api/) - Complete API documentation
+- [Parallel Matching](parallel-matching/) - Process large texts efficiently
+- [API Reference](../reference/api/) - Complete API documentation
