@@ -6,22 +6,26 @@ import (
 )
 
 type trieCache struct {
-	mu       sync.RWMutex
-	loadMu   sync.Mutex
-	prefixes []string
-	outputs  map[string][]string
-	valid    bool
-	// skipSelf is an atomic flag used to skip cache invalidation caused by
-	// the instance's own publishInvalidate call. Without this, the pub/sub
-	// listener would receive the message it published and invalidate the
-	// cache a second time, creating a race with concurrent Find calls.
-	skipSelf int32
+	mu                       sync.RWMutex
+	loadMu                   sync.Mutex
+	prefixes                 []string
+	outputs                  map[string][]string
+	valid                    bool
+	pendingSelfInvalidations int32
 }
 
-func skipSelfSet(c *trieCache)   { atomic.StoreInt32(&c.skipSelf, 1) }
-func skipSelfClear(c *trieCache) { atomic.StoreInt32(&c.skipSelf, 0) }
+func skipSelfSet(c *trieCache)   { atomic.AddInt32(&c.pendingSelfInvalidations, 1) }
+func skipSelfClear(c *trieCache) { atomic.AddInt32(&c.pendingSelfInvalidations, -1) }
 func skipSelfCheck(c *trieCache) bool {
-	return atomic.CompareAndSwapInt32(&c.skipSelf, 1, 0)
+	for {
+		n := atomic.LoadInt32(&c.pendingSelfInvalidations)
+		if n == 0 {
+			return false
+		}
+		if atomic.CompareAndSwapInt32(&c.pendingSelfInvalidations, n, n-1) {
+			return true
+		}
+	}
 }
 
 func cloneOutputs(in map[string][]string) map[string][]string {
