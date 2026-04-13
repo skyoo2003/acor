@@ -33,13 +33,13 @@ func main() {
         Addr: "localhost:6379",
         Name: "test",
     }
-    
+
     ac, err := acor.Create(args)
     if err != nil {
         panic(err)
     }
     defer ac.Close()
-    
+
     fmt.Println("ACOR installed successfully!")
 }
 ```
@@ -60,5 +60,5 @@ acor --help
 
 ## Next Steps
 
-- [Quick Start](/getting-started/quick-start/) - Build your first application
-- [Guides](/guides/) - Learn about batch operations and parallel matching
+- [Quick Start](quick-start/) - Build your first application
+- [Guides](../guides/) - Learn about batch operations and parallel matching

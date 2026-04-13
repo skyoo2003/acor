@@ -101,5 +101,5 @@ opts := &acor.ParallelOptions{
 
 ## Next Steps
 
-- [Batch Operations](/guides/batch-operations/) - Optimize bulk keyword operations
-- [API Reference](/reference/api/) - Complete API documentation
+- [Batch Operations](batch-operations/) - Optimize bulk keyword operations
+- [API Reference](../reference/api/) - Complete API documentation
