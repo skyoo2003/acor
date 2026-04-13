@@ -2,6 +2,7 @@ package acor
 
 import (
 	"fmt"
+	"strings"
 )
 
 const invalidateChannelPrefix = "acor:invalidate:"
@@ -26,13 +27,12 @@ func (ac *AhoCorasick) startCacheListener() error {
 				if !ok {
 					return
 				}
-				if msg.Payload == ac.name {
-					if ac.cache != nil {
-						if skipSelfCheck(ac.cache) {
-							continue
-						}
-						ac.cache.invalidate()
+				if ac.cache != nil && strings.HasPrefix(msg.Payload, ac.name+":") {
+					msgID := strings.TrimPrefix(msg.Payload, ac.name+":")
+					if skipSelfCheck(ac.cache, msgID) {
+						continue
 					}
+					ac.cache.invalidate()
 				}
 			case <-ac.stopCh:
 				return

@@ -2,8 +2,10 @@ package acor
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -258,15 +260,21 @@ func (o *v2Operations) getOrLoadCache(ctx context.Context) (prefixes []string, o
 // --- publishInvalidate ---
 
 // publishInvalidate invalidates the local cache and publishes an invalidation
-// message so other instances refresh their caches.
+// message so other instances refresh their caches. Each publish includes a
+// unique ID to avoid a leakable counter when skipping self-messages.
 func (o *v2Operations) publishInvalidate(ctx context.Context) {
 	channel := invalidateChannelPrefix + o.name
+	b := make([]byte, invalidateIDBytes)
+	_, _ = rand.Read(b)
+	msgID := fmt.Sprintf("%d:%x", time.Now().UnixNano(), b)
+	payload := o.name + ":" + msgID
+
 	if o.cache != nil {
-		skipSelfSet(o.cache)
+		skipSelfSet(o.cache, msgID)
 	}
-	err := o.storage.Publish(ctx, channel, o.name)
+	err := o.storage.Publish(ctx, channel, payload)
 	if err != nil && o.cache != nil {
-		skipSelfClear(o.cache)
+		skipSelfClear(o.cache, msgID)
 	}
 	if err != nil && o.logger != nil {
 		o.logger.Printf("failed to publish cache invalidation: channel=%s error=%v", channel, err)

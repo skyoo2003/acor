@@ -2,30 +2,33 @@ package acor
 
 import (
 	"sync"
-	"sync/atomic"
 )
 
 type trieCache struct {
-	mu                       sync.RWMutex
-	loadMu                   sync.Mutex
-	prefixes                 []string
-	outputs                  map[string][]string
-	valid                    bool
-	pendingSelfInvalidations int32
+	mu       sync.RWMutex
+	loadMu   sync.Mutex
+	prefixes []string
+	outputs  map[string][]string
+	valid    bool
+	// pendingSelfInvalidations holds self-published message IDs so the listener
+	// can skip cache invalidation already performed by the local publisher.
+	// sync.Map is used for lock-free access by concurrent publisher/listener goroutines.
+	pendingSelfInvalidations sync.Map
 }
 
-func skipSelfSet(c *trieCache)   { atomic.AddInt32(&c.pendingSelfInvalidations, 1) }
-func skipSelfClear(c *trieCache) { atomic.AddInt32(&c.pendingSelfInvalidations, -1) }
-func skipSelfCheck(c *trieCache) bool {
-	for {
-		n := atomic.LoadInt32(&c.pendingSelfInvalidations)
-		if n == 0 {
-			return false
-		}
-		if atomic.CompareAndSwapInt32(&c.pendingSelfInvalidations, n, n-1) {
-			return true
-		}
-	}
+func skipSelfSet(c *trieCache, id string) {
+	c.pendingSelfInvalidations.Store(id, struct{}{})
+}
+
+func skipSelfClear(c *trieCache, id string) {
+	c.pendingSelfInvalidations.Delete(id)
+}
+
+// skipSelfCheck atomically checks and removes a self-published message ID.
+// Returns true if the ID was found (self-message → skip invalidation).
+func skipSelfCheck(c *trieCache, id string) bool {
+	_, loaded := c.pendingSelfInvalidations.LoadAndDelete(id)
+	return loaded
 }
 
 func cloneOutputs(in map[string][]string) map[string][]string {
