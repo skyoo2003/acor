@@ -28,6 +28,9 @@ func (ac *AhoCorasick) startCacheListener() error {
 				}
 				if msg.Payload == ac.name {
 					if ac.cache != nil {
+						if skipSelfCheck(ac.cache) {
+							continue
+						}
 						ac.cache.invalidate()
 					}
 				}
