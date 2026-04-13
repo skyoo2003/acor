@@ -2,14 +2,30 @@ package acor
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 type trieCache struct {
-	mu       sync.RWMutex
-	loadMu   sync.Mutex
-	prefixes []string
-	outputs  map[string][]string
-	valid    bool
+	mu                       sync.RWMutex
+	loadMu                   sync.Mutex
+	prefixes                 []string
+	outputs                  map[string][]string
+	valid                    bool
+	pendingSelfInvalidations int32
+}
+
+func skipSelfSet(c *trieCache)   { atomic.AddInt32(&c.pendingSelfInvalidations, 1) }
+func skipSelfClear(c *trieCache) { atomic.AddInt32(&c.pendingSelfInvalidations, -1) }
+func skipSelfCheck(c *trieCache) bool {
+	for {
+		n := atomic.LoadInt32(&c.pendingSelfInvalidations)
+		if n == 0 {
+			return false
+		}
+		if atomic.CompareAndSwapInt32(&c.pendingSelfInvalidations, n, n-1) {
+			return true
+		}
+	}
 }
 
 func cloneOutputs(in map[string][]string) map[string][]string {
