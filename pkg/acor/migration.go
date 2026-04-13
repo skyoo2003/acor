@@ -217,10 +217,22 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	}
 
 	trieFields := map[string]interface{}{
-		"keywords": mustJSON(keywords),
-		"prefixes": mustJSON(prefixes),
-		"suffixes": mustJSON(suffixes),
-		"version":  time.Now().Unix(),
+		"version": time.Now().Unix(),
+	}
+	if keywordsJSON, marshalErr := toJSON(keywords); marshalErr != nil {
+		return result, fmt.Errorf("migration: failed to marshal keywords: %w", marshalErr)
+	} else {
+		trieFields["keywords"] = keywordsJSON
+	}
+	if prefixesJSON, marshalErr := toJSON(prefixes); marshalErr != nil {
+		return result, fmt.Errorf("migration: failed to marshal prefixes: %w", marshalErr)
+	} else {
+		trieFields["prefixes"] = prefixesJSON
+	}
+	if suffixesJSON, marshalErr := toJSON(suffixes); marshalErr != nil {
+		return result, fmt.Errorf("migration: failed to marshal suffixes: %w", marshalErr)
+	} else {
+		trieFields["suffixes"] = suffixesJSON
 	}
 	if hsetErr := ac.redisClient.HSet(ac.ctx, tempTrieKey, trieFields).Err(); hsetErr != nil {
 		cleanup()
@@ -232,7 +244,14 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	if len(outputs) > 0 {
 		outputFields := make(map[string]interface{})
 		for state, outs := range outputs {
-			outputFields[state] = mustJSON(outs)
+			jsonOuts, marshalErr := toJSON(outs)
+			if marshalErr != nil {
+				cleanup()
+				result.Status = migrationStatusError
+				result.ErrorMessage = marshalErr.Error()
+				return result, fmt.Errorf("migration: failed to marshal outputs: %w", marshalErr)
+			}
+			outputFields[state] = jsonOuts
 		}
 		if outputsErr := ac.redisClient.HSet(ac.ctx, tempOutputsKey, outputFields).Err(); outputsErr != nil {
 			cleanup()
@@ -245,7 +264,14 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	if len(nodes) > 0 {
 		nodeFields := make(map[string]interface{})
 		for kw, states := range nodes {
-			nodeFields[kw] = mustJSON(states)
+			jsonStates, marshalErr := toJSON(states)
+			if marshalErr != nil {
+				cleanup()
+				result.Status = migrationStatusError
+				result.ErrorMessage = marshalErr.Error()
+				return result, fmt.Errorf("migration: failed to marshal nodes: %w", err)
+			}
+			nodeFields[kw] = jsonStates
 		}
 		if nodesErr := ac.redisClient.HSet(ac.ctx, tempNodesKey, nodeFields).Err(); nodesErr != nil {
 			cleanup()
