@@ -2,11 +2,21 @@ package acor
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	miniredis "github.com/alicebob/miniredis/v2"
 	redis "github.com/go-redis/redis/v8"
 )
+
+type noopLogger struct{}
+
+func (noopLogger) Printf(_ context.Context, _ string, _ ...interface{}) {}
+
+func TestMain(m *testing.M) {
+	redis.SetLogger(noopLogger{})
+	os.Exit(m.Run())
+}
 
 // Shared test constants used across multiple test files.
 const (
