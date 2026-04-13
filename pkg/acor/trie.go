@@ -14,21 +14,6 @@ func (ac *AhoCorasick) buildTrie(keyword string) error {
 	return ac.buildTrieWithContext(ac.ctx, keyword)
 }
 
-//nolint:unused
-func (ac *AhoCorasick) rebuildOutput(suffix string) error {
-	return ac.rebuildOutputWithContext(ac.ctx, suffix)
-}
-
-//nolint:unused
-func (ac *AhoCorasick) buildOutput(state string) error {
-	return ac.buildOutputWithContext(ac.ctx, state)
-}
-
-//nolint:unused
-func (ac *AhoCorasick) removePrefixAndSuffix(keyword, prefix, suffix string) error {
-	return ac.removePrefixAndSuffixWithContext(ac.ctx, keyword, prefix, suffix)
-}
-
 func (ac *AhoCorasick) gotoNode(inState string, input rune) (string, error) {
 	return ac.goWithContext(ac.ctx, inState, input)
 }
