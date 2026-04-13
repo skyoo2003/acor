@@ -14,10 +14,11 @@ RUN make build
 
 FROM alpine:3.15.11
 
-RUN adduser -D -h /acor appuser && mkdir -p /acor && chown appuser:appuser /acor
+RUN addgroup -g 1000 app \
+  && adduser -D -h /acor -u 1000 -G app appuser
 VOLUME /acor
 WORKDIR /acor
-COPY --from=builder /github.com/skyoo2003/acor/dist/acor /usr/bin/acor
+COPY --from=builder --chown=1000:1000 /github.com/skyoo2003/acor/dist/acor /usr/bin/acor
 
-USER appuser
+USER 1000:1000
 ENTRYPOINT ["acor"]
