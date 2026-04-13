@@ -1,0 +1,42 @@
+ignore:
+  - .git
+  - vendor
+  - "**/*.pb.go"
+  - "**/*.pb.gw.go"
+  - "**/*.mod"
+  - "**/*.sum"
+
+rules:
+  - id: go-uber-style-guide
+    description: |
+      Review Go code for conformity with the Uber Golang style guide.
+      Highlight any deviations from the guide's conventions.
+    language: go
+    paths:
+      - "**/*.go"
+  - id: go-unit-test-coverage
+    description: |
+      Assess unit test code for sufficient code coverage
+      for the changes associated in the pull request.
+    language: go
+    paths:
+      - "**/*_test.go"
+  - id: go-e2e-test-coverage
+    description: |
+      Assess integration and e2e test code for sufficient
+      code coverage for the changes in the pull request.
+    language: go
+    paths:
+      - "e2e/**/*"
+  - id: docs-quality
+    description: |
+      Assess documentation for misspellings, grammatical errors,
+      missing documentation, and correctness.
+    paths:
+      - "**/*.md"
+
+github:
+  ignore_labels:
+    - sourcery-ignore
+    - WIP
+    - DO NOT MERGE
