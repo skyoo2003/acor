@@ -261,10 +261,15 @@ func (o *v2Operations) getOrLoadCache(ctx context.Context) (prefixes []string, o
 // message so other instances refresh their caches.
 func (o *v2Operations) publishInvalidate(ctx context.Context) {
 	channel := invalidateChannelPrefix + o.name
-	if err := o.storage.Publish(ctx, channel, o.name); err != nil {
-		if o.logger != nil {
-			o.logger.Printf("failed to publish cache invalidation: channel=%s error=%v", channel, err)
-		}
+	if o.cache != nil {
+		skipSelfSet(o.cache)
+	}
+	err := o.storage.Publish(ctx, channel, o.name)
+	if err != nil && o.cache != nil {
+		skipSelfClear(o.cache)
+	}
+	if err != nil && o.logger != nil {
+		o.logger.Printf("failed to publish cache invalidation: channel=%s error=%v", channel, err)
 	}
 	if o.cache != nil {
 		o.cache.invalidate()
