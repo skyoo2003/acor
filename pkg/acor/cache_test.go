@@ -1,6 +1,7 @@
 package acor
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 )
@@ -113,6 +114,78 @@ func TestTrieCache_ConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 			cache.get()
 		}()
+	}
+
+	wg.Wait()
+}
+
+func TestSkipSelfCheck_AcceptsKnownID(t *testing.T) {
+	c := &trieCache{}
+	skipSelfSet(c, "msg-1")
+
+	if !skipSelfCheck(c, "msg-1") {
+		t.Error("expected skipSelfCheck to return true for known ID")
+	}
+}
+
+func TestSkipSelfCheck_RejectsUnknownID(t *testing.T) {
+	c := &trieCache{}
+
+	if skipSelfCheck(c, "unknown") {
+		t.Error("expected skipSelfCheck to return false for unknown ID")
+	}
+}
+
+func TestSkipSelfCheck_RemovesOnMatch(t *testing.T) {
+	c := &trieCache{}
+	skipSelfSet(c, "msg-1")
+
+	skipSelfCheck(c, "msg-1")
+
+	if skipSelfCheck(c, "msg-1") {
+		t.Error("expected second skipSelfCheck to return false (ID was consumed)")
+	}
+}
+
+func TestSkipSelfCheck_DoesNotLeakAcrossIDs(t *testing.T) {
+	c := &trieCache{}
+	skipSelfSet(c, "msg-1")
+
+	if skipSelfCheck(c, "msg-2") {
+		t.Error("msg-2 should not match msg-1's pending entry")
+	}
+	if !skipSelfCheck(c, "msg-1") {
+		t.Error("msg-1 should still be available after msg-2 check failed")
+	}
+}
+
+func TestSkipSelfClear(t *testing.T) {
+	c := &trieCache{}
+	skipSelfSet(c, "msg-1")
+	skipSelfClear(c, "msg-1")
+
+	if skipSelfCheck(c, "msg-1") {
+		t.Error("expected skipSelfCheck to return false after skipSelfClear")
+	}
+}
+
+func TestSkipSelfCheck_ConcurrentAccess(t *testing.T) {
+	c := &trieCache{}
+	var wg sync.WaitGroup
+
+	for i := 0; i < 100; i++ {
+		id := fmt.Sprintf("msg-%d", i)
+		wg.Add(1)
+		go func(msgID string) {
+			defer wg.Done()
+			skipSelfSet(c, msgID)
+		}(id)
+
+		wg.Add(1)
+		go func(msgID string) {
+			defer wg.Done()
+			skipSelfCheck(c, msgID)
+		}(id)
 	}
 
 	wg.Wait()
