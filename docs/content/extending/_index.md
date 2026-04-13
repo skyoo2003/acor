@@ -9,8 +9,8 @@ Extend ACOR with custom functionality.
 
 ## Sections
 
-- [Custom Storage](/extending/custom-storage/) - Implement custom storage backends
+- [Custom Storage](custom-storage/) - Implement custom storage backends
 
 ## Navigation
 
-← [Operations](/operations/)
+← [Operations](../operations/)

@@ -154,11 +154,11 @@ import (
 - [Operations][operations-link] - Deployment and monitoring
 - [Extending][extending-link] - Custom storage backends
 
-[getting-started-link]: /getting-started/
-[guides-link]: /guides/
-[reference-link]: /reference/
-[operations-link]: /operations/
-[extending-link]: /extending/
+[getting-started-link]: getting-started/
+[guides-link]: guides/
+[reference-link]: reference/
+[operations-link]: operations/
+[extending-link]: extending/
 
 ## Development Workflow
 
