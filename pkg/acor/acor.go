@@ -124,6 +124,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -150,6 +151,9 @@ var (
 	// ErrRedisRingAddrs is returned when ring mode is specified without at least one
 	// shard address in the RingAddrs field.
 	ErrRedisRingAddrs = errors.New("redis ring requires at least one shard address")
+	// ErrInvalidName is returned when the collection name contains characters
+	// that conflict with internal delimiters (e.g., ':').
+	ErrInvalidName = errors.New("collection name must not contain ':'")
 )
 
 // Logger defines the interface for logging operations used by AhoCorasick.
@@ -267,6 +271,10 @@ type AhoCorasickInfo struct {
 //	}
 //	defer ac.Close()
 func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
+	if strings.Contains(args.Name, ":") {
+		return nil, ErrInvalidName
+	}
+
 	stdLogger := log.New(io.Discard, "ACOR: ", log.LstdFlags|log.Lshortfile)
 	if args.Debug {
 		stdLogger.SetOutput(os.Stdout)
