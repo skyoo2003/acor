@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v1.5.1](https://github.com/skyoo2003/acor/releases/tag/v1.5.1) - 2026-04-14
+
+### Fixed
+
+- Prevent pub/sub self-message from invalidating local cache ([#106](https://github.com/skyoo2003/acor/issues/106))
+
+### Documentation
+
+- Fix broken Hugo documentation links with relative paths ([#107](https://github.com/skyoo2003/acor/issues/107))
+- Add single page template to fix broken links ([#105](https://github.com/skyoo2003/acor/issues/105))
+
 ## [v1.5.0](https://github.com/skyoo2003/acor/releases/tag/v1.5.0) - 2026-04-13
 
 ### Added
