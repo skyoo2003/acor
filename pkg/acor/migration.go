@@ -269,7 +269,7 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 				cleanup()
 				result.Status = migrationStatusError
 				result.ErrorMessage = marshalErr.Error()
-				return result, fmt.Errorf("migration: failed to marshal nodes: %w", err)
+				return result, fmt.Errorf("migration: failed to marshal nodes: %w", marshalErr)
 			}
 			nodeFields[kw] = jsonStates
 		}
