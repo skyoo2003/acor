@@ -40,7 +40,10 @@ func skipSelfCheck(c *trieCache, id string) bool {
 	if !loaded {
 		return false
 	}
-	t := val.(time.Time)
+	t, ok := val.(time.Time)
+	if !ok {
+		return false
+	}
 	return time.Since(t) < pendingSelfInvalidationTTL
 }
 
@@ -49,7 +52,12 @@ func skipSelfCheck(c *trieCache, id string) bool {
 func cleanupExpiredSelfInvalidations(c *trieCache) {
 	cutoff := time.Now().Add(-pendingSelfInvalidationTTL)
 	c.pendingSelfInvalidations.Range(func(key, value interface{}) bool {
-		if value.(time.Time).Before(cutoff) {
+		t, ok := value.(time.Time)
+		if !ok {
+			c.pendingSelfInvalidations.Delete(key)
+			return true
+		}
+		if t.Before(cutoff) {
 			c.pendingSelfInvalidations.Delete(key)
 		}
 		return true
