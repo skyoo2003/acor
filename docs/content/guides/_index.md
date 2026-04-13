@@ -9,9 +9,9 @@ Practical guides for using ACOR effectively.
 
 ## Available Guides
 
-- [Batch Operations](/guides/batch-operations/) - Optimize bulk keyword operations
-- [Parallel Matching](/guides/parallel-matching/) - Process large texts with multiple workers
+- [Batch Operations](batch-operations/) - Optimize bulk keyword operations
+- [Parallel Matching](parallel-matching/) - Process large texts with multiple workers
 
 ## Navigation
 
-← [Getting Started](/getting-started/) | [Reference](/reference/) →
+← [Getting Started](../getting-started/) | [Reference](../reference/) →

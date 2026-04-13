@@ -9,10 +9,10 @@ Operational guides for running ACOR in production.
 
 ## Sections
 
-- [Deployment](/operations/deployment/) - Deploy ACOR in various environments
-- [Monitoring](/operations/monitoring/) - Monitor ACOR performance
-- [Troubleshooting](/operations/troubleshooting/) - Diagnose and fix issues
+- [Deployment](deployment/) - Deploy ACOR in various environments
+- [Monitoring](monitoring/) - Monitor ACOR performance
+- [Troubleshooting](troubleshooting/) - Diagnose and fix issues
 
 ## Navigation
 
-← [Reference](/reference/) | [Extending](/extending/) →
+← [Reference](../reference/) | [Extending](../extending/) →
