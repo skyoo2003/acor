@@ -5,7 +5,10 @@ import (
 	"strings"
 )
 
-const invalidateChannelPrefix = "acor:invalidate:"
+const (
+	invalidateChannelPrefix   = "acor:invalidate:"
+	invalidatePayloadSplitMax = 2
+)
 
 func (ac *AhoCorasick) startCacheListener() error {
 	channel := invalidateChannelPrefix + ac.name
@@ -27,12 +30,13 @@ func (ac *AhoCorasick) startCacheListener() error {
 				if !ok {
 					return
 				}
-				if ac.cache != nil && strings.HasPrefix(msg.Payload, ac.name+":") {
-					msgID := strings.TrimPrefix(msg.Payload, ac.name+":")
-					if skipSelfCheck(ac.cache, msgID) {
-						continue
+				if ac.cache != nil {
+					if parts := strings.SplitN(msg.Payload, ":", invalidatePayloadSplitMax); len(parts) == invalidatePayloadSplitMax && parts[0] == ac.name {
+						if skipSelfCheck(ac.cache, parts[1]) {
+							continue
+						}
+						ac.cache.invalidate()
 					}
-					ac.cache.invalidate()
 				}
 			case <-ac.stopCh:
 				return

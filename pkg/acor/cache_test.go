@@ -173,19 +173,42 @@ func TestSkipSelfCheck_ConcurrentAccess(t *testing.T) {
 	c := &trieCache{}
 	var wg sync.WaitGroup
 
-	for i := 0; i < 100; i++ {
+	const numIDs = 100
+	const checksPerID = 10
+
+	var mu sync.Mutex
+	truePerID := make(map[string]int)
+	totalTrue := 0
+
+	for i := 0; i < numIDs; i++ {
 		id := fmt.Sprintf("msg-%d", i)
+
 		wg.Add(1)
 		go func(msgID string) {
 			defer wg.Done()
 			skipSelfSet(c, msgID)
 		}(id)
 
-		wg.Add(1)
-		go func(msgID string) {
-			defer wg.Done()
-			skipSelfCheck(c, msgID)
-		}(id)
+		for j := 0; j < checksPerID; j++ {
+			wg.Add(1)
+			go func(msgID string) {
+				defer wg.Done()
+				if skipSelfCheck(c, msgID) {
+					mu.Lock()
+					truePerID[msgID]++
+					totalTrue++
+
+					if truePerID[msgID] > 1 {
+						t.Errorf("skipSelfCheck returned true more than once for ID %q", msgID)
+					}
+					if totalTrue > numIDs {
+						t.Errorf("total true results %d exceeded number of skipSelfSet calls %d", totalTrue, numIDs)
+					}
+
+					mu.Unlock()
+				}
+			}(id)
+		}
 	}
 
 	wg.Wait()
