@@ -275,27 +275,29 @@ func TestFindFailStateLongestSuffix(t *testing.T) {
 	}
 }
 
-func TestMustJSON(t *testing.T) {
-	result := mustJSON([]string{"a", "b"})
+func TestToJSON(t *testing.T) {
+	result, err := toJSON([]string{"a", "b"})
+	if err != nil {
+		t.Fatalf("toJSON failed: %v", err)
+	}
 	if result != `["a","b"]` {
-		t.Errorf("mustJSON([a,b]) = %q, want %q", result, `["a","b"]`)
+		t.Errorf("toJSON([a,b]) = %q, want %q", result, `["a","b"]`)
 	}
 
-	result = mustJSON(map[string]int{"x": 1})
+	result, err = toJSON(map[string]int{"x": 1})
+	if err != nil {
+		t.Fatalf("toJSON failed: %v", err)
+	}
 	if result != `{"x":1}` {
-		t.Errorf("mustJSON({x:1}) = %q, want %q", result, `{"x":1}`)
+		t.Errorf("toJSON({x:1}) = %q, want %q", result, `{"x":1}`)
 	}
 }
 
-func TestMustJSONPanics(t *testing.T) {
-	defer func() {
-		r := recover()
-		if r == nil {
-			t.Fatal("expected mustJSON to panic for unmarshallable value")
-		}
-	}()
-
-	mustJSON(func() {})
+func TestToJSONError(t *testing.T) {
+	_, err := toJSON(func() {})
+	if err == nil {
+		t.Fatal("expected toJSON to return error for unmarshallable value")
+	}
 }
 
 func TestComputeOutputsV2(t *testing.T) {
