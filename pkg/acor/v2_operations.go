@@ -271,6 +271,7 @@ func (o *v2Operations) publishInvalidate(ctx context.Context) {
 
 	if o.cache != nil {
 		skipSelfSet(o.cache, msgID)
+		cleanupExpiredSelfInvalidations(o.cache)
 	}
 	err := o.storage.Publish(ctx, channel, payload)
 	if err != nil && o.cache != nil {
