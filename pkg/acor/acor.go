@@ -463,79 +463,79 @@ func (ac *AhoCorasick) debugV1() {
 	kKey := keywordKey(ac.name)
 	kMembers, err := ac.storage.SMembers(ac.ctx, kKey)
 	if err != nil {
-		fmt.Println("-", err)
+		ac.logger.Println("-", err)
 		return
 	}
-	fmt.Println("-", kMembers)
+	ac.logger.Println("-", kMembers)
 
 	pKey := prefixKey(ac.name)
 	pMembers, err := ac.storage.ZRange(ac.ctx, pKey, 0, -1)
 	if err != nil {
-		fmt.Println("-", err)
+		ac.logger.Println("-", err)
 		return
 	}
-	fmt.Println("-", pMembers)
+	ac.logger.Println("-", pMembers)
 
 	sKey := suffixKey(ac.name)
 	sMembers, err := ac.storage.ZRange(ac.ctx, sKey, 0, -1)
 	if err != nil {
-		fmt.Println("-", err)
+		ac.logger.Println("-", err)
 		return
 	}
-	fmt.Println("-", sMembers)
+	ac.logger.Println("-", sMembers)
 
 	outputs := make([]string, 0)
 	for _, prefix := range pMembers {
 		oOutputs, err := ac.collectOutputs(prefix)
 		if err != nil {
-			fmt.Println("-", err)
+			ac.logger.Println("-", err)
 			return
 		}
 		outputs = append(outputs, oOutputs...)
 	}
-	fmt.Println("-", outputs)
+	ac.logger.Println("-", outputs)
 
 	nodes := make([]string, 0)
 	for _, kw := range kMembers {
 		nKey := nodeKey(ac.name, kw)
 		nodeMembers, err := ac.storage.SMembers(ac.ctx, nKey)
 		if err != nil {
-			fmt.Println("-", err)
+			ac.logger.Println("-", err)
 			continue
 		}
 		nodes = append(nodes, nodeMembers...)
 	}
-	fmt.Println("-", nodes)
+	ac.logger.Println("-", nodes)
 }
 
 func (ac *AhoCorasick) debugV2() {
 	trieData, err := ac.storage.HGetAll(ac.ctx, trieKey(ac.name))
 	if err != nil {
-		fmt.Println("Error reading trie:", err)
+		ac.logger.Println("Error reading trie:", err)
 		return
 	}
-	fmt.Println("Trie data:")
+	ac.logger.Println("Trie data:")
 	for key, value := range trieData {
-		fmt.Printf("  %s: %s\n", key, value)
+		ac.logger.Printf("  %s: %s\n", key, value)
 	}
 
 	outputsData, err := ac.storage.HGetAll(ac.ctx, outputsKey(ac.name))
 	if err != nil {
-		fmt.Println("Error reading outputs:", err)
+		ac.logger.Println("Error reading outputs:", err)
 		return
 	}
-	fmt.Println("Outputs data:")
+	ac.logger.Println("Outputs data:")
 	for key, value := range outputsData {
-		fmt.Printf("  %s: %s\n", key, value)
+		ac.logger.Printf("  %s: %s\n", key, value)
 	}
 
 	nodesData, err := ac.storage.HGetAll(ac.ctx, nodesKey(ac.name))
 	if err != nil {
-		fmt.Println("Error reading nodes:", err)
+		ac.logger.Println("Error reading nodes:", err)
 		return
 	}
-	fmt.Println("Nodes data:")
+	ac.logger.Println("Nodes data:")
 	for key, value := range nodesData {
-		fmt.Printf("  %s: %s\n", key, value)
+		ac.logger.Printf("  %s: %s\n", key, value)
 	}
 }
