@@ -44,7 +44,11 @@ func skipSelfCheck(c *trieCache, id string) bool {
 	if !ok {
 		return false
 	}
-	return time.Since(t) < pendingSelfInvalidationTTL
+	age := time.Since(t)
+	if age < 0 {
+		return false
+	}
+	return age < pendingSelfInvalidationTTL
 }
 
 // cleanupExpiredSelfInvalidations removes stale entries to prevent unbounded map growth

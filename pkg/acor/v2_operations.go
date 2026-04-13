@@ -7,10 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 )
+
+// selfInvalidationCleanupInterval controls how often cleanupExpiredSelfInvalidations
+// runs relative to publishInvalidate calls. Every N publishes triggers one O(n) sweep.
+const selfInvalidationCleanupInterval = 128
 
 // Compile-time check that v2Operations satisfies the operations interface.
 var _ operations = (*v2Operations)(nil)
@@ -19,12 +24,13 @@ var _ operations = (*v2Operations)(nil)
 // It holds all dependencies needed for V2 Aho-Corasick operations without
 // depending directly on the AhoCorasick struct.
 type v2Operations struct {
-	storage KVStorage             // for all standard Redis operations
-	client  redis.UniversalClient // ONLY for Lua script execution (addV2Script/removeV2Script)
-	name    string
-	ctx     context.Context
-	cache   *trieCache
-	logger  Logger
+	storage                      KVStorage
+	client                       redis.UniversalClient
+	name                         string
+	ctx                          context.Context
+	cache                        *trieCache
+	logger                       Logger
+	selfInvalidationPublishCount uint64
 }
 
 // --- operations interface methods ---
@@ -271,7 +277,9 @@ func (o *v2Operations) publishInvalidate(ctx context.Context) {
 
 	if o.cache != nil {
 		skipSelfSet(o.cache, msgID)
-		cleanupExpiredSelfInvalidations(o.cache)
+		if atomic.AddUint64(&o.selfInvalidationPublishCount, 1)%selfInvalidationCleanupInterval == 0 {
+			cleanupExpiredSelfInvalidations(o.cache)
+		}
 	}
 	err := o.storage.Publish(ctx, channel, payload)
 	if err != nil && o.cache != nil {
