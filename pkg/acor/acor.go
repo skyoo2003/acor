@@ -212,6 +212,12 @@ type AhoCorasickArgs struct {
 	// via Redis Pub/Sub when any instance modifies the collection. Reduces Redis round-trips
 	// for read-heavy workloads at the cost of increased memory usage.
 	EnableCache bool
+	// SelfInvalidationCleanupInterval controls how often the expired self-invalidation
+	// sweep runs relative to publishInvalidate calls. Every N publishes triggers one O(n)
+	// sweep of the pending self-invalidations map. Lower values reduce memory usage at the
+	// cost of more frequent cleanup; higher values trade memory for less CPU overhead.
+	// Defaults to 128 if unset or zero.
+	SelfInvalidationCleanupInterval uint64
 }
 
 // AhoCorasick represents an Aho-Corasick automaton backed by Redis.
@@ -323,13 +329,18 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	}
 
 	if schemaVersion == SchemaV2 {
+		cleanupInterval := args.SelfInvalidationCleanupInterval
+		if cleanupInterval == 0 {
+			cleanupInterval = defaultSelfInvalidationCleanupInterval
+		}
 		ac.ops = &v2Operations{
-			storage: storage,
-			client:  redisClient,
-			name:    args.Name,
-			ctx:     ac.ctx,
-			cache:   cache,
-			logger:  logger,
+			storage:                         storage,
+			client:                          redisClient,
+			name:                            args.Name,
+			ctx:                             ac.ctx,
+			cache:                           cache,
+			logger:                          logger,
+			selfInvalidationCleanupInterval: cleanupInterval,
 		}
 	} else {
 		ac.ops = &v1Operations{

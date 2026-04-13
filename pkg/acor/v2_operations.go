@@ -13,9 +13,9 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-// selfInvalidationCleanupInterval controls how often cleanupExpiredSelfInvalidations
+// defaultSelfInvalidationCleanupInterval controls how often cleanupExpiredSelfInvalidations
 // runs relative to publishInvalidate calls. Every N publishes triggers one O(n) sweep.
-const selfInvalidationCleanupInterval = 128
+const defaultSelfInvalidationCleanupInterval = 128
 
 // Compile-time check that v2Operations satisfies the operations interface.
 var _ operations = (*v2Operations)(nil)
@@ -24,13 +24,14 @@ var _ operations = (*v2Operations)(nil)
 // It holds all dependencies needed for V2 Aho-Corasick operations without
 // depending directly on the AhoCorasick struct.
 type v2Operations struct {
-	storage                      KVStorage
-	client                       redis.UniversalClient
-	name                         string
-	ctx                          context.Context
-	cache                        *trieCache
-	logger                       Logger
-	selfInvalidationPublishCount uint64
+	storage                         KVStorage
+	client                          redis.UniversalClient
+	name                            string
+	ctx                             context.Context
+	cache                           *trieCache
+	logger                          Logger
+	selfInvalidationPublishCount    uint64
+	selfInvalidationCleanupInterval uint64
 }
 
 // --- operations interface methods ---
@@ -271,13 +272,19 @@ func (o *v2Operations) getOrLoadCache(ctx context.Context) (prefixes []string, o
 func (o *v2Operations) publishInvalidate(ctx context.Context) {
 	channel := invalidateChannelPrefix + o.name
 	b := make([]byte, invalidateIDBytes)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil && o.logger != nil {
+		o.logger.Printf("failed to generate random invalidation ID, falling back to counter: %v", err)
+	}
 	msgID := fmt.Sprintf("%d:%x", time.Now().UnixNano(), b)
 	payload := o.name + ":" + msgID
 
 	if o.cache != nil {
 		skipSelfSet(o.cache, msgID)
-		if atomic.AddUint64(&o.selfInvalidationPublishCount, 1)%selfInvalidationCleanupInterval == 0 {
+		interval := o.selfInvalidationCleanupInterval
+		if interval == 0 {
+			interval = defaultSelfInvalidationCleanupInterval
+		}
+		if atomic.AddUint64(&o.selfInvalidationPublishCount, 1)%interval == 0 {
 			cleanupExpiredSelfInvalidations(o.cache)
 		}
 	}
