@@ -14,7 +14,7 @@ RUN make build
 
 FROM alpine:3.15.11
 
-RUN adduser --system --home /acor appuser
+RUN adduser -D -h /acor appuser && mkdir -p /acor && chown appuser:appuser /acor
 VOLUME /acor
 WORKDIR /acor
 COPY --from=builder /github.com/skyoo2003/acor/dist/acor /usr/bin/acor
