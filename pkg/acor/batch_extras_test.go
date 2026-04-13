@@ -1360,6 +1360,7 @@ func TestDebugV1WithNoData(t *testing.T) {
 		storage:       newRedisStorage(client),
 		ctx:           context.Background(),
 		name:          "test",
+		logger:        &testLogger{},
 		schemaVersion: SchemaV1,
 		ops: &v1Operations{
 			storage: newRedisStorage(client),
@@ -1383,6 +1384,7 @@ func TestDebugV1WithClosedRedis(t *testing.T) {
 		storage:       newRedisStorage(client),
 		ctx:           context.Background(),
 		name:          "test",
+		logger:        &testLogger{},
 		schemaVersion: SchemaV1,
 		ops: &v1Operations{
 			storage: newRedisStorage(client),
@@ -1424,6 +1426,7 @@ func TestDebugV2WithData(t *testing.T) {
 		storage:       newRedisStorage(client),
 		ctx:           ctx,
 		name:          "test",
+		logger:        &testLogger{},
 		schemaVersion: SchemaV2,
 		ops: &v2Operations{
 			storage: newRedisStorage(client),
@@ -1447,6 +1450,7 @@ func TestDebugV2WithClosedRedis(t *testing.T) {
 		storage:       newRedisStorage(client),
 		ctx:           context.Background(),
 		name:          "test",
+		logger:        &testLogger{},
 		schemaVersion: SchemaV2,
 		ops: &v2Operations{
 			storage: newRedisStorage(client),
