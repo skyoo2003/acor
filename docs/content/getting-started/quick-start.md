@@ -22,7 +22,7 @@ func main() {
         Addr: "localhost:6379",
         Name: "sample",
     }
-    
+
     ac, err := acor.Create(args)
     if err != nil {
         panic(err)
@@ -101,6 +101,6 @@ args := &acor.AhoCorasickArgs{
 
 ## Next Steps
 
-- [Batch Operations](/guides/batch-operations/) - Optimize bulk operations
-- [Parallel Matching](/guides/parallel-matching/) - Process large texts efficiently
-- [API Reference](/reference/api/) - Complete API documentation
+- [Batch Operations](../guides/batch-operations/) - Optimize bulk operations
+- [Parallel Matching](../guides/parallel-matching/) - Process large texts efficiently
+- [API Reference](../reference/api/) - Complete API documentation

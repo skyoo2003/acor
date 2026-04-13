@@ -20,9 +20,9 @@ go get -u github.com/skyoo2003/acor
 
 ## Next Steps
 
-- [Installation](/getting-started/installation/) - Detailed setup instructions
-- [Quick Start](/getting-started/quick-start/) - Your first ACOR application
+- [Installation](installation/) - Detailed setup instructions
+- [Quick Start](quick-start/) - Your first ACOR application
 
 ## Continue Learning
 
-After getting started, explore the [Guides](/guides/) for advanced usage patterns.
+After getting started, explore the [Guides](../guides/) for advanced usage patterns.
