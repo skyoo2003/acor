@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestTrieCache_Invalidate(t *testing.T) {
@@ -166,6 +167,38 @@ func TestSkipSelfClear(t *testing.T) {
 
 	if skipSelfCheck(c, "msg-1") {
 		t.Error("expected skipSelfCheck to return false after skipSelfClear")
+	}
+}
+
+func TestSkipSelfCheck_RejectsExpiredID(t *testing.T) {
+	c := &trieCache{}
+	expiredID := "expired-msg" //nolint:goconst // test value
+	c.pendingSelfInvalidations.Store(expiredID, time.Now().Add(-2*pendingSelfInvalidationTTL))
+
+	if skipSelfCheck(c, expiredID) {
+		t.Error("expected skipSelfCheck to return false for expired ID")
+	}
+}
+
+func TestCleanupExpiredSelfInvalidations(t *testing.T) {
+	c := &trieCache{}
+	now := time.Now()
+	freshID := "fresh-msg"
+	expiredID := "expired-msg" //nolint:goconst // test value
+
+	c.pendingSelfInvalidations.Store(freshID, now)
+	c.pendingSelfInvalidations.Store(expiredID, now.Add(-pendingSelfInvalidationTTL).Add(-time.Second))
+
+	cleanupExpiredSelfInvalidations(c)
+
+	if skipSelfCheck(c, expiredID) {
+		t.Errorf("expected expired self-invalidation %q to be pruned by cleanupExpiredSelfInvalidations", expiredID)
+	}
+	if !skipSelfCheck(c, freshID) {
+		t.Errorf("expected fresh self-invalidation %q to remain consumable after cleanupExpiredSelfInvalidations", freshID)
+	}
+	if skipSelfCheck(c, freshID) {
+		t.Errorf("expected fresh self-invalidation %q to be single-consumption", freshID)
 	}
 }
 
