@@ -20,13 +20,13 @@ jobs:
         cache-dependency-path: go.sum
     - name: Get current tag name
       id: getTag
-      uses: olegtarasov/get-tag@ee816a9e9fa8b2ecd226d546d32445ddcbec1307
+      uses: olegtarasov/get-tag@ee816a9e9fa8b2ecd226d546d32445ddcbec1307  # get-tag v2.1
     - name: Login to Docker Registry
       run: >
         echo "${{ secrets.GH_PAT }}" |
         docker login ghcr.io -u skyoo2003 --password-stdin
     - name: Execute GoReleaser
-      uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29
+      uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29  # goreleaser-action v7
       with:
         distribution: goreleaser
         version: "~> v2"
