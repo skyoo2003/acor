@@ -12,10 +12,10 @@ WORKDIR /github.com/skyoo2003/acor
 COPY . .
 RUN make build
 
-FROM alpine:3.15.11
+FROM alpine:3.21
 
-RUN addgroup app \
-  && adduser -D -h /acor -G app appuser \
+RUN addgroup -S -g 1000 app \
+  && adduser -S -u 1000 -h /acor -G app appuser \
   && mkdir -p /acor \
   && chown appuser:app /acor
 VOLUME /acor
