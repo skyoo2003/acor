@@ -1,7 +1,9 @@
 FROM alpine:3.21
 
+RUN adduser --system --home /acor appuser
 VOLUME /acor
 WORKDIR /acor
 COPY acor /usr/bin/acor
 
+USER appuser
 ENTRYPOINT ["acor"]
