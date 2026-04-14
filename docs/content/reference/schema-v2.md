@@ -21,7 +21,7 @@ V2 consolidates storage into 3 keys:
 
 | Operation | Complexity |
 |-----------|------------|
-| Find() | 3 RTT (fixed) |
+| Find() | 3 RTT (fixed), 0 RTT with EnableCache |
 | Add() | 2-3 RTT |
 
 ## Comparison with V1
@@ -41,7 +41,7 @@ graph TB
         C[outputs key] --> D[Output Map]
         E[nodes key] --> F[Node Metadata]
     end
-    
+
     G[Find Operation] --> A
     G --> C
     G --> E

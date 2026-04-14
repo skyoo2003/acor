@@ -93,6 +93,11 @@ Or with verbose output:
 go test -v ./...
 ```
 
+With race detection:
+```sh
+make race
+```
+
 ### Building
 
 ```sh
@@ -109,13 +114,46 @@ make lint
 
 We use [golangci-lint](https://golangci-lint.run/) with configuration in `.golangci.yaml`.
 
+Auto-fix linting issues:
+```sh
+make lint-fix
+```
+
+### Static Analysis
+
+```sh
+make vet
+```
+
+### Coverage
+
+```sh
+make coverage
+```
+
+Generates `coverage.out` and `coverage.html`.
+
+### Fuzzing
+
+```sh
+make fuzz
+```
+
 ### Running All Checks
 
 ```sh
 make all
 ```
 
-This runs lint, test, and build.
+This runs vet, lint, test, and build.
+
+### Cleaning
+
+```sh
+make clean
+```
+
+Removes `dist/`, `coverage.out`, and `coverage.html`.
 
 ## Coding Standards
 

@@ -189,8 +189,8 @@ func collectOrderedStringResults(results <-chan indexedStringResult, errors <-ch
 // If opts is nil, DefaultParallelOptions() is used. For small texts that fit
 // within a single chunk, this method delegates to Find without parallelization.
 //
-// Note: Due to chunk overlap for boundary handling, some matches may be reported
-// multiple times. The returned slice contains unique matches.
+// Note: Due to chunk overlap for boundary handling, duplicate matches are
+// automatically deduplicated in the returned slice.
 //
 // Example:
 //

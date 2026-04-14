@@ -1,6 +1,6 @@
 package acor
 
-//go:generate go run go.uber.org/mock/mockgen -source=interfaces.go -destination=mock_storage.go -package acor
+//go:generate go run go.uber.org/mock/mockgen -source=interfaces.go -destination=mock/mock_storage.go -package mock
 
 import (
 	"context"
@@ -110,32 +110,4 @@ type Pipeliner interface {
 	Del(ctx context.Context, keys ...string) error
 	// Exec executes all commands in the pipeline.
 	Exec(ctx context.Context) error
-}
-
-// Matcher defines the interface for text matching operations.
-// Implementations can use different strategies for matching (sequential, parallel).
-type Matcher interface {
-	// Find returns all keyword matches in the text.
-	Find(text string) ([]string, error)
-	// FindIndex returns matches with their start positions.
-	FindIndex(text string) (map[string][]int, error)
-	// FindMany matches keywords across multiple texts.
-	FindMany(texts []string) (map[string][]string, error)
-	// FindParallel matches keywords using parallel processing.
-	FindParallel(text string, opts *ParallelOptions) ([]string, error)
-}
-
-// Indexer defines the interface for keyword management operations.
-// Implementations can use different storage strategies (single, batch).
-type Indexer interface {
-	// Add inserts a single keyword.
-	Add(keyword string) (int, error)
-	// AddMany inserts multiple keywords with batch options.
-	AddMany(keywords []string, opts *BatchOptions) (*BatchResult, error)
-	// Remove deletes a single keyword.
-	Remove(keyword string) (int, error)
-	// RemoveMany deletes multiple keywords.
-	RemoveMany(keywords []string) (*BatchResult, error)
-	// RemoveManyWithOptions deletes multiple keywords with batch options.
-	RemoveManyWithOptions(keywords []string, opts *BatchOptions) (*BatchResult, error)
 }

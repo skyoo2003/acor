@@ -1,9 +1,9 @@
 package acor
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	redis "github.com/go-redis/redis/v8"
@@ -97,7 +97,13 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	if !acquired {
 		return nil, ErrMigrationInProg
 	}
-	defer func() { _ = ac.releaseMigrationLock() }()
+	defer func() {
+		if releaseErr := ac.releaseMigrationLock(); releaseErr != nil {
+			if ac.logger != nil {
+				ac.logger.Printf("warning: failed to release migration lock: %v", releaseErr)
+			}
+		}
+	}()
 
 	start := time.Now()
 	result := &MigrationResult{
@@ -207,17 +213,19 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 		opts.Progress(stepWriteV2Structure, migrationTotalSteps, "Writing V2 structure")
 	}
 
-	tempSuffix := fmt.Sprintf(":tmp:%d", time.Now().Unix())
+	tempSuffix := fmt.Sprintf(":tmp:%d", time.Now().UnixNano())
 	tempTrieKey := trieKey(ac.name) + tempSuffix
 	tempOutputsKey := outputsKey(ac.name) + tempSuffix
 	tempNodesKey := nodesKey(ac.name) + tempSuffix
 
 	cleanup := func() {
-		ac.redisClient.Del(ac.ctx, tempTrieKey, tempOutputsKey, tempNodesKey)
+		if _, delErr := ac.redisClient.Del(ac.ctx, tempTrieKey, tempOutputsKey, tempNodesKey).Result(); delErr != nil {
+			fmt.Fprintf(os.Stderr, "migration cleanup failed: %v\n", delErr)
+		}
 	}
 
 	trieFields := map[string]interface{}{
-		"version": time.Now().Unix(),
+		"version": time.Now().UnixNano(),
 	}
 	if keywordsJSON, marshalErr := toJSON(keywords); marshalErr != nil {
 		return result, fmt.Errorf("migration: failed to marshal keywords: %w", marshalErr)
@@ -340,8 +348,4 @@ func (ac *AhoCorasick) RollbackToV1() error {
 	ac.schemaVersion = SchemaV1
 
 	return nil
-}
-
-func parseJSON(data string, v interface{}) error {
-	return json.Unmarshal([]byte(data), v)
 }

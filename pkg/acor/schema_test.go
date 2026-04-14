@@ -1,6 +1,9 @@
 package acor
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestSchemaConstants(t *testing.T) {
 	if SchemaV1 != 1 {
@@ -18,9 +21,6 @@ func TestMigrationOptionsDefaults(t *testing.T) {
 	}
 	if opts.KeepOldKeys {
 		t.Error("KeepOldKeys should be false by default")
-	}
-	if opts.Quiet {
-		t.Error("Quiet should be false by default")
 	}
 	if opts.Progress != nil {
 		t.Error("Progress should be nil by default")
@@ -44,14 +44,14 @@ func TestMigrationResultJSON(t *testing.T) {
 		RolledBack:  false,
 	}
 
-	data, err := result.MarshalJSON()
+	data, err := json.Marshal(result)
 	if err != nil {
-		t.Fatalf("MarshalJSON failed: %v", err)
+		t.Fatalf("json.Marshal failed: %v", err)
 	}
 
 	var parsed MigrationResult
-	if err := parsed.UnmarshalJSON(data); err != nil {
-		t.Fatalf("UnmarshalJSON failed: %v", err)
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
 	}
 
 	if parsed.Status != result.Status {

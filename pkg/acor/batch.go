@@ -2,6 +2,7 @@ package acor
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 )
@@ -85,7 +86,7 @@ func (ac *AhoCorasick) addManyTransactional(ctx context.Context, keywords []stri
 		count, err := ac.ops.add(ctx, keyword)
 		if err != nil {
 			ac.rollbackAdded(rollbackCtx, added)
-			return nil, err
+			return nil, fmt.Errorf("batch add failed at keyword %q: %w", keyword, err)
 		}
 
 		if count > 0 {
@@ -203,7 +204,7 @@ func (ac *AhoCorasick) removeManyTransactional(ctx context.Context, keywords []s
 		_, err := ac.ops.remove(ctx, keyword)
 		if err != nil {
 			ac.rollbackRemoved(rollbackCtx, removed)
-			return nil, err
+			return nil, fmt.Errorf("batch remove failed at keyword %q: %w", keyword, err)
 		}
 
 		removed = append(removed, keyword)

@@ -54,22 +54,6 @@ func (e *OperationError) Error() string {
 // Unwrap returns the underlying error for use with errors.Is and errors.As.
 func (e *OperationError) Unwrap() error { return e.Err }
 
-// ValidationError represents an error caused by invalid input.
-// It includes the field name, invalid value, and a descriptive message.
-type ValidationError struct {
-	// Field is the name of the field that failed validation.
-	Field string
-	// Value is the invalid value that was provided.
-	Value any
-	// Message describes why the validation failed.
-	Message string
-}
-
-// Error returns a formatted validation error message.
-func (e *ValidationError) Error() string {
-	return fmt.Sprintf("validation error: %s=%v, %s", e.Field, e.Value, e.Message)
-}
-
 // RedisError represents an error that occurred during a Redis operation.
 // It includes the operation type, key, and underlying error.
 type RedisError struct {
@@ -91,10 +75,6 @@ func (e *RedisError) Unwrap() error { return e.Err }
 
 func newOperationError(op string, schema int, err error) error {
 	return &OperationError{Op: op, Schema: schema, Err: err}
-}
-
-func newValidationError(field string, value any, msg string) error {
-	return &ValidationError{Field: field, Value: value, Message: msg}
 }
 
 func newRedisError(op, key string, err error) error {
