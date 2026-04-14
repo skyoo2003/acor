@@ -2,13 +2,20 @@ package acor
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 )
+
+// defaultSelfInvalidationCleanupInterval controls how often cleanupExpiredSelfInvalidations
+// runs relative to publishInvalidate calls. Every N publishes triggers one O(n) sweep.
+const defaultSelfInvalidationCleanupInterval = 128
 
 // Compile-time check that v2Operations satisfies the operations interface.
 var _ operations = (*v2Operations)(nil)
@@ -17,12 +24,14 @@ var _ operations = (*v2Operations)(nil)
 // It holds all dependencies needed for V2 Aho-Corasick operations without
 // depending directly on the AhoCorasick struct.
 type v2Operations struct {
-	storage KVStorage             // for all standard Redis operations
-	client  redis.UniversalClient // ONLY for Lua script execution (addV2Script/removeV2Script)
-	name    string
-	ctx     context.Context
-	cache   *trieCache
-	logger  Logger
+	storage                         KVStorage
+	client                          redis.UniversalClient
+	name                            string
+	ctx                             context.Context
+	cache                           *trieCache
+	logger                          Logger
+	selfInvalidationPublishCount    uint64
+	selfInvalidationCleanupInterval uint64
 }
 
 // --- operations interface methods ---
@@ -258,15 +267,30 @@ func (o *v2Operations) getOrLoadCache(ctx context.Context) (prefixes []string, o
 // --- publishInvalidate ---
 
 // publishInvalidate invalidates the local cache and publishes an invalidation
-// message so other instances refresh their caches.
+// message so other instances refresh their caches. Each publish includes a
+// unique ID to avoid a leakable counter when skipping self-messages.
 func (o *v2Operations) publishInvalidate(ctx context.Context) {
 	channel := invalidateChannelPrefix + o.name
-	if o.cache != nil {
-		skipSelfSet(o.cache)
+	b := make([]byte, invalidateIDBytes)
+	if _, err := rand.Read(b); err != nil && o.logger != nil {
+		o.logger.Printf("failed to generate random invalidation ID, falling back to counter: %v", err)
 	}
-	err := o.storage.Publish(ctx, channel, o.name)
+	msgID := fmt.Sprintf("%d:%x", time.Now().UnixNano(), b)
+	payload := o.name + ":" + msgID
+
+	if o.cache != nil {
+		skipSelfSet(o.cache, msgID)
+		interval := o.selfInvalidationCleanupInterval
+		if interval == 0 {
+			interval = defaultSelfInvalidationCleanupInterval
+		}
+		if atomic.AddUint64(&o.selfInvalidationPublishCount, 1)%interval == 0 {
+			cleanupExpiredSelfInvalidations(o.cache)
+		}
+	}
+	err := o.storage.Publish(ctx, channel, payload)
 	if err != nil && o.cache != nil {
-		skipSelfClear(o.cache)
+		skipSelfClear(o.cache, msgID)
 	}
 	if err != nil && o.logger != nil {
 		o.logger.Printf("failed to publish cache invalidation: channel=%s error=%v", channel, err)

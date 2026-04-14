@@ -2,9 +2,13 @@ package acor
 
 import (
 	"fmt"
+	"strings"
 )
 
-const invalidateChannelPrefix = "acor:invalidate:"
+const (
+	invalidateChannelPrefix   = "acor:invalidate:"
+	invalidatePayloadSplitMax = 2
+)
 
 func (ac *AhoCorasick) startCacheListener() error {
 	channel := invalidateChannelPrefix + ac.name
@@ -26,9 +30,9 @@ func (ac *AhoCorasick) startCacheListener() error {
 				if !ok {
 					return
 				}
-				if msg.Payload == ac.name {
-					if ac.cache != nil {
-						if skipSelfCheck(ac.cache) {
+				if ac.cache != nil {
+					if parts := strings.SplitN(msg.Payload, ":", invalidatePayloadSplitMax); len(parts) == invalidatePayloadSplitMax && parts[0] == ac.name {
+						if skipSelfCheck(ac.cache, parts[1]) {
 							continue
 						}
 						ac.cache.invalidate()

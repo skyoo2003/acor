@@ -3,7 +3,6 @@ package acor
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,13 +10,13 @@ import (
 	"github.com/skyoo2003/acor/internal/pkg/utils"
 )
 
-var ErrConcurrencyConflict = errors.New("concurrency conflict - please retry")
-
 const maxRetries = 3
 
 const retryBackoffBase = 10 * time.Millisecond
 
 const luaKeys = 2
+
+const invalidateIDBytes = 8
 
 func toJSON(v interface{}) (string, error) {
 	b, err := json.Marshal(v)
