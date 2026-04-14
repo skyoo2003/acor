@@ -25,6 +25,9 @@ var (
 	// ErrCacheRequiresV2 is returned when cache is enabled with V1 schema.
 	// Cache functionality requires V2 schema for Pub/Sub invalidation support.
 	ErrCacheRequiresV2 = errors.New("local cache requires V2 schema")
+	// ErrConcurrencyConflict is returned when an optimistic locking conflict
+	// occurs during a V2 write operation (Add/Remove). The caller should retry.
+	ErrConcurrencyConflict = errors.New("concurrency conflict - please retry")
 )
 
 // OperationError represents an error that occurred during an automaton operation.

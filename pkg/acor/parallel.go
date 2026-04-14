@@ -168,9 +168,15 @@ func collectOrderedStringResults(results <-chan indexedStringResult, errors <-ch
 		return allChunkResults[i].chunkIndex < allChunkResults[j].chunkIndex
 	})
 
+	seen := make(map[string]struct{})
 	var allMatches []string
 	for _, r := range allChunkResults {
-		allMatches = append(allMatches, r.matches...)
+		for _, m := range r.matches {
+			if _, ok := seen[m]; !ok {
+				seen[m] = struct{}{}
+				allMatches = append(allMatches, m)
+			}
+		}
 	}
 
 	return allMatches, firstErr
