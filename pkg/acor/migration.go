@@ -220,7 +220,11 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 
 	cleanup := func() {
 		if _, delErr := ac.redisClient.Del(ac.ctx, tempTrieKey, tempOutputsKey, tempNodesKey).Result(); delErr != nil {
-			fmt.Fprintf(os.Stderr, "migration cleanup failed: %v\n", delErr)
+			if ac.logger != nil {
+				ac.logger.Printf("migration cleanup failed: %v", delErr)
+			} else {
+				fmt.Fprintf(os.Stderr, "migration cleanup failed: %v\n", delErr)
+			}
 		}
 	}
 
