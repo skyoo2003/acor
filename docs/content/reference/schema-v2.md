@@ -13,15 +13,15 @@ V2 consolidates storage into 3 keys:
 
 | Key Pattern | Purpose |
 |-------------|---------|
-| `{name}:trie` | Serialized trie structure |
-| `{name}:outputs` | All output mappings |
-| `{name}:nodes` | Node metadata |
+| `{name}:trie` | Serialized trie structure (keywords, prefixes, suffixes, version) |
+| `{name}:outputs` | All output mappings (state -> keywords) |
+| `{name}:nodes` | Node metadata (migration only, cleaned up by flush) |
 
 ## Performance Characteristics
 
 | Operation | Complexity |
 |-----------|------------|
-| Find() | 3 RTT (fixed) |
+| Find() | 3 RTT (fixed), 0 RTT with EnableCache |
 | Add() | 2-3 RTT |
 
 ## Comparison with V1
@@ -39,12 +39,12 @@ graph TB
     subgraph V2 Schema
         A[trie key] --> B[Serialized Trie]
         C[outputs key] --> D[Output Map]
-        E[nodes key] --> F[Node Metadata]
+        E[nodes key] --> F[Node Metadata - migration only]
     end
-    
+
     G[Find Operation] --> A
     G --> C
-    G --> E
+    G -.-> E
 ```
 
 ## Enabling V2
@@ -79,22 +79,24 @@ acor -name mycollection migrate
 
 ### trie key
 
-Stores the serialized trie structure as a hash:
+Stores the serialized trie as a hash with four fields:
 
 ```text
 {collection}:trie
-  state_0 -> {"children": {...}, "fail": "state_1"}
-  state_1 -> {"children": {...}, "fail": ""}
+  keywords -> ["keyword1", "keyword2", ...]
+  prefixes  -> ["", "h", "he", ...]
+  suffixes  -> ["", "e", "eh", ...]
+  version   -> <int64 optimistic lock>
 ```
 
 ### outputs key
 
-Stores output keywords per state:
+Stores output keywords per trie state as a hash:
 
 ```text
 {collection}:outputs
-  state_0 -> ["keyword1", "keyword2"]
-  state_1 -> ["keyword3"]
+  he  -> ["he"]
+  she -> ["he", "she"]
 ```
 
 ### nodes key

@@ -50,18 +50,6 @@ func TestOperationError(t *testing.T) {
 	}
 }
 
-func TestValidationError(t *testing.T) {
-	e := &ValidationError{
-		Field:   "keyword",
-		Value:   "",
-		Message: "cannot be empty",
-	}
-	expected := "validation error: keyword=, cannot be empty"
-	if got := e.Error(); got != expected {
-		t.Errorf("Error() = %q, want %q", got, expected)
-	}
-}
-
 func TestRedisError(t *testing.T) {
 	underlying := errors.New("connection refused")
 	e := &RedisError{
@@ -84,14 +72,6 @@ func TestErrorHelpers(t *testing.T) {
 		var opErr *OperationError
 		if !errors.As(err, &opErr) {
 			t.Error("should be OperationError")
-		}
-	})
-
-	t.Run("newValidationError", func(t *testing.T) {
-		err := newValidationError("field", "value", "invalid")
-		var valErr *ValidationError
-		if !errors.As(err, &valErr) {
-			t.Error("should be ValidationError")
 		}
 	})
 

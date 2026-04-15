@@ -13,17 +13,26 @@ Complete API documentation for ACOR.
 
 Configuration for creating an AhoCorasick instance.
 
+<!-- AUTO-GENERATED:types:start -->
 ```go
 type AhoCorasickArgs struct {
-    Addr       string            // Standalone Redis address
-    Addrs      []string          // Sentinel or Cluster addresses
-    RingAddrs  map[string]string // Ring shard addresses
-    MasterName string            // Sentinel master name
-    Password   string            // Redis password
-    DB         int               // Redis database number
-    Name       string            // Collection name
+    Addr                            string            // Standalone Redis address
+    Addrs                           []string          // Sentinel or Cluster addresses
+    RingAddrs                       map[string]string // Ring shard addresses
+    MasterName                      string            // Sentinel master name
+    Password                        string            // Redis password
+    DB                              int               // Redis database number (0-15, default: 0)
+    Name                            string            // Collection name (required)
+    Debug                           bool              // Enable debug logging to stdout
+    Logger                          Logger            // Custom logger (nil disables logging)
+    SchemaVersion                   int               // 0 or 2: V2 (default, optimized); 1: V1 (legacy)
+    EnableCache                     bool              // Enable local in-memory caching for Find/FindIndex
+    SelfInvalidationCleanupInterval uint64            // Cleanup frequency for self-invalidation map (default: 128)
+    CaseSensitive                   bool              // Enable case-sensitive matching (default: false)
+    RollbackTimeout                 time.Duration     // V1 rollback timeout (default: 10s)
 }
 ```
+<!-- AUTO-GENERATED:types:end -->
 
 ### AhoCorasick
 
@@ -49,6 +58,8 @@ count, err := ac.Add("keyword")
 Add multiple keywords in a batch.
 
 ```go
+result, err := ac.AddMany([]string{"a", "b", "c"}, nil)
+// or with options:
 result, err := ac.AddMany([]string{"a", "b", "c"}, &acor.BatchOptions{
     Mode: acor.BatchModeTransactional,
 })
@@ -81,11 +92,11 @@ matches, err := ac.Find("sample text")
 
 ### FindIndex
 
-Find matches with their positions.
+Find matches with their start positions.
 
 ```go
 positions, err := ac.FindIndex("sample text")
-// Returns: map[string][]int{"keyword": {start, end}, ...}
+// Returns: map[string][]int{"keyword": {startPos, ...}, ...}
 ```
 
 ### FindMany
@@ -157,7 +168,7 @@ positions, err := ac.SuggestIndex("pre")
 
 ```go
 type BatchOptions struct {
-    Mode BatchMode // Transactional or BestEffort
+    Mode BatchMode // BestEffort (default) or Transactional
 }
 ```
 
@@ -165,9 +176,19 @@ type BatchOptions struct {
 
 ```go
 type BatchResult struct {
-    Success int
-    Failed  int
-    Errors  []BatchError
+    Added   []string       // Successfully added keywords
+    Removed []string       // Successfully removed keywords
+    Failed  []KeywordError // Keywords that failed with their errors
+    Skipped []string       // Keywords that were skipped (e.g., duplicates)
+}
+```
+
+### KeywordError
+
+```go
+type KeywordError struct {
+    Keyword string
+    Error   error
 }
 ```
 
@@ -177,18 +198,28 @@ type BatchResult struct {
 
 ```go
 type ParallelOptions struct {
-    Workers   int
-    ChunkSize int
-    Boundary  ChunkBoundary
+    Workers   int           // Concurrent goroutines (default: runtime.NumCPU())
+    ChunkSize int           // Target chunk size in characters (default: 1000)
+    Boundary  ChunkBoundary // How chunks are split (default: ChunkBoundaryWord)
+    Overlap   int           // Overlap characters between chunks (default: 50)
 }
+```
+
+### DefaultParallelOptions
+
+Returns parallel options with sensible defaults:
+
+```go
+opts := acor.DefaultParallelOptions()
+matches, err := ac.FindParallel(text, opts)
 ```
 
 ### ChunkBoundary
 
 ```go
 const (
-    ChunkBoundaryWord     ChunkBoundary = iota
-    ChunkBoundaryLine
-    ChunkBoundarySentence
+    ChunkBoundaryWord     ChunkBoundary = iota // Split at whitespace (default)
+    ChunkBoundarySentence                       // Split at sentence boundaries (. ! ?)
+    ChunkBoundaryLine                           // Split at newlines
 )
 ```

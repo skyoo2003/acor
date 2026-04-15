@@ -9,20 +9,28 @@ import (
 	redis "github.com/go-redis/redis/v8"
 )
 
-type noopLogger struct{}
+type redisNoopLogger struct{}
 
-func (noopLogger) Printf(_ context.Context, _ string, _ ...interface{}) {}
+func (redisNoopLogger) Printf(_ context.Context, _ string, _ ...interface{}) {}
 
 func TestMain(m *testing.M) {
-	redis.SetLogger(noopLogger{})
+	redis.SetLogger(redisNoopLogger{})
 	os.Exit(m.Run())
 }
 
+// testLogger is a no-op Logger implementation for tests.
+type testLogger struct{}
+
+func (l *testLogger) Printf(format string, args ...interface{}) {}
+func (l *testLogger) Println(v ...interface{})                  {}
+
 // Shared test constants used across multiple test files.
 const (
-	testKeywordHE    = "he"
-	testKeywordTest  = "test"
-	testKeywordHello = "hello"
+	testKeywordHE         = "he"
+	testKeywordHim        = "him"
+	testKeywordTest       = "test"
+	testKeywordHello      = "hello"
+	testKeywordHelloUpper = "Hello"
 )
 
 func createTestRedisServer(t *testing.T) *miniredis.Miniredis {

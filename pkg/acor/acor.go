@@ -115,6 +115,22 @@
 //
 // All operations are safe for concurrent use. V2 schema uses optimistic locking
 // with automatic retries for write operations.
+//
+// # Case-Sensitive Matching
+//
+// By default, ACOR performs case-insensitive matching: keywords are lowercased
+// on insertion and search text is lowercased during matching. To enable
+// case-sensitive matching, set CaseSensitive to true:
+//
+//	ac, err := acor.Create(&acor.AhoCorasickArgs{
+//	    Addr:          "localhost:6379",
+//	    Name:          "my-collection",
+//	    CaseSensitive: true,
+//	})
+//	if err != nil {
+//	    // handle error
+//	}
+//	defer ac.Close()
 package acor
 
 import (
@@ -134,7 +150,17 @@ import (
 const (
 	initScore   = 0.0
 	memberScore = 1.0
+
+	defaultRollbackTimeout = 10 * time.Second
 )
+
+// resolveRollbackTimeout returns d if positive, otherwise the default.
+func resolveRollbackTimeout(d time.Duration) time.Duration {
+	if d > 0 {
+		return d
+	}
+	return defaultRollbackTimeout
+}
 
 var (
 	// ErrRedisAlreadyClosed is returned when attempting to close an already closed Redis client.
@@ -218,6 +244,16 @@ type AhoCorasickArgs struct {
 	// cost of more frequent cleanup; higher values trade memory for less CPU overhead.
 	// Defaults to 128 if unset or zero.
 	SelfInvalidationCleanupInterval uint64
+	// CaseSensitive controls whether keyword matching is case-sensitive.
+	// When false (default), keywords are lowercased on Add/Remove and search text
+	// is lowercased in Find/FindIndex/Suggest, providing case-insensitive matching.
+	// When true, keywords and search text are matched as-is for full case-sensitive matching.
+	CaseSensitive bool
+	// RollbackTimeout controls the timeout for V1 rollback operations when buildTrie
+	// fails after a keyword has been added. Defaults to 10 seconds if unset or zero.
+	// A fresh context with this timeout is used intentionally so that rollback can
+	// complete even if the caller's context is already canceled.
+	RollbackTimeout time.Duration
 }
 
 // AhoCorasick represents an Aho-Corasick automaton backed by Redis.
@@ -337,18 +373,19 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 			storage:                         storage,
 			client:                          redisClient,
 			name:                            args.Name,
-			ctx:                             ac.ctx,
 			cache:                           cache,
 			logger:                          logger,
 			selfInvalidationCleanupInterval: cleanupInterval,
+			caseSensitive:                   args.CaseSensitive,
 		}
 	} else {
 		ac.ops = &v1Operations{
-			storage: storage,
-			name:    args.Name,
-			ctx:     ac.ctx,
-			logger:  logger,
-			ac:      ac,
+			storage:         storage,
+			name:            args.Name,
+			logger:          logger,
+			ac:              ac,
+			caseSensitive:   args.CaseSensitive,
+			rollbackTimeout: resolveRollbackTimeout(args.RollbackTimeout),
 		}
 	}
 
@@ -387,7 +424,7 @@ func (ac *AhoCorasick) init() error {
 				"version":  time.Now().UnixNano(),
 			})
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to initialize V2 trie: %w", err)
 			}
 		}
 		return nil
@@ -399,7 +436,7 @@ func (ac *AhoCorasick) init() error {
 		Member: "",
 	}
 	if err := ac.storage.ZAdd(ac.ctx, prefixKey, member); err != nil {
-		return err
+		return fmt.Errorf("failed to initialize V1 prefix key: %w", err)
 	}
 	return nil
 }
@@ -426,7 +463,9 @@ func (ac *AhoCorasick) Close() error {
 }
 
 // Add inserts a keyword into the Aho-Corasick automaton.
-// The keyword is normalized to lowercase before storage.
+// When CaseSensitive is false (default), the keyword is normalized to lowercase
+// before storage and duplicate detection is case-insensitive.
+// When CaseSensitive is true, the keyword is stored verbatim.
 //
 // Returns:
 //   - 1 if the keyword was successfully added
@@ -438,30 +477,43 @@ func (ac *AhoCorasick) Add(keyword string) (int, error) {
 	return ac.ops.add(ac.ctx, keyword)
 }
 
+// Remove removes a keyword from the Aho-Corasick automaton.
+// Returns the number of keywords removed (0 or 1) or an error.
 func (ac *AhoCorasick) Remove(keyword string) (int, error) {
 	return ac.ops.remove(ac.ctx, keyword)
 }
 
+// Find searches the text for all keywords in the automaton and returns
+// the matched keywords as a slice of strings.
 func (ac *AhoCorasick) Find(text string) ([]string, error) {
 	return ac.ops.find(ac.ctx, text)
 }
 
+// FindIndex searches the text for all keywords and returns a map of
+// keyword to the slice of start indices where each keyword was found.
 func (ac *AhoCorasick) FindIndex(text string) (map[string][]int, error) {
 	return ac.ops.findIndex(ac.ctx, text)
 }
 
+// Flush removes all keywords from the automaton, effectively resetting it
+// to an empty state.
 func (ac *AhoCorasick) Flush() error {
 	return ac.ops.flush(ac.ctx)
 }
 
+// Info returns diagnostic information about the automaton, including the
+// schema version, keyword count, and storage details.
 func (ac *AhoCorasick) Info() (*AhoCorasickInfo, error) {
 	return ac.ops.info(ac.ctx)
 }
 
+// Suggest returns keyword suggestions based on the given input prefix.
 func (ac *AhoCorasick) Suggest(input string) ([]string, error) {
 	return ac.ops.suggest(ac.ctx, input)
 }
 
+// SuggestIndex returns keyword suggestions based on the given input prefix,
+// mapped to their start indices in the original keywords.
 func (ac *AhoCorasick) SuggestIndex(input string) (map[string][]int, error) {
 	return ac.ops.suggestIndex(ac.ctx, input)
 }

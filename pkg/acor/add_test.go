@@ -145,31 +145,31 @@ func TestRemove(t *testing.T) {
 			wantErr:   false,
 		},
 		{
-			name:      "remove non-existent keyword returns remaining count",
+			name:      "remove non-existent keyword returns 0",
 			addFirst:  []string{"hello"},
 			remove:    []string{"world"},
+			wantCount: 0,
+			wantErr:   false,
+		},
+		{
+			name:      "remove unicode keywords",
+			addFirst:  []string{"한글", "日本語", "中文"},
+			remove:    []string{"한글"},
 			wantCount: 1,
 			wantErr:   false,
 		},
 		{
-			name:      "remove unicode keywords returns remaining count",
-			addFirst:  []string{"한글", "日本語", "中文"},
-			remove:    []string{"한글"},
-			wantCount: 2,
-			wantErr:   false,
-		},
-		{
-			name:      "remove duplicate keywords",
+			name:      "remove duplicate keywords returns 1 on first remove",
 			addFirst:  []string{"test", "test"},
 			remove:    []string{"test"},
-			wantCount: 0,
+			wantCount: 1,
 			wantErr:   false,
 		},
 		{
 			name:      "remove partial match",
 			addFirst:  []string{"he", "her", "here"},
 			remove:    []string{"he"},
-			wantCount: 2,
+			wantCount: 1,
 			wantErr:   false,
 		},
 	}
@@ -237,7 +237,7 @@ func TestRemoveWithSchemaVersion(t *testing.T) {
 			schema:     SchemaV1,
 			keywords:   []string{"he", "she", "hello"},
 			remove:     "he",
-			wantCount:  2,
+			wantCount:  1,
 			notFound:   "he",
 			stillFound: "she",
 		},
@@ -246,7 +246,7 @@ func TestRemoveWithSchemaVersion(t *testing.T) {
 			schema:     SchemaV2,
 			keywords:   []string{"foo", "bar", "baz"},
 			remove:     "foo",
-			wantCount:  2,
+			wantCount:  1,
 			notFound:   "foo",
 			stillFound: "bar",
 		},
@@ -270,7 +270,7 @@ func TestRemoveWithSchemaVersion(t *testing.T) {
 				t.Fatalf("Remove(%s) error: %v", tt.remove, err)
 			}
 			if count != tt.wantCount {
-				t.Errorf("Remove(%s) = %d, want %d (remaining)", tt.remove, count, tt.wantCount)
+				t.Errorf("Remove(%s) = %d, want %d (removed)", tt.remove, count, tt.wantCount)
 			}
 
 			matches, err := ac.Find(tt.notFound + " " + tt.stillFound)
@@ -301,8 +301,8 @@ func TestV2RemoveNonExistent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Remove(nonexistent) error: %v", err)
 	}
-	if count != 1 {
-		t.Errorf("Remove(nonexistent) = %d, want 1 (remaining)", count)
+	if count != 0 {
+		t.Errorf("Remove(nonexistent) = %d, want 0", count)
 	}
 }
 
@@ -324,8 +324,8 @@ func TestV2RemoveSimple(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Remove() error: %v", err)
 	}
-	if count != 9 {
-		t.Errorf("Remove() = %d, want 9 (remaining)", count)
+	if count != 1 {
+		t.Errorf("Remove() = %d, want 1", count)
 	}
 }
 
