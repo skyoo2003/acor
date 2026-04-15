@@ -29,6 +29,7 @@ type AhoCorasickArgs struct {
     EnableCache                     bool              // Enable local in-memory caching for Find/FindIndex
     SelfInvalidationCleanupInterval uint64            // Cleanup frequency for self-invalidation map (default: 128)
     CaseSensitive                   bool              // Enable case-sensitive matching (default: false)
+    RollbackTimeout                 time.Duration     // V1 rollback timeout (default: 10s)
 }
 ```
 <!-- AUTO-GENERATED:types:end -->
@@ -91,11 +92,11 @@ matches, err := ac.Find("sample text")
 
 ### FindIndex
 
-Find matches with their positions.
+Find matches with their start positions.
 
 ```go
 positions, err := ac.FindIndex("sample text")
-// Returns: map[string][]int{"keyword": {start, end}, ...}
+// Returns: map[string][]int{"keyword": {startPos, ...}, ...}
 ```
 
 ### FindMany
