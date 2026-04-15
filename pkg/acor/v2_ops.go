@@ -53,12 +53,12 @@ func (o *v2Operations) find(ctx context.Context, text string) ([]string, error) 
 		text = strings.ToLower(text)
 	}
 
-	prefixes, outputs, err := o.getOrLoadCache(ctx)
+	_, prefixSet, outputs, err := o.getOrLoadCache(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	matched, err := o.localFind(ctx, text, prefixes, outputs)
+	matched, err := o.localFind(ctx, text, prefixSet, outputs)
 	return matched, err
 }
 
@@ -71,12 +71,12 @@ func (o *v2Operations) findIndex(ctx context.Context, text string) (map[string][
 		text = strings.ToLower(text)
 	}
 
-	prefixes, outputs, err := o.getOrLoadCache(ctx)
+	_, prefixSet, outputs, err := o.getOrLoadCache(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	matched, err := o.localFindIndex(ctx, text, prefixes, outputs)
+	matched, err := o.localFindIndex(ctx, text, prefixSet, outputs)
 	return matched, err
 }
 
@@ -271,15 +271,23 @@ func (o *v2Operations) loadCache(ctx context.Context) error {
 }
 
 // getOrLoadCache returns cached trie data if valid, otherwise loads from storage.
-func (o *v2Operations) getOrLoadCache(ctx context.Context) (prefixes []string, outputs map[string][]string, err error) {
+func (o *v2Operations) getOrLoadCache(ctx context.Context) (prefixes []string, prefixSet map[string]struct{}, outputs map[string][]string, err error) {
 	if o.cache == nil {
-		return o.fetchTrieData(ctx)
+		prefixes, outputs, err = o.fetchTrieData(ctx)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		prefixSet = make(map[string]struct{}, len(prefixes))
+		for _, p := range prefixes {
+			prefixSet[p] = struct{}{}
+		}
+		return prefixes, prefixSet, outputs, nil
 	}
 
 	var valid bool
 	prefixes, outputs, valid = o.cache.get()
 	if valid {
-		return
+		return prefixes, o.cache.getPrefixSet(), outputs, nil
 	}
 
 	o.cache.loadMu.Lock()
@@ -288,15 +296,15 @@ func (o *v2Operations) getOrLoadCache(ctx context.Context) (prefixes []string, o
 	// Double-check after acquiring lock
 	prefixes, outputs, valid = o.cache.get()
 	if valid {
-		return
+		return prefixes, o.cache.getPrefixSet(), outputs, nil
 	}
 
-	if err = o.loadCache(ctx); err != nil {
-		return
+	if err := o.loadCache(ctx); err != nil {
+		return nil, nil, nil, err
 	}
 
 	prefixes, outputs, _ = o.cache.get()
-	return
+	return prefixes, o.cache.getPrefixSet(), outputs, nil
 }
 
 // --- publishInvalidate ---
@@ -342,12 +350,7 @@ func (o *v2Operations) publishInvalidate(ctx context.Context) {
 // is only observed after the scan completes.
 const contextCheckInterval = 1000
 
-func (o *v2Operations) localFind(ctx context.Context, text string, prefixes []string, outputs map[string][]string) ([]string, error) {
-	prefixSet := make(map[string]struct{})
-	for _, p := range prefixes {
-		prefixSet[p] = struct{}{}
-	}
-
+func (o *v2Operations) localFind(ctx context.Context, text string, prefixSet map[string]struct{}, outputs map[string][]string) ([]string, error) {
 	matched := make([]string, 0)
 	state := ""
 
@@ -374,12 +377,7 @@ func (o *v2Operations) localFind(ctx context.Context, text string, prefixes []st
 	return matched, nil
 }
 
-func (o *v2Operations) localFindIndex(ctx context.Context, text string, prefixes []string, outputs map[string][]string) (map[string][]int, error) {
-	prefixSet := make(map[string]struct{})
-	for _, p := range prefixes {
-		prefixSet[p] = struct{}{}
-	}
-
+func (o *v2Operations) localFindIndex(ctx context.Context, text string, prefixSet map[string]struct{}, outputs map[string][]string) (map[string][]int, error) {
 	matched := make(map[string][]int)
 	state := ""
 	runeIndex := 0
@@ -399,13 +397,13 @@ func (o *v2Operations) localFindIndex(ctx context.Context, text string, prefixes
 		}
 
 		state = nextState
+		runeIndex++
 		if outs, exists := outputs[state]; exists {
 			for _, out := range outs {
-				startIdx := runeIndex - len([]rune(out)) + 1
+				startIdx := runeIndex - len([]rune(out))
 				matched[out] = append(matched[out], startIdx)
 			}
 		}
-		runeIndex++
 	}
 
 	return matched, nil

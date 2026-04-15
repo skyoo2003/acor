@@ -33,7 +33,7 @@ func TestV2GetOrLoadCacheNoCache(t *testing.T) {
 		"he": `["he"]`,
 	})
 
-	prefixes, outputs, err := ops.getOrLoadCache(context.Background())
+	prefixes, _, outputs, err := ops.getOrLoadCache(context.Background())
 	if err != nil {
 		t.Fatalf("getOrLoadCache() error: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestV2GetOrLoadCacheDoubleCheck(t *testing.T) {
 		logger:  &testLogger{},
 	}
 
-	prefixes, outputs, err := ops.getOrLoadCache(context.Background())
+	prefixes, _, outputs, err := ops.getOrLoadCache(context.Background())
 	if err != nil {
 		t.Fatalf("getOrLoadCache() error: %v", err)
 	}
@@ -194,7 +194,7 @@ func TestV2GetOrLoadCacheDoubleCheck(t *testing.T) {
 		t.Errorf("len(outputs) = %d, want 1", len(outputs))
 	}
 
-	prefixes2, outputs2, err := ops.getOrLoadCache(context.Background())
+	prefixes2, _, outputs2, err := ops.getOrLoadCache(context.Background())
 	if err != nil {
 		t.Fatalf("second getOrLoadCache() error: %v", err)
 	}

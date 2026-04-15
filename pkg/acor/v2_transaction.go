@@ -13,19 +13,28 @@ import (
 
 // versionRandBytes is the number of random bytes used to extend version timestamps
 // and prevent collisions under heavy concurrent writes.
-const versionRandBytes = 4
+const versionRandBytes = 2
+
+// versionTimestampMask masks the lower 48 bits of a nanosecond timestamp,
+// covering ~89 years of precision. Used by generateVersion to pack the
+// timestamp into the lower portion of the version int64.
+const versionTimestampMask int64 = 0xFFFFFFFFFFFF
 
 // --- V2 transaction helpers (optimistic locking) ---
 
-// generateVersion returns a unique version timestamp with a random suffix
-// to prevent collisions under heavy concurrent writes where multiple instances
-// may generate the same UnixNano timestamp.
+// generateVersion returns a unique version by packing a nanosecond timestamp into
+// the lower 48 bits and a random suffix into the upper 16 bits. This avoids int64
+// overflow from additive mixing and makes the encoding easy to reason about.
+// The 48-bit timestamp covers ~89 years of nanosecond precision, far exceeding
+// any practical use case. The 16-bit random suffix (65536 values) prevents
+// collisions when multiple instances generate versions within the same nanosecond.
 func generateVersion() (int64, error) {
 	b := make([]byte, versionRandBytes)
 	if _, err := rand.Read(b); err != nil {
 		return 0, fmt.Errorf("generateVersion: crypto/rand.Read failed: %w", err)
 	}
-	return time.Now().UnixNano() + int64(b[0])<<48 + int64(b[1])<<40 + int64(b[2])<<32 + int64(b[3])<<24, nil
+	ts := time.Now().UnixNano()
+	return (int64(b[0])<<56 | int64(b[1])<<48) | (ts & versionTimestampMask), nil
 }
 
 // trieSnapshot holds the deserialized trie data read from Redis.

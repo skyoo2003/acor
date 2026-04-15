@@ -12,11 +12,12 @@ import (
 const pendingSelfInvalidationTTL = 30 * time.Second
 
 type trieCache struct {
-	mu       sync.RWMutex
-	loadMu   sync.Mutex
-	prefixes []string
-	outputs  map[string][]string
-	valid    bool
+	mu        sync.RWMutex
+	loadMu    sync.Mutex
+	prefixes  []string
+	prefixSet map[string]struct{}
+	outputs   map[string][]string
+	valid     bool
 	// pendingSelfInvalidations holds self-published message IDs so the listener
 	// can skip cache invalidation already performed by the local publisher.
 	// sync.Map is used for lock-free access by concurrent publisher/listener goroutines.
@@ -90,6 +91,10 @@ func (c *trieCache) set(prefixes []string, outputs map[string][]string) {
 	defer c.mu.Unlock()
 	c.prefixes = append([]string(nil), prefixes...)
 	c.outputs = cloneOutputs(outputs)
+	c.prefixSet = make(map[string]struct{}, len(prefixes))
+	for _, p := range prefixes {
+		c.prefixSet[p] = struct{}{}
+	}
 	c.valid = true
 }
 
@@ -97,4 +102,12 @@ func (c *trieCache) get() (prefixes []string, outputs map[string][]string, valid
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return append([]string(nil), c.prefixes...), cloneOutputs(c.outputs), c.valid
+}
+
+// getPrefixSet returns the cached prefix set for O(1) lookups.
+// The returned map is safe to read concurrently (it is replaced, not mutated, by set).
+func (c *trieCache) getPrefixSet() map[string]struct{} {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.prefixSet
 }

@@ -151,7 +151,7 @@ func (o *v1Operations) find(ctx context.Context, text string) ([]string, error) 
 			nextState = afterNextState
 		}
 
-		outputs, err := o.ac.outputWithContext(ctx, state)
+		outputs, err := o.ac.outputWithContext(ctx, nextState)
 		if err != nil {
 			return nil, newOperationError("find", SchemaV1, err)
 		}
@@ -159,11 +159,6 @@ func (o *v1Operations) find(ctx context.Context, text string) ([]string, error) 
 		state = nextState
 	}
 
-	outputs, err := o.ac.outputWithContext(ctx, state)
-	if err != nil {
-		return nil, newOperationError("find", SchemaV1, err)
-	}
-	matched = append(matched, outputs...)
 	o.logger.Println(fmt.Sprintf("Find(%s) > Matched(%v) : Count(%d)", text, matched, len(matched)))
 
 	return matched, nil
@@ -206,20 +201,15 @@ func (o *v1Operations) findIndex(ctx context.Context, text string) (map[string][
 			nextState = afterNextState
 		}
 
-		outputs, err := o.ac.outputWithContext(ctx, state)
+		outputs, err := o.ac.outputWithContext(ctx, nextState)
 		if err != nil {
 			return nil, newOperationError("findIndex", SchemaV1, err)
 		}
-		o.ac.appendMatchedIndexesWithContext(ctx, matched, outputs, runeIndex)
+		o.ac.appendMatchedIndexesWithContext(ctx, matched, outputs, runeIndex+1)
 		state = nextState
 		runeIndex++
 	}
 
-	outputs, err := o.ac.outputWithContext(ctx, state)
-	if err != nil {
-		return nil, newOperationError("findIndex", SchemaV1, err)
-	}
-	o.ac.appendMatchedIndexesWithContext(ctx, matched, outputs, runeIndex)
 	o.logger.Println(fmt.Sprintf("FindIndex(%s) > Matched(%v) : Count(%d)", text, matched, len(matched)))
 
 	return matched, nil

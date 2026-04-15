@@ -130,7 +130,7 @@ func TestV2GetOrLoadCacheError(t *testing.T) {
 	}
 	defer func() { _ = ops.client.Close() }()
 
-	_, _, err := ops.getOrLoadCache(context.Background())
+	_, _, _, err := ops.getOrLoadCache(context.Background())
 	if err == nil {
 		t.Fatal("expected error from closed Redis in getOrLoadCache")
 	}
