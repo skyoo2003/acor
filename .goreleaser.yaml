@@ -63,11 +63,11 @@ dockers_v2:
   - "v{{ .Major }}.{{ .Minor }}-alpine"
   - "v{{ .Major }}-alpine"
   - "latest-alpine"
-  build_flag_templates:
-  - "--label=org.opencontainers.image.created={{ .Date }}"
-  - "--label=org.opencontainers.image.title={{ .ProjectName }}"
-  - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
-  - "--label=org.opencontainers.image.version={{ .Version }}"
+  labels:
+    org.opencontainers.image.created: "{{ .Date }}"
+    org.opencontainers.image.title: "{{ .ProjectName }}"
+    org.opencontainers.image.revision: "{{ .FullCommit }}"
+    org.opencontainers.image.version: "{{ .Version }}"
 
 release:
   github:
