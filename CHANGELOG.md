@@ -1,5 +1,6 @@
 # Changelog
 All notable changes to this project will be documented in this file.
+
 ## [v1.6.0](https://github.com/skyoo2003/acor/releases/tag/v1.6.0) - 2026-04-16
 ### Added
 * Add case-sensitive matching support via CaseSensitive field in AhoCorasickArgs ([#112](https://github.com/skyoo2003/acor/issues/112))
@@ -23,12 +24,15 @@ All notable changes to this project will be documented in this file.
 * Run Docker containers as non-root user to prevent RCE ([#110](https://github.com/skyoo2003/acor/issues/110))
 * Pin third-party GitHub Actions to commit SHAs to prevent supply chain attacks ([#111](https://github.com/skyoo2003/acor/issues/111))
 ### Documentation
-* Sync API reference and V2 schema docs with source code ([#112](https://github.com/skyoo2003/acor/issues/112))## [v1.5.1](https://github.com/skyoo2003/acor/releases/tag/v1.5.1) - 2026-04-14
+* Sync API reference and V2 schema docs with source code ([#112](https://github.com/skyoo2003/acor/issues/112))
+
+## [v1.5.1](https://github.com/skyoo2003/acor/releases/tag/v1.5.1) - 2026-04-14
 ### Fixed
 * Prevent pub/sub self-message from invalidating local cache ([#106](https://github.com/skyoo2003/acor/issues/106))
 ### Documentation
 * Fix broken Hugo documentation links with relative paths ([#107](https://github.com/skyoo2003/acor/issues/107))
 * Add single page template to fix broken links ([#105](https://github.com/skyoo2003/acor/issues/105))
+
 ## [v1.5.0](https://github.com/skyoo2003/acor/releases/tag/v1.5.0) - 2026-04-13
 ### Added
 * Add local caching for Find/FindIndex operations with Redis Pub/Sub invalidation ([#99](https://github.com/skyoo2003/acor/issues/99))
@@ -56,6 +60,7 @@ All notable changes to this project will be documented in this file.
 ### Documentation
 * Add cross-references between Hugo documentation pages ([#98](https://github.com/skyoo2003/acor/issues/98))
 * Add comprehensive Hugo documentation: guides, API reference, deployment, monitoring, troubleshooting ([#96](https://github.com/skyoo2003/acor/issues/96))
+
 ## [v1.4.0](https://github.com/skyoo2003/acor/releases/tag/v1.4.0) - 2026-03-18
 ### Added
 * Add CLI commands: migrate, migrate-rollback, schema-version ([#83](https://github.com/skyoo2003/acor/issues/83))
@@ -79,7 +84,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 * Correct migration progress step constants ([#83](https://github.com/skyoo2003/acor/issues/83))
 ### Documentation
-* Add performance tradeoffs and migration notes to README ([#83](https://github.com/skyoo2003/acor/issues/83))## [v1.3.0](https://github.com/skyoo2003/acor/releases/tag/v1.3.0) - 2026-03-14
+* Add performance tradeoffs and migration notes to README ([#83](https://github.com/skyoo2003/acor/issues/83))
+
+## [v1.3.0](https://github.com/skyoo2003/acor/releases/tag/v1.3.0) - 2026-03-14
 ### Added
 * Add index APIs for find and suggest ([#67](https://github.com/skyoo2003/acor/issues/67))
 * Add Redis topology-aware client selection ([#69](https://github.com/skyoo2003/acor/issues/69))
@@ -88,7 +95,9 @@ All notable changes to this project will be documented in this file.
 ### Changed
 * Handle Redis errors during AC execution ([#68](https://github.com/skyoo2003/acor/issues/68))
 ### Documentation
-* Add GitHub Pages documentation and deployment workflow ([#76](https://github.com/skyoo2003/acor/issues/76))## [v1.2.0](https://github.com/skyoo2003/acor/releases/tag/v1.2.0) - 2021-07-09
+* Add GitHub Pages documentation and deployment workflow ([#76](https://github.com/skyoo2003/acor/issues/76))
+
+## [v1.2.0](https://github.com/skyoo2003/acor/releases/tag/v1.2.0) - 2021-07-09
 
 ### Changed
 
@@ -99,12 +108,14 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Fixed NodeKey output was not written ([#13](https://github.com/skyoo2003/acor/issues/13))
+
 ## [v1.1.0](https://github.com/skyoo2003/acor/releases/tag/v1.1.0) - 2020-11-17
 
 ### Changed
 * Bump go-redis/redis libraries
 * Applied go modules
 * Bump Go required version (1.8 -> 1.11)
+
 ## [v1.0.0](https://github.com/skyoo2003/acor/releases/tag/v1.0.0) - 2017-06-29
 
 ### Added
