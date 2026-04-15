@@ -114,7 +114,12 @@ func (ac *AhoCorasick) rollbackAdded(ctx context.Context, keywords []string) {
 	var wg sync.WaitGroup
 
 	for _, keyword := range keywords {
-		sem <- struct{}{}
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			wg.Wait()
+			return
+		}
 		wg.Add(1)
 		go func(k string) {
 			defer func() {
@@ -228,7 +233,12 @@ func (ac *AhoCorasick) rollbackRemoved(ctx context.Context, keywords []string) {
 	var wg sync.WaitGroup
 
 	for _, keyword := range keywords {
-		sem <- struct{}{}
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			wg.Wait()
+			return
+		}
 		wg.Add(1)
 		go func(k string) {
 			defer func() {
