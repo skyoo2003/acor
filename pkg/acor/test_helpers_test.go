@@ -27,6 +27,7 @@ func (l *testLogger) Println(v ...interface{})                  {}
 // Shared test constants used across multiple test files.
 const (
 	testKeywordHE         = "he"
+	testKeywordHim        = "him"
 	testKeywordTest       = "test"
 	testKeywordHello      = "hello"
 	testKeywordHelloUpper = "Hello"
