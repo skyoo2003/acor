@@ -140,7 +140,12 @@ ACOR automatically creates spans for:
 
 ### Grafana Dashboard
 
-Import the provided dashboard JSON from `contrib/dashboards/acor.json`.
+Create a Grafana dashboard using the metrics above. Key panels to include:
+
+1. **Operation Latency**: P50/P95/P99 of `acor_redis_operation_duration_seconds`
+2. **Error Rate**: Rate of `acor_redis_operations_total{status="error"}`
+3. **Keyword Count**: Gauge `acor_keywords_total`
+4. **Trie Nodes**: Gauge `acor_trie_nodes_total`
 
 ## Alerting Rules
 

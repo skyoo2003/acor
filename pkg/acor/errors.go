@@ -10,12 +10,6 @@ var (
 	ErrEmptyKeyword = errors.New("keyword cannot be empty")
 	// ErrInvalidChunkSize is returned when ParallelOptions.ChunkSize is <= 0.
 	ErrInvalidChunkSize = errors.New("chunk size must be positive")
-	// ErrInvalidWorkerCount is returned when ParallelOptions.Workers is negative.
-	// Zero is valid and defaults to runtime.NumCPU().
-	// Note: Currently, negative values are automatically normalized to the default
-	// rather than returning this error. This error is defined for future explicit
-	// validation if needed.
-	ErrInvalidWorkerCount = errors.New("worker count cannot be negative")
 	// ErrNoBoundariesFound is returned when parallel processing cannot find
 	// suitable chunk boundaries in the text.
 	ErrNoBoundariesFound = errors.New("could not find suitable chunk boundaries")
@@ -54,22 +48,6 @@ func (e *OperationError) Error() string {
 // Unwrap returns the underlying error for use with errors.Is and errors.As.
 func (e *OperationError) Unwrap() error { return e.Err }
 
-// ValidationError represents an error caused by invalid input.
-// It includes the field name, invalid value, and a descriptive message.
-type ValidationError struct {
-	// Field is the name of the field that failed validation.
-	Field string
-	// Value is the invalid value that was provided.
-	Value any
-	// Message describes why the validation failed.
-	Message string
-}
-
-// Error returns a formatted validation error message.
-func (e *ValidationError) Error() string {
-	return fmt.Sprintf("validation error: %s=%v, %s", e.Field, e.Value, e.Message)
-}
-
 // RedisError represents an error that occurred during a Redis operation.
 // It includes the operation type, key, and underlying error.
 type RedisError struct {
@@ -91,10 +69,6 @@ func (e *RedisError) Unwrap() error { return e.Err }
 
 func newOperationError(op string, schema int, err error) error {
 	return &OperationError{Op: op, Schema: schema, Err: err}
-}
-
-func newValidationError(field string, value any, msg string) error {
-	return &ValidationError{Field: field, Value: value, Message: msg}
 }
 
 func newRedisError(op, key string, err error) error {

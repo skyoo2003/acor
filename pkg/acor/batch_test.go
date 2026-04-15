@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-const testKeywordHim = "him"
-
 func TestAddManyBestEffort(t *testing.T) {
 	ac, mr := createAhoCorasick(t)
 	defer mr.Close()

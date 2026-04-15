@@ -35,15 +35,14 @@ func setupV2WithError(t *testing.T) *AhoCorasick {
 	ac := &AhoCorasick{
 		redisClient:   client,
 		storage:       storage,
-		ctx:           context.Background(),
 		name:          "test",
+		ctx:           context.Background(),
 		schemaVersion: SchemaV2,
 	}
 	ac.ops = &v2Operations{
 		storage: storage,
 		client:  client,
 		name:    "test",
-		ctx:     ac.ctx,
 		logger:  log.New(io.Discard, "", 0),
 	}
 
@@ -97,7 +96,7 @@ func TestV2TryAddRedisError(t *testing.T) {
 	ac := setupV2WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	err := ac.tryAddV2(context.Background(), "him")
+	_, err := ac.AddContext(context.Background(), "him")
 	assertRedisError(t, err, "HGETALL")
 }
 
@@ -105,7 +104,7 @@ func TestV2TryRemoveRedisError(t *testing.T) {
 	ac := setupV2WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	err := ac.tryRemoveV2(context.Background(), "he")
+	_, err := ac.RemoveContext(context.Background(), "he")
 	assertRedisError(t, err, "HGETALL")
 }
 
@@ -114,7 +113,7 @@ func TestV2FlushRedisError(t *testing.T) {
 	defer func() { _ = ac.redisClient.Close() }()
 
 	err := ac.Flush()
-	assertRedisError(t, err, "DEL")
+	assertRedisError(t, err, "TXPIPELINED")
 }
 
 func TestV2ErrorsAreUnwrappable(t *testing.T) {

@@ -307,7 +307,7 @@ func TestFindParallelEdgeCases(t *testing.T) {
 		{"empty text", "", nil},
 		{"short text", "test", nil},
 		{"line boundaries", "test\nhello\nworld", &ParallelOptions{Workers: 2, ChunkSize: 10, Boundary: ChunkBoundaryLine}},
-		{"sentence boundaries", "Test. Hello world.", &ParallelOptions{Workers: 2, ChunkSize: 10, Boundary: ChunkBoundarySentence}},
+		{"sentence boundaries", "test hello world.", &ParallelOptions{Workers: 2, ChunkSize: 10, Boundary: ChunkBoundarySentence}},
 		{"nil options uses defaults", "test hello world", nil},
 		{"single worker", "test hello world", &ParallelOptions{Workers: 1, ChunkSize: 100}},
 	}

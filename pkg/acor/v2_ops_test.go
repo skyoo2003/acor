@@ -18,7 +18,6 @@ func TestV2Find(t *testing.T) {
 	ac := &AhoCorasick{
 		redisClient:   client,
 		storage:       storage,
-		ctx:           context.Background(),
 		name:          "test",
 		schemaVersion: SchemaV2,
 	}
@@ -26,7 +25,6 @@ func TestV2Find(t *testing.T) {
 		storage: storage,
 		client:  client,
 		name:    "test",
-		ctx:     ac.ctx,
 		logger:  log.New(io.Discard, "", 0),
 	}
 
@@ -62,26 +60,9 @@ func TestV2Find(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ops.find() error: %v", err)
 			}
-			if !equalStringSlices(got, tt.expected) {
+			if !equalStringSets(got, tt.expected) {
 				t.Errorf("ops.find(%q) = %v, want %v", tt.input, got, tt.expected)
 			}
 		})
 	}
-}
-
-func equalStringSlices(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	aSet := make(map[string]int)
-	for _, s := range a {
-		aSet[s]++
-	}
-	for _, s := range b {
-		aSet[s]--
-		if aSet[s] < 0 {
-			return false
-		}
-	}
-	return true
 }

@@ -1,9 +1,5 @@
 package acor
 
-import (
-	"encoding/json"
-)
-
 // Schema version constants define the storage format used by the automaton.
 const (
 	// SchemaV1 represents the legacy V1 schema version.
@@ -25,15 +21,13 @@ type MigrationOptions struct {
 	// KeepOldKeys if true, preserves V1 keys after migration.
 	// Set to false (default) to delete V1 keys after successful migration.
 	KeepOldKeys bool
-	// Quiet if true, suppresses progress output.
-	Quiet bool
 	// Progress is an optional callback for migration progress updates.
 	// Called with (done_steps, total_steps, message) for each migration phase.
 	Progress func(done, total int, message string)
 }
 
 // DefaultMigrationOptions returns migration options with safe defaults:
-// DryRun=false, KeepOldKeys=false, Quiet=false, Progress=nil.
+// DryRun=false, KeepOldKeys=false, Progress=nil.
 func DefaultMigrationOptions() *MigrationOptions {
 	return &MigrationOptions{}
 }
@@ -69,18 +63,6 @@ type MigrationResult struct {
 	RolledBack bool `json:"rolled_back"`
 	// ErrorMessage contains the error message if Status is "error".
 	ErrorMessage string `json:"error,omitempty"`
-}
-
-// MarshalJSON implements json.Marshaler for MigrationResult.
-func (r *MigrationResult) MarshalJSON() ([]byte, error) {
-	type Alias MigrationResult
-	return json.Marshal((*Alias)(r))
-}
-
-// UnmarshalJSON implements json.Unmarshaler for MigrationResult.
-func (r *MigrationResult) UnmarshalJSON(data []byte) error {
-	type Alias MigrationResult
-	return json.Unmarshal(data, (*Alias)(r))
 }
 
 // Stats returns migration statistics as a map.
