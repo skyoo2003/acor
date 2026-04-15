@@ -46,28 +46,28 @@ archives:
     - CODE_OF_CONDUCT.md
 
 changelog:
-  skip: true
+  disable: true
 
 checksum:
   algorithm: sha256
   name_template: 'CHECKSUMS'
 
-docker:
-- ids:
-  - acor
+dockers_v2:
+- images:
+  - ghcr.io/skyoo2003/acor
   dockerfile: Dockerfile.goreleaser
-  use: buildx
-  image_templates:
-  - "ghcr.io/skyoo2003/acor:{{ .Tag }}-alpine"
-  - "ghcr.io/skyoo2003/acor:v{{ .Major }}.{{ .Minor }}-alpine"
-  - "ghcr.io/skyoo2003/acor:v{{ .Major }}-alpine"
-  - "ghcr.io/skyoo2003/acor:latest-alpine"
+  ids:
+  - acor
+  tags:
+  - "{{ .Tag }}-alpine"
+  - "v{{ .Major }}.{{ .Minor }}-alpine"
+  - "v{{ .Major }}-alpine"
+  - "latest-alpine"
   build_flag_templates:
   - "--label=org.opencontainers.image.created={{ .Date }}"
   - "--label=org.opencontainers.image.title={{ .ProjectName }}"
   - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
   - "--label=org.opencontainers.image.version={{ .Version }}"
-  skip_push: false
 
 release:
   github:
