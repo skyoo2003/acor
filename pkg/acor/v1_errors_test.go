@@ -41,7 +41,6 @@ func setupV1WithError(t *testing.T) *AhoCorasick {
 	ac.ops = &v1Operations{
 		storage: storage,
 		name:    "test",
-		ctx:     ac.ctx,
 		logger:  log.New(io.Discard, "", 0),
 		ac:      ac,
 	}
@@ -101,8 +100,7 @@ func TestV1AddRedisError(t *testing.T) {
 	ac := setupV1WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	// Test internal helper path
-	_, err := ac.addV1(context.Background(), "newword")
+	_, err := ac.AddContext(context.Background(), "newword")
 	assertV1RedisError(t, err, "SISMEMBER")
 
 	// Test public dispatch path (AddContext)
@@ -114,21 +112,19 @@ func TestV1RemoveRedisError(t *testing.T) {
 	ac := setupV1WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	// Test internal helper path
-	_, err := ac.removeV1(context.Background(), "he")
-	assertV1RedisError(t, err, "SMEMBERS")
+	_, err := ac.RemoveContext(context.Background(), "he")
+	assertV1RedisError(t, err, "SISMEMBER")
 
 	// Test public dispatch path (RemoveContext)
 	_, err = ac.RemoveContext(context.Background(), "he")
-	assertV1RedisError(t, err, "SMEMBERS")
+	assertV1RedisError(t, err, "SISMEMBER")
 }
 
 func TestV1FlushRedisError(t *testing.T) {
 	ac := setupV1WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	// Test internal helper path
-	err := ac.flushV1(context.Background())
+	err := ac.FlushContext(context.Background())
 	assertV1RedisError(t, err, "SMEMBERS")
 
 	// Test public dispatch path (FlushContext)
@@ -140,8 +136,7 @@ func TestV1InfoRedisError(t *testing.T) {
 	ac := setupV1WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	// Test internal helper path
-	_, err := ac.infoV1(context.Background())
+	_, err := ac.InfoContext(context.Background())
 	assertV1RedisError(t, err, "SCARD")
 
 	// Test public dispatch path (InfoContext)
@@ -153,8 +148,7 @@ func TestV1SuggestRedisError(t *testing.T) {
 	ac := setupV1WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	// Test internal helper path
-	_, err := ac.suggestV1(context.Background(), "h")
+	_, err := ac.SuggestContext(context.Background(), "h")
 	assertV1RedisError(t, err, "ZRANK")
 
 	// Test public dispatch path (SuggestContext)
@@ -166,8 +160,7 @@ func TestV1SuggestIndexRedisError(t *testing.T) {
 	ac := setupV1WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	// Test internal helper path
-	_, err := ac.suggestIndexV1(context.Background(), "h")
+	_, err := ac.SuggestIndexContext(context.Background(), "h")
 	assertV1RedisError(t, err, "ZRANK")
 
 	// Test public dispatch path (SuggestIndexContext)
@@ -179,8 +172,7 @@ func TestV1FindOperationError(t *testing.T) {
 	ac := setupV1WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	// Test internal helper path
-	_, err := ac.findV1(context.Background(), "hello")
+	_, err := ac.FindContext(context.Background(), "hello")
 	assertV1OperationError(t, err, "find")
 
 	// Test public dispatch path (FindContext)
@@ -192,8 +184,7 @@ func TestV1FindIndexOperationError(t *testing.T) {
 	ac := setupV1WithError(t)
 	defer func() { _ = ac.redisClient.Close() }()
 
-	// Test internal helper path
-	_, err := ac.findIndexV1(context.Background(), "hello")
+	_, err := ac.FindIndexContext(context.Background(), "hello")
 	assertV1OperationError(t, err, "findIndex")
 
 	// Test public dispatch path (FindIndexContext)
@@ -206,7 +197,7 @@ func TestV1ErrorsAreUnwrappable(t *testing.T) {
 	defer func() { _ = ac.redisClient.Close() }()
 
 	// Test RedisError unwrapping
-	_, err := ac.infoV1(context.Background())
+	_, err := ac.InfoContext(context.Background())
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -220,9 +211,9 @@ func TestV1ErrorsAreUnwrappable(t *testing.T) {
 	}
 
 	// Test OperationError unwrapping
-	_, err = ac.findV1(context.Background(), "test")
+	_, err = ac.FindContext(context.Background(), "test")
 	if err == nil {
-		t.Fatal("expected error from findV1")
+		t.Fatal("expected error from FindContext")
 	}
 
 	var opErr *OperationError

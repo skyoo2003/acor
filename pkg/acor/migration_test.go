@@ -2,6 +2,7 @@ package acor
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	miniredis "github.com/alicebob/miniredis/v2"
@@ -79,7 +80,7 @@ func TestMigrateV1ToV2(t *testing.T) {
 
 	trieData := client.HGetAll(ctx, "{test}:trie").Val()
 	var keywords []string
-	_ = parseJSON(trieData["keywords"], &keywords)
+	_ = json.Unmarshal([]byte(trieData["keywords"]), &keywords)
 	if len(keywords) != 3 {
 		t.Errorf("Migrated keywords count = %d, want 3", len(keywords))
 	}
