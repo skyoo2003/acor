@@ -125,6 +125,10 @@ func (c *trieCache) get() (prefixes []string, outputs map[string][]string, valid
 // The caller MUST NOT mutate the returned map — it is shared across goroutines
 // and replaced atomically by set(). Any mutation will cause data races or
 // cache corruption. The map is safe to read concurrently.
+//
+// Unlike get() which returns defensive copies of prefixes and outputs, this
+// returns the internal map directly for performance (called in the find hot loop).
+// This is safe because all current callers only read from the returned map.
 func (c *trieCache) getPrefixSet() map[string]struct{} {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -132,7 +136,8 @@ func (c *trieCache) getPrefixSet() map[string]struct{} {
 }
 
 // getOutputRuneLen returns a map from each unique output string to its rune length.
-// Like getPrefixSet, the caller MUST NOT mutate the returned map.
+// Like getPrefixSet, the caller MUST NOT mutate the returned map. Returns the
+// internal map directly for performance (called in the findIndex hot loop).
 func (c *trieCache) getOutputRuneLen() map[string]int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

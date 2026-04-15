@@ -3,7 +3,7 @@ package acor
 import (
 	"errors"
 	"fmt"
-	"os"
+	"log"
 	"time"
 
 	redis "github.com/go-redis/redis/v8"
@@ -223,7 +223,7 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 			if ac.logger != nil {
 				ac.logger.Printf("migration cleanup failed: %v", delErr)
 			} else {
-				fmt.Fprintf(os.Stderr, "migration cleanup failed: %v\n", delErr)
+				log.Printf("acor: migration cleanup failed: %v", delErr)
 			}
 		}
 	}

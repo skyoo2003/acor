@@ -69,7 +69,7 @@ func (o *v1Operations) add(ctx context.Context, keyword string) (int, error) {
 	return 1, nil
 }
 
-func (o *v1Operations) remove(ctx context.Context, keyword string) (int, error) {
+func (o *v1Operations) remove(_ context.Context, keyword string) (int, error) {
 	keyword = strings.TrimSpace(keyword)
 	if !o.caseSensitive {
 		keyword = strings.ToLower(keyword)
@@ -77,6 +77,14 @@ func (o *v1Operations) remove(ctx context.Context, keyword string) (int, error) 
 	if keyword == "" {
 		return 0, nil
 	}
+
+	// Use a detached context so remove completes atomically even if the caller's
+	// context is canceled (e.g., via RemoveContext). Without this, a canceled
+	// context could leave the trie in a partially-removed inconsistent state
+	// (e.g., outputs removed from nodes but keyword still in the keyword set).
+	removeCtx, cancel := context.WithTimeout(context.Background(), o.rollbackTimeout)
+	defer cancel()
+	ctx := removeCtx
 
 	nodeKey := nodeKey(o.name, keyword)
 	nodes, err := o.storage.SMembers(ctx, nodeKey)
@@ -215,7 +223,14 @@ func (o *v1Operations) findIndex(ctx context.Context, text string) (map[string][
 	return matched, nil
 }
 
-func (o *v1Operations) flush(ctx context.Context) error {
+func (o *v1Operations) flush(_ context.Context) error {
+	// Use a detached context so flush completes atomically even if the caller's
+	// context is canceled (e.g., via FlushContext). A partial flush would leave
+	// the trie in an inconsistent state (some keys deleted but not all).
+	flushCtx, cancel := context.WithTimeout(context.Background(), o.rollbackTimeout)
+	defer cancel()
+	ctx := flushCtx
+
 	kKey := keywordKey(o.name)
 	pKey := prefixKey(o.name)
 	sKey := suffixKey(o.name)

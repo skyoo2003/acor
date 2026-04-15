@@ -137,7 +137,9 @@ func (o *v2Operations) flush(ctx context.Context) error {
 		// nodesKey is only written during migration; including it here ensures a clean state.
 		nKey := nodesKey(o.name)
 
-		if err := pipe.Del(ctx, tKey, oKey, nKey); err != nil {
+		// Delete outputs and nodes keys; overwrite trie key with HSET below
+		// instead of DEL+HSET to avoid an unnecessary round-trip in the pipeline.
+		if err := pipe.Del(ctx, oKey, nKey); err != nil {
 			return err
 		}
 		if err := pipe.HSet(ctx, tKey, map[string]interface{}{
@@ -222,7 +224,7 @@ func (o *v2Operations) suggestIndex(ctx context.Context, input string) (map[stri
 		return nil, err
 	}
 
-	indexed := make(map[string][]int)
+	indexed := make(map[string][]int, len(results))
 	for _, kw := range results {
 		indexed[kw] = []int{0}
 	}
