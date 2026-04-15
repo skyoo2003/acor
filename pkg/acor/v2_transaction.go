@@ -186,7 +186,11 @@ func (o *v2Operations) tryAddV2(ctx context.Context, keyword string) (int, error
 	args["trieKey"] = trieKey(o.name)
 	args["outputsKey"] = outputsKey(o.name)
 
-	result, err := o.addV2Script(ctx, o.client, args).Result()
+	cmd, err := o.runAddV2Script(ctx, o.client, args)
+	if err != nil {
+		return 0, newRedisError("EVAL", trieKey(o.name), err)
+	}
+	result, err := cmd.Int64()
 	if err != nil {
 		return 0, newRedisError("EVAL", trieKey(o.name), err)
 	}
@@ -217,7 +221,7 @@ func (o *v2Operations) tryRemoveV2(ctx context.Context, keyword string) (int, er
 	}
 
 	if !keywordExists {
-		return len(snap.Keywords), nil
+		return 0, nil
 	}
 
 	keywordSet := make(map[string]struct{})
@@ -291,7 +295,11 @@ func (o *v2Operations) tryRemoveV2(ctx context.Context, keyword string) (int, er
 	args["trieKey"] = trieKey(o.name)
 	args["outputsKey"] = outputsKey(o.name)
 
-	result, err := o.removeV2Script(ctx, o.client, args).Result()
+	cmd, err := o.runRemoveV2Script(ctx, o.client, args)
+	if err != nil {
+		return 0, newRedisError("EVAL", trieKey(o.name), err)
+	}
+	result, err := cmd.Int64()
 	if err != nil {
 		return 0, newRedisError("EVAL", trieKey(o.name), err)
 	}
@@ -302,7 +310,7 @@ func (o *v2Operations) tryRemoveV2(ctx context.Context, keyword string) (int, er
 
 	o.publishInvalidate(ctx)
 
-	return len(newKeywords), nil
+	return 1, nil
 }
 
 func (o *v2Operations) computeOutputsV2(state string, prefixSet, keywordSet map[string]struct{}) []string {

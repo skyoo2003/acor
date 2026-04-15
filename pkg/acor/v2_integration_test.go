@@ -226,8 +226,8 @@ func TestV2RemoveKeywordNotExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("remove nonexistent keyword error: %v", err)
 	}
-	if removed != 2 {
-		t.Errorf("remove nonexistent keyword = %d, want 2 (remaining keywords)", removed)
+	if removed != 0 {
+		t.Errorf("remove nonexistent keyword = %d, want 0", removed)
 	}
 }
 
@@ -263,8 +263,8 @@ func TestV2RemoveThenFind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("remove('she') error: %v", err)
 	}
-	if removed != 2 {
-		t.Errorf("remove('she') = %d, want 2", removed)
+	if removed != 1 {
+		t.Errorf("remove('she') = %d, want 1", removed)
 	}
 
 	ops.cache.invalidate()
@@ -381,8 +381,8 @@ func TestV2RemoveCaseInsensitive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("remove('  HELLO  ') error: %v", err)
 	}
-	if removed != 0 {
-		t.Errorf("remove('  HELLO  ') = %d, want 0 (remaining keywords)", removed)
+	if removed != 1 {
+		t.Errorf("remove('  HELLO  ') = %d, want 1", removed)
 	}
 
 	ops.cache.invalidate()
@@ -462,8 +462,8 @@ func TestV2TryRemoveKeywordNotExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tryRemoveV2 nonexistent keyword error: %v", err)
 	}
-	if removed != 2 {
-		t.Errorf("tryRemoveV2 nonexistent keyword = %d, want 2", removed)
+	if removed != 0 {
+		t.Errorf("tryRemoveV2 nonexistent keyword = %d, want 0", removed)
 	}
 }
 
@@ -490,8 +490,8 @@ func TestV2RemoveAllKeywords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if removed != 0 {
-		t.Errorf("removing last keyword = %d, want 0", removed)
+	if removed != 1 {
+		t.Errorf("removing last keyword = %d, want 1", removed)
 	}
 
 	ops.cache.invalidate()

@@ -113,11 +113,11 @@ func TestV1RemoveRedisError(t *testing.T) {
 	defer func() { _ = ac.redisClient.Close() }()
 
 	_, err := ac.RemoveContext(context.Background(), "he")
-	assertV1RedisError(t, err, "SMEMBERS")
+	assertV1RedisError(t, err, "SISMEMBER")
 
 	// Test public dispatch path (RemoveContext)
 	_, err = ac.RemoveContext(context.Background(), "he")
-	assertV1RedisError(t, err, "SMEMBERS")
+	assertV1RedisError(t, err, "SISMEMBER")
 }
 
 func TestV1FlushRedisError(t *testing.T) {

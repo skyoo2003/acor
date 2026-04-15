@@ -21,8 +21,6 @@ const maxRetries = 3
 
 const retryBackoffBase = 10 * time.Millisecond
 
-const luaKeys = 2
-
 const invalidateIDBytes = 8
 
 // Compile-time check that v2Operations satisfies the operations interface.

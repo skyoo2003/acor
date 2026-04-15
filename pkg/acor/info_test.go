@@ -246,8 +246,8 @@ func TestEndToEndV2(t *testing.T) { //nolint:gocyclo // Integration test with mu
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 3 {
-		t.Errorf("Remove(apple) = %d, want 3 (remaining)", count)
+	if count != 1 {
+		t.Errorf("Remove(apple) = %d, want 1", count)
 	}
 
 	matches, _ = ac.Find("I have an apple")

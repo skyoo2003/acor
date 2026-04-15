@@ -86,10 +86,19 @@ func (o *v1Operations) remove(_ context.Context, keyword string) (int, error) {
 	defer cancel()
 	ctx := removeCtx
 
-	nodeKey := nodeKey(o.name, keyword)
-	nodes, err := o.storage.SMembers(ctx, nodeKey)
+	kKey := keywordKey(o.name)
+	exists, err := o.storage.SIsMember(ctx, kKey, keyword)
 	if err != nil {
-		return 0, newRedisError("SMEMBERS", nodeKey, err)
+		return 0, newRedisError("SISMEMBER", kKey, err)
+	}
+	if !exists {
+		return 0, nil
+	}
+
+	nodeKey := nodeKey(o.name, keyword)
+	nodes, err2 := o.storage.SMembers(ctx, nodeKey)
+	if err2 != nil {
+		return 0, newRedisError("SMEMBERS", nodeKey, err2)
 	}
 	for _, node := range nodes {
 		oKey := outputKey(o.name, node)
@@ -108,19 +117,12 @@ func (o *v1Operations) remove(_ context.Context, keyword string) (int, error) {
 		return 0, newOperationError("remove", SchemaV1, pruneErr)
 	}
 
-	kKey := keywordKey(o.name)
 	if sremErr := o.storage.SRem(ctx, kKey, keyword); sremErr != nil {
 		return 0, newRedisError("SREM", kKey, sremErr)
 	}
 	o.logger.Println(fmt.Sprintf("Remove(%s) > SREM key(%s) members(%s)", keyword, kKey, keyword))
 
-	kMemberCount, err := o.storage.SCard(ctx, kKey)
-	if err != nil {
-		return 0, newRedisError("SCARD", kKey, err)
-	}
-	o.logger.Println(fmt.Sprintf("Remove(%s) > SCARD key(%s) : Count(%d)", keyword, kKey, kMemberCount))
-
-	return int(kMemberCount), nil
+	return 1, nil
 }
 
 func (o *v1Operations) find(ctx context.Context, text string) ([]string, error) {
