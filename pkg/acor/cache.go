@@ -12,12 +12,13 @@ import (
 const pendingSelfInvalidationTTL = 30 * time.Second
 
 type trieCache struct {
-	mu        sync.RWMutex
-	loadMu    sync.Mutex
-	prefixes  []string
-	prefixSet map[string]struct{}
-	outputs   map[string][]string
-	valid     bool
+	mu            sync.RWMutex
+	loadMu        sync.Mutex
+	prefixes      []string
+	prefixSet     map[string]struct{}
+	outputs       map[string][]string
+	outputRuneLen map[string]int
+	valid         bool
 	// pendingSelfInvalidations holds self-published message IDs so the listener
 	// can skip cache invalidation already performed by the local publisher.
 	// sync.Map is used for lock-free access by concurrent publisher/listener goroutines.
@@ -80,6 +81,21 @@ func cloneOutputs(in map[string][]string) map[string][]string {
 	return out
 }
 
+// buildOutputRuneLen scans all output strings and returns a map from each
+// unique output to its rune length. This avoids repeated []rune allocations
+// in the findIndex hot loop.
+func buildOutputRuneLen(outputs map[string][]string) map[string]int {
+	m := make(map[string]int)
+	for _, outs := range outputs {
+		for _, out := range outs {
+			if _, exists := m[out]; !exists {
+				m[out] = len([]rune(out))
+			}
+		}
+	}
+	return m
+}
+
 func (c *trieCache) invalidate() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -95,6 +111,7 @@ func (c *trieCache) set(prefixes []string, outputs map[string][]string) {
 	for _, p := range prefixes {
 		c.prefixSet[p] = struct{}{}
 	}
+	c.outputRuneLen = buildOutputRuneLen(outputs)
 	c.valid = true
 }
 
@@ -105,9 +122,19 @@ func (c *trieCache) get() (prefixes []string, outputs map[string][]string, valid
 }
 
 // getPrefixSet returns the cached prefix set for O(1) lookups.
-// The returned map is safe to read concurrently (it is replaced, not mutated, by set).
+// The caller MUST NOT mutate the returned map — it is shared across goroutines
+// and replaced atomically by set(). Any mutation will cause data races or
+// cache corruption. The map is safe to read concurrently.
 func (c *trieCache) getPrefixSet() map[string]struct{} {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.prefixSet
+}
+
+// getOutputRuneLen returns a map from each unique output string to its rune length.
+// Like getPrefixSet, the caller MUST NOT mutate the returned map.
+func (c *trieCache) getOutputRuneLen() map[string]int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.outputRuneLen
 }

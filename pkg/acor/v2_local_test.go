@@ -42,12 +42,13 @@ func TestV2LocalFindIndexContextCancellation(t *testing.T) {
 		"he":  {"he"},
 		"she": {"he", "she"},
 	}
+	outputRuneLen := buildOutputRuneLen(outputs)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	longText := strings.Repeat("she sells sea shells ", 100)
-	result, _ := ops.localFindIndex(ctx, longText, prefixSet, outputs)
+	result, _ := ops.localFindIndex(ctx, longText, prefixSet, outputs, outputRuneLen)
 
 	if result == nil {
 		t.Fatal("localFindIndex should return non-nil map on context cancellation")
@@ -87,9 +88,10 @@ func TestV2LocalFindIndexNormal(t *testing.T) {
 		"he":  {"he"},
 		"she": {"he", "she"},
 	}
+	outputRuneLen := buildOutputRuneLen(outputs)
 
 	ctx := context.Background()
-	result, _ := ops.localFindIndex(ctx, "she", prefixSet, outputs)
+	result, _ := ops.localFindIndex(ctx, "she", prefixSet, outputs, outputRuneLen)
 
 	assertIndexResults(t, result, map[string][]int{
 		"he":  {1},
@@ -179,9 +181,10 @@ func TestV2LocalFindIndexWithLongText(t *testing.T) {
 	outputs := map[string][]string{
 		"abc": {"abc"},
 	}
+	outputRuneLen := buildOutputRuneLen(outputs)
 
 	text := strings.Repeat("x", 1000) + "abc"
-	result, _ := ops.localFindIndex(context.Background(), text, prefixSet, outputs)
+	result, _ := ops.localFindIndex(context.Background(), text, prefixSet, outputs, outputRuneLen)
 
 	if _, ok := result["abc"]; !ok {
 		t.Error("localFindIndex should find 'abc'")
