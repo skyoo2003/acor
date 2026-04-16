@@ -264,6 +264,7 @@ type AhoCorasickArgs struct {
 // All methods are safe for concurrent use across multiple goroutines.
 type AhoCorasick struct {
 	ctx           context.Context
+	cancel        context.CancelFunc
 	name          string
 	logger        Logger
 	storage       KVStorage             // DI: all Redis ops go through this
@@ -357,12 +358,14 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	ac := &AhoCorasick{
 		redisClient:   redisClient,
 		storage:       storage,
-		ctx:           context.Background(),
 		name:          args.Name,
 		logger:        logger,
 		schemaVersion: schemaVersion,
 		cache:         cache,
 	}
+	var ctxCancel context.CancelFunc
+	ac.ctx, ctxCancel = context.WithCancel(context.Background())
+	ac.cancel = ctxCancel
 
 	if schemaVersion == SchemaV2 {
 		cleanupInterval := args.SelfInvalidationCleanupInterval
@@ -453,6 +456,9 @@ func (ac *AhoCorasick) Close() error {
 		}
 		alreadyClosed = false
 		ac.stopCacheListener()
+		if ac.cancel != nil {
+			ac.cancel()
+		}
 		closeErr = ac.storage.Close()
 		ac.storage = nil
 	})

@@ -51,9 +51,8 @@ var removeV2Script = redis.NewScript(`
 
 	redis.call('HSET', trieKey, 'keywords', keywords, 'prefixes', prefixes, 'suffixes', suffixes, 'version', newVersion)
 
-	redis.call('DEL', outputsKey)
-
 	local outputs = cjson.decode(outputsJson)
+	redis.call('DEL', outputsKey)
 	for state, jsonOuts in pairs(outputs) do
 		redis.call('HSET', outputsKey, state, jsonOuts)
 	end

@@ -396,11 +396,14 @@ func (api *API) handleFlush(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+const maxRequestBodyBytes = 1 << 20 // 1MB
+
 func decodeKeywordRequest(w http.ResponseWriter, r *http.Request) (*KeywordRequest, bool) {
 	if r.Method != http.MethodPost {
 		writeMethodNotAllowed(w)
 		return nil, false
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	defer closeReadCloser(r.Body)
 
 	var req KeywordRequest
@@ -416,6 +419,7 @@ func decodeInputRequest(w http.ResponseWriter, r *http.Request) (*InputRequest, 
 		writeMethodNotAllowed(w)
 		return nil, false
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	defer closeReadCloser(r.Body)
 
 	var req InputRequest
