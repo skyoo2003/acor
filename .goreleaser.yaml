@@ -35,10 +35,10 @@ builds:
 
 archives:
 - id: acor
-  format: tar.gz
-  format_overrides:
-  - goos: windows
-    format: zip
+  formats:
+  - tar.gz
+  - format: zip
+    goos: windows
   files:
     - LICENSE
     - README.md
