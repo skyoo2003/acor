@@ -330,15 +330,7 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	if v1, ok := ac.ops.(*v1Operations); ok {
 		caseSensitive = v1.caseSensitive
 	}
-	ac.ops = &v2Operations{
-		storage:                         ac.storage,
-		client:                          ac.redisClient,
-		name:                            ac.name,
-		cache:                           ac.cache,
-		logger:                          ac.logger,
-		selfInvalidationCleanupInterval: defaultSelfInvalidationCleanupInterval,
-		caseSensitive:                   caseSensitive,
-	}
+	ac.ops = ac.newV2Ops(caseSensitive, ac.cache, defaultSelfInvalidationCleanupInterval)
 
 	result.Status = migrationStatusSuccess
 	result.DurationMs = time.Since(start).Milliseconds()
@@ -374,14 +366,7 @@ func (ac *AhoCorasick) RollbackToV1() error {
 	if v2, ok := ac.ops.(*v2Operations); ok {
 		caseSensitive = v2.caseSensitive
 	}
-	ac.ops = &v1Operations{
-		storage:         ac.storage,
-		name:            ac.name,
-		logger:          ac.logger,
-		ac:              ac,
-		caseSensitive:   caseSensitive,
-		rollbackTimeout: defaultRollbackTimeout,
-	}
+	ac.ops = ac.newV1Ops(caseSensitive, defaultRollbackTimeout)
 
 	return nil
 }

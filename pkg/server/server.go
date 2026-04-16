@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -408,7 +410,13 @@ func decodeKeywordRequest(w http.ResponseWriter, r *http.Request) (*KeywordReque
 
 	var req KeywordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, &ErrorResponse{Error: err.Error()})
+		var mbe *http.MaxBytesError
+		if errors.As(err, &mbe) {
+			writeJSON(w, http.StatusRequestEntityTooLarge,
+				&ErrorResponse{Error: fmt.Sprintf("request body exceeds %d bytes", maxRequestBodyBytes)})
+		} else {
+			writeJSON(w, http.StatusBadRequest, &ErrorResponse{Error: err.Error()})
+		}
 		return nil, false
 	}
 	return &req, true
@@ -424,7 +432,13 @@ func decodeInputRequest(w http.ResponseWriter, r *http.Request) (*InputRequest, 
 
 	var req InputRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, &ErrorResponse{Error: err.Error()})
+		var mbe *http.MaxBytesError
+		if errors.As(err, &mbe) {
+			writeJSON(w, http.StatusRequestEntityTooLarge,
+				&ErrorResponse{Error: fmt.Sprintf("request body exceeds %d bytes", maxRequestBodyBytes)})
+		} else {
+			writeJSON(w, http.StatusBadRequest, &ErrorResponse{Error: err.Error()})
+		}
 		return nil, false
 	}
 	return &req, true

@@ -372,24 +372,9 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 		if cleanupInterval == 0 {
 			cleanupInterval = defaultSelfInvalidationCleanupInterval
 		}
-		ac.ops = &v2Operations{
-			storage:                         storage,
-			client:                          redisClient,
-			name:                            args.Name,
-			cache:                           cache,
-			logger:                          logger,
-			selfInvalidationCleanupInterval: cleanupInterval,
-			caseSensitive:                   args.CaseSensitive,
-		}
+		ac.ops = ac.newV2Ops(args.CaseSensitive, cache, cleanupInterval)
 	} else {
-		ac.ops = &v1Operations{
-			storage:         storage,
-			name:            args.Name,
-			logger:          logger,
-			ac:              ac,
-			caseSensitive:   args.CaseSensitive,
-			rollbackTimeout: resolveRollbackTimeout(args.RollbackTimeout),
-		}
+		ac.ops = ac.newV1Ops(args.CaseSensitive, resolveRollbackTimeout(args.RollbackTimeout))
 	}
 
 	if err := ac.init(); err != nil {
@@ -466,6 +451,29 @@ func (ac *AhoCorasick) Close() error {
 		return ErrRedisAlreadyClosed
 	}
 	return closeErr
+}
+
+func (ac *AhoCorasick) newV2Ops(caseSensitive bool, cache *trieCache, cleanupInterval uint64) operations {
+	return &v2Operations{
+		storage:                         ac.storage,
+		client:                          ac.redisClient,
+		name:                            ac.name,
+		cache:                           cache,
+		logger:                          ac.logger,
+		selfInvalidationCleanupInterval: cleanupInterval,
+		caseSensitive:                   caseSensitive,
+	}
+}
+
+func (ac *AhoCorasick) newV1Ops(caseSensitive bool, rollbackTimeout time.Duration) operations {
+	return &v1Operations{
+		storage:         ac.storage,
+		name:            ac.name,
+		logger:          ac.logger,
+		ac:              ac,
+		caseSensitive:   caseSensitive,
+		rollbackTimeout: rollbackTimeout,
+	}
 }
 
 // Add inserts a keyword into the Aho-Corasick automaton.
