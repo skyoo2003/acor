@@ -1,5 +1,15 @@
 # Changelog
 All notable changes to this project will be documented in this file.
+## [v0.6.1](https://github.com/skyoo2003/acor/releases/tag/v0.6.1) - 2026-04-17
+### Changed
+* Extract ops constructors into newV2Ops/newV1Ops helpers, preserve configured values across ops swaps, and promote caseSensitive to struct field ([#120](https://github.com/skyoo2003/acor/issues/120))
+### Fixed
+* Fix migration/rollback not swapping ops to target schema version, causing operations to use wrong schema after MigrateV1ToV2 or RollbackToV1 ([#120](https://github.com/skyoo2003/acor/issues/120))
+* Add http.MaxBytesReader (1MB) to HTTP request decoders to prevent memory exhaustion from oversized payloads ([#120](https://github.com/skyoo2003/acor/issues/120))
+* Reorder removeV2Script Lua DEL after cjson.decode for defensive programming ([#120](https://github.com/skyoo2003/acor/issues/120))
+* Replace context.Background() with context.WithCancel for proper lifecycle management and fix shutdown order ([#120](https://github.com/skyoo2003/acor/issues/120))
+* Stop cache listener on rollback and fix context cancellation handling before stopping cache listener in Close ([#120](https://github.com/skyoo2003/acor/issues/120))
+* Enable changelog in GoReleaser config to allow --release-notes flag to populate GitHub release notes ([#120](https://github.com/skyoo2003/acor/issues/120))
 
 ## [v0.6.0](https://github.com/skyoo2003/acor/releases/tag/v0.6.0) - 2026-04-16
 ### Added
@@ -25,14 +35,12 @@ All notable changes to this project will be documented in this file.
 * Pin third-party GitHub Actions to commit SHAs to prevent supply chain attacks ([#111](https://github.com/skyoo2003/acor/issues/111))
 ### Documentation
 * Sync API reference and V2 schema docs with source code ([#112](https://github.com/skyoo2003/acor/issues/112))
-
 ## [v0.5.1](https://github.com/skyoo2003/acor/releases/tag/v0.5.1) - 2026-04-14
 ### Fixed
 * Prevent pub/sub self-message from invalidating local cache ([#106](https://github.com/skyoo2003/acor/issues/106))
 ### Documentation
 * Fix broken Hugo documentation links with relative paths ([#107](https://github.com/skyoo2003/acor/issues/107))
 * Add single page template to fix broken links ([#105](https://github.com/skyoo2003/acor/issues/105))
-
 ## [v0.5.0](https://github.com/skyoo2003/acor/releases/tag/v0.5.0) - 2026-04-13
 ### Added
 * Add local caching for Find/FindIndex operations with Redis Pub/Sub invalidation ([#99](https://github.com/skyoo2003/acor/issues/99))
@@ -60,7 +68,6 @@ All notable changes to this project will be documented in this file.
 ### Documentation
 * Add cross-references between Hugo documentation pages ([#98](https://github.com/skyoo2003/acor/issues/98))
 * Add comprehensive Hugo documentation: guides, API reference, deployment, monitoring, troubleshooting ([#96](https://github.com/skyoo2003/acor/issues/96))
-
 ## [v0.4.0](https://github.com/skyoo2003/acor/releases/tag/v0.4.0) - 2026-03-18
 ### Added
 * Add CLI commands: migrate, migrate-rollback, schema-version ([#83](https://github.com/skyoo2003/acor/issues/83))
@@ -85,7 +92,6 @@ All notable changes to this project will be documented in this file.
 * Correct migration progress step constants ([#83](https://github.com/skyoo2003/acor/issues/83))
 ### Documentation
 * Add performance tradeoffs and migration notes to README ([#83](https://github.com/skyoo2003/acor/issues/83))
-
 ## [v0.3.0](https://github.com/skyoo2003/acor/releases/tag/v0.3.0) - 2026-03-14
 ### Added
 * Add index APIs for find and suggest ([#67](https://github.com/skyoo2003/acor/issues/67))
@@ -96,7 +102,6 @@ All notable changes to this project will be documented in this file.
 * Handle Redis errors during AC execution ([#68](https://github.com/skyoo2003/acor/issues/68))
 ### Documentation
 * Add GitHub Pages documentation and deployment workflow ([#76](https://github.com/skyoo2003/acor/issues/76))
-
 ## [v0.2.0](https://github.com/skyoo2003/acor/releases/tag/v0.2.0) - 2021-07-09
 
 ### Changed
@@ -108,14 +113,12 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Fixed NodeKey output was not written ([#13](https://github.com/skyoo2003/acor/issues/13))
-
 ## [v0.1.0](https://github.com/skyoo2003/acor/releases/tag/v0.1.0) - 2020-11-17
 
 ### Changed
 * Bump go-redis/redis libraries
 * Applied go modules
 * Bump Go required version (1.8 -> 1.11)
-
 ## [v0.0.0](https://github.com/skyoo2003/acor/releases/tag/v0.0.0) - 2017-06-29
 
 ### Added
