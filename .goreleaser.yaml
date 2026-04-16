@@ -46,7 +46,7 @@ archives:
     - CODE_OF_CONDUCT.md
 
 changelog:
-  disable: true
+  disable: false
 
 checksum:
   algorithm: sha256
