@@ -413,7 +413,7 @@ func decodeRequest(w http.ResponseWriter, r *http.Request, v interface{}) bool {
 		var mbe *http.MaxBytesError
 		if errors.As(err, &mbe) {
 			writeJSON(w, http.StatusRequestEntityTooLarge,
-				&ErrorResponse{Error: fmt.Sprintf("request body exceeds %d bytes", maxRequestBodyBytes)})
+				&ErrorResponse{Error: fmt.Sprintf("request body must not be larger than %d bytes", mbe.Limit)})
 		} else {
 			writeJSON(w, http.StatusBadRequest, &ErrorResponse{Error: err.Error()})
 		}

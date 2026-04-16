@@ -374,9 +374,7 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	}
 	ac.rollbackTimeout = resolveRollbackTimeout(args.RollbackTimeout)
 	ac.caseSensitive = args.CaseSensitive
-	var ctxCancel context.CancelFunc
-	ac.ctx, ctxCancel = context.WithCancel(context.Background()) //nolint:gosec // G118: storing cancel func is intentional for lifecycle management
-	ac.cancel = ctxCancel
+	ac.ctx, ac.cancel = context.WithCancel(context.Background()) //nolint:gosec // G118: storing cancel func is intentional for lifecycle management
 
 	if schemaVersion == SchemaV2 {
 		ac.ops = ac.newV2Ops(cache)
@@ -385,14 +383,14 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	}
 
 	if err := ac.init(); err != nil {
-		ctxCancel()
+		ac.cancel()
 		_ = storage.Close()
 		return nil, err
 	}
 
 	if args.EnableCache {
 		if err := ac.startCacheListener(); err != nil {
-			ctxCancel()
+			ac.cancel()
 			_ = storage.Close()
 			return nil, err
 		}
