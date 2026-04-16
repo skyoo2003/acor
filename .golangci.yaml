@@ -53,8 +53,6 @@ linters:
     gocyclo:
       min-complexity: 15
     gosec:
-      excludes:
-        - G118
     govet:
       enable:
         - shadow

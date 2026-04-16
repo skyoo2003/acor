@@ -326,11 +326,7 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 
 	// Swap ops to v2Operations so the instance uses V2 schema operations
 	// going forward. The cache is already set up if EnableCache was true.
-	var caseSensitive bool
-	if v1, ok := ac.ops.(*v1Operations); ok {
-		caseSensitive = v1.caseSensitive
-	}
-	ac.ops = ac.newV2Ops(caseSensitive, ac.cache)
+	ac.ops = ac.newV2Ops(ac.cache)
 
 	result.Status = migrationStatusSuccess
 	result.DurationMs = time.Since(start).Milliseconds()
@@ -362,11 +358,7 @@ func (ac *AhoCorasick) RollbackToV1() error {
 	// Swap ops to v1Operations so the instance uses V1 schema operations
 	// going forward. Cache is not supported in V1, so set it to nil.
 	ac.cache = nil
-	var caseSensitive bool
-	if v2, ok := ac.ops.(*v2Operations); ok {
-		caseSensitive = v2.caseSensitive
-	}
-	ac.ops = ac.newV1Ops(caseSensitive)
+	ac.ops = ac.newV1Ops()
 
 	return nil
 }

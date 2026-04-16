@@ -408,7 +408,8 @@ func decodeRequest(w http.ResponseWriter, r *http.Request, v interface{}) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	defer closeReadCloser(r.Body)
 
-	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(v); err != nil {
 		var mbe *http.MaxBytesError
 		if errors.As(err, &mbe) {
 			writeJSON(w, http.StatusRequestEntityTooLarge,
@@ -416,6 +417,11 @@ func decodeRequest(w http.ResponseWriter, r *http.Request, v interface{}) bool {
 		} else {
 			writeJSON(w, http.StatusBadRequest, &ErrorResponse{Error: err.Error()})
 		}
+		return false
+	}
+	if err := dec.Decode(new(interface{})); err != io.EOF {
+		writeJSON(w, http.StatusBadRequest,
+			&ErrorResponse{Error: "request body must contain only a single JSON value"})
 		return false
 	}
 	return true

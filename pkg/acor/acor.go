@@ -275,6 +275,7 @@ type AhoCorasick struct {
 
 	selfInvalidationCleanupInterval uint64
 	rollbackTimeout                 time.Duration
+	caseSensitive                   bool
 
 	cache     *trieCache
 	pubsub    Subscription
@@ -372,23 +373,26 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 		ac.selfInvalidationCleanupInterval = defaultSelfInvalidationCleanupInterval
 	}
 	ac.rollbackTimeout = resolveRollbackTimeout(args.RollbackTimeout)
+	ac.caseSensitive = args.CaseSensitive
 	var ctxCancel context.CancelFunc
-	ac.ctx, ctxCancel = context.WithCancel(context.Background())
+	ac.ctx, ctxCancel = context.WithCancel(context.Background()) //nolint:gosec // G118: storing cancel func is intentional for lifecycle management
 	ac.cancel = ctxCancel
 
 	if schemaVersion == SchemaV2 {
-		ac.ops = ac.newV2Ops(args.CaseSensitive, cache)
+		ac.ops = ac.newV2Ops(cache)
 	} else {
-		ac.ops = ac.newV1Ops(args.CaseSensitive)
+		ac.ops = ac.newV1Ops()
 	}
 
 	if err := ac.init(); err != nil {
+		ctxCancel()
 		_ = storage.Close()
 		return nil, err
 	}
 
 	if args.EnableCache {
 		if err := ac.startCacheListener(); err != nil {
+			ctxCancel()
 			_ = storage.Close()
 			return nil, err
 		}
@@ -458,7 +462,7 @@ func (ac *AhoCorasick) Close() error {
 	return closeErr
 }
 
-func (ac *AhoCorasick) newV2Ops(caseSensitive bool, cache *trieCache) operations {
+func (ac *AhoCorasick) newV2Ops(cache *trieCache) operations {
 	return &v2Operations{
 		storage:                         ac.storage,
 		client:                          ac.redisClient,
@@ -466,17 +470,17 @@ func (ac *AhoCorasick) newV2Ops(caseSensitive bool, cache *trieCache) operations
 		cache:                           cache,
 		logger:                          ac.logger,
 		selfInvalidationCleanupInterval: ac.selfInvalidationCleanupInterval,
-		caseSensitive:                   caseSensitive,
+		caseSensitive:                   ac.caseSensitive,
 	}
 }
 
-func (ac *AhoCorasick) newV1Ops(caseSensitive bool) operations {
+func (ac *AhoCorasick) newV1Ops() operations {
 	return &v1Operations{
 		storage:         ac.storage,
 		name:            ac.name,
 		logger:          ac.logger,
 		ac:              ac,
-		caseSensitive:   caseSensitive,
+		caseSensitive:   ac.caseSensitive,
 		rollbackTimeout: ac.rollbackTimeout,
 	}
 }
