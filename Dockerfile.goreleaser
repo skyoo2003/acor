@@ -1,9 +1,11 @@
-FROM alpine:3.21
+FROM --platform=$BUILDPLATFORM alpine:3.21
 
 RUN adduser --system --home /acor appuser
 VOLUME /acor
 WORKDIR /acor
-COPY acor /usr/bin/acor
+ARG TARGETOS
+ARG TARGETARCH
+COPY ${TARGETOS}/${TARGETARCH}/acor /usr/bin/acor
 
 USER appuser
 ENTRYPOINT ["acor"]
