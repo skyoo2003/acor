@@ -59,8 +59,9 @@ dockers_v2:
   use: buildx
   ids:
   - acor
-  sbom:
-    disabled: true
+  sbom: false
+  flags:
+  - "--provenance=false"
   tags:
   - "{{ .Tag }}-alpine"
   - "v{{ .Major }}.{{ .Minor }}-alpine"
