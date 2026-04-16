@@ -356,7 +356,9 @@ func (ac *AhoCorasick) RollbackToV1() error {
 	ac.schemaVersion = SchemaV1
 
 	// Swap ops to v1Operations so the instance uses V1 schema operations
-	// going forward. Cache is not supported in V1, so set it to nil.
+	// going forward. Cache is not supported in V1, so stop the listener
+	// and clear the cache.
+	ac.stopCacheListener()
 	ac.cache = nil
 	ac.ops = ac.newV1Ops()
 

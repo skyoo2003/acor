@@ -52,7 +52,6 @@ linters:
         - style
     gocyclo:
       min-complexity: 15
-    gosec:
     govet:
       enable:
         - shadow
