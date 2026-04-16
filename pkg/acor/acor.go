@@ -445,10 +445,10 @@ func (ac *AhoCorasick) Close() error {
 			return
 		}
 		alreadyClosed = false
-		ac.stopCacheListener()
 		if ac.cancel != nil {
 			ac.cancel()
 		}
+		ac.stopCacheListener()
 		closeErr = ac.storage.Close()
 		ac.storage = nil
 	})
