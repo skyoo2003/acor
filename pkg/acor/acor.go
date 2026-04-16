@@ -273,6 +273,9 @@ type AhoCorasick struct {
 	buildTrieHook func(string) error
 	schemaVersion int // kept for SchemaVersion() and migration.go
 
+	selfInvalidationCleanupInterval uint64
+	rollbackTimeout                 time.Duration
+
 	cache     *trieCache
 	pubsub    Subscription
 	stopCh    chan struct{}
@@ -363,18 +366,20 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 		schemaVersion: schemaVersion,
 		cache:         cache,
 	}
+	if args.SelfInvalidationCleanupInterval > 0 {
+		ac.selfInvalidationCleanupInterval = args.SelfInvalidationCleanupInterval
+	} else {
+		ac.selfInvalidationCleanupInterval = defaultSelfInvalidationCleanupInterval
+	}
+	ac.rollbackTimeout = resolveRollbackTimeout(args.RollbackTimeout)
 	var ctxCancel context.CancelFunc
 	ac.ctx, ctxCancel = context.WithCancel(context.Background())
 	ac.cancel = ctxCancel
 
 	if schemaVersion == SchemaV2 {
-		cleanupInterval := args.SelfInvalidationCleanupInterval
-		if cleanupInterval == 0 {
-			cleanupInterval = defaultSelfInvalidationCleanupInterval
-		}
-		ac.ops = ac.newV2Ops(args.CaseSensitive, cache, cleanupInterval)
+		ac.ops = ac.newV2Ops(args.CaseSensitive, cache)
 	} else {
-		ac.ops = ac.newV1Ops(args.CaseSensitive, resolveRollbackTimeout(args.RollbackTimeout))
+		ac.ops = ac.newV1Ops(args.CaseSensitive)
 	}
 
 	if err := ac.init(); err != nil {
@@ -453,26 +458,26 @@ func (ac *AhoCorasick) Close() error {
 	return closeErr
 }
 
-func (ac *AhoCorasick) newV2Ops(caseSensitive bool, cache *trieCache, cleanupInterval uint64) operations {
+func (ac *AhoCorasick) newV2Ops(caseSensitive bool, cache *trieCache) operations {
 	return &v2Operations{
 		storage:                         ac.storage,
 		client:                          ac.redisClient,
 		name:                            ac.name,
 		cache:                           cache,
 		logger:                          ac.logger,
-		selfInvalidationCleanupInterval: cleanupInterval,
+		selfInvalidationCleanupInterval: ac.selfInvalidationCleanupInterval,
 		caseSensitive:                   caseSensitive,
 	}
 }
 
-func (ac *AhoCorasick) newV1Ops(caseSensitive bool, rollbackTimeout time.Duration) operations {
+func (ac *AhoCorasick) newV1Ops(caseSensitive bool) operations {
 	return &v1Operations{
 		storage:         ac.storage,
 		name:            ac.name,
 		logger:          ac.logger,
 		ac:              ac,
 		caseSensitive:   caseSensitive,
-		rollbackTimeout: rollbackTimeout,
+		rollbackTimeout: ac.rollbackTimeout,
 	}
 }
 

@@ -400,16 +400,15 @@ func (api *API) handleFlush(w http.ResponseWriter, r *http.Request) {
 
 const maxRequestBodyBytes = 1 << 20 // 1MB
 
-func decodeKeywordRequest(w http.ResponseWriter, r *http.Request) (*KeywordRequest, bool) {
+func decodeRequest(w http.ResponseWriter, r *http.Request, v interface{}) bool {
 	if r.Method != http.MethodPost {
 		writeMethodNotAllowed(w)
-		return nil, false
+		return false
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	defer closeReadCloser(r.Body)
 
-	var req KeywordRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
 		var mbe *http.MaxBytesError
 		if errors.As(err, &mbe) {
 			writeJSON(w, http.StatusRequestEntityTooLarge,
@@ -417,28 +416,22 @@ func decodeKeywordRequest(w http.ResponseWriter, r *http.Request) (*KeywordReque
 		} else {
 			writeJSON(w, http.StatusBadRequest, &ErrorResponse{Error: err.Error()})
 		}
+		return false
+	}
+	return true
+}
+
+func decodeKeywordRequest(w http.ResponseWriter, r *http.Request) (*KeywordRequest, bool) {
+	var req KeywordRequest
+	if !decodeRequest(w, r, &req) {
 		return nil, false
 	}
 	return &req, true
 }
 
 func decodeInputRequest(w http.ResponseWriter, r *http.Request) (*InputRequest, bool) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return nil, false
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
-	defer closeReadCloser(r.Body)
-
 	var req InputRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		var mbe *http.MaxBytesError
-		if errors.As(err, &mbe) {
-			writeJSON(w, http.StatusRequestEntityTooLarge,
-				&ErrorResponse{Error: fmt.Sprintf("request body exceeds %d bytes", maxRequestBodyBytes)})
-		} else {
-			writeJSON(w, http.StatusBadRequest, &ErrorResponse{Error: err.Error()})
-		}
+	if !decodeRequest(w, r, &req) {
 		return nil, false
 	}
 	return &req, true
