@@ -56,7 +56,6 @@ dockers_v2:
 - images:
   - ghcr.io/skyoo2003/acor
   dockerfile: Dockerfile.goreleaser
-  use: buildx
   ids:
   - acor
   sbom: false
