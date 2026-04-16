@@ -36,7 +36,7 @@ builds:
 archives:
 - id: acor
   formats:
-  - tar.gz
+  - format: tar.gz
   - format: zip
     goos: windows
   files:
