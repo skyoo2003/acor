@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -396,31 +398,46 @@ func (api *API) handleFlush(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func decodeKeywordRequest(w http.ResponseWriter, r *http.Request) (*KeywordRequest, bool) {
+const maxRequestBodyBytes = 1 << 20 // 1MB
+
+func decodeRequest(w http.ResponseWriter, r *http.Request, v interface{}) bool {
 	if r.Method != http.MethodPost {
 		writeMethodNotAllowed(w)
-		return nil, false
+		return false
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	defer closeReadCloser(r.Body)
 
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(v); err != nil {
+		var mbe *http.MaxBytesError
+		if errors.As(err, &mbe) {
+			writeJSON(w, http.StatusRequestEntityTooLarge,
+				&ErrorResponse{Error: fmt.Sprintf("request body must not be larger than %d bytes", mbe.Limit)})
+		} else {
+			writeJSON(w, http.StatusBadRequest, &ErrorResponse{Error: err.Error()})
+		}
+		return false
+	}
+	if err := dec.Decode(new(interface{})); err != io.EOF {
+		writeJSON(w, http.StatusBadRequest,
+			&ErrorResponse{Error: "request body must contain only a single JSON value"})
+		return false
+	}
+	return true
+}
+
+func decodeKeywordRequest(w http.ResponseWriter, r *http.Request) (*KeywordRequest, bool) {
 	var req KeywordRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, &ErrorResponse{Error: err.Error()})
+	if !decodeRequest(w, r, &req) {
 		return nil, false
 	}
 	return &req, true
 }
 
 func decodeInputRequest(w http.ResponseWriter, r *http.Request) (*InputRequest, bool) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return nil, false
-	}
-	defer closeReadCloser(r.Body)
-
 	var req InputRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, &ErrorResponse{Error: err.Error()})
+	if !decodeRequest(w, r, &req) {
 		return nil, false
 	}
 	return &req, true

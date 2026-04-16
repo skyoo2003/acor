@@ -264,6 +264,7 @@ type AhoCorasickArgs struct {
 // All methods are safe for concurrent use across multiple goroutines.
 type AhoCorasick struct {
 	ctx           context.Context
+	cancel        context.CancelFunc
 	name          string
 	logger        Logger
 	storage       KVStorage             // DI: all Redis ops go through this
@@ -271,6 +272,10 @@ type AhoCorasick struct {
 	redisClient   redis.UniversalClient // kept for migration.go (out of scope)
 	buildTrieHook func(string) error
 	schemaVersion int // kept for SchemaVersion() and migration.go
+
+	selfInvalidationCleanupInterval uint64
+	rollbackTimeout                 time.Duration
+	caseSensitive                   bool
 
 	cache     *trieCache
 	pubsub    Subscription
@@ -357,45 +362,35 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	ac := &AhoCorasick{
 		redisClient:   redisClient,
 		storage:       storage,
-		ctx:           context.Background(),
 		name:          args.Name,
 		logger:        logger,
 		schemaVersion: schemaVersion,
 		cache:         cache,
 	}
+	if args.SelfInvalidationCleanupInterval > 0 {
+		ac.selfInvalidationCleanupInterval = args.SelfInvalidationCleanupInterval
+	} else {
+		ac.selfInvalidationCleanupInterval = defaultSelfInvalidationCleanupInterval
+	}
+	ac.rollbackTimeout = resolveRollbackTimeout(args.RollbackTimeout)
+	ac.caseSensitive = args.CaseSensitive
+	ac.ctx, ac.cancel = context.WithCancel(context.Background()) //nolint:gosec // G118: storing cancel func is intentional for lifecycle management
 
 	if schemaVersion == SchemaV2 {
-		cleanupInterval := args.SelfInvalidationCleanupInterval
-		if cleanupInterval == 0 {
-			cleanupInterval = defaultSelfInvalidationCleanupInterval
-		}
-		ac.ops = &v2Operations{
-			storage:                         storage,
-			client:                          redisClient,
-			name:                            args.Name,
-			cache:                           cache,
-			logger:                          logger,
-			selfInvalidationCleanupInterval: cleanupInterval,
-			caseSensitive:                   args.CaseSensitive,
-		}
+		ac.ops = ac.newV2Ops(cache)
 	} else {
-		ac.ops = &v1Operations{
-			storage:         storage,
-			name:            args.Name,
-			logger:          logger,
-			ac:              ac,
-			caseSensitive:   args.CaseSensitive,
-			rollbackTimeout: resolveRollbackTimeout(args.RollbackTimeout),
-		}
+		ac.ops = ac.newV1Ops()
 	}
 
 	if err := ac.init(); err != nil {
+		ac.cancel()
 		_ = storage.Close()
 		return nil, err
 	}
 
 	if args.EnableCache {
 		if err := ac.startCacheListener(); err != nil {
+			ac.cancel()
 			_ = storage.Close()
 			return nil, err
 		}
@@ -452,6 +447,9 @@ func (ac *AhoCorasick) Close() error {
 			return
 		}
 		alreadyClosed = false
+		if ac.cancel != nil {
+			ac.cancel()
+		}
 		ac.stopCacheListener()
 		closeErr = ac.storage.Close()
 		ac.storage = nil
@@ -460,6 +458,29 @@ func (ac *AhoCorasick) Close() error {
 		return ErrRedisAlreadyClosed
 	}
 	return closeErr
+}
+
+func (ac *AhoCorasick) newV2Ops(cache *trieCache) operations {
+	return &v2Operations{
+		storage:                         ac.storage,
+		client:                          ac.redisClient,
+		name:                            ac.name,
+		cache:                           cache,
+		logger:                          ac.logger,
+		selfInvalidationCleanupInterval: ac.selfInvalidationCleanupInterval,
+		caseSensitive:                   ac.caseSensitive,
+	}
+}
+
+func (ac *AhoCorasick) newV1Ops() operations {
+	return &v1Operations{
+		storage:         ac.storage,
+		name:            ac.name,
+		logger:          ac.logger,
+		ac:              ac,
+		caseSensitive:   ac.caseSensitive,
+		rollbackTimeout: ac.rollbackTimeout,
+	}
 }
 
 // Add inserts a keyword into the Aho-Corasick automaton.
