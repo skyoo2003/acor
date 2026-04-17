@@ -46,6 +46,14 @@ jobs:
           version: v2.11.3
       - name: Run go vet
         run: go vet ./...
+      - name: Check SPDX headers
+        run: |
+          missing=$(grep -rL "// SPDX-License-Identifier: Apache-2.0" --include="*.go" . || true)
+          if [ -n "$missing" ]; then
+            echo "Missing SPDX headers in:"
+            echo "$missing"
+            exit 1
+          fi
       - name: Run test
         run: go test -race -v ./...
       - name: Check coverage

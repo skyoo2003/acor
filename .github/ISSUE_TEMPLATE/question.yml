@@ -1,0 +1,26 @@
+name: Question
+description: Ask a question about ACOR
+title: "[QUESTION] "
+labels: ["question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: What's your question?
+      description: Describe your question clearly so others can help
+      placeholder: How do I...?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any relevant context (code snippets, error messages, what you've already tried)
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before asking
+      options:
+        - label: I searched the [documentation](https://skyoo2003.github.io/acor/)
+        - label: I searched [existing issues](https://github.com/skyoo2003/acor/issues) for my question
+        - label: I checked [GitHub Discussions](https://github.com/skyoo2003/acor/discussions)

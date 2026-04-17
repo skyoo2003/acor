@@ -1,0 +1,42 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for ACOR
+title: "[FEATURE] "
+labels: ["feature_request"]
+body:
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Low (nice to have)
+        - Medium (would improve workflow)
+        - High (blocking current work)
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Description
+      description: A clear and concise description of the problem this feature would solve
+      placeholder: What problem are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: A clear and concise description of the proposed feature
+      placeholder: How would you like this to work?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or features you've considered
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other context, screenshots, or mockups about the feature request

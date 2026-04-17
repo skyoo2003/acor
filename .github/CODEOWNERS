@@ -1,0 +1,11 @@
+# CODEOWNERS
+
+# Default owner for everything
+* @skyoo2003
+
+# Documentation
+/docs/ @skyoo2003
+
+# CI/CD and release automation
+/.github/workflows/ @skyoo2003
+/.goreleaser.yaml @skyoo2003
