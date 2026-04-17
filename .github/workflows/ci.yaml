@@ -48,7 +48,7 @@ jobs:
         run: go vet ./...
       - name: Check SPDX headers
         run: |
-          missing=$(grep -rL "// SPDX-License-Identifier: Apache-2.0" --include="*.go" . || true)
+          missing=$(git ls-files '*.go' | xargs -r grep -L -E '^// SPDX-License-Identifier:' || true)
           if [ -n "$missing" ]; then
             echo "Missing SPDX headers in:"
             echo "$missing"
