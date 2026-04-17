@@ -48,8 +48,8 @@ We follow a coordinated disclosure process and will work with reporters to:
 
 ## License
 
-ACOR is licensed under the [MIT License][mit-license].
+ACOR is licensed under the [Apache License 2.0][apache-license].
 
-[mit-license]: LICENSE
+[apache-license]: LICENSE
 
 [security-advisories]: https://github.com/skyoo2003/acor/security/advisories/new

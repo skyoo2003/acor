@@ -8,6 +8,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/skyoo2003/acor.svg)](https://pkg.go.dev/github.com/skyoo2003/acor)
 [![Go Report Card](https://goreportcard.com/badge/github.com/skyoo2003/acor)](https://goreportcard.com/report/github.com/skyoo2003/acor)
 [![License](https://img.shields.io/github/license/skyoo2003/acor.svg)](LICENSE)
+[![Sponsor](https://img.shields.io/badge/sponsor-GitHub-pink)](https://github.com/sponsors/skyoo2003)
 
 ## Overview
 
@@ -255,9 +256,21 @@ API reference: [pkg.go.dev](https://pkg.go.dev/github.com/skyoo2003/acor)
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
+## Support
+
+See [SUPPORT.md](SUPPORT.md) for help channels and response times.
+
+## Security
+
+Please see our [Security Policy](SECURITY.md) for vulnerability reporting.
+
 ## Code of Conduct
 
 This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Governance
+
+See [GOVERNANCE.md](GOVERNANCE.md) for project decision-making and contribution model.
 
 ## Changelog
 
@@ -265,4 +278,4 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## License
 
-[MIT License](LICENSE) - Copyright (c) 2016-2026 Sungkyu Yoo
+[Apache License 2.0](LICENSE) - Copyright 2016-2026 Sungkyu Yoo

@@ -53,7 +53,7 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 ### Prerequisites
 
 - Go >= 1.25
-- Redis >= 3.0 (for integration tests)
+- Redis >= 6.0 (for integration tests)
 - golangci-lint (for linting)
 - pre-commit (optional, for git hooks)
 
@@ -220,5 +220,9 @@ Types:
 ## Questions?
 
 Feel free to [open an issue](https://github.com/skyoo2003/acor/issues/new) with the `question` label if you have any questions about contributing.
+
+## License
+
+By contributing to ACOR, you agree that your contributions will be licensed under the [Apache License 2.0](LICENSE).
 
 Thank you for contributing!
