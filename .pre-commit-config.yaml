@@ -28,10 +28,29 @@ repos:
       - id: add-spdx-header
         name: Add SPDX license header
         entry: >-
-          bash -c 'for f in "$@"; do if ! head -1 "$f" | grep -q "SPDX-License-Identifier";
-          then sed -i "" "1i\\
-          // SPDX-License-Identifier: Apache-2.0\\
-          " "$f" && echo "Added SPDX header to $f"; fi; done'
+          python3 -c '
+          import sys, re
+          header = "// SPDX-License-Identifier: Apache-2.0\n"
+          build_tag_re = re.compile(r"^(//go:build|// \+build)")
+          for path in sys.argv[1:]:
+              with open(path, "r") as f:
+                  content = f.read()
+              if "SPDX-License-Identifier" in content:
+                  continue
+              lines = content.splitlines(True)
+              insert_at = 0
+              for i, line in enumerate(lines):
+                  if build_tag_re.match(line):
+                      insert_at = i + 1
+                  elif line.strip() == "" and insert_at == i:
+                      insert_at = i + 1
+                  else:
+                      break
+              lines.insert(insert_at, header)
+              with open(path, "w") as f:
+                  f.writelines(lines)
+              print(f"Added SPDX header to {path}")
+          '
         language: system
         files: \.go$
         pass_filenames: true
