@@ -1,0 +1,34 @@
+# Auto detect text files and perform LF normalization
+* text=auto eol=lf
+
+# Go source files
+*.go text diff=golang
+go.mod text diff=golang
+go.sum text eol=lf
+
+# Shell scripts
+*.sh text eol=lf
+
+# YAML files
+*.yaml text
+*.yml text
+
+# Markdown files
+*.md text
+
+# JSON files
+*.json text
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.gz binary
+*.tar binary
+
+# Exclude from package archives
+.github export-ignore
+docs export-ignore

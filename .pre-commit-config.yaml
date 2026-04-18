@@ -1,3 +1,4 @@
+exclude: "helm/*"
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -22,4 +23,11 @@ repos:
       - id: go-unit-tests
       - id: go-build
       - id: go-mod-tidy
-exclude: "helm/*"
+  - repo: local
+    hooks:
+      - id: add-spdx-header
+        name: Add SPDX license header
+        entry: python3 scripts/add-spdx-header.py
+        language: system
+        files: \.go$
+        pass_filenames: true

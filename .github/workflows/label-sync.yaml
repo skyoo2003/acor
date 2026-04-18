@@ -1,0 +1,18 @@
+name: Label Sync
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  label-sync:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: micnncim/action-label-syncer@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

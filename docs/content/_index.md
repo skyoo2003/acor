@@ -171,4 +171,4 @@ make build
 
 CI runs on pushes and pull requests against `master`. Releases are tag-based, and the GitHub Pages site is built from the Hugo source in `docs/`.
 
-The source code is licensed under MIT. Contributions should include tests when behavior changes.
+The source code is licensed under Apache License 2.0. Contributions should include tests when behavior changes.

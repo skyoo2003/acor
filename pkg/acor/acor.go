@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package acor implements an Aho-Corasick string matching automaton backed by Redis.
 //
 // ACOR (Aho-Corasick On Redis) provides efficient multi-pattern matching with O(n + m)

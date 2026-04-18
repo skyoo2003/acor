@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package acor
 
 // Schema version constants define the storage format used by the automaton.

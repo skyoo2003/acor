@@ -29,3 +29,7 @@
 ## Additional Notes
 
 <!-- Any other information reviewers should know -->
+
+---
+
+By submitting this PR, I agree that my contributions will be licensed under the [Apache License 2.0](https://github.com/skyoo2003/acor/blob/master/LICENSE).

@@ -1,0 +1,25 @@
+# Labeler configuration - auto-label PRs based on changed files
+"documentation":
+  - changed-files:
+      - any-glob-to-any-file: ["docs/**", "**/*.md"]
+      - any-glob-to-any-file: ["README.md", "CHANGELOG.md", "CONTRIBUTING.md"]
+
+"dependencies":
+  - changed-files:
+      - any-glob-to-any-file: ["go.mod", "go.sum"]
+
+"github_actions":
+  - changed-files:
+      - any-glob-to-any-file: [".github/workflows/**", ".github/dependabot.yaml"]
+
+"go":
+  - changed-files:
+      - any-glob-to-any-file: ["**/*.go"]
+
+"enhancement":
+  - changed-files:
+      - any-glob-to-any-file: ["pkg/**/*.go"]
+
+"breaking_changes":
+  - changed-files:
+      - any-glob-to-any-file: ["pkg/acor/*.go"]
