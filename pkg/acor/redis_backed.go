@@ -5,7 +5,6 @@ package acor
 import (
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -140,36 +139,6 @@ func (ac *redisBackedAC) initTrie(ctx context.Context) error {
 	return nil
 }
 
-func (ac *redisBackedAC) loadTrieSnapshot(ctx context.Context) (*trieSnapshot, error) {
-	trieData, err := ac.storage.HGetAll(ctx, trieKey(ac.name))
-	if err != nil {
-		return nil, newRedisError("HGETALL", trieKey(ac.name), err)
-	}
-
-	snap := &trieSnapshot{}
-	if data, ok := trieData["keywords"]; ok {
-		if err := json.Unmarshal([]byte(data), &snap.Keywords); err != nil {
-			return nil, newOperationError("unmarshal", SchemaV2, err)
-		}
-	}
-	if data, ok := trieData["prefixes"]; ok {
-		if err := json.Unmarshal([]byte(data), &snap.Prefixes); err != nil {
-			return nil, newOperationError("unmarshal", SchemaV2, err)
-		}
-	}
-	if data, ok := trieData["suffixes"]; ok {
-		if err := json.Unmarshal([]byte(data), &snap.Suffixes); err != nil {
-			return nil, newOperationError("unmarshal", SchemaV2, err)
-		}
-	}
-	if v, ok := trieData["version"]; ok {
-		if err := json.Unmarshal([]byte(v), &snap.Version); err != nil {
-			snap.Version = 0
-		}
-	}
-	return snap, nil
-}
-
 func (ac *redisBackedAC) applyReload(snap *trieSnapshot) {
 	keywordSet := make(map[string]struct{}, len(snap.Keywords))
 	for _, kw := range snap.Keywords {
@@ -182,7 +151,7 @@ func (ac *redisBackedAC) applyReload(snap *trieSnapshot) {
 }
 
 func (ac *redisBackedAC) reloadFromRedis(ctx context.Context) error {
-	snap, err := ac.loadTrieSnapshot(ctx)
+	snap, err := readTrieSnapshot(ctx, ac.storage, ac.name)
 	if err != nil {
 		return err
 	}
@@ -215,7 +184,7 @@ func (ac *redisBackedAC) ensureValid(ctx context.Context) error {
 			return nil, nil
 		}
 
-		snap, err := ac.loadTrieSnapshot(ctx)
+		snap, err := readTrieSnapshot(ctx, ac.storage, ac.name)
 		if err != nil {
 			return nil, err
 		}

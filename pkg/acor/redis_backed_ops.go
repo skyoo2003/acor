@@ -42,7 +42,7 @@ func (ac *redisBackedAC) Add(ctx context.Context, keyword string) (int, error) {
 }
 
 func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, v2 *redisBackedV2) (int, error) { //nolint:gocyclo,funlen
-	snap, err := ac.loadTrieSnapshot(ctx)
+	snap, err := readTrieSnapshot(ctx, ac.storage, ac.name)
 	if err != nil {
 		return 0, err
 	}
@@ -161,7 +161,7 @@ func (ac *redisBackedAC) Remove(ctx context.Context, keyword string) (int, error
 }
 
 func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, v2 *redisBackedV2) (int, error) { //nolint:gocyclo,funlen
-	snap, err := ac.loadTrieSnapshot(ctx)
+	snap, err := readTrieSnapshot(ctx, ac.storage, ac.name)
 	if err != nil {
 		return 0, err
 	}

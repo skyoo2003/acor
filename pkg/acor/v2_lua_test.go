@@ -97,7 +97,7 @@ func TestLuaScriptInt64SafetyAdd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	snap, err := ops.readTrieData(ctx)
+	snap, err := readTrieSnapshot(ctx, ops.storage, ops.name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestLuaScriptInt64SafetyRemove(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	snap, err := ops.readTrieData(ctx)
+	snap, err := readTrieSnapshot(ctx, ops.storage, ops.name)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -47,11 +47,11 @@ type trieSnapshot struct {
 	Version  int64
 }
 
-// readTrieData loads and deserializes the trie hash from Redis.
-func (o *v2Operations) readTrieData(ctx context.Context) (*trieSnapshot, error) {
-	trieData, err := o.storage.HGetAll(ctx, trieKey(o.name))
+// readTrieSnapshot loads and deserializes the trie hash from Redis.
+func readTrieSnapshot(ctx context.Context, storage KVStorage, name string) (*trieSnapshot, error) {
+	trieData, err := storage.HGetAll(ctx, trieKey(name))
 	if err != nil {
-		return nil, newRedisError("HGETALL", trieKey(o.name), err)
+		return nil, newRedisError("HGETALL", trieKey(name), err)
 	}
 
 	snap := &trieSnapshot{}
@@ -113,7 +113,7 @@ func toJSON(v any) (string, error) {
 }
 
 func (o *v2Operations) tryAddV2(ctx context.Context, keyword string) (int, error) { //nolint:gocyclo,funlen
-	snap, err := o.readTrieData(ctx)
+	snap, err := readTrieSnapshot(ctx, o.storage, o.name)
 	if err != nil {
 		return 0, err
 	}
@@ -207,7 +207,7 @@ func (o *v2Operations) tryAddV2(ctx context.Context, keyword string) (int, error
 }
 
 func (o *v2Operations) tryRemoveV2(ctx context.Context, keyword string) (int, error) { //nolint:gocyclo,funlen
-	snap, err := o.readTrieData(ctx)
+	snap, err := readTrieSnapshot(ctx, o.storage, o.name)
 	if err != nil {
 		return 0, err
 	}
