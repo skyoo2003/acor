@@ -30,7 +30,6 @@ type AhoCorasickArgs struct {
     SelfInvalidationCleanupInterval uint64            // Cleanup frequency for self-invalidation map (default: 128)
     CaseSensitive                   bool              // Enable case-sensitive matching (default: false)
     RollbackTimeout                 time.Duration     // V1 rollback timeout (default: 10s)
-    InMemory                        bool              // Pure in-memory mode, no Redis (default: false)
     Preset                           Preset            // Architecture preset (default: PresetNone)
 }
 ```
@@ -146,18 +145,6 @@ Close the Redis connection.
 err := ac.Close()
 ```
 
-## In-Memory Engine
-
-Pure in-memory Aho-Corasick engine with selectable architecture presets. No Redis required. Created via the unified `Create` API with `InMemory: true`.
-
-```go
-ac, err := acor.Create(&acor.AhoCorasickArgs{
-    InMemory: true,
-    Name:     "my-collection",
-    Preset:   acor.PresetBalanced,
-})
-```
-
 ### AhoCorasickInfo
 
 Statistics about an Aho-Corasick instance.
@@ -176,7 +163,7 @@ type AhoCorasickInfo struct {
 
 ### Preset
 
-Architecture presets for the in-memory and preset-optimized Redis engines.
+Architecture presets for the preset-optimized Redis engine.
 
 ```go
 const (
@@ -187,31 +174,6 @@ const (
     PresetUltimate                      // SIMD + Double-Array + Banded DFA — max throughput
     PresetDefault         Preset = -1   // Internal sentinel; not user-selectable
 )
-```
-
-### In-Memory Methods
-
-```go
-// Create
-ac, err := acor.Create(&acor.AhoCorasickArgs{
-    InMemory: true,
-    Name:     "my-collection",
-    Preset:   acor.PresetBalanced,
-})
-
-// Add/Remove
-count, err := ac.Add("keyword")      // (int, error) — returns 0 or 1
-count, err := ac.Remove("keyword")   // (int, error) — returns 0 or 1
-
-// Find
-matches, err := ac.Find("text")              // ([]string, error)
-positions, err := ac.FindIndex("text")       // (map[string][]int, error)
-
-// Info
-info, err := ac.Info()              // (*AhoCorasickInfo, error)
-
-// Flush
-err := ac.Flush()
 ```
 
 ## Redis-Backed Engine with Presets
@@ -228,14 +190,13 @@ ac, err := acor.Create(&acor.AhoCorasickArgs{
 defer ac.Close()
 ```
 
-### AhoCorasickArgs (Preset and InMemory fields)
+### AhoCorasickArgs (Preset field)
 
-The `AhoCorasickArgs` struct includes two fields that control engine mode:
+The `AhoCorasickArgs` struct includes a `Preset` field for the engine mode:
 
 ```go
 type AhoCorasickArgs struct {
     // ... standard Redis connection fields ...
-    InMemory       bool   // Pure in-memory mode, no Redis (default: false)
     Preset         Preset // Architecture preset: PresetSpeed, PresetBalanced, PresetMemoryEfficient, PresetUltimate
     // ... other fields ...
 }

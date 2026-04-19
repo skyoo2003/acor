@@ -23,7 +23,7 @@ func benchKeywords(n int) []string {
 	return kws
 }
 
-func newBenchRedisBacked(t testing.TB, preset Preset) *AhoCorasick {
+func newBenchPreset(t testing.TB, preset Preset) *AhoCorasick {
 	t.Helper()
 	mr := miniredis.RunT(t)
 	ac, err := Create(&AhoCorasickArgs{Addr: mr.Addr(), Name: t.Name(), Preset: preset})
@@ -33,21 +33,11 @@ func newBenchRedisBacked(t testing.TB, preset Preset) *AhoCorasick {
 	return ac
 }
 
-func benchInMemory(b testing.TB, preset Preset) *AhoCorasick {
-	b.Helper()
-	ac, err := Create(&AhoCorasickArgs{InMemory: true, Name: "bench", Preset: preset})
-	if err != nil {
-		b.Fatal(err)
-	}
-	return ac
-}
-
 func BenchmarkEngineFind(b *testing.B) {
 	keywords := []string{"he", "she", "his", "hers", "hello", "world", "benchmark"}
 	for _, preset := range allPresets() {
 		b.Run(preset.String(), func(b *testing.B) {
-			ac := benchInMemory(b, preset)
-			defer ac.Close()
+			ac := newBenchPreset(b, preset)
 			for _, kw := range keywords {
 				ac.Add(kw)
 			}
@@ -63,8 +53,7 @@ func BenchmarkEngineFindIndex(b *testing.B) {
 	keywords := []string{"he", "she", "his", "hers", "hello", "world"}
 	for _, preset := range allPresets() {
 		b.Run(preset.String(), func(b *testing.B) {
-			ac := benchInMemory(b, preset)
-			defer ac.Close()
+			ac := newBenchPreset(b, preset)
 			for _, kw := range keywords {
 				ac.Add(kw)
 			}
@@ -81,8 +70,7 @@ func BenchmarkEngineFindManyKeywords(b *testing.B) {
 		kws := benchKeywords(n)
 		for _, preset := range allPresets() {
 			b.Run(fmt.Sprintf("%s/%dkw", preset.String(), n/1000), func(b *testing.B) {
-				ac := benchInMemory(b, preset)
-				defer ac.Close()
+				ac := newBenchPreset(b, preset)
 				for _, kw := range kws {
 					ac.Add(kw)
 				}
@@ -114,11 +102,11 @@ func BenchmarkEngineBuild(b *testing.B) {
 	}
 }
 
-func BenchmarkRedisBackedFind(b *testing.B) {
+func BenchmarkPresetFind(b *testing.B) {
 	keywords := []string{"he", "she", "his", "hers", "hello", "world", "benchmark"}
 	for _, preset := range allPresets() {
 		b.Run(preset.String(), func(b *testing.B) {
-			ac := newBenchRedisBacked(b, preset)
+			ac := newBenchPreset(b, preset)
 			for _, kw := range keywords {
 				ac.Add(kw)
 			}
@@ -130,11 +118,11 @@ func BenchmarkRedisBackedFind(b *testing.B) {
 	}
 }
 
-func BenchmarkRedisBackedFindIndex(b *testing.B) {
+func BenchmarkPresetFindIndex(b *testing.B) {
 	keywords := []string{"he", "she", "his", "hers", "hello", "world"}
 	for _, preset := range allPresets() {
 		b.Run(preset.String(), func(b *testing.B) {
-			ac := newBenchRedisBacked(b, preset)
+			ac := newBenchPreset(b, preset)
 			for _, kw := range keywords {
 				ac.Add(kw)
 			}
@@ -146,7 +134,7 @@ func BenchmarkRedisBackedFindIndex(b *testing.B) {
 	}
 }
 
-func BenchmarkRedisBackedAdd(b *testing.B) {
+func BenchmarkPresetCreateAddClose(b *testing.B) {
 	for _, preset := range allPresets() {
 		b.Run(preset.String(), func(b *testing.B) {
 			mr := miniredis.RunT(b)
@@ -165,10 +153,10 @@ func BenchmarkRedisBackedAdd(b *testing.B) {
 	}
 }
 
-func BenchmarkRedisBackedRemove(b *testing.B) {
+func BenchmarkPresetRemove(b *testing.B) {
 	for _, preset := range allPresets() {
 		b.Run(preset.String(), func(b *testing.B) {
-			ac := newBenchRedisBacked(b, preset)
+			ac := newBenchPreset(b, preset)
 			for i := 0; i < 100; i++ {
 				ac.Add(fmt.Sprintf("keyword%d", i))
 			}
@@ -181,11 +169,11 @@ func BenchmarkRedisBackedRemove(b *testing.B) {
 	}
 }
 
-func BenchmarkRedisBackedManyKeywords(b *testing.B) {
+func BenchmarkPresetManyKeywords(b *testing.B) {
 	for _, n := range []int{100, 1000, 5000} {
 		for _, preset := range allPresets() {
 			b.Run(fmt.Sprintf("%s/%dkw", preset.String(), n/1000), func(b *testing.B) {
-				ac := newBenchRedisBacked(b, preset)
+				ac := newBenchPreset(b, preset)
 				kws := benchKeywords(n)
 				for _, kw := range kws {
 					ac.Add(kw)
@@ -199,10 +187,10 @@ func BenchmarkRedisBackedManyKeywords(b *testing.B) {
 	}
 }
 
-func BenchmarkRedisBackedUnicode(b *testing.B) {
+func BenchmarkPresetUnicode(b *testing.B) {
 	for _, preset := range allPresets() {
 		b.Run(preset.String(), func(b *testing.B) {
-			ac := newBenchRedisBacked(b, preset)
+			ac := newBenchPreset(b, preset)
 			ac.Add("한글")
 			ac.Add("일본어")
 			b.ResetTimer()
@@ -218,8 +206,7 @@ func BenchmarkMemoryUsage(b *testing.B) {
 	for _, preset := range allPresets() {
 		b.Run(preset.String(), func(b *testing.B) {
 			b.ReportAllocs()
-			ac := benchInMemory(b, preset)
-			defer ac.Close()
+			ac := newBenchPreset(b, preset)
 			for _, kw := range keywords {
 				ac.Add(kw)
 			}

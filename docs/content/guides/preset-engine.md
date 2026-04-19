@@ -1,18 +1,18 @@
 ---
-title: "In-Memory Engine"
+title: "Preset-Optimized Engine"
 weight: 3
 ---
 
-# In-Memory Engine
+# Preset-Optimized Engine
 
-ACOR provides a pure in-memory Aho-Corasick engine with selectable architecture presets, created via the unified `Create` API with `InMemory: true`. No Redis or external dependencies are required.
+ACOR provides a Redis-backed Aho-Corasick engine with selectable architecture presets. Created via the unified `Create` API with a `Preset` field. Writes go to Redis atomically (V2 Lua scripts with optimistic locking); reads hit the local engine with no Redis I/O.
 
 ## When to Use
 
-- Unit tests and local tooling
-- Single-instance deployments
-- Applications where Redis is overkill
-- Embedding keyword matching into a library or CLI tool
+- Production deployments requiring Redis persistence
+- Distributed systems with multiple instances sharing a keyword collection
+- High-throughput text matching with zero read-latency on the hot path
+- Applications needing both durability and speed
 
 ## Quick Start
 
@@ -26,10 +26,11 @@ import (
 
 func main() {
     ac, _ := acor.Create(&acor.AhoCorasickArgs{
-        InMemory: true,
-        Name:     "my-collection",
-        Preset:   acor.PresetBalanced,
+        Addr:   "localhost:6379",
+        Name:   "my-collection",
+        Preset: acor.PresetBalanced,
     })
+    defer ac.Close()
 
     ac.Add("he")
     ac.Add("her")
@@ -71,11 +72,12 @@ By default, matching is case-insensitive. Enable case-sensitive matching when ne
 
 ```go
 ac, _ := acor.Create(&acor.AhoCorasickArgs{
-    InMemory:     true,
-    Name:         "my-collection",
-    Preset:       acor.PresetBalanced,
+    Addr:          "localhost:6379",
+    Name:          "my-collection",
+    Preset:        acor.PresetBalanced,
     CaseSensitive: true,
 })
+defer ac.Close()
 ```
 
 ## API Reference
@@ -83,16 +85,17 @@ ac, _ := acor.Create(&acor.AhoCorasickArgs{
 ```go
 // Create
 ac, err := acor.Create(&acor.AhoCorasickArgs{
-    InMemory: true,
-    Name:     "my-collection",
-    Preset:   acor.PresetBalanced,
+    Addr:   "localhost:6379",
+    Name:   "my-collection",
+    Preset: acor.PresetBalanced,
 })
+defer ac.Close()
 
 // Add/Remove — returns 1 if changed, 0 if no-op
 ac.Add("keyword")
 ac.Remove("keyword")
 
-// Find
+// Find (0 RTT on hot path — reads from local engine)
 matches, _ := ac.Find("text")          // ([]string, error)
 positions, _ := ac.FindIndex("text")   // (map[string][]int, error)
 
@@ -105,5 +108,5 @@ ac.Flush()
 
 ## Next Steps
 
-- [Redis-Backed Engine](redis-backed-engine/) - Add Redis persistence with local speed
+- [Redis-Backed Engine](redis-backed-engine/) - Redis persistence details
 - [API Reference](../reference/api/) - Complete API documentation

@@ -257,18 +257,10 @@ type AhoCorasickArgs struct {
 	// complete even if the caller's context is already canceled.
 	RollbackTimeout time.Duration
 
-	// InMemory enables pure in-memory mode with no Redis dependency.
-	// When true, Addr, Addrs, MasterName, RingAddrs, Password, DB, SchemaVersion,
-	// and EnableCache must all be unset (zero values). A Preset may optionally be
-	// specified to select the engine architecture (defaults to PresetBalanced).
-	InMemory bool
-
 	// Preset selects the architecture for the local match engine.
-	// When set and InMemory is true, selects the in-memory engine architecture.
-	// When set and InMemory is false, uses Redis-backed engine with a local
-	// preset-optimized automaton for fast reads.
-	// When unset (zero), the original AhoCorasick engine is used.
-	// Preset mode forces V2 schema and is incompatible with EnableCache.
+	// When set, uses Redis-backed engine with a local preset-optimized automaton
+	// for fast reads. Forces V2 schema.
+	// When unset (zero), the original Aho-Corasick engine is used.
 	Preset Preset
 }
 
@@ -349,30 +341,13 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 		return nil, ErrInvalidName
 	}
 
-	// --- Branch 1: In-Memory mode ---
-	if args.InMemory {
-		if args.hasAnyRedisConfig() {
-			return nil, ErrInMemoryWithRedisConfig
-		}
-		if args.SchemaVersion == SchemaV1 {
-			return nil, ErrInMemoryWithSchemaVersion
-		}
-		if args.EnableCache {
-			return nil, ErrInMemoryWithCache
-		}
-		return createInMemory(args)
-	}
-
-	// --- Branch 2: Preset-Optimized Redis mode ---
+	// --- Preset-Optimized Redis mode ---
 	if args.Preset != PresetNone && args.Preset != PresetDefault {
 		if !args.hasAnyRedisConfig() {
 			return nil, ErrPresetRequiresRedis
 		}
 		if args.SchemaVersion == SchemaV1 {
 			return nil, ErrPresetRequiresV2
-		}
-		if args.EnableCache {
-			return nil, ErrPresetWithCache
 		}
 		return createPresetRedis(args)
 	}
@@ -390,29 +365,6 @@ func newLogger(args *AhoCorasickArgs) Logger {
 		return args.Logger
 	}
 	return stdLogger
-}
-
-// createInMemory creates a pure in-memory AhoCorasick instance.
-// Note: context is set to context.Background() since in-memory operations
-// do not perform I/O. This matches the original Create() API which does not
-// accept a context parameter.
-func createInMemory(args *AhoCorasickArgs) (*AhoCorasick, error) {
-	preset := args.Preset
-	if preset == PresetNone || preset == PresetDefault {
-		preset = PresetBalanced
-	}
-
-	ac := &AhoCorasick{
-		name:          args.Name,
-		logger:        newLogger(args),
-		ops:           newInMemoryOps(preset, args.CaseSensitive),
-		mode:          modeInMemory,
-		caseSensitive: args.CaseSensitive,
-		ctx:           context.Background(),
-		cancel:        func() {},
-		closeFn:       func() error { return nil },
-	}
-	return ac, nil
 }
 
 // createPresetRedis creates a Redis-backed AhoCorasick with a local preset-optimized
@@ -568,9 +520,6 @@ func (ac *AhoCorasick) Close() error {
 		}
 	})
 	if alreadyClosed {
-		if ac.mode == modeInMemory {
-			return nil
-		}
 		return ErrRedisAlreadyClosed
 	}
 	return closeErr

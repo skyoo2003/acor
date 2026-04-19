@@ -186,24 +186,6 @@ Chunk boundaries ensure matches aren't split across chunks:
 - `ChunkBoundaryLine`: Split at line breaks
 - `ChunkBoundarySentence`: Split at sentence endings
 
-## In-Memory Engine
-
-For use cases that don't require Redis, ACOR provides a pure in-memory engine with selectable architecture presets:
-
-```go
-ac, _ := acor.Create(&acor.AhoCorasickArgs{
-    InMemory:     true,
-    Name:         "my-collection",
-    Preset:       acor.PresetBalanced,
-})
-ac.Add("hello")
-ac.Add("world")
-matches, _ := ac.Find("hello world") // ["hello", "world"]
-info, _ := ac.Info()                // Keywords, Nodes, Preset, MemoryBytes
-```
-
-No external dependencies — works out of the box.
-
 ## Redis-Backed Engine with Presets
 
 For distributed deployments that need both Redis persistence and local speed, use the `Preset` field:

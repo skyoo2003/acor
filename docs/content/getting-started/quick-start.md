@@ -103,6 +103,5 @@ args := &acor.AhoCorasickArgs{
 
 - [Batch Operations](../guides/batch-operations/) - Optimize bulk operations
 - [Parallel Matching](../guides/parallel-matching/) - Process large texts efficiently
-- [In-Memory Engine](../guides/in-memory-engine/) - Pure in-memory usage without Redis
 - [Redis-Backed Engine](../guides/redis-backed-engine/) - Redis persistence with local speed
 - [API Reference](../reference/api/) - Complete API documentation

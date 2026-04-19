@@ -148,9 +148,8 @@ import (
 
 ## In-Memory and Redis-Backed Engines
 
-ACOR also provides engine variants with selectable architecture presets:
+ACOR also provides a preset-optimized engine variant:
 
-- **In-Memory mode** (`InMemory: true`): Pure in-memory engine — no Redis required, ideal for single-instance or test environments
 - **Preset-optimized Redis mode** (`Preset: PresetBalanced`): Redis persistence with a local preset-optimized automaton for 0-RTT reads
 
 Both support four presets: Speed, Balanced, MemoryEfficient, and Ultimate.

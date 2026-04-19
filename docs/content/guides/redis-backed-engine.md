@@ -88,7 +88,7 @@ All standard Redis topologies are supported (Standalone, Sentinel, Cluster, Ring
 
 ## Preset Selection
 
-The same [architecture presets](in-memory-engine/#architecture-presets) are available:
+The same [architecture presets](preset-engine/#architecture-presets) are available:
 
 | Preset | Use Case |
 |--------|----------|
@@ -140,5 +140,5 @@ Use a `Preset`-optimized `AhoCorasick` when you need the fastest possible reads 
 
 ## Next Steps
 
-- [In-Memory Engine](in-memory-engine/) - Pure in-memory usage without Redis
+- [Preset-Optimized Engine](preset-engine/) - Redis-backed engine with local speed
 - [API Reference](../reference/api/) - Complete API documentation

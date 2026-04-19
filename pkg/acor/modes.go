@@ -9,7 +9,6 @@ type backendMode int
 
 const (
 	modeOriginal    backendMode = iota // V1 or V2 Redis-backed (original behavior)
-	modeInMemory                       // Pure in-memory matchEngine
 	modePresetRedis                    // Redis persistence + local matchEngine
 )
 

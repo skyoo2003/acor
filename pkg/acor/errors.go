@@ -24,24 +24,13 @@ var (
 	// ErrConcurrencyConflict is returned when an optimistic locking conflict
 	// occurs during a V2 write operation (Add/Remove). The caller should retry.
 	ErrConcurrencyConflict = errors.New("concurrency conflict - please retry")
-	// ErrInMemoryWithRedisConfig is returned when InMemory is true but Redis
-	// connection fields are also set.
-	ErrInMemoryWithRedisConfig = errors.New("InMemory mode cannot be used with Redis configuration")
-	// ErrInMemoryWithSchemaVersion is returned when InMemory is true and
-	// SchemaVersion is explicitly set.
-	ErrInMemoryWithSchemaVersion = errors.New("InMemory mode cannot be used with SchemaVersion")
-	// ErrInMemoryWithCache is returned when InMemory is true and EnableCache
-	// is set (in-memory mode has no cache layer).
-	ErrInMemoryWithCache = errors.New("InMemory mode cannot be used with EnableCache")
 	// ErrPresetRequiresRedis is returned when a Preset is specified without
-	// InMemory=true and without any Redis address.
-	ErrPresetRequiresRedis = errors.New("Preset requires a Redis address when InMemory is false")
+	// any Redis address.
+	ErrPresetRequiresRedis = errors.New("Preset requires a Redis address")
 	// ErrPresetRequiresV2 is returned when a Preset is set with SchemaVersion=1.
 	ErrPresetRequiresV2 = errors.New("Preset engine requires V2 schema")
-	// ErrPresetWithCache is returned when both Preset and EnableCache are set.
-	ErrPresetWithCache = errors.New("Preset engine already includes local caching; EnableCache is redundant")
 	// ErrSuggestRequiresRedis is returned when Suggest/SuggestIndex is called in
-	// in-memory or preset mode, which don't support prefix-based suggestions.
+	// preset mode, which doesn't support prefix-based suggestions.
 	ErrSuggestRequiresRedis = errors.New("suggest requires Redis-backed mode without Preset")
 )
 
