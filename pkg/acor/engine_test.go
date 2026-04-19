@@ -199,23 +199,29 @@ func TestInMemoryInfo(t *testing.T) {
 func TestInMemoryCaseSensitive(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
-			ac, _ := Create(&AhoCorasickArgs{
+			ac, err := Create(&AhoCorasickArgs{
 				InMemory: true,
 				Name:     "test",
 				Preset:   preset,
 			})
+			if err != nil {
+				t.Fatalf("Create in-memory: %v", err)
+			}
 			t.Cleanup(func() { _ = ac.Close() })
 			ac.Add("Hello")
 			if matches, _ := ac.Find("say HELLO world"); len(matches) == 0 {
 				t.Error("expected match in case-insensitive mode")
 			}
 
-			ac2, _ := Create(&AhoCorasickArgs{
+			ac2, err := Create(&AhoCorasickArgs{
 				InMemory:      true,
 				Name:          "test2",
 				Preset:        preset,
 				CaseSensitive: true,
 			})
+			if err != nil {
+				t.Fatalf("Create case-sensitive: %v", err)
+			}
 			t.Cleanup(func() { _ = ac2.Close() })
 			ac2.Add("Hello")
 			if matches, _ := ac2.Find("say HELLO world"); len(matches) != 0 {

@@ -2,6 +2,8 @@
 
 package acor
 
+import "sort"
+
 // flatNode is a trie node using a map for goto transitions (flat array pool).
 type flatNode struct {
 	gotoMap map[rune]int
@@ -239,40 +241,16 @@ func (e *speedEngine) countKeywords() int {
 }
 
 func sortRunes(runes []rune) {
-	for i := 1; i < len(runes); i++ {
-		key := runes[i]
-		j := i - 1
-		for j >= 0 && runes[j] > key {
-			runes[j+1] = runes[j]
-			j--
-		}
-		runes[j+1] = key
-	}
+	sort.Slice(runes, func(i, j int) bool { return runes[i] < runes[j] })
 }
 
 func sortRunesFromPairs(pairs []struct {
 	ch    rune
 	child int
 }) {
-	for i := 1; i < len(pairs); i++ {
-		key := pairs[i]
-		j := i - 1
-		for j >= 0 && pairs[j].ch > key.ch {
-			pairs[j+1] = pairs[j]
-			j--
-		}
-		pairs[j+1] = key
-	}
+	sort.Slice(pairs, func(i, j int) bool { return pairs[i].ch < pairs[j].ch })
 }
 
 func sortStrings(s []string) {
-	for i := 1; i < len(s); i++ {
-		key := s[i]
-		j := i - 1
-		for j >= 0 && s[j] > key {
-			s[j+1] = s[j]
-			j--
-		}
-		s[j+1] = key
-	}
+	sort.Strings(s)
 }

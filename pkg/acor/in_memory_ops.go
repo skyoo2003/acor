@@ -4,7 +4,6 @@ package acor
 
 import (
 	"context"
-	"strings"
 	"sync"
 )
 
@@ -31,10 +30,7 @@ func newInMemoryOps(preset Preset, caseSensitive bool) *inMemoryOps {
 }
 
 func (o *inMemoryOps) add(_ context.Context, keyword string) (int, error) {
-	keyword = strings.TrimSpace(keyword)
-	if !o.caseSensitive {
-		keyword = strings.ToLower(keyword)
-	}
+	keyword = normalizeKeyword(keyword, o.caseSensitive)
 	if keyword == "" {
 		return 0, nil
 	}
@@ -49,10 +45,7 @@ func (o *inMemoryOps) add(_ context.Context, keyword string) (int, error) {
 }
 
 func (o *inMemoryOps) remove(_ context.Context, keyword string) (int, error) {
-	keyword = strings.TrimSpace(keyword)
-	if !o.caseSensitive {
-		keyword = strings.ToLower(keyword)
-	}
+	keyword = normalizeKeyword(keyword, o.caseSensitive)
 	if keyword == "" {
 		return 0, nil
 	}
@@ -70,9 +63,7 @@ func (o *inMemoryOps) find(_ context.Context, text string) ([]string, error) {
 	if text == "" {
 		return []string{}, nil
 	}
-	if !o.caseSensitive {
-		text = strings.ToLower(text)
-	}
+	text = normalizeText(text, o.caseSensitive)
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 	return o.engine.find(text), nil
@@ -82,9 +73,7 @@ func (o *inMemoryOps) findIndex(_ context.Context, text string) (map[string][]in
 	if text == "" {
 		return map[string][]int{}, nil
 	}
-	if !o.caseSensitive {
-		text = strings.ToLower(text)
-	}
+	text = normalizeText(text, o.caseSensitive)
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 	return o.engine.findIndex(text), nil

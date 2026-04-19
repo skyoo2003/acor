@@ -19,10 +19,7 @@ const redisBackedRetryBackoff = 10 * time.Millisecond
 // to Redis via a V2 Lua script (optimistic locking), then the local automaton
 // is rebuilt and an invalidation is published.
 func (ac *redisBackedAC) Add(ctx context.Context, keyword string) (int, error) {
-	keyword = strings.TrimSpace(keyword)
-	if !ac.caseSensitive {
-		keyword = strings.ToLower(keyword)
-	}
+	keyword = normalizeKeyword(keyword, ac.caseSensitive)
 	if keyword == "" {
 		return 0, nil
 	}
@@ -141,10 +138,7 @@ func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, v2 *redisBa
 
 // Remove deletes a keyword from the automaton.
 func (ac *redisBackedAC) Remove(ctx context.Context, keyword string) (int, error) {
-	keyword = strings.TrimSpace(keyword)
-	if !ac.caseSensitive {
-		keyword = strings.ToLower(keyword)
-	}
+	keyword = normalizeKeyword(keyword, ac.caseSensitive)
 	if keyword == "" {
 		return 0, nil
 	}
@@ -277,9 +271,7 @@ func (ac *redisBackedAC) Find(ctx context.Context, text string) ([]string, error
 	if text == "" {
 		return []string{}, nil
 	}
-	if !ac.caseSensitive {
-		text = strings.ToLower(text)
-	}
+	text = normalizeText(text, ac.caseSensitive)
 
 	if err := ac.ensureValid(ctx); err != nil {
 		return nil, err
@@ -295,9 +287,7 @@ func (ac *redisBackedAC) FindIndex(ctx context.Context, text string) (map[string
 	if text == "" {
 		return map[string][]int{}, nil
 	}
-	if !ac.caseSensitive {
-		text = strings.ToLower(text)
-	}
+	text = normalizeText(text, ac.caseSensitive)
 
 	if err := ac.ensureValid(ctx); err != nil {
 		return nil, err

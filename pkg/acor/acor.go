@@ -392,6 +392,10 @@ func newLogger(args *AhoCorasickArgs) Logger {
 	return stdLogger
 }
 
+// createInMemory creates a pure in-memory AhoCorasick instance.
+// Note: context is set to context.Background() since in-memory operations
+// do not perform I/O. This matches the original Create() API which does not
+// accept a context parameter.
 func createInMemory(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	preset := args.Preset
 	if preset == PresetNone || preset == PresetDefault {
@@ -411,6 +415,10 @@ func createInMemory(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	return ac, nil
 }
 
+// createPresetRedis creates a Redis-backed AhoCorasick with a local preset-optimized
+// engine. The internal context is derived from context.Background() since the
+// Create() API does not accept a caller context. Long-lived Pub/Sub and reload
+// operations use this context.
 func createPresetRedis(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	rbAC, err := newRedisBacked(context.Background(), args)
 	if err != nil {
