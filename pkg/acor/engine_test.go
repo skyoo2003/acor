@@ -30,7 +30,7 @@ func TestInMemoryAdd(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
 			ac := createTestInMemory(t, preset)
-			ac.Close()
+			t.Cleanup(func() { _ = ac.Close() })
 
 			added, err := ac.Add("hello")
 			if err != nil || added != 1 {
@@ -59,7 +59,7 @@ func TestInMemoryRemove(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
 			ac := createTestInMemory(t, preset)
-			ac.Close()
+			t.Cleanup(func() { _ = ac.Close() })
 			ac.Add("hello")
 			ac.Add("world")
 
@@ -105,7 +105,7 @@ func TestInMemoryFind(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
 					ac := createTestInMemory(t, preset)
-					ac.Close()
+					t.Cleanup(func() { _ = ac.Close() })
 					for _, kw := range tc.keywords {
 						ac.Add(kw)
 					}
@@ -123,7 +123,7 @@ func TestInMemoryFindIndex(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
 			ac := createTestInMemory(t, preset)
-			ac.Close()
+			t.Cleanup(func() { _ = ac.Close() })
 			ac.Add("he")
 			ac.Add("she")
 			ac.Add("hers")
@@ -155,7 +155,7 @@ func TestInMemoryFlush(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
 			ac := createTestInMemory(t, preset)
-			ac.Close()
+			t.Cleanup(func() { _ = ac.Close() })
 			ac.Add("hello")
 			ac.Add("world")
 			_ = ac.Flush()
@@ -177,7 +177,7 @@ func TestInMemoryInfo(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
 			ac := createTestInMemory(t, preset)
-			ac.Close()
+			t.Cleanup(func() { _ = ac.Close() })
 			info, _ := ac.Info()
 			if info.Keywords != 0 {
 				t.Errorf("expected 0 keywords, got %d", info.Keywords)
@@ -232,7 +232,7 @@ func TestInMemoryEmpty(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
 			ac := createTestInMemory(t, preset)
-			ac.Close()
+			t.Cleanup(func() { _ = ac.Close() })
 			if matches, _ := ac.Find("anything"); len(matches) != 0 {
 				t.Errorf("expected no matches, got %v", matches)
 			}
@@ -250,7 +250,7 @@ func TestInMemoryUnicode(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
 			ac := createTestInMemory(t, preset)
-			ac.Close()
+			t.Cleanup(func() { _ = ac.Close() })
 			ac.Add("한국어")
 			ac.Add("어")
 
@@ -275,7 +275,7 @@ func TestInMemoryConcurrentFind(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
 			ac := createTestInMemory(t, preset)
-			ac.Close()
+			t.Cleanup(func() { _ = ac.Close() })
 			for i := 0; i < 100; i++ {
 				ac.Add(fmt.Sprintf("keyword%d", i))
 			}
@@ -311,7 +311,7 @@ func TestSameAPIAcrossPresets(t *testing.T) {
 	var expected []string
 	{
 		ac := createTestInMemory(t, PresetBalanced)
-		ac.Close()
+		t.Cleanup(func() { _ = ac.Close() })
 		for _, kw := range keywords {
 			ac.Add(kw)
 		}
@@ -321,7 +321,7 @@ func TestSameAPIAcrossPresets(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
 			ac := createTestInMemory(t, preset)
-			ac.Close()
+			t.Cleanup(func() { _ = ac.Close() })
 			for _, kw := range keywords {
 				ac.Add(kw)
 			}
@@ -335,27 +335,57 @@ func TestSameAPIAcrossPresets(t *testing.T) {
 
 func TestInMemorySuggestError(t *testing.T) {
 	ac := createTestInMemory(t, PresetBalanced)
-	ac.Close()
+	t.Cleanup(func() { _ = ac.Close() })
 	_, err := ac.Suggest("he")
 	if err != ErrSuggestRequiresRedis {
 		t.Errorf("expected ErrSuggestRequiresRedis, got %v", err)
 	}
 }
 
-func TestInMemoryWithRedisConfigError(t *testing.T) {
-	_, err := Create(&AhoCorasickArgs{
-		InMemory: true,
-		Name:     "test",
-		Addr:     "localhost:6379",
-	})
-	if err != ErrInMemoryWithRedisConfig {
-		t.Errorf("expected ErrInMemoryWithRedisConfig, got %v", err)
+func TestInMemorySuggestIndexError(t *testing.T) {
+	ac := createTestInMemory(t, PresetBalanced)
+	_, err := ac.SuggestIndex("he")
+	if err != ErrSuggestRequiresRedis {
+		t.Errorf("expected ErrSuggestRequiresRedis, got %v", err)
 	}
+}
+
+func TestInMemoryWithRedisConfigError(t *testing.T) {
+	t.Run("redis_addr", func(t *testing.T) {
+		_, err := Create(&AhoCorasickArgs{
+			InMemory: true,
+			Name:     "test",
+			Addr:     "localhost:6379",
+		})
+		if err != ErrInMemoryWithRedisConfig {
+			t.Errorf("expected ErrInMemoryWithRedisConfig, got %v", err)
+		}
+	})
+	t.Run("schema_version", func(t *testing.T) {
+		_, err := Create(&AhoCorasickArgs{
+			InMemory:      true,
+			Name:          "test",
+			SchemaVersion: SchemaV1,
+		})
+		if err != ErrInMemoryWithRedisConfig {
+			t.Errorf("expected ErrInMemoryWithRedisConfig, got %v", err)
+		}
+	})
+	t.Run("enable_cache", func(t *testing.T) {
+		_, err := Create(&AhoCorasickArgs{
+			InMemory:    true,
+			Name:        "test",
+			EnableCache: true,
+		})
+		if err != ErrInMemoryWithRedisConfig {
+			t.Errorf("expected ErrInMemoryWithRedisConfig, got %v", err)
+		}
+	})
 }
 
 func BenchmarkInMemoryFindSpeed(b *testing.B) {
 	ac := createTestInMemory(b, PresetSpeed)
-	ac.Close()
+	b.Cleanup(func() { _ = ac.Close() })
 	for _, kw := range []string{"he", "she", "his", "hers", "hello", "world", "benchmark"} {
 		ac.Add(kw)
 	}
@@ -368,7 +398,7 @@ func BenchmarkInMemoryFindSpeed(b *testing.B) {
 
 func BenchmarkInMemoryFindBalanced(b *testing.B) {
 	ac := createTestInMemory(b, PresetBalanced)
-	ac.Close()
+	b.Cleanup(func() { _ = ac.Close() })
 	for _, kw := range []string{"he", "she", "his", "hers", "hello", "world", "benchmark"} {
 		ac.Add(kw)
 	}
@@ -381,7 +411,7 @@ func BenchmarkInMemoryFindBalanced(b *testing.B) {
 
 func BenchmarkInMemoryFindMemoryEfficient(b *testing.B) {
 	ac := createTestInMemory(b, PresetMemoryEfficient)
-	ac.Close()
+	b.Cleanup(func() { _ = ac.Close() })
 	for _, kw := range []string{"he", "she", "his", "hers", "hello", "world", "benchmark"} {
 		ac.Add(kw)
 	}
@@ -394,7 +424,7 @@ func BenchmarkInMemoryFindMemoryEfficient(b *testing.B) {
 
 func BenchmarkInMemoryFindUltimate(b *testing.B) {
 	ac := createTestInMemory(b, PresetUltimate)
-	ac.Close()
+	b.Cleanup(func() { _ = ac.Close() })
 	for _, kw := range []string{"he", "she", "his", "hers", "hello", "world", "benchmark"} {
 		ac.Add(kw)
 	}
@@ -413,7 +443,7 @@ func BenchmarkInMemoryFindManyKeywords(b *testing.B) {
 	for _, preset := range allPresets() {
 		b.Run(preset.String(), func(b *testing.B) {
 			ac := createTestInMemory(b, preset)
-			ac.Close()
+			b.Cleanup(func() { _ = ac.Close() })
 			for _, kw := range keywords {
 				ac.Add(kw)
 			}
@@ -432,7 +462,7 @@ func BenchmarkInMemoryAdd(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				ac := createTestInMemory(b, preset)
-				ac.Close()
+				b.Cleanup(func() { _ = ac.Close() })
 				for j := 0; j < 100; j++ {
 					ac.Add(fmt.Sprintf("keyword%d", j))
 				}

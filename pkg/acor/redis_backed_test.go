@@ -439,6 +439,24 @@ func TestPresetRedisSuggestError(t *testing.T) {
 	}
 }
 
+func TestPresetRedisSuggestIndexError(t *testing.T) {
+	ac := newTestPresetRedis(t, PresetBalanced)
+	_, err := ac.SuggestIndex("he")
+	if err != ErrSuggestRequiresRedis {
+		t.Errorf("expected ErrSuggestRequiresRedis, got %v", err)
+	}
+}
+
+func TestPresetRequiresRedisError(t *testing.T) {
+	_, err := Create(&AhoCorasickArgs{
+		Name:   "test-no-redis",
+		Preset: PresetBalanced,
+	})
+	if err != ErrPresetRequiresRedis {
+		t.Errorf("expected ErrPresetRequiresRedis, got %v", err)
+	}
+}
+
 func TestPresetRedisV1Error(t *testing.T) {
 	_, err := Create(&AhoCorasickArgs{
 		Addr:          "localhost:6379",

@@ -354,6 +354,12 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 		if args.hasAnyRedisConfig() {
 			return nil, ErrInMemoryWithRedisConfig
 		}
+		if args.SchemaVersion == SchemaV1 {
+			return nil, ErrInMemoryWithRedisConfig
+		}
+		if args.EnableCache {
+			return nil, ErrInMemoryWithRedisConfig
+		}
 		return createInMemory(args)
 	}
 

@@ -199,7 +199,7 @@ func (ac *redisBackedAC) ensureValid(ctx context.Context) error {
 		}
 
 		if err := ac.reloadFromRedisLocked(ctx); err != nil {
-			return nil, nil
+			return nil, err
 		}
 		return nil, nil
 	})
