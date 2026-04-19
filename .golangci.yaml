@@ -69,6 +69,9 @@ linters:
       - linters:
           - staticcheck
         text: "S1038:"
+      - linters:
+          - mnd
+        path: pkg/acor/engine_
 
 formatters:
   enable:
