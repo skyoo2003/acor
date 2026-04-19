@@ -373,8 +373,8 @@ func TestInMemoryWithRedisConfigError(t *testing.T) {
 			Name:          "test",
 			SchemaVersion: SchemaV1,
 		})
-		if err != ErrInMemoryWithRedisConfig {
-			t.Errorf("expected ErrInMemoryWithRedisConfig, got %v", err)
+		if err != ErrInMemoryWithSchemaVersion {
+			t.Errorf("expected ErrInMemoryWithSchemaVersion, got %v", err)
 		}
 	})
 	t.Run("enable_cache", func(t *testing.T) {
@@ -383,8 +383,8 @@ func TestInMemoryWithRedisConfigError(t *testing.T) {
 			Name:        "test",
 			EnableCache: true,
 		})
-		if err != ErrInMemoryWithRedisConfig {
-			t.Errorf("expected ErrInMemoryWithRedisConfig, got %v", err)
+		if err != ErrInMemoryWithCache {
+			t.Errorf("expected ErrInMemoryWithCache, got %v", err)
 		}
 	})
 }

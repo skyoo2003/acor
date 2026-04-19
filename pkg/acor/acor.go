@@ -355,10 +355,10 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 			return nil, ErrInMemoryWithRedisConfig
 		}
 		if args.SchemaVersion == SchemaV1 {
-			return nil, ErrInMemoryWithRedisConfig
+			return nil, ErrInMemoryWithSchemaVersion
 		}
 		if args.EnableCache {
-			return nil, ErrInMemoryWithRedisConfig
+			return nil, ErrInMemoryWithCache
 		}
 		return createInMemory(args)
 	}

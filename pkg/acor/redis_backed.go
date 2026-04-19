@@ -140,47 +140,56 @@ func (ac *redisBackedAC) initTrie(ctx context.Context) error {
 	return nil
 }
 
-func (ac *redisBackedAC) loadTrieDataFromRedis(ctx context.Context) (keywords []string, version int64, err error) {
+func (ac *redisBackedAC) loadTrieSnapshot(ctx context.Context) (*trieSnapshot, error) {
 	trieData, err := ac.storage.HGetAll(ctx, trieKey(ac.name))
 	if err != nil {
-		return nil, 0, fmt.Errorf("HGETALL %s: %w", trieKey(ac.name), err)
+		return nil, newRedisError("HGETALL", trieKey(ac.name), err)
 	}
 
+	snap := &trieSnapshot{}
 	if data, ok := trieData["keywords"]; ok {
-		if err := json.Unmarshal([]byte(data), &keywords); err != nil {
-			return nil, 0, fmt.Errorf("unmarshal keywords: %w", err)
+		if err := json.Unmarshal([]byte(data), &snap.Keywords); err != nil {
+			return nil, newOperationError("unmarshal", SchemaV2, err)
 		}
 	}
-
+	if data, ok := trieData["prefixes"]; ok {
+		if err := json.Unmarshal([]byte(data), &snap.Prefixes); err != nil {
+			return nil, newOperationError("unmarshal", SchemaV2, err)
+		}
+	}
+	if data, ok := trieData["suffixes"]; ok {
+		if err := json.Unmarshal([]byte(data), &snap.Suffixes); err != nil {
+			return nil, newOperationError("unmarshal", SchemaV2, err)
+		}
+	}
 	if v, ok := trieData["version"]; ok {
-		if err := json.Unmarshal([]byte(v), &version); err != nil {
-			return nil, 0, fmt.Errorf("unmarshal version: %w", err)
+		if err := json.Unmarshal([]byte(v), &snap.Version); err != nil {
+			snap.Version = 0
 		}
 	}
-
-	return keywords, version, nil
+	return snap, nil
 }
 
-func (ac *redisBackedAC) applyReload(keywords []string, version int64) {
-	keywordSet := make(map[string]struct{}, len(keywords))
-	for _, kw := range keywords {
+func (ac *redisBackedAC) applyReload(snap *trieSnapshot) {
+	keywordSet := make(map[string]struct{}, len(snap.Keywords))
+	for _, kw := range snap.Keywords {
 		keywordSet[kw] = struct{}{}
 	}
 	ac.keywordSet = keywordSet
 	ac.engine.buildFromKeywords(keywordSet)
-	ac.localVersion = version
+	ac.localVersion = snap.Version
 	ac.stale = false
 }
 
 func (ac *redisBackedAC) reloadFromRedis(ctx context.Context) error {
-	keywords, version, err := ac.loadTrieDataFromRedis(ctx)
+	snap, err := ac.loadTrieSnapshot(ctx)
 	if err != nil {
 		return err
 	}
 
 	ac.mu.Lock()
 	defer ac.mu.Unlock()
-	ac.applyReload(keywords, version)
+	ac.applyReload(snap)
 	return nil
 }
 
@@ -206,11 +215,11 @@ func (ac *redisBackedAC) ensureValid(ctx context.Context) error {
 			return nil, nil
 		}
 
-		keywords, version, err := ac.loadTrieDataFromRedis(ctx)
+		snap, err := ac.loadTrieSnapshot(ctx)
 		if err != nil {
 			return nil, err
 		}
-		ac.applyReload(keywords, version)
+		ac.applyReload(snap)
 		return nil, nil
 	})
 	return err

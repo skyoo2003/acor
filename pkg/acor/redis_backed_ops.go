@@ -4,7 +4,6 @@ package acor
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -43,7 +42,7 @@ func (ac *redisBackedAC) Add(ctx context.Context, keyword string) (int, error) {
 }
 
 func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, v2 *redisBackedV2) (int, error) { //nolint:gocyclo,funlen
-	snap, err := ac.readTrieSnapshot(ctx)
+	snap, err := ac.loadTrieSnapshot(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -162,7 +161,7 @@ func (ac *redisBackedAC) Remove(ctx context.Context, keyword string) (int, error
 }
 
 func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, v2 *redisBackedV2) (int, error) { //nolint:gocyclo,funlen
-	snap, err := ac.readTrieSnapshot(ctx)
+	snap, err := ac.loadTrieSnapshot(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -336,38 +335,6 @@ func (ac *redisBackedAC) Info(ctx context.Context) (*InMemoryInfo, error) {
 	ac.mu.RLock()
 	defer ac.mu.RUnlock()
 	return ac.engine.info(), nil
-}
-
-// --- helpers ---
-
-func (ac *redisBackedAC) readTrieSnapshot(ctx context.Context) (*trieSnapshot, error) {
-	trieData, err := ac.storage.HGetAll(ctx, trieKey(ac.name))
-	if err != nil {
-		return nil, newRedisError("HGETALL", trieKey(ac.name), err)
-	}
-
-	snap := &trieSnapshot{}
-	if data, ok := trieData["keywords"]; ok {
-		if err := json.Unmarshal([]byte(data), &snap.Keywords); err != nil {
-			return nil, newOperationError("unmarshal", SchemaV2, err)
-		}
-	}
-	if data, ok := trieData["prefixes"]; ok {
-		if err := json.Unmarshal([]byte(data), &snap.Prefixes); err != nil {
-			return nil, newOperationError("unmarshal", SchemaV2, err)
-		}
-	}
-	if data, ok := trieData["suffixes"]; ok {
-		if err := json.Unmarshal([]byte(data), &snap.Suffixes); err != nil {
-			return nil, newOperationError("unmarshal", SchemaV2, err)
-		}
-	}
-	if v, ok := trieData["version"]; ok {
-		if err := json.Unmarshal([]byte(v), &snap.Version); err != nil {
-			return nil, newOperationError("unmarshal", SchemaV2, err)
-		}
-	}
-	return snap, nil
 }
 
 // computeRBOutputs returns all keywords that are suffixes of the given state.
