@@ -164,9 +164,10 @@ func TestNewRedisClientRejectsInvalidTopologyConfigurations(t *testing.T) {
 }
 
 func TestCloseWithNilStorage(t *testing.T) {
-	ac := &AhoCorasick{redisClient: nil, storage: nil}
+	ac := &AhoCorasick{mode: modeOriginal}
+	_ = ac.Close() // first close succeeds (nil closeFn)
 	if err := ac.Close(); err != ErrRedisAlreadyClosed {
-		t.Errorf("Close() with nil client error = %v, want ErrRedisAlreadyClosed", err)
+		t.Errorf("second Close() error = %v, want ErrRedisAlreadyClosed", err)
 	}
 }
 

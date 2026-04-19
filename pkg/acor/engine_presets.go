@@ -18,6 +18,8 @@ var presetConfigs = map[Preset]presetConfig{
 // newMatchEngine creates the appropriate matchEngine implementation for the given preset.
 func newMatchEngine(preset Preset) matchEngine {
 	switch preset {
+	case PresetNone, PresetDefault:
+		return newBalancedEngine(presetConfigs[PresetBalanced].bandDepth)
 	case PresetSpeed:
 		return newSpeedEngine()
 	case PresetBalanced:
@@ -26,8 +28,6 @@ func newMatchEngine(preset Preset) matchEngine {
 		return newMemEfficientEngine()
 	case PresetUltimate:
 		return newUltimateEngine(presetConfigs[PresetUltimate].bandDepth)
-	case PresetDefault:
-		return newBalancedEngine(presetConfigs[PresetBalanced].bandDepth)
 	default:
 		return newBalancedEngine(presetConfigs[PresetBalanced].bandDepth)
 	}

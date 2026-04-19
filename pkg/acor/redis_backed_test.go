@@ -3,7 +3,6 @@
 package acor
 
 import (
-	"context"
 	"strings"
 	"sync"
 	"testing"
@@ -12,47 +11,42 @@ import (
 	miniredis "github.com/alicebob/miniredis/v2"
 )
 
-func newTestRedisBacked(t *testing.T, preset Preset) (*RedisBackedAC, *miniredis.Miniredis) { //nolint:unparam
+func newTestPresetRedis(t *testing.T, preset Preset) *AhoCorasick {
 	t.Helper()
 	mr := miniredis.RunT(t)
-	ac, err := NewRedisBacked(context.Background(), &RedisBackedArgs{
-		AhoCorasickArgs: AhoCorasickArgs{
-			Addr: mr.Addr(),
-			Name: t.Name(),
-		},
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:   mr.Addr(),
+		Name:   t.Name(),
 		Preset: preset,
 	})
 	if err != nil {
-		t.Fatalf("NewRedisBacked: %v", err)
+		t.Fatalf("Create preset-redis: %v", err)
 	}
 	t.Cleanup(func() { _ = ac.Close() })
-	return ac, mr
+	return ac
 }
 
 func TestRedisBackedNew(t *testing.T) {
 	mr := miniredis.RunT(t)
-	ac, err := NewRedisBacked(context.Background(), &RedisBackedArgs{
-		AhoCorasickArgs: AhoCorasickArgs{
-			Addr: mr.Addr(),
-			Name: "test-new",
-		},
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:   mr.Addr(),
+		Name:   "test-new",
 		Preset: PresetBalanced,
 	})
 	if err != nil {
-		t.Fatalf("NewRedisBacked: %v", err)
+		t.Fatalf("Create: %v", err)
 	}
-	defer func() { _ = ac.Close() }()
+	defer ac.Close()
 
-	if ac.Preset() != PresetBalanced {
-		t.Errorf("Preset() = %d, want %d", ac.Preset(), PresetBalanced)
-	}
-
-	info, err := ac.Info(context.Background())
+	info, err := ac.Info()
 	if err != nil {
 		t.Fatalf("Info: %v", err)
 	}
 	if info.Keywords != 0 {
 		t.Errorf("Keywords = %d, want 0", info.Keywords)
+	}
+	if info.Preset != PresetBalanced {
+		t.Errorf("Preset = %d, want %d", info.Preset, PresetBalanced)
 	}
 }
 
@@ -96,11 +90,10 @@ func TestRedisBackedAddFind(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ac, _ := newTestRedisBacked(t, tt.preset)
-			ctx := context.Background()
+			ac := newTestPresetRedis(t, tt.preset)
 
 			for _, kw := range tt.keywords {
-				added, err := ac.Add(ctx, kw)
+				added, err := ac.Add(kw)
 				if err != nil {
 					t.Fatalf("Add(%q): %v", kw, err)
 				}
@@ -109,7 +102,7 @@ func TestRedisBackedAddFind(t *testing.T) {
 				}
 			}
 
-			added, err := ac.Add(ctx, tt.keywords[0])
+			added, err := ac.Add(tt.keywords[0])
 			if err != nil {
 				t.Fatalf("Add duplicate: %v", err)
 			}
@@ -117,7 +110,7 @@ func TestRedisBackedAddFind(t *testing.T) {
 				t.Errorf("Add duplicate = %d, want 0", added)
 			}
 
-			matched, err := ac.Find(ctx, tt.text)
+			matched, err := ac.Find(tt.text)
 			if err != nil {
 				t.Fatalf("Find: %v", err)
 			}
@@ -129,13 +122,12 @@ func TestRedisBackedAddFind(t *testing.T) {
 }
 
 func TestRedisBackedFindIndex(t *testing.T) {
-	ac, _ := newTestRedisBacked(t, PresetBalanced)
-	ctx := context.Background()
+	ac := newTestPresetRedis(t, PresetBalanced)
 
-	ac.Add(ctx, "he")  //nolint:errcheck,gosec
-	ac.Add(ctx, "she") //nolint:errcheck,gosec
+	ac.Add("he")  //nolint:errcheck
+	ac.Add("she") //nolint:errcheck
 
-	matched, err := ac.FindIndex(ctx, "ushers")
+	matched, err := ac.FindIndex("ushers")
 	if err != nil {
 		t.Fatalf("FindIndex: %v", err)
 	}
@@ -155,13 +147,12 @@ func TestRedisBackedFindIndex(t *testing.T) {
 }
 
 func TestRedisBackedRemove(t *testing.T) {
-	ac, _ := newTestRedisBacked(t, PresetBalanced)
-	ctx := context.Background()
+	ac := newTestPresetRedis(t, PresetBalanced)
 
-	ac.Add(ctx, "hello") //nolint:errcheck,gosec
-	ac.Add(ctx, "world") //nolint:errcheck,gosec
+	ac.Add("hello") //nolint:errcheck
+	ac.Add("world") //nolint:errcheck
 
-	removed, err := ac.Remove(ctx, "hello")
+	removed, err := ac.Remove("hello")
 	if err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
@@ -169,7 +160,7 @@ func TestRedisBackedRemove(t *testing.T) {
 		t.Errorf("Remove = %d, want 1", removed)
 	}
 
-	removed, err = ac.Remove(ctx, "hello")
+	removed, err = ac.Remove("hello")
 	if err != nil {
 		t.Fatalf("Remove non-existent: %v", err)
 	}
@@ -177,7 +168,7 @@ func TestRedisBackedRemove(t *testing.T) {
 		t.Errorf("Remove non-existent = %d, want 0", removed)
 	}
 
-	matched, err := ac.Find(ctx, "hello world")
+	matched, err := ac.Find("hello world")
 	if err != nil {
 		t.Fatalf("Find: %v", err)
 	}
@@ -187,17 +178,16 @@ func TestRedisBackedRemove(t *testing.T) {
 }
 
 func TestRedisBackedFlush(t *testing.T) {
-	ac, _ := newTestRedisBacked(t, PresetBalanced)
-	ctx := context.Background()
+	ac := newTestPresetRedis(t, PresetBalanced)
 
-	ac.Add(ctx, "hello") //nolint:errcheck,gosec
-	ac.Add(ctx, "world") //nolint:errcheck,gosec
+	ac.Add("hello") //nolint:errcheck
+	ac.Add("world") //nolint:errcheck
 
-	if err := ac.Flush(ctx); err != nil {
+	if err := ac.Flush(); err != nil {
 		t.Fatalf("Flush: %v", err)
 	}
 
-	matched, err := ac.Find(ctx, "hello world")
+	matched, err := ac.Find("hello world")
 	if err != nil {
 		t.Fatalf("Find: %v", err)
 	}
@@ -205,19 +195,18 @@ func TestRedisBackedFlush(t *testing.T) {
 		t.Errorf("Find after Flush = %v, want []", matched)
 	}
 
-	info, _ := ac.Info(ctx)
+	info, _ := ac.Info()
 	if info.Keywords != 0 {
 		t.Errorf("Keywords after Flush = %d, want 0", info.Keywords)
 	}
 }
 
 func TestRedisBackedEmptyText(t *testing.T) {
-	ac, _ := newTestRedisBacked(t, PresetBalanced)
-	ctx := context.Background()
+	ac := newTestPresetRedis(t, PresetBalanced)
 
-	ac.Add(ctx, "hello") //nolint:errcheck,gosec
+	ac.Add("hello") //nolint:errcheck
 
-	matched, err := ac.Find(ctx, "")
+	matched, err := ac.Find("")
 	if err != nil {
 		t.Fatalf("Find empty: %v", err)
 	}
@@ -225,7 +214,7 @@ func TestRedisBackedEmptyText(t *testing.T) {
 		t.Errorf("Find empty = %v, want []", matched)
 	}
 
-	idx, err := ac.FindIndex(ctx, "")
+	idx, err := ac.FindIndex("")
 	if err != nil {
 		t.Fatalf("FindIndex empty: %v", err)
 	}
@@ -236,28 +225,25 @@ func TestRedisBackedEmptyText(t *testing.T) {
 
 func TestRedisBackedCaseSensitive(t *testing.T) {
 	mr := miniredis.RunT(t)
-	ac, err := NewRedisBacked(context.Background(), &RedisBackedArgs{
-		AhoCorasickArgs: AhoCorasickArgs{
-			Addr: mr.Addr(),
-			Name: "test-casesens",
-		},
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:          mr.Addr(),
+		Name:          "test-casesens",
 		Preset:        PresetBalanced,
 		CaseSensitive: true,
 	})
 	if err != nil {
-		t.Fatalf("NewRedisBacked: %v", err)
+		t.Fatalf("Create: %v", err)
 	}
-	defer func() { _ = ac.Close() }()
+	defer ac.Close()
 
-	ctx := context.Background()
-	ac.Add(ctx, "Hello") //nolint:errcheck,gosec
+	ac.Add("Hello") //nolint:errcheck
 
-	matched, _ := ac.Find(ctx, "hello")
+	matched, _ := ac.Find("hello")
 	if len(matched) != 0 {
 		t.Errorf("case-sensitive Find lowercase = %v, want []", matched)
 	}
 
-	matched, _ = ac.Find(ctx, "Hello")
+	matched, _ = ac.Find("Hello")
 	if len(matched) != 1 || matched[0] != "Hello" {
 		t.Errorf("case-sensitive Find exact = %v, want [Hello]", matched)
 	}
@@ -267,14 +253,13 @@ func TestRedisBackedAllPresets(t *testing.T) {
 	presets := []Preset{PresetSpeed, PresetBalanced, PresetMemoryEfficient, PresetUltimate}
 	for _, preset := range presets {
 		t.Run(preset.String(), func(t *testing.T) {
-			ac, _ := newTestRedisBacked(t, preset)
-			ctx := context.Background()
+			ac := newTestPresetRedis(t, preset)
 
-			ac.Add(ctx, "abc") //nolint:errcheck,gosec
-			ac.Add(ctx, "bc")  //nolint:errcheck,gosec
-			ac.Add(ctx, "c")   //nolint:errcheck,gosec
+			ac.Add("abc") //nolint:errcheck
+			ac.Add("bc")  //nolint:errcheck
+			ac.Add("c")   //nolint:errcheck
 
-			matched, err := ac.Find(ctx, "abc")
+			matched, err := ac.Find("abc")
 			if err != nil {
 				t.Fatalf("Find: %v", err)
 			}
@@ -282,7 +267,7 @@ func TestRedisBackedAllPresets(t *testing.T) {
 				t.Errorf("Find = %v, want 3 matches", matched)
 			}
 
-			idx, err := ac.FindIndex(ctx, "abc")
+			idx, err := ac.FindIndex("abc")
 			if err != nil {
 				t.Fatalf("FindIndex: %v", err)
 			}
@@ -300,8 +285,7 @@ func TestRedisBackedAllPresets(t *testing.T) {
 }
 
 func TestRedisBackedConcurrent(t *testing.T) {
-	ac, _ := newTestRedisBacked(t, PresetBalanced)
-	ctx := context.Background()
+	ac := newTestPresetRedis(t, PresetBalanced)
 
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
@@ -309,12 +293,12 @@ func TestRedisBackedConcurrent(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			kw := strings.Repeat("x", i+1)
-			ac.Add(ctx, kw) //nolint:errcheck,gosec
+			ac.Add(kw) //nolint:errcheck
 		}(i)
 	}
 	wg.Wait()
 
-	matched, err := ac.Find(ctx, strings.Repeat("x", 10))
+	matched, err := ac.Find(strings.Repeat("x", 10))
 	if err != nil {
 		t.Fatalf("Find: %v", err)
 	}
@@ -324,11 +308,10 @@ func TestRedisBackedConcurrent(t *testing.T) {
 }
 
 func TestRedisBackedInvalidName(t *testing.T) {
-	_, err := NewRedisBacked(context.Background(), &RedisBackedArgs{
-		AhoCorasickArgs: AhoCorasickArgs{
-			Addr: "localhost:6379",
-			Name: "bad:name",
-		},
+	_, err := Create(&AhoCorasickArgs{
+		Addr:   "localhost:6379",
+		Name:   "bad:name",
+		Preset: PresetBalanced,
 	})
 	if err != ErrInvalidName {
 		t.Errorf("error = %v, want ErrInvalidName", err)
@@ -336,17 +319,17 @@ func TestRedisBackedInvalidName(t *testing.T) {
 }
 
 func TestRedisBackedDefaultPreset(t *testing.T) {
-	ac, _ := newTestRedisBacked(t, PresetDefault)
-	if ac.Preset() != PresetBalanced {
-		t.Errorf("Preset() = %d, want %d", ac.Preset(), PresetBalanced)
+	ac := newTestPresetRedis(t, PresetBalanced)
+	info, _ := ac.Info()
+	if info.Preset != PresetBalanced {
+		t.Errorf("Preset = %d, want %d", info.Preset, PresetBalanced)
 	}
 }
 
 func TestRedisBackedEmptyKeyword(t *testing.T) {
-	ac, _ := newTestRedisBacked(t, PresetBalanced)
-	ctx := context.Background()
+	ac := newTestPresetRedis(t, PresetBalanced)
 
-	added, err := ac.Add(ctx, "")
+	added, err := ac.Add("")
 	if err != nil {
 		t.Fatalf("Add empty: %v", err)
 	}
@@ -354,7 +337,7 @@ func TestRedisBackedEmptyKeyword(t *testing.T) {
 		t.Errorf("Add empty = %d, want 0", added)
 	}
 
-	added, err = ac.Add(ctx, "  ")
+	added, err = ac.Add("  ")
 	if err != nil {
 		t.Fatalf("Add whitespace: %v", err)
 	}
@@ -364,13 +347,12 @@ func TestRedisBackedEmptyKeyword(t *testing.T) {
 }
 
 func TestRedisBackedInfo(t *testing.T) {
-	ac, _ := newTestRedisBacked(t, PresetSpeed)
-	ctx := context.Background()
+	ac := newTestPresetRedis(t, PresetSpeed)
 
-	ac.Add(ctx, "hello") //nolint:errcheck,gosec
-	ac.Add(ctx, "world") //nolint:errcheck,gosec
+	ac.Add("hello") //nolint:errcheck
+	ac.Add("world") //nolint:errcheck
 
-	info, err := ac.Info(ctx)
+	info, err := ac.Info()
 	if err != nil {
 		t.Fatalf("Info: %v", err)
 	}
@@ -389,32 +371,33 @@ func TestRedisBackedCrossInstanceInvalidation(t *testing.T) {
 	mr := miniredis.RunT(t)
 	name := "test-cross-instance"
 
-	ac1, err := NewRedisBacked(context.Background(), &RedisBackedArgs{
-		AhoCorasickArgs: AhoCorasickArgs{Addr: mr.Addr(), Name: name},
-		Preset:          PresetBalanced,
+	ac1, err := Create(&AhoCorasickArgs{
+		Addr:   mr.Addr(),
+		Name:   name,
+		Preset: PresetBalanced,
 	})
 	if err != nil {
-		t.Fatalf("NewRedisBacked ac1: %v", err)
+		t.Fatalf("Create ac1: %v", err)
 	}
 	defer func() { _ = ac1.Close() }()
 
-	ac2, err := NewRedisBacked(context.Background(), &RedisBackedArgs{
-		AhoCorasickArgs: AhoCorasickArgs{Addr: mr.Addr(), Name: name},
-		Preset:          PresetBalanced,
+	ac2, err := Create(&AhoCorasickArgs{
+		Addr:   mr.Addr(),
+		Name:   name,
+		Preset: PresetBalanced,
 	})
 	if err != nil {
-		t.Fatalf("NewRedisBacked ac2: %v", err)
+		t.Fatalf("Create ac2: %v", err)
 	}
 	defer func() { _ = ac2.Close() }()
 
-	ctx := context.Background()
-	if _, addErr := ac1.Add(ctx, "hello"); addErr != nil {
+	if _, addErr := ac1.Add("hello"); addErr != nil {
 		t.Fatalf("ac1.Add: %v", addErr)
 	}
 
 	time.Sleep(50 * time.Millisecond)
 
-	matched, err := ac2.Find(ctx, "hello world")
+	matched, err := ac2.Find("hello world")
 	if err != nil {
 		t.Fatalf("ac2.Find: %v", err)
 	}
@@ -425,26 +408,58 @@ func TestRedisBackedCrossInstanceInvalidation(t *testing.T) {
 
 func TestRedisBackedDegradedMode(t *testing.T) {
 	mr := miniredis.RunT(t)
-	ac, err := NewRedisBacked(context.Background(), &RedisBackedArgs{
-		AhoCorasickArgs: AhoCorasickArgs{Addr: mr.Addr(), Name: "test-degraded"},
-		Preset:          PresetBalanced,
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:   mr.Addr(),
+		Name:   "test-degraded",
+		Preset: PresetBalanced,
 	})
 	if err != nil {
-		t.Fatalf("NewRedisBacked: %v", err)
+		t.Fatalf("Create: %v", err)
 	}
-	defer func() { _ = ac.Close() }()
+	defer ac.Close()
 
-	ctx := context.Background()
-	ac.Add(ctx, "hello") //nolint:errcheck,gosec
+	ac.Add("hello") //nolint:errcheck
 
 	mr.Close()
 
-	matched, err := ac.Find(ctx, "hello world")
+	matched, err := ac.Find("hello world")
 	if err != nil {
 		t.Fatalf("Find degraded: %v", err)
 	}
 	if len(matched) != 1 || matched[0] != testKeywordHello {
 		t.Errorf("Find degraded = %v, want [hello]", matched)
+	}
+}
+
+func TestPresetRedisSuggestError(t *testing.T) {
+	ac := newTestPresetRedis(t, PresetBalanced)
+	_, err := ac.Suggest("he")
+	if err != ErrSuggestRequiresRedis {
+		t.Errorf("expected ErrSuggestRequiresRedis, got %v", err)
+	}
+}
+
+func TestPresetRedisV1Error(t *testing.T) {
+	_, err := Create(&AhoCorasickArgs{
+		Addr:          "localhost:6379",
+		Name:          "test-v1",
+		Preset:        PresetBalanced,
+		SchemaVersion: SchemaV1,
+	})
+	if err != ErrPresetRequiresV2 {
+		t.Errorf("expected ErrPresetRequiresV2, got %v", err)
+	}
+}
+
+func TestPresetRedisCacheError(t *testing.T) {
+	_, err := Create(&AhoCorasickArgs{
+		Addr:        "localhost:6379",
+		Name:        "test-cache",
+		Preset:      PresetBalanced,
+		EnableCache: true,
+	})
+	if err != ErrPresetWithCache {
+		t.Errorf("expected ErrPresetWithCache, got %v", err)
 	}
 }
 

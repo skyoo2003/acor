@@ -16,23 +16,14 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-// RedisBackedArgs configures a Redis-backed Aho-Corasick engine with a
-// selectable architecture preset. Redis is the source of truth; a local
-// preset-optimized automaton is cached for fast reads.
-type RedisBackedArgs struct {
-	AhoCorasickArgs
-	Preset        Preset
-	CaseSensitive bool
-}
-
-// RedisBackedAC is a Redis-backed Aho-Corasick automaton that combines the
+// redisBackedAC is a Redis-backed Aho-Corasick automaton that combines the
 // persistence of Redis (V2 schema) with the speed of a local preset-optimized
 // automaton. Writes go to Redis atomically (Lua scripts with optimistic
 // locking); reads hit the local automaton (no Redis I/O on the hot path).
 //
 // Cross-instance invalidation uses Redis Pub/Sub so that every instance
 // rebuilds its local automaton when another instance mutates the data.
-type RedisBackedAC struct {
+type redisBackedAC struct {
 	mu            sync.RWMutex
 	engine        matchEngine
 	preset        Preset
@@ -57,20 +48,20 @@ type RedisBackedAC struct {
 	closed        int32
 }
 
-// NewRedisBacked creates a Redis-backed Aho-Corasick engine. It loads the
+// newRedisBacked creates a Redis-backed Aho-Corasick engine. It loads the
 // current keywords from Redis, builds the local automaton, and starts a
 // Pub/Sub listener for cross-instance invalidation.
-func NewRedisBacked(ctx context.Context, args *RedisBackedArgs) (*RedisBackedAC, error) {
+func newRedisBacked(ctx context.Context, args *AhoCorasickArgs) (*redisBackedAC, error) {
 	if args == nil || strings.Contains(args.Name, ":") {
 		return nil, ErrInvalidName
 	}
 
 	preset := args.Preset
-	if preset < PresetSpeed || preset > PresetUltimate {
+	if preset == PresetNone || preset == PresetDefault {
 		preset = PresetBalanced
 	}
 
-	redisClient, err := newRedisClient(&args.AhoCorasickArgs)
+	redisClient, err := newRedisClient(args)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +69,7 @@ func NewRedisBacked(ctx context.Context, args *RedisBackedArgs) (*RedisBackedAC,
 	storage := newRedisStorage(redisClient)
 	acCtx, acCancel := context.WithCancel(ctx)
 
-	ac := &RedisBackedAC{
+	ac := &redisBackedAC{
 		engine:        newMatchEngine(preset),
 		preset:        preset,
 		caseSensitive: args.CaseSensitive,
@@ -112,7 +103,7 @@ func NewRedisBacked(ctx context.Context, args *RedisBackedArgs) (*RedisBackedAC,
 }
 
 // Close stops the Pub/Sub listener and closes the Redis connection.
-func (ac *RedisBackedAC) Close() error {
+func (ac *redisBackedAC) Close() error {
 	var closeErr error
 	ac.closeOnce.Do(func() {
 		atomic.StoreInt32(&ac.closed, 1)
@@ -128,14 +119,9 @@ func (ac *RedisBackedAC) Close() error {
 	return closeErr
 }
 
-// Preset returns the architecture preset used by this engine.
-func (ac *RedisBackedAC) Preset() Preset {
-	return ac.preset
-}
-
 // --- internal helpers ---
 
-func (ac *RedisBackedAC) initTrie(ctx context.Context) error {
+func (ac *redisBackedAC) initTrie(ctx context.Context) error {
 	exists, err := ac.storage.Exists(ctx, trieKey(ac.name))
 	if err != nil {
 		return fmt.Errorf("check trie key: %w", err)
@@ -154,7 +140,7 @@ func (ac *RedisBackedAC) initTrie(ctx context.Context) error {
 	return nil
 }
 
-func (ac *RedisBackedAC) reloadFromRedis(ctx context.Context) error {
+func (ac *redisBackedAC) reloadFromRedis(ctx context.Context) error {
 	trieData, err := ac.storage.HGetAll(ctx, trieKey(ac.name))
 	if err != nil {
 		return fmt.Errorf("HGETALL %s: %w", trieKey(ac.name), err)
@@ -190,13 +176,13 @@ func (ac *RedisBackedAC) reloadFromRedis(ctx context.Context) error {
 	return nil
 }
 
-func (ac *RedisBackedAC) markStale() {
+func (ac *redisBackedAC) markStale() {
 	ac.mu.Lock()
 	ac.stale = true
 	ac.mu.Unlock()
 }
 
-func (ac *RedisBackedAC) ensureValid(ctx context.Context) error {
+func (ac *redisBackedAC) ensureValid(ctx context.Context) error {
 	ac.mu.RLock()
 	if !ac.stale {
 		ac.mu.RUnlock()
@@ -213,7 +199,6 @@ func (ac *RedisBackedAC) ensureValid(ctx context.Context) error {
 		}
 
 		if err := ac.reloadFromRedisLocked(ctx); err != nil {
-			// Degraded mode: keep last-good engine, stay stale.
 			return nil, nil
 		}
 		return nil, nil
@@ -221,8 +206,7 @@ func (ac *RedisBackedAC) ensureValid(ctx context.Context) error {
 	return err
 }
 
-// reloadFromRedisLocked reloads from Redis. Caller must hold ac.mu (write).
-func (ac *RedisBackedAC) reloadFromRedisLocked(ctx context.Context) error {
+func (ac *redisBackedAC) reloadFromRedisLocked(ctx context.Context) error {
 	trieData, err := ac.storage.HGetAll(ctx, trieKey(ac.name))
 	if err != nil {
 		return err
@@ -258,7 +242,7 @@ func (ac *RedisBackedAC) reloadFromRedisLocked(ctx context.Context) error {
 
 const selfInvalTTL = 30 * time.Second
 
-func (ac *RedisBackedAC) startListener() error {
+func (ac *redisBackedAC) startListener() error {
 	channel := invalidateChannelPrefix + ac.name
 	pubsub := ac.storage.Subscribe(ac.ctx, channel)
 	if err := pubsub.Receive(ac.ctx); err != nil {
@@ -289,7 +273,7 @@ func (ac *RedisBackedAC) startListener() error {
 	return nil
 }
 
-func (ac *RedisBackedAC) handleInvalidation(payload string) {
+func (ac *redisBackedAC) handleInvalidation(payload string) {
 	if parts := strings.SplitN(payload, ":", invalidatePayloadSplitMax); len(parts) == invalidatePayloadSplitMax && parts[0] == ac.name {
 		if ac.skipSelfCheck(parts[1]) {
 			return
@@ -298,11 +282,11 @@ func (ac *RedisBackedAC) handleInvalidation(payload string) {
 	ac.markStale()
 }
 
-func (ac *RedisBackedAC) skipSelfSet(id string) {
+func (ac *redisBackedAC) skipSelfSet(id string) {
 	ac.selfSkip.Store(id, time.Now())
 }
 
-func (ac *RedisBackedAC) skipSelfCheck(id string) bool {
+func (ac *redisBackedAC) skipSelfCheck(id string) bool {
 	val, loaded := ac.selfSkip.LoadAndDelete(id)
 	if !loaded {
 		return false
@@ -314,11 +298,10 @@ func (ac *RedisBackedAC) skipSelfCheck(id string) bool {
 	return time.Since(t) < selfInvalTTL
 }
 
-func (ac *RedisBackedAC) publishInvalidate(ctx context.Context) {
+func (ac *redisBackedAC) publishInvalidate(ctx context.Context) {
 	channel := invalidateChannelPrefix + ac.name
 	b := make([]byte, invalidateIDBytes)
 	if _, err := rand.Read(b); err != nil {
-		// crypto/rand failure is extremely rare; fall back to timestamp-only ID.
 		b = b[:0]
 	}
 	msgID := fmt.Sprintf("%d:%x", time.Now().UnixNano(), b)
@@ -335,7 +318,7 @@ func (ac *RedisBackedAC) publishInvalidate(ctx context.Context) {
 	}
 }
 
-func (ac *RedisBackedAC) cleanupExpiredSelfSkips() {
+func (ac *redisBackedAC) cleanupExpiredSelfSkips() {
 	cutoff := time.Now().Add(-selfInvalTTL)
 	ac.selfSkip.Range(func(key, value interface{}) bool {
 		t, ok := value.(time.Time)

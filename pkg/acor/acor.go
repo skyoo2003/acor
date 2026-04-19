@@ -256,6 +256,20 @@ type AhoCorasickArgs struct {
 	// A fresh context with this timeout is used intentionally so that rollback can
 	// complete even if the caller's context is already canceled.
 	RollbackTimeout time.Duration
+
+	// InMemory enables pure in-memory mode with no Redis dependency.
+	// When true, Addr, Addrs, MasterName, RingAddrs, Password, DB, SchemaVersion,
+	// and EnableCache must all be unset (zero values). A Preset may optionally be
+	// specified to select the engine architecture (defaults to PresetBalanced).
+	InMemory bool
+
+	// Preset selects the architecture for the local match engine.
+	// When set and InMemory is true, selects the in-memory engine architecture.
+	// When set and InMemory is false, uses Redis-backed engine with a local
+	// preset-optimized automaton for fast reads.
+	// When unset (zero), the original AhoCorasick engine is used.
+	// Preset mode forces V2 schema and is incompatible with EnableCache.
+	Preset Preset
 }
 
 // AhoCorasick represents an Aho-Corasick automaton backed by Redis.
@@ -283,6 +297,8 @@ type AhoCorasick struct {
 	pubsub    Subscription
 	stopCh    chan struct{}
 	closeOnce sync.Once
+	mode      backendMode
+	closeFn   func() error
 }
 
 // AhoCorasickInfo contains statistics about the Aho-Corasick automaton.
@@ -293,6 +309,15 @@ type AhoCorasickInfo struct {
 	// Nodes is the number of trie nodes (prefixes) in the automaton.
 	// This is typically larger than Keywords as it includes all prefixes.
 	Nodes int
+	// Preset is the engine architecture preset, or PresetDefault (-1) when
+	// using the original non-preset engine.
+	Preset Preset
+	// MemoryBytes is the estimated memory usage in bytes.
+	// Zero when using the original non-preset engine.
+	MemoryBytes int64
+	// TrieDepth is the maximum trie depth.
+	// Zero when using the original non-preset engine.
+	TrieDepth int
 }
 
 // Create initializes and returns a new AhoCorasick instance connected to Redis.
@@ -324,15 +349,84 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 		return nil, ErrInvalidName
 	}
 
+	// --- Branch 1: In-Memory mode ---
+	if args.InMemory {
+		if args.hasAnyRedisConfig() {
+			return nil, ErrInMemoryWithRedisConfig
+		}
+		return createInMemory(args)
+	}
+
+	// --- Branch 2: Preset-Optimized Redis mode ---
+	if args.Preset != PresetNone && args.Preset != PresetDefault {
+		if !args.hasAnyRedisConfig() {
+			return nil, ErrPresetRequiresRedis
+		}
+		if args.SchemaVersion == SchemaV1 {
+			return nil, ErrPresetRequiresV2
+		}
+		if args.EnableCache {
+			return nil, ErrPresetWithCache
+		}
+		return createPresetRedis(args)
+	}
+
+	// --- Branch 3: Original mode (unchanged) ---
+	return createOriginal(args)
+}
+
+func newLogger(args *AhoCorasickArgs) Logger {
 	stdLogger := log.New(io.Discard, "ACOR: ", log.LstdFlags|log.Lshortfile)
 	if args.Debug {
 		stdLogger.SetOutput(os.Stdout)
 	}
-
-	var logger Logger = stdLogger
 	if args.Logger != nil {
-		logger = args.Logger
+		return args.Logger
 	}
+	return stdLogger
+}
+
+func createInMemory(args *AhoCorasickArgs) (*AhoCorasick, error) {
+	preset := args.Preset
+	if preset == PresetNone || preset == PresetDefault {
+		preset = PresetBalanced
+	}
+
+	ac := &AhoCorasick{
+		name:          args.Name,
+		logger:        newLogger(args),
+		ops:           newInMemoryOps(preset, args.CaseSensitive),
+		mode:          modeInMemory,
+		caseSensitive: args.CaseSensitive,
+		ctx:           context.Background(),
+		cancel:        func() {},
+		closeFn:       func() error { return nil },
+	}
+	return ac, nil
+}
+
+func createPresetRedis(args *AhoCorasickArgs) (*AhoCorasick, error) {
+	rbAC, err := newRedisBacked(context.Background(), args)
+	if err != nil {
+		return nil, err
+	}
+
+	ac := &AhoCorasick{
+		name:          args.Name,
+		logger:        newLogger(args),
+		schemaVersion: SchemaV2,
+		ops:           newPresetRedisOps(rbAC),
+		mode:          modePresetRedis,
+		caseSensitive: args.CaseSensitive,
+		ctx:           context.Background(),
+		cancel:        func() {},
+		closeFn:       rbAC.Close,
+	}
+	return ac, nil
+}
+
+func createOriginal(args *AhoCorasickArgs) (*AhoCorasick, error) {
+	logger := newLogger(args)
 
 	redisClient, err := newRedisClient(args)
 	if err != nil {
@@ -368,6 +462,7 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 		logger:        logger,
 		schemaVersion: schemaVersion,
 		cache:         cache,
+		mode:          modeOriginal,
 	}
 	if args.SelfInvalidationCleanupInterval > 0 {
 		ac.selfInvalidationCleanupInterval = args.SelfInvalidationCleanupInterval
@@ -396,6 +491,11 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 			_ = storage.Close()
 			return nil, err
 		}
+	}
+
+	ac.closeFn = func() error {
+		ac.stopCacheListener()
+		return ac.storage.Close()
 	}
 
 	return ac, nil
@@ -445,18 +545,18 @@ func (ac *AhoCorasick) Close() error {
 	var closeErr error
 	alreadyClosed := true
 	ac.closeOnce.Do(func() {
-		if ac.storage == nil {
-			return
-		}
 		alreadyClosed = false
 		if ac.cancel != nil {
 			ac.cancel()
 		}
-		ac.stopCacheListener()
-		closeErr = ac.storage.Close()
-		ac.storage = nil
+		if ac.closeFn != nil {
+			closeErr = ac.closeFn()
+		}
 	})
 	if alreadyClosed {
+		if ac.mode == modeInMemory {
+			return nil
+		}
 		return ErrRedisAlreadyClosed
 	}
 	return closeErr
@@ -546,11 +646,14 @@ func (ac *AhoCorasick) SuggestIndex(input string) (map[string][]int, error) {
 // Useful for debugging and understanding the trie structure.
 // Note: Output format differs between V1 and V2 schemas.
 func (ac *AhoCorasick) Debug() {
-	if ac.schemaVersion == SchemaV2 {
+	if ac.mode == modeOriginal && ac.schemaVersion == SchemaV2 {
 		ac.debugV2()
 		return
 	}
-	ac.debugV1()
+	if ac.mode == modeOriginal {
+		ac.debugV1()
+		return
+	}
 }
 
 func (ac *AhoCorasick) debugV1() {

@@ -24,6 +24,19 @@ var (
 	// ErrConcurrencyConflict is returned when an optimistic locking conflict
 	// occurs during a V2 write operation (Add/Remove). The caller should retry.
 	ErrConcurrencyConflict = errors.New("concurrency conflict - please retry")
+	// ErrInMemoryWithRedisConfig is returned when InMemory is true but Redis
+	// configuration fields are also set.
+	ErrInMemoryWithRedisConfig = errors.New("InMemory mode cannot be used with Redis configuration")
+	// ErrPresetRequiresRedis is returned when a Preset is specified without
+	// InMemory=true and without any Redis address.
+	ErrPresetRequiresRedis = errors.New("Preset requires either InMemory mode or a Redis address")
+	// ErrPresetRequiresV2 is returned when a Preset is set with SchemaVersion=1.
+	ErrPresetRequiresV2 = errors.New("Preset engine requires V2 schema")
+	// ErrPresetWithCache is returned when both Preset and EnableCache are set.
+	ErrPresetWithCache = errors.New("Preset engine already includes local caching; EnableCache is redundant")
+	// ErrSuggestRequiresRedis is returned when Suggest/SuggestIndex is called in
+	// in-memory or preset mode, which don't support prefix-based suggestions.
+	ErrSuggestRequiresRedis = errors.New("suggest requires Redis-backed mode without Preset")
 )
 
 // OperationError represents an error that occurred during an automaton operation.

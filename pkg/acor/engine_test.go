@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package acor
+package acor //nolint:errcheck,gosec
 
 import (
 	"fmt"
@@ -13,11 +13,15 @@ func allPresets() []Preset {
 	return []Preset{PresetSpeed, PresetBalanced, PresetMemoryEfficient, PresetUltimate}
 }
 
-func createEngine(t *testing.T, preset Preset) *InMemoryAC {
+func createTestInMemory(t testing.TB, preset Preset) *AhoCorasick {
 	t.Helper()
-	ac := NewInMemory(&InMemoryOptions{Preset: preset})
-	if ac == nil {
-		t.Fatalf("NewInMemory returned nil for preset %v", preset)
+	ac, err := Create(&AhoCorasickArgs{
+		InMemory: true,
+		Name:     "test",
+		Preset:   preset,
+	})
+	if err != nil {
+		t.Fatalf("Create InMemory returned error: %v", err)
 	}
 	return ac
 }
@@ -25,26 +29,27 @@ func createEngine(t *testing.T, preset Preset) *InMemoryAC {
 func TestInMemoryAdd(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
-			ac := createEngine(t, preset)
+			ac := createTestInMemory(t, preset)
+			ac.Close()
 
-			added := ac.Add("hello")
-			if added != 1 {
-				t.Errorf("expected 1, got %d", added)
+			added, err := ac.Add("hello")
+			if err != nil || added != 1 {
+				t.Errorf("expected (1, nil), got (%d, %v)", added, err)
 			}
 
-			added = ac.Add("hello")
-			if added != 0 {
-				t.Errorf("expected 0 for duplicate, got %d", added)
+			added, err = ac.Add("hello")
+			if err != nil || added != 0 {
+				t.Errorf("expected (0, nil) for duplicate, got (%d, %v)", added, err)
 			}
 
-			added = ac.Add("")
-			if added != 0 {
-				t.Errorf("expected 0 for empty, got %d", added)
+			added, err = ac.Add("")
+			if err != nil || added != 0 {
+				t.Errorf("expected (0, nil) for empty, got (%d, %v)", added, err)
 			}
 
-			added = ac.Add("   ")
-			if added != 0 {
-				t.Errorf("expected 0 for whitespace, got %d", added)
+			added, err = ac.Add("   ")
+			if err != nil || added != 0 {
+				t.Errorf("expected (0, nil) for whitespace, got (%d, %v)", added, err)
 			}
 		})
 	}
@@ -53,21 +58,22 @@ func TestInMemoryAdd(t *testing.T) {
 func TestInMemoryRemove(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
-			ac := createEngine(t, preset)
+			ac := createTestInMemory(t, preset)
+			ac.Close()
 			ac.Add("hello")
 			ac.Add("world")
 
-			removed := ac.Remove("hello")
-			if removed != 1 {
-				t.Errorf("expected 1, got %d", removed)
+			removed, err := ac.Remove("hello")
+			if err != nil || removed != 1 {
+				t.Errorf("expected (1, nil), got (%d, %v)", removed, err)
 			}
 
-			removed = ac.Remove("hello")
-			if removed != 0 {
-				t.Errorf("expected 0 for non-existent, got %d", removed)
+			removed, err = ac.Remove("hello")
+			if err != nil || removed != 0 {
+				t.Errorf("expected (0, nil) for non-existent, got (%d, %v)", removed, err)
 			}
 
-			matches := ac.Find("hello world")
+			matches, _ := ac.Find("hello world")
 			for _, m := range matches {
 				if m == testKeywordHello {
 					t.Errorf("found removed keyword 'hello'")
@@ -98,11 +104,12 @@ func TestInMemoryFind(t *testing.T) {
 		t.Run(preset.String(), func(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
-					ac := createEngine(t, preset)
+					ac := createTestInMemory(t, preset)
+					ac.Close()
 					for _, kw := range tc.keywords {
 						ac.Add(kw)
 					}
-					matches := ac.Find(tc.text)
+					matches, _ := ac.Find(tc.text)
 					if !equalUnordered(matches, tc.expected) {
 						t.Errorf("expected %v, got %v", tc.expected, matches)
 					}
@@ -115,12 +122,13 @@ func TestInMemoryFind(t *testing.T) {
 func TestInMemoryFindIndex(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
-			ac := createEngine(t, preset)
+			ac := createTestInMemory(t, preset)
+			ac.Close()
 			ac.Add("he")
 			ac.Add("she")
 			ac.Add("hers")
 
-			indexed := ac.FindIndex("ushers")
+			indexed, _ := ac.FindIndex("ushers")
 
 			if indices, ok := indexed["he"]; !ok {
 				t.Error("missing 'he'")
@@ -146,16 +154,18 @@ func TestInMemoryFindIndex(t *testing.T) {
 func TestInMemoryFlush(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
-			ac := createEngine(t, preset)
+			ac := createTestInMemory(t, preset)
+			ac.Close()
 			ac.Add("hello")
 			ac.Add("world")
-			ac.Flush()
+			_ = ac.Flush()
 
-			if matches := ac.Find("hello world"); len(matches) != 0 {
+			matches, _ := ac.Find("hello world")
+			if len(matches) != 0 {
 				t.Errorf("expected empty after flush, got %v", matches)
 			}
 
-			info := ac.Info()
+			info, _ := ac.Info()
 			if info.Keywords != 0 {
 				t.Errorf("expected 0 keywords after flush, got %d", info.Keywords)
 			}
@@ -166,8 +176,9 @@ func TestInMemoryFlush(t *testing.T) {
 func TestInMemoryInfo(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
-			ac := createEngine(t, preset)
-			info := ac.Info()
+			ac := createTestInMemory(t, preset)
+			ac.Close()
+			info, _ := ac.Info()
 			if info.Keywords != 0 {
 				t.Errorf("expected 0 keywords, got %d", info.Keywords)
 			}
@@ -177,7 +188,7 @@ func TestInMemoryInfo(t *testing.T) {
 
 			ac.Add("ab")
 			ac.Add("abc")
-			info = ac.Info()
+			info, _ = ac.Info()
 			if info.Keywords != 2 {
 				t.Errorf("expected 2 keywords, got %d", info.Keywords)
 			}
@@ -188,18 +199,29 @@ func TestInMemoryInfo(t *testing.T) {
 func TestInMemoryCaseSensitive(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
-			ac := NewInMemory(&InMemoryOptions{Preset: preset})
+			ac, _ := Create(&AhoCorasickArgs{
+				InMemory: true,
+				Name:     "test",
+				Preset:   preset,
+			})
+			ac.Close()
 			ac.Add("Hello")
-			if matches := ac.Find("say HELLO world"); len(matches) == 0 {
+			if matches, _ := ac.Find("say HELLO world"); len(matches) == 0 {
 				t.Error("expected match in case-insensitive mode")
 			}
 
-			ac = NewInMemory(&InMemoryOptions{Preset: preset, CaseSensitive: true})
-			ac.Add("Hello")
-			if matches := ac.Find("say HELLO world"); len(matches) != 0 {
+			ac2, _ := Create(&AhoCorasickArgs{
+				InMemory:      true,
+				Name:          "test2",
+				Preset:        preset,
+				CaseSensitive: true,
+			})
+			defer func() { _ = ac2.Close() }()
+			_, _ = ac2.Add("Hello")
+			if matches, _ := ac2.Find("say HELLO world"); len(matches) != 0 {
 				t.Error("expected no match in case-sensitive mode")
 			}
-			if matches := ac.Find("say Hello world"); len(matches) == 0 {
+			if matches, _ := ac2.Find("say Hello world"); len(matches) == 0 {
 				t.Error("expected match for exact case in case-sensitive mode")
 			}
 		})
@@ -209,39 +231,30 @@ func TestInMemoryCaseSensitive(t *testing.T) {
 func TestInMemoryEmpty(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
-			ac := createEngine(t, preset)
-			if matches := ac.Find("anything"); len(matches) != 0 {
+			ac := createTestInMemory(t, preset)
+			ac.Close()
+			if matches, _ := ac.Find("anything"); len(matches) != 0 {
 				t.Errorf("expected no matches, got %v", matches)
 			}
-			if indexed := ac.FindIndex("anything"); len(indexed) != 0 {
+			if indexed, _ := ac.FindIndex("anything"); len(indexed) != 0 {
 				t.Errorf("expected no indexed matches, got %v", indexed)
 			}
-			if ac.Remove("nonexistent") != 0 {
+			if removed, _ := ac.Remove("nonexistent"); removed != 0 {
 				t.Error("expected 0 for remove on empty engine")
 			}
 		})
 	}
 }
 
-func TestInMemoryPresetMethod(t *testing.T) {
-	ac := NewInMemory(&InMemoryOptions{Preset: PresetSpeed})
-	if ac.Preset() != PresetSpeed {
-		t.Errorf("expected PresetSpeed, got %v", ac.Preset())
-	}
-	ac = NewInMemory(nil)
-	if ac.Preset() != PresetBalanced {
-		t.Errorf("expected default PresetBalanced, got %v", ac.Preset())
-	}
-}
-
 func TestInMemoryUnicode(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
-			ac := createEngine(t, preset)
+			ac := createTestInMemory(t, preset)
+			ac.Close()
 			ac.Add("한국어")
 			ac.Add("어")
 
-			matches := ac.Find("안녕하세요 한국어입니다")
+			matches, _ := ac.Find("안녕하세요 한국어입니다")
 			if len(matches) == 0 {
 				t.Error("expected Korean keyword match")
 			}
@@ -261,7 +274,8 @@ func TestInMemoryUnicode(t *testing.T) {
 func TestInMemoryConcurrentFind(t *testing.T) {
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
-			ac := createEngine(t, preset)
+			ac := createTestInMemory(t, preset)
+			ac.Close()
 			for i := 0; i < 100; i++ {
 				ac.Add(fmt.Sprintf("keyword%d", i))
 			}
@@ -272,7 +286,7 @@ func TestInMemoryConcurrentFind(t *testing.T) {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					if matches := ac.Find(text); len(matches) == 0 {
+					if matches, _ := ac.Find(text); len(matches) == 0 {
 						t.Error("expected matches in concurrent read")
 					}
 				}()
@@ -296,20 +310,22 @@ func TestSameAPIAcrossPresets(t *testing.T) {
 
 	var expected []string
 	{
-		ac := NewInMemory(&InMemoryOptions{Preset: PresetBalanced})
+		ac := createTestInMemory(t, PresetBalanced)
+		ac.Close()
 		for _, kw := range keywords {
 			ac.Add(kw)
 		}
-		expected = ac.Find(text)
+		expected, _ = ac.Find(text)
 	}
 
 	for _, preset := range allPresets() {
 		t.Run(preset.String(), func(t *testing.T) {
-			ac := NewInMemory(&InMemoryOptions{Preset: preset})
+			ac := createTestInMemory(t, preset)
+			ac.Close()
 			for _, kw := range keywords {
 				ac.Add(kw)
 			}
-			matches := ac.Find(text)
+			matches, _ := ac.Find(text)
 			if !equalUnordered(matches, expected) {
 				t.Errorf("preset %v: expected %v, got %v", preset, expected, matches)
 			}
@@ -317,8 +333,29 @@ func TestSameAPIAcrossPresets(t *testing.T) {
 	}
 }
 
+func TestInMemorySuggestError(t *testing.T) {
+	ac := createTestInMemory(t, PresetBalanced)
+	ac.Close()
+	_, err := ac.Suggest("he")
+	if err != ErrSuggestRequiresRedis {
+		t.Errorf("expected ErrSuggestRequiresRedis, got %v", err)
+	}
+}
+
+func TestInMemoryWithRedisConfigError(t *testing.T) {
+	_, err := Create(&AhoCorasickArgs{
+		InMemory: true,
+		Name:     "test",
+		Addr:     "localhost:6379",
+	})
+	if err != ErrInMemoryWithRedisConfig {
+		t.Errorf("expected ErrInMemoryWithRedisConfig, got %v", err)
+	}
+}
+
 func BenchmarkInMemoryFindSpeed(b *testing.B) {
-	ac := NewInMemory(&InMemoryOptions{Preset: PresetSpeed})
+	ac := createTestInMemory(b, PresetSpeed)
+	ac.Close()
 	for _, kw := range []string{"he", "she", "his", "hers", "hello", "world", "benchmark"} {
 		ac.Add(kw)
 	}
@@ -330,7 +367,8 @@ func BenchmarkInMemoryFindSpeed(b *testing.B) {
 }
 
 func BenchmarkInMemoryFindBalanced(b *testing.B) {
-	ac := NewInMemory(&InMemoryOptions{Preset: PresetBalanced})
+	ac := createTestInMemory(b, PresetBalanced)
+	ac.Close()
 	for _, kw := range []string{"he", "she", "his", "hers", "hello", "world", "benchmark"} {
 		ac.Add(kw)
 	}
@@ -342,7 +380,8 @@ func BenchmarkInMemoryFindBalanced(b *testing.B) {
 }
 
 func BenchmarkInMemoryFindMemoryEfficient(b *testing.B) {
-	ac := NewInMemory(&InMemoryOptions{Preset: PresetMemoryEfficient})
+	ac := createTestInMemory(b, PresetMemoryEfficient)
+	ac.Close()
 	for _, kw := range []string{"he", "she", "his", "hers", "hello", "world", "benchmark"} {
 		ac.Add(kw)
 	}
@@ -354,7 +393,8 @@ func BenchmarkInMemoryFindMemoryEfficient(b *testing.B) {
 }
 
 func BenchmarkInMemoryFindUltimate(b *testing.B) {
-	ac := NewInMemory(&InMemoryOptions{Preset: PresetUltimate})
+	ac := createTestInMemory(b, PresetUltimate)
+	ac.Close()
 	for _, kw := range []string{"he", "she", "his", "hers", "hello", "world", "benchmark"} {
 		ac.Add(kw)
 	}
@@ -372,7 +412,8 @@ func BenchmarkInMemoryFindManyKeywords(b *testing.B) {
 	}
 	for _, preset := range allPresets() {
 		b.Run(preset.String(), func(b *testing.B) {
-			ac := NewInMemory(&InMemoryOptions{Preset: preset})
+			ac := createTestInMemory(b, preset)
+			ac.Close()
 			for _, kw := range keywords {
 				ac.Add(kw)
 			}
@@ -390,7 +431,8 @@ func BenchmarkInMemoryAdd(b *testing.B) {
 		b.Run(preset.String(), func(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				ac := NewInMemory(&InMemoryOptions{Preset: preset})
+				ac := createTestInMemory(b, preset)
+				ac.Close()
 				for j := 0; j < 100; j++ {
 					ac.Add(fmt.Sprintf("keyword%d", j))
 				}

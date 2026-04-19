@@ -18,7 +18,7 @@ const redisBackedRetryBackoff = 10 * time.Millisecond
 // Add inserts a keyword into the automaton. The keyword is written atomically
 // to Redis via a V2 Lua script (optimistic locking), then the local automaton
 // is rebuilt and an invalidation is published.
-func (ac *RedisBackedAC) Add(ctx context.Context, keyword string) (int, error) {
+func (ac *redisBackedAC) Add(ctx context.Context, keyword string) (int, error) {
 	keyword = strings.TrimSpace(keyword)
 	if !ac.caseSensitive {
 		keyword = strings.ToLower(keyword)
@@ -45,7 +45,7 @@ func (ac *RedisBackedAC) Add(ctx context.Context, keyword string) (int, error) {
 	return 0, ErrConcurrencyConflict
 }
 
-func (ac *RedisBackedAC) tryAdd(ctx context.Context, keyword string, v2 *redisBackedV2) (int, error) { //nolint:gocyclo,funlen
+func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, v2 *redisBackedV2) (int, error) { //nolint:gocyclo,funlen
 	snap, err := ac.readTrieSnapshot(ctx)
 	if err != nil {
 		return 0, err
@@ -140,7 +140,7 @@ func (ac *RedisBackedAC) tryAdd(ctx context.Context, keyword string, v2 *redisBa
 }
 
 // Remove deletes a keyword from the automaton.
-func (ac *RedisBackedAC) Remove(ctx context.Context, keyword string) (int, error) {
+func (ac *redisBackedAC) Remove(ctx context.Context, keyword string) (int, error) {
 	keyword = strings.TrimSpace(keyword)
 	if !ac.caseSensitive {
 		keyword = strings.ToLower(keyword)
@@ -167,7 +167,7 @@ func (ac *RedisBackedAC) Remove(ctx context.Context, keyword string) (int, error
 	return 0, ErrConcurrencyConflict
 }
 
-func (ac *RedisBackedAC) tryRemove(ctx context.Context, keyword string, v2 *redisBackedV2) (int, error) { //nolint:gocyclo,funlen
+func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, v2 *redisBackedV2) (int, error) { //nolint:gocyclo,funlen
 	snap, err := ac.readTrieSnapshot(ctx)
 	if err != nil {
 		return 0, err
@@ -273,7 +273,7 @@ func (ac *RedisBackedAC) tryRemove(ctx context.Context, keyword string, v2 *redi
 }
 
 // Find searches the text for all keywords using the local automaton.
-func (ac *RedisBackedAC) Find(ctx context.Context, text string) ([]string, error) {
+func (ac *redisBackedAC) Find(ctx context.Context, text string) ([]string, error) {
 	if text == "" {
 		return []string{}, nil
 	}
@@ -291,7 +291,7 @@ func (ac *RedisBackedAC) Find(ctx context.Context, text string) ([]string, error
 }
 
 // FindIndex searches the text for all keywords and returns their start indices.
-func (ac *RedisBackedAC) FindIndex(ctx context.Context, text string) (map[string][]int, error) {
+func (ac *redisBackedAC) FindIndex(ctx context.Context, text string) (map[string][]int, error) {
 	if text == "" {
 		return map[string][]int{}, nil
 	}
@@ -309,7 +309,7 @@ func (ac *RedisBackedAC) FindIndex(ctx context.Context, text string) (map[string
 }
 
 // Flush removes all keywords from the automaton.
-func (ac *RedisBackedAC) Flush(ctx context.Context) error {
+func (ac *redisBackedAC) Flush(ctx context.Context) error {
 	err := ac.storage.TxPipelined(ctx, func(pipe Pipeliner) error {
 		tKey := trieKey(ac.name)
 		oKey := outputsKey(ac.name)
@@ -342,7 +342,7 @@ func (ac *RedisBackedAC) Flush(ctx context.Context) error {
 }
 
 // Info returns statistics about the local automaton state.
-func (ac *RedisBackedAC) Info(ctx context.Context) (*InMemoryInfo, error) {
+func (ac *redisBackedAC) Info(ctx context.Context) (*InMemoryInfo, error) {
 	ac.mu.RLock()
 	defer ac.mu.RUnlock()
 	return ac.engine.info(), nil
@@ -350,7 +350,7 @@ func (ac *RedisBackedAC) Info(ctx context.Context) (*InMemoryInfo, error) {
 
 // --- helpers ---
 
-func (ac *RedisBackedAC) readTrieSnapshot(ctx context.Context) (*trieSnapshot, error) {
+func (ac *redisBackedAC) readTrieSnapshot(ctx context.Context) (*trieSnapshot, error) {
 	trieData, err := ac.storage.HGetAll(ctx, trieKey(ac.name))
 	if err != nil {
 		return nil, newRedisError("HGETALL", trieKey(ac.name), err)
