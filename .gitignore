@@ -7,11 +7,11 @@
 # Build
 /bin/
 /dist/
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+/bin/*.exe
+/bin/*.exe~
+/bin/*.dll
+/bin/*.so
+/bin/*.dylib
 
 # Test
 *.test
@@ -27,6 +27,7 @@ coverage*.out
 /src/
 
 # Environment
+# NOTE: !.env.example must appear after .env.* to override it
 .env
 .env.*
 !.env.example
