@@ -204,7 +204,7 @@ func TestInMemoryCaseSensitive(t *testing.T) {
 				Name:     "test",
 				Preset:   preset,
 			})
-			ac.Close()
+			t.Cleanup(func() { _ = ac.Close() })
 			ac.Add("Hello")
 			if matches, _ := ac.Find("say HELLO world"); len(matches) == 0 {
 				t.Error("expected match in case-insensitive mode")
@@ -216,8 +216,8 @@ func TestInMemoryCaseSensitive(t *testing.T) {
 				Preset:        preset,
 				CaseSensitive: true,
 			})
-			defer func() { _ = ac2.Close() }()
-			_, _ = ac2.Add("Hello")
+			t.Cleanup(func() { _ = ac2.Close() })
+			ac2.Add("Hello")
 			if matches, _ := ac2.Find("say HELLO world"); len(matches) != 0 {
 				t.Error("expected no match in case-sensitive mode")
 			}
@@ -459,10 +459,10 @@ func BenchmarkInMemoryFindManyKeywords(b *testing.B) {
 func BenchmarkInMemoryAdd(b *testing.B) {
 	for _, preset := range allPresets() {
 		b.Run(preset.String(), func(b *testing.B) {
+			ac := createTestInMemory(b, preset)
+			b.Cleanup(func() { _ = ac.Close() })
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				ac := createTestInMemory(b, preset)
-				b.Cleanup(func() { _ = ac.Close() })
 				for j := 0; j < 100; j++ {
 					ac.Add(fmt.Sprintf("keyword%d", j))
 				}

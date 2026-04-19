@@ -650,7 +650,8 @@ func (ac *AhoCorasick) SuggestIndex(input string) (map[string][]int, error) {
 // Debug prints the current state of the Aho-Corasick automaton to stdout.
 // This includes keywords, prefixes, suffixes, outputs, and nodes.
 // Useful for debugging and understanding the trie structure.
-// Note: Output format differs between V1 and V2 schemas.
+// Note: Only supported in original V1/V2 Redis-backed mode. In-memory and
+// preset-optimized modes are no-ops since they have no Redis trie state to dump.
 func (ac *AhoCorasick) Debug() {
 	if ac.mode == modeOriginal && ac.schemaVersion == SchemaV2 {
 		ac.debugV2()

@@ -140,39 +140,47 @@ func (ac *redisBackedAC) initTrie(ctx context.Context) error {
 	return nil
 }
 
-func (ac *redisBackedAC) reloadFromRedis(ctx context.Context) error {
+func (ac *redisBackedAC) loadTrieDataFromRedis(ctx context.Context) (keywords []string, version int64, err error) {
 	trieData, err := ac.storage.HGetAll(ctx, trieKey(ac.name))
 	if err != nil {
-		return fmt.Errorf("HGETALL %s: %w", trieKey(ac.name), err)
+		return nil, 0, fmt.Errorf("HGETALL %s: %w", trieKey(ac.name), err)
 	}
 
-	var keywords []string
 	if data, ok := trieData["keywords"]; ok {
 		if err := json.Unmarshal([]byte(data), &keywords); err != nil {
-			return fmt.Errorf("unmarshal keywords: %w", err)
+			return nil, 0, fmt.Errorf("unmarshal keywords: %w", err)
 		}
 	}
 
-	var version int64
 	if v, ok := trieData["version"]; ok {
 		if err := json.Unmarshal([]byte(v), &version); err != nil {
-			return fmt.Errorf("unmarshal version: %w", err)
+			return nil, 0, fmt.Errorf("unmarshal version: %w", err)
 		}
 	}
 
+	return keywords, version, nil
+}
+
+func (ac *redisBackedAC) applyReload(keywords []string, version int64) {
 	keywordSet := make(map[string]struct{}, len(keywords))
 	for _, kw := range keywords {
 		keywordSet[kw] = struct{}{}
 	}
-
-	ac.mu.Lock()
-	defer ac.mu.Unlock()
-
 	ac.keywordSet = keywordSet
 	ac.engine.buildFromKeywords(keywordSet)
 	ac.localVersion = version
 	ac.stale = false
+}
 
+func (ac *redisBackedAC) reloadFromRedis(ctx context.Context) error {
+	keywords, version, err := ac.loadTrieDataFromRedis(ctx)
+	if err != nil {
+		return err
+	}
+
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+	ac.applyReload(keywords, version)
 	return nil
 }
 
@@ -198,44 +206,14 @@ func (ac *redisBackedAC) ensureValid(ctx context.Context) error {
 			return nil, nil
 		}
 
-		if err := ac.reloadFromRedisLocked(ctx); err != nil {
+		keywords, version, err := ac.loadTrieDataFromRedis(ctx)
+		if err != nil {
 			return nil, err
 		}
+		ac.applyReload(keywords, version)
 		return nil, nil
 	})
 	return err
-}
-
-func (ac *redisBackedAC) reloadFromRedisLocked(ctx context.Context) error {
-	trieData, err := ac.storage.HGetAll(ctx, trieKey(ac.name))
-	if err != nil {
-		return err
-	}
-
-	var keywords []string
-	if data, ok := trieData["keywords"]; ok {
-		if err := json.Unmarshal([]byte(data), &keywords); err != nil {
-			return err
-		}
-	}
-
-	var version int64
-	if v, ok := trieData["version"]; ok {
-		if err := json.Unmarshal([]byte(v), &version); err != nil {
-			return fmt.Errorf("unmarshal version: %w", err)
-		}
-	}
-
-	keywordSet := make(map[string]struct{}, len(keywords))
-	for _, kw := range keywords {
-		keywordSet[kw] = struct{}{}
-	}
-
-	ac.keywordSet = keywordSet
-	ac.engine.buildFromKeywords(keywordSet)
-	ac.localVersion = version
-	ac.stale = false
-	return nil
 }
 
 // --- Pub/Sub ---

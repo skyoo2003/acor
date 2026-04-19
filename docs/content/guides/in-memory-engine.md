@@ -93,8 +93,8 @@ ac.Add("keyword")
 ac.Remove("keyword")
 
 // Find
-matches := ac.Find("text")          // []string
-positions := ac.FindIndex("text")   // map[string][]int
+matches, _ := ac.Find("text")          // ([]string, error)
+positions, _ := ac.FindIndex("text")   // (map[string][]int, error)
 
 // Stats
 info, err := ac.Info()              // (*AhoCorasickInfo, error)
