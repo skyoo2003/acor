@@ -22,4 +22,21 @@
 
 "breaking_changes":
   - changed-files:
-      - any-glob-to-any-file: ["pkg/acor/*.go"]
+      - any-glob-to-any-file:
+          - "pkg/acor/acor.go"
+          - "pkg/acor/interfaces.go"
+          - "pkg/acor/engine.go"
+          - "pkg/acor/modes.go"
+          - "pkg/acor/errors.go"
+          - "pkg/acor/options.go"
+          - "pkg/acor/operations.go"
+          - "pkg/acor/client.go"
+          - "pkg/acor/batch.go"
+          - "pkg/acor/parallel.go"
+          - "pkg/acor/pubsub.go"
+          - "pkg/acor/storage.go"
+          - "pkg/acor/context_ops.go"
+          - "pkg/acor/schema.go"
+          - "pkg/acor/v1_ops.go"
+          - "pkg/acor/v2_ops.go"
+          - "pkg/acor/v2_transaction.go"

@@ -28,11 +28,9 @@ categories:
       - "github_actions"
 
 version-resolver:
-  major:
-    labels:
-      - "breaking_changes"
   minor:
     labels:
+      - "breaking_changes"
       - "feature_request"
       - "enhancement"
   patch:
