@@ -1,20 +1,44 @@
+# IDE
 /.vscode/
 /.idea/
-/.vagrant/
-/bin/
-/src/
-/vendor/
-/dist/
 /.serena/
 /.sisyphus/
-/docs/superpowers/
-/docs/plans/
-/docs/specs/
-/.worktrees/
-.DS_Store
+
+# Build
+/bin/
+/dist/
+/bin/*.exe
+/bin/*.exe~
+/bin/*.dll
+/bin/*.so
+/bin/*.dylib
+
+# Test
+*.test
+*.prof
 /coverage.out
 /coverage.html
-acor.test
 cov*.out
 coverage*.out
 /tmp/
+
+# Dependencies
+/vendor/
+/src/
+
+# Environment
+# NOTE: !.env.example must appear after .env.* to override it
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project
+/.vagrant/
+/.worktrees/
+/docs/superpowers/
+/docs/plans/
+/docs/specs/
