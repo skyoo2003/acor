@@ -79,3 +79,4 @@ release:
     name: acor
   name_template: "v{{ .Version }}"
   disable: false
+  mode: replace
