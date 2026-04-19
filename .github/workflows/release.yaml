@@ -30,6 +30,13 @@ jobs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Verify changie release notes exist
+      run: |
+        if [ ! -f "changes/${{ github.ref_name }}.md" ]; then
+          echo "::error::Changie fragment changes/${{ github.ref_name }}.md not found."
+          echo "::error::Run 'changie batch ${{ github.ref_name }}' and 'changie merge' before pushing the tag."
+          exit 1
+        fi
     - name: Execute GoReleaser
       uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29  # goreleaser-action v7
       with:
