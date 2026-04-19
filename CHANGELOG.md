@@ -25,7 +25,7 @@ All notable changes to this project will be documented in this file.
 - Add http.MaxBytesReader (1MB) to HTTP request decoders to prevent memory exhaustion from oversized payloads ([#120](https://github.com/skyoo2003/acor/issues/120))
 - Reorder removeV2Script Lua DEL after cjson.decode for defensive programming ([#120](https://github.com/skyoo2003/acor/issues/120))
 - Replace context.Background() with context.WithCancel for proper lifecycle management and fix shutdown order ([#120](https://github.com/skyoo2003/acor/issues/120))
-- Stop cache listener on rollback and fix cancel context before stopping cache listener in Close ([#120](https://github.com/skyoo2003/acor/issues/120))
+- Stop cache listener on rollback and fix context cancellation handling before stopping cache listener in Close ([#120](https://github.com/skyoo2003/acor/issues/120))
 - Enable changelog in GoReleaser config to allow --release-notes flag to populate GitHub release notes ([#120](https://github.com/skyoo2003/acor/issues/120))
 
 ## [v0.6.0](https://github.com/skyoo2003/acor/releases/tag/v0.6.0) - 2026-04-16
