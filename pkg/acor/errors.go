@@ -24,6 +24,14 @@ var (
 	// ErrConcurrencyConflict is returned when an optimistic locking conflict
 	// occurs during a V2 write operation (Add/Remove). The caller should retry.
 	ErrConcurrencyConflict = errors.New("concurrency conflict - please retry")
+	// ErrPresetRequiresRedis is returned when a Preset is specified without
+	// any Redis address.
+	ErrPresetRequiresRedis = errors.New("Preset requires a Redis address")
+	// ErrPresetRequiresV2 is returned when a Preset is set with SchemaVersion=1.
+	ErrPresetRequiresV2 = errors.New("Preset engine requires V2 schema")
+	// ErrSuggestRequiresRedis is returned when Suggest/SuggestIndex is called in
+	// preset mode, which doesn't support prefix-based suggestions.
+	ErrSuggestRequiresRedis = errors.New("suggest requires Redis-backed mode without Preset")
 )
 
 // OperationError represents an error that occurred during an automaton operation.

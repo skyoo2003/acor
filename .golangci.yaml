@@ -69,6 +69,13 @@ linters:
       - linters:
           - staticcheck
         text: "S1038:"
+      - linters:
+          - mnd
+        path: pkg/acor/engine_
+      - linters:
+          - errcheck
+          - gosec
+        path: _test\.go$
 
 formatters:
   enable:

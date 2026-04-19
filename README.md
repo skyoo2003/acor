@@ -186,9 +186,37 @@ Chunk boundaries ensure matches aren't split across chunks:
 - `ChunkBoundaryLine`: Split at line breaks
 - `ChunkBoundarySentence`: Split at sentence endings
 
+## Redis-Backed Engine with Presets
+
+For distributed deployments that need both Redis persistence and local speed, use the `Preset` field:
+
+```go
+ac, err := acor.Create(&acor.AhoCorasickArgs{
+    Addr:          "localhost:6379",
+    Name:          "my-collection",
+    Preset:        acor.PresetBalanced,
+    CaseSensitive: false,
+})
+defer ac.Close()
+
+ac.Add(ctx, "hello")
+matches, _ := ac.Find(ctx, "hello world") // 0 RTT on hot path
+```
+
+Redis is the source of truth; a local preset-optimized automaton handles reads with no Redis I/O on the hot path. Cross-instance invalidation uses Redis Pub/Sub.
+
+## Architecture Presets
+
+| Preset | Engine | Best For | Trade-off |
+|--------|--------|----------|-----------|
+| `PresetSpeed` | Full DFA + flat array | Real-time packet inspection, latency-critical paths | Higher memory (states x alphabet) |
+| `PresetBalanced` | Double-Array Trie + Banded DFA | General-purpose keyword filtering | Balanced speed and memory |
+| `PresetMemoryEfficient` | Map-based + Bloom filter | Large-scale domain blocking, millions of patterns | Slower search |
+| `PresetUltimate` | SIMD pre-filter + Double-Array + Banded DFA | Production systems needing max throughput | Reasonable memory with highest speed |
+
 ## Local Caching
 
-For read-heavy workloads, enable local caching to eliminate Redis round-trips:
+For read-heavy workloads with the original `AhoCorasick`, enable local caching to eliminate Redis round-trips:
 
 ```go
 ac, _ := acor.Create(&acor.AhoCorasickArgs{

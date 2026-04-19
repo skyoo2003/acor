@@ -11,6 +11,7 @@ Practical guides for using ACOR effectively.
 
 - [Batch Operations](batch-operations/) - Optimize bulk keyword operations
 - [Parallel Matching](parallel-matching/) - Process large texts with multiple workers
+- [Redis-Backed Engine](redis-backed-engine/) - Redis persistence with local preset-optimized speed
 
 ## Navigation
 

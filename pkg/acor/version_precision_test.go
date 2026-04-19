@@ -50,7 +50,7 @@ func TestLuaVersionComparisonAbove2to53(t *testing.T) {
 	ctx := context.Background()
 	seedV2Trie(t, mr, []string{"he"})
 
-	snap, err := ops.readTrieData(ctx)
+	snap, err := readTrieSnapshot(ctx, ops.storage, ops.name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestLuaVersionStringComparison(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			snap, err := ops.readTrieData(ctx)
+			snap, err := readTrieSnapshot(ctx, ops.storage, ops.name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -237,7 +237,7 @@ func TestLuaVersionRemoveScriptPrecision(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	snap, err := ops.readTrieData(ctx)
+	snap, err := readTrieSnapshot(ctx, ops.storage, ops.name)
 	if err != nil {
 		t.Fatal(err)
 	}
