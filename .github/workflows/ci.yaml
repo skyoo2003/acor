@@ -34,14 +34,14 @@ jobs:
         go-version: ["1.25", "1.26"]
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Go ${{ matrix.go-version }}
         uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
           cache-dependency-path: go.sum
       - name: Execute golangci-lint
-        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee  # golangci-lint-action v9.2.1
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # golangci-lint-action v9.3.0
         with:
           version: v2.11.3
       - name: Run go vet
