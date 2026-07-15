@@ -11,8 +11,8 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0
 	go.opentelemetry.io/otel/sdk v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
-	golang.org/x/sync v0.21.0
-	google.golang.org/grpc v1.81.1
+	golang.org/x/sync v0.22.0
+	google.golang.org/grpc v1.82.0
 )
 
 require (
