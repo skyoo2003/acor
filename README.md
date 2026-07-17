@@ -239,7 +239,7 @@ ac.Find("another text")
 
 ## Observability
 
-The server and observability packages live in a separate module so the core
+The server and observability packages live in a separate module, so the core
 library stays dependency-light. Install it with:
 
 ```sh

@@ -131,7 +131,7 @@ matches, _ := ac.FindParallel(largeText, &acor.ParallelOptions{
 ## Observability
 
 ACOR provides built-in observability packages in a separate module
-(`go get github.com/skyoo2003/acor/server`) so the core library stays
+(`go get github.com/skyoo2003/acor/server`), so the core library stays
 dependency-light:
 
 - **Metrics**: Prometheus metrics for HTTP, gRPC, and Redis
