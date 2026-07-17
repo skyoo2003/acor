@@ -100,7 +100,7 @@ func (e *balancedEngine) find(text string) []string {
 	state := datRootPos
 
 	for _, ch := range text {
-		if e.bloom.skipAtRoot(state == datRootPos, ch) {
+		if e.bloom != nil && e.bloom.skipAtRoot(state == datRootPos, ch) {
 			continue
 		}
 
@@ -141,7 +141,7 @@ func (e *balancedEngine) findIndex(text string) map[string][]int {
 	runeIndex := 0
 
 	for _, ch := range text {
-		if e.bloom.skipAtRoot(state == datRootPos, ch) {
+		if e.bloom != nil && e.bloom.skipAtRoot(state == datRootPos, ch) {
 			runeIndex++
 			continue
 		}
