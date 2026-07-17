@@ -7,7 +7,7 @@ weight: 1
 
 ## Prerequisites
 
-- **Go**: Version 1.24 or later
+- **Go**: Version 1.25 or later
 - **Redis**: Version 3.0 or later
 
 ## Install the Package

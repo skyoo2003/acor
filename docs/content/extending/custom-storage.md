@@ -5,11 +5,19 @@ weight: 1
 
 # Custom Storage
 
-Implement custom storage backends for ACOR.
+`KVStorage` abstracts ACOR's storage operations.
+
+> **Not yet pluggable.** `Create()` always builds ACOR's built-in Redis storage;
+> there is currently no public constructor that accepts a custom `KVStorage`.
+> The interface is exported for mocking/testing, and pluggable backends are
+> planned for a future release. This page documents the interface you would
+> implement once that lands. For an in-memory Redis in tests today, use
+> miniredis (see below).
 
 ## Overview
 
-ACOR uses the `KVStorage` interface to abstract storage operations. You can implement custom backends for:
+ACOR uses the `KVStorage` interface to abstract storage operations. Once
+pluggable backends are supported, this abstraction will allow custom backends for:
 
 - In-memory storage (testing)
 - Alternative databases
@@ -37,9 +45,18 @@ type KVStorage interface {
     Del(ctx context.Context, keys ...string) error
     Exists(ctx context.Context, keys ...string) (int64, error)
     TxPipelined(ctx context.Context, fn func(Pipeliner) error) error
+    SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error)
+    Pipeline() Pipeliner
+    Publish(ctx context.Context, channel string, message interface{}) error
+    Subscribe(ctx context.Context, channels ...string) Subscription
     Close() error
 }
 ```
+
+The `Z`, `StringMapResult`, and `Subscription` types referenced above are
+defined alongside `KVStorage` in
+[`pkg/acor/interfaces.go`](https://github.com/skyoo2003/acor/blob/main/pkg/acor/interfaces.go)
+and documented in [Helper Types](#helper-types) below.
 
 ## Example: In-Memory Storage
 
@@ -131,7 +148,7 @@ For testing, use miniredis which provides a Redis-compatible in-memory implement
 import (
     "testing"
     "github.com/alicebob/miniredis/v2"
-    "github.com/redis/go-redis/v9"
+    "github.com/go-redis/redis/v8"
 )
 
 func TestWithMiniredis(t *testing.T) {
@@ -158,18 +175,42 @@ For transaction support, implement `Pipeliner`:
 type Pipeliner interface {
     SAdd(ctx context.Context, key string, members ...interface{}) error
     HSet(ctx context.Context, key string, values ...interface{}) error
+    HGetAll(ctx context.Context, key string) StringMapResult
     ZAdd(ctx context.Context, key string, members ...*Z) error
     Del(ctx context.Context, keys ...string) error
+    Exec(ctx context.Context) error
 }
 ```
 
-## Z Type
+## Helper Types
 
-The sorted set member type:
+These types are referenced by `KVStorage` and `Pipeliner` and are defined in
+[`pkg/acor/interfaces.go`](https://github.com/skyoo2003/acor/blob/main/pkg/acor/interfaces.go).
+
+`Z` — a sorted set member (score + value):
 
 ```go
 type Z struct {
     Score  float64
     Member string
+}
+```
+
+`StringMapResult` — a deferred result from a pipelined `HGetAll`; call `Val()`
+after the pipeline's `Exec`:
+
+```go
+type StringMapResult interface {
+    Val() map[string]string
+}
+```
+
+`Subscription` — a pub/sub subscription returned by `Subscribe`:
+
+```go
+type Subscription interface {
+    Receive(ctx context.Context) error
+    Channel() <-chan PubSubMessage
+    Close() error
 }
 ```

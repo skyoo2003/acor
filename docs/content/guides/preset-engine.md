@@ -57,7 +57,11 @@ Each preset optimizes for a different trade-off between speed, memory, and featu
 | `PresetSpeed` | Full DFA + flat array trie + compact alphabet mapping | Real-time packet inspection, high-speed log scanning, latency-critical paths | Higher memory proportional to states x alphabet size |
 | `PresetBalanced` | Double-Array Trie + Banded DFA + output link compression | General-purpose backend keyword filtering, search engines | Balanced speed and memory |
 | `PresetMemoryEfficient` | Map-based sparse trie + Bloom filter pre-filtering + standard NFA | Large-scale domain blocking, malware signature matching, millions of patterns | Slower search due to failure link traversal and map lookups |
-| `PresetUltimate` | SIMD-aware byte scanning pre-filter + Double-Array Trie + Banded DFA + deferred bit-set output collection | Production systems needing highest throughput | Reasonable memory with highest speed |
+| `PresetUltimate` | Balanced architecture (Double-Array Trie + Banded DFA) + root-state first-rune Bloom pre-filter | Production systems needing highest throughput | Highest speed at Balanced-level memory |
+
+> Since v0.8.0 `PresetUltimate` shares the `PresetBalanced` engine, adding only a
+> first-rune Bloom pre-filter that skips characters which cannot start any
+> keyword. Match results are identical to `PresetBalanced`.
 
 ### Choosing a Preset
 

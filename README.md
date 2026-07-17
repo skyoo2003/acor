@@ -278,9 +278,21 @@ acor -name mycollection add "keyword1" "keyword2"
 # Find matches
 acor -name mycollection find "sample text"
 
+# Find matches with their positions
+acor -name mycollection find-index "sample text"
+
+# Suggest keywords by prefix
+acor -name mycollection suggest "sam"
+
 # Show collection info
 acor -name mycollection info
+
+# Migrate / roll back / check schema version
+acor -name mycollection migrate --dry-run
+acor -name mycollection schema-version
 ```
+
+Run `acor` with no arguments to see all commands (also: `remove`, `suggest-index`, `flush`, `migrate-rollback`).
 
 ## Documentation
 

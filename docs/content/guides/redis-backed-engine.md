@@ -78,7 +78,7 @@ The `AhoCorasickArgs` struct includes a `Preset` field for selecting the local e
 ```go
 type AhoCorasickArgs struct {
     // ... Addr, Addrs, RingAddrs, Password, DB, Name ...
-    Preset         Preset       // Architecture preset (default: PresetBalanced)
+    Preset         Preset       // Architecture preset; zero value is PresetNone (original mode). Set it (e.g. PresetBalanced) to enable preset mode
     CaseSensitive   bool         // Enable case-sensitive matching (default: false)
     // ... other fields ...
 }
@@ -96,6 +96,10 @@ The same [architecture presets](preset-engine/#architecture-presets) are availab
 | `PresetBalanced` | Default — best speed-to-memory ratio |
 | `PresetMemoryEfficient` | Millions of patterns, memory constrained |
 | `PresetUltimate` | Maximum throughput production systems |
+
+If the `Preset` field is left unset, it defaults to `PresetNone`, which runs the
+original `AhoCorasick` mode (not the preset-optimized engine). You must set
+`Preset` explicitly (e.g. `PresetBalanced`) to enable this engine.
 
 ## API Reference
 
@@ -132,9 +136,9 @@ err := ac.Close()
 | Cross-instance sync | Pub/Sub cache invalidation | Pub/Sub engine rebuild |
 | Schema | V1 or V2 | V2 only |
 | Presets | N/A | Speed, Balanced, MemoryEfficient, Ultimate |
-| Suggest/SuggestIndex | Yes | No |
-| Batch operations | Yes | No |
-| Parallel matching | Yes | No |
+| Suggest/SuggestIndex | Yes | No (`ErrSuggestRequiresRedis`) |
+| Batch operations | Yes | Yes |
+| Parallel matching | Yes | Yes |
 
 Use a `Preset`-optimized `AhoCorasick` when you need the fastest possible reads in a distributed setup and can accept the V2-only constraint.
 

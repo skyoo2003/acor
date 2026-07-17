@@ -106,7 +106,7 @@ Find matches in multiple texts.
 
 ```go
 matches, err := ac.FindMany([]string{"text1", "text2"})
-// Returns: [][]string
+// Returns: map[string][]string{"text1": {"kw", ...}, ...} (keyed by input text)
 ```
 
 ### FindParallel
@@ -171,7 +171,7 @@ const (
     PresetSpeed                         // Full DFA + flat array — max speed, higher memory
     PresetBalanced                      // Double-Array Trie + Banded DFA — best speed-to-memory ratio
     PresetMemoryEfficient               // Map-based + Bloom filter — min memory, slower search
-    PresetUltimate                      // SIMD + Double-Array + Banded DFA — max throughput
+    PresetUltimate                      // Balanced engine + first-rune Bloom pre-filter — high throughput
     PresetDefault         Preset = -1   // Internal sentinel; not user-selectable
 )
 ```

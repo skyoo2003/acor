@@ -13,7 +13,7 @@ V1 creates approximately 5 keys per 100 keywords:
 
 | Key Pattern | Purpose |
 |-------------|---------|
-| `{name}:keyword` | Sorted set of keywords |
+| `{name}:keyword` | Set of keywords |
 | `{name}:prefix` | Trie prefix edges |
 | `{name}:suffix` | Trie suffix links |
 | `{name}:output:{state}` | Output keywords per state |

@@ -139,12 +139,14 @@ defer tracer.Shutdown()
 
 ### Spans
 
-ACOR automatically creates spans for:
+The core `pkg/acor` library does not emit its own spans. Request spans are
+created by the `server/tracing` middleware for incoming traffic:
 
-- `acor.Add`
-- `acor.Find`
-- `acor.Remove`
-- Redis operations
+- HTTP requests — via `tracing.HTTPMiddleware`
+- gRPC calls — via the `tracing` unary interceptor
+
+To trace individual `Add`/`Find`/`Remove` calls, wrap them in your own spans
+using the OpenTelemetry API.
 
 ## Dashboards
 
