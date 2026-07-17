@@ -49,7 +49,7 @@ var imports = map[string]string{
 	"tracing":   "github.com/skyoo2003/acor/server/tracing",
 	"metrics":   "github.com/skyoo2003/acor/server/metrics",
 	"miniredis": "github.com/alicebob/miniredis/v2",
-	"redis":     "github.com/go-redis/redis/v8",
+	"redis":     "github.com/redis/go-redis/v9",
 }
 
 // preamble predeclares identifiers a fragment may reference without defining.

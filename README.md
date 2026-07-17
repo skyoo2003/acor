@@ -30,7 +30,9 @@ ACOR implements the [Aho-Corasick algorithm](https://en.wikipedia.org/wiki/Aho%E
 ## Prerequisites
 
 - Go >= 1.25
-- Redis >= 3.0
+- Redis >= 3.0 or Valkey >= 7.2
+
+ACOR talks the standard RESP protocol via [go-redis v9](https://github.com/redis/go-redis), so it works with any Redis- or Valkey-compatible server. RESP3 is negotiated automatically and falls back to RESP2 on older servers. Both Redis and Valkey are validated in CI.
 
 ## Installation
 

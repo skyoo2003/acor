@@ -12,7 +12,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
+
+	matchengine "github.com/skyoo2003/acor/internal/engine"
 )
 
 // defaultSelfInvalidationCleanupInterval controls how often cleanupExpiredSelfInvalidations
@@ -53,13 +55,16 @@ func (o *v2Operations) find(ctx context.Context, text string) ([]string, error) 
 		text = strings.ToLower(text)
 	}
 
-	_, prefixSet, outputs, _, err := o.getOrLoadCache(ctx)
+	engine, err := o.getOrLoadEngine(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	matched, err := o.localFind(ctx, text, prefixSet, outputs)
-	return matched, err
+	matched := engine.Find(text)
+	if matched == nil {
+		matched = []string{}
+	}
+	return matched, nil
 }
 
 func (o *v2Operations) findIndex(ctx context.Context, text string) (map[string][]int, error) {
@@ -71,13 +76,16 @@ func (o *v2Operations) findIndex(ctx context.Context, text string) (map[string][
 		text = strings.ToLower(text)
 	}
 
-	_, prefixSet, outputs, outputRuneLen, err := o.getOrLoadCache(ctx)
+	engine, err := o.getOrLoadEngine(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	matched, err := o.localFindIndex(ctx, text, prefixSet, outputs, outputRuneLen)
-	return matched, err
+	matched := engine.FindIndex(text)
+	if matched == nil {
+		matched = map[string][]int{}
+	}
+	return matched, nil
 }
 
 func (o *v2Operations) add(ctx context.Context, keyword string) (int, error) {
@@ -272,44 +280,41 @@ func (o *v2Operations) loadCache(ctx context.Context) error {
 	return nil
 }
 
-// getOrLoadCache returns cached trie data if valid, otherwise loads from storage.
-func (o *v2Operations) getOrLoadCache(
-	ctx context.Context,
-) (prefixes []string, prefixSet map[string]struct{}, outputs map[string][]string, outputRuneLen map[string]int, err error) {
+// getOrLoadEngine returns the locally cached Aho-Corasick match engine, loading
+// it from storage on a cache miss. The engine is built once per cache load
+// (see trieCache.set) and reused across Find calls with no Redis I/O.
+//
+// When caching is disabled (cache == nil) it fetches the trie from Redis and
+// builds a throwaway engine per call.
+// ponytail: build-per-find on the uncached path — Redis I/O dominates, so an
+// extra automaton build is negligible; add engine caching if that ever changes.
+func (o *v2Operations) getOrLoadEngine(ctx context.Context) (*matchengine.Engine, error) {
 	if o.cache == nil {
-		prefixes, outputs, err = o.fetchTrieData(ctx)
+		_, outputs, err := o.fetchTrieData(ctx)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, err
 		}
-		prefixSet = make(map[string]struct{}, len(prefixes))
-		for _, p := range prefixes {
-			prefixSet[p] = struct{}{}
-		}
-		outputRuneLen = buildOutputRuneLen(outputs)
-		return prefixes, prefixSet, outputs, outputRuneLen, nil
+		return buildEngineFromOutputs(outputs), nil
 	}
 
-	var valid bool
-	prefixes, outputs, valid = o.cache.get()
-	if valid {
-		return prefixes, o.cache.getPrefixSet(), outputs, o.cache.getOutputRuneLen(), nil
+	if engine, valid := o.cache.getEngine(); valid {
+		return engine, nil
 	}
 
 	o.cache.loadMu.Lock()
 	defer o.cache.loadMu.Unlock()
 
-	// Double-check after acquiring lock
-	prefixes, outputs, valid = o.cache.get()
-	if valid {
-		return prefixes, o.cache.getPrefixSet(), outputs, o.cache.getOutputRuneLen(), nil
+	// Double-check after acquiring lock.
+	if engine, valid := o.cache.getEngine(); valid {
+		return engine, nil
 	}
 
 	if err := o.loadCache(ctx); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, err
 	}
 
-	prefixes, outputs, _ = o.cache.get()
-	return prefixes, o.cache.getPrefixSet(), outputs, o.cache.getOutputRuneLen(), nil
+	engine, _ := o.cache.getEngine()
+	return engine, nil
 }
 
 // --- publishInvalidate ---
@@ -346,89 +351,4 @@ func (o *v2Operations) publishInvalidate(ctx context.Context) {
 	if o.cache != nil {
 		o.cache.invalidate()
 	}
-}
-
-// --- local computation helpers (pure functions on v2Operations receiver) ---
-//
-// Context cancellation is checked every contextCheckInterval characters to balance
-// responsiveness with overhead. For texts shorter than this interval, cancellation
-// is only observed after the scan completes.
-const contextCheckInterval = 1000
-
-func (o *v2Operations) localFind(ctx context.Context, text string, prefixSet map[string]struct{}, outputs map[string][]string) ([]string, error) {
-	matched := make([]string, 0)
-	state := ""
-
-	for i, char := range text {
-		if i%contextCheckInterval == 0 {
-			select {
-			case <-ctx.Done():
-				return matched, ctx.Err()
-			default:
-			}
-		}
-		nextState := state + string(char)
-
-		if _, exists := prefixSet[nextState]; !exists {
-			nextState = o.findFailState(nextState, prefixSet)
-		}
-
-		state = nextState
-		if outs, exists := outputs[state]; exists {
-			matched = append(matched, outs...)
-		}
-	}
-
-	return matched, nil
-}
-
-func (o *v2Operations) localFindIndex(
-	ctx context.Context, text string,
-	prefixSet map[string]struct{}, outputs map[string][]string, outputRuneLen map[string]int,
-) (map[string][]int, error) {
-	matched := make(map[string][]int)
-	state := ""
-	runeIndex := 0
-
-	for i, char := range text {
-		if i%contextCheckInterval == 0 {
-			select {
-			case <-ctx.Done():
-				return matched, ctx.Err()
-			default:
-			}
-		}
-		nextState := state + string(char)
-
-		if _, exists := prefixSet[nextState]; !exists {
-			nextState = o.findFailState(nextState, prefixSet)
-		}
-
-		state = nextState
-		runeIndex++
-		if outs, exists := outputs[state]; exists {
-			for _, out := range outs {
-				startIdx := runeIndex - outputRuneLen[out]
-				matched[out] = append(matched[out], startIdx)
-			}
-		}
-	}
-
-	return matched, nil
-}
-
-// findFailState finds the longest proper suffix of state that exists in prefixSet.
-// This recomputes the failure function on-the-fly rather than precomputing failure links,
-// which trades O(N*M) time per character (where N = text length, M = max prefix length)
-// for zero setup cost. This is optimal for V2 where the trie is cached locally and
-// scans are infrequent relative to writes.
-func (o *v2Operations) findFailState(state string, prefixSet map[string]struct{}) string {
-	runes := []rune(state)
-	for i := 1; i < len(runes); i++ {
-		suffix := string(runes[i:])
-		if _, exists := prefixSet[suffix]; exists {
-			return suffix
-		}
-	}
-	return ""
 }

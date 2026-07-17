@@ -10,7 +10,7 @@ import (
 	"time"
 
 	miniredis "github.com/alicebob/miniredis/v2"
-	redis "github.com/go-redis/redis/v8"
+	redis "github.com/redis/go-redis/v9"
 )
 
 const benchmarkInputText = "ushers hello world benchmark test"
@@ -28,7 +28,7 @@ func BenchmarkFindV1(b *testing.B) {
 	mr := miniredis.RunT(b)
 
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	_ = client.ZAdd(context.Background(), "{bench}:prefix", &redis.Z{Score: 0, Member: ""}).Err()
+	_ = client.ZAdd(context.Background(), "{bench}:prefix", redis.Z{Score: 0, Member: ""}).Err()
 	_ = client.Close()
 
 	args := &AhoCorasickArgs{
@@ -114,7 +114,7 @@ func BenchmarkAddV1(b *testing.B) {
 	mr := miniredis.RunT(b)
 
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	_ = client.ZAdd(context.Background(), "{bench}:prefix", &redis.Z{Score: 0, Member: ""}).Err()
+	_ = client.ZAdd(context.Background(), "{bench}:prefix", redis.Z{Score: 0, Member: ""}).Err()
 	_ = client.Close()
 
 	args := &AhoCorasickArgs{

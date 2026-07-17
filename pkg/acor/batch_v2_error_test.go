@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	redis "github.com/go-redis/redis/v8"
+	redis "github.com/redis/go-redis/v9"
 )
 
 func TestV2TryAddBadKeywordsJSON(t *testing.T) {
@@ -118,7 +118,7 @@ func TestV2FindIndexError(t *testing.T) {
 	}
 }
 
-func TestV2GetOrLoadCacheError(t *testing.T) {
+func TestV2GetOrLoadEngineError(t *testing.T) {
 	mr := miniredis.RunT(t)
 	mr.Close()
 
@@ -132,9 +132,9 @@ func TestV2GetOrLoadCacheError(t *testing.T) {
 	}
 	defer func() { _ = ops.client.Close() }()
 
-	_, _, _, _, err := ops.getOrLoadCache(context.Background())
+	_, err := ops.getOrLoadEngine(context.Background())
 	if err == nil {
-		t.Fatal("expected error from closed Redis in getOrLoadCache")
+		t.Fatal("expected error from closed Redis in getOrLoadEngine")
 	}
 }
 

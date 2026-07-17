@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	redis "github.com/go-redis/redis/v8"
+	redis "github.com/redis/go-redis/v9"
 )
 
-func TestV2GetOrLoadCacheNoCache(t *testing.T) {
+func TestV2GetOrLoadEngineNoCache(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
@@ -35,15 +35,12 @@ func TestV2GetOrLoadCacheNoCache(t *testing.T) {
 		"he": `["he"]`,
 	})
 
-	prefixes, _, outputs, _, err := ops.getOrLoadCache(context.Background())
+	engine, err := ops.getOrLoadEngine(context.Background())
 	if err != nil {
-		t.Fatalf("getOrLoadCache() error: %v", err)
+		t.Fatalf("getOrLoadEngine() error: %v", err)
 	}
-	if len(prefixes) != 3 {
-		t.Errorf("len(prefixes) = %d, want 3", len(prefixes))
-	}
-	if len(outputs) != 1 {
-		t.Errorf("len(outputs) = %d, want 1", len(outputs))
+	if got := engine.Find("she"); len(got) != 1 || got[0] != "he" {
+		t.Errorf("engine.find(\"she\") = %v, want [he]", got)
 	}
 }
 
@@ -159,7 +156,7 @@ func TestNewTrieCache(t *testing.T) {
 	}
 }
 
-func TestV2GetOrLoadCacheDoubleCheck(t *testing.T) {
+func TestV2GetOrLoadEngineDoubleCheck(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
@@ -185,26 +182,21 @@ func TestV2GetOrLoadCacheDoubleCheck(t *testing.T) {
 		logger:  &testLogger{},
 	}
 
-	prefixes, _, outputs, _, err := ops.getOrLoadCache(context.Background())
+	engine, err := ops.getOrLoadEngine(context.Background())
 	if err != nil {
-		t.Fatalf("getOrLoadCache() error: %v", err)
+		t.Fatalf("getOrLoadEngine() error: %v", err)
 	}
-	if len(prefixes) != 3 {
-		t.Errorf("len(prefixes) = %d, want 3", len(prefixes))
-	}
-	if len(outputs) != 1 {
-		t.Errorf("len(outputs) = %d, want 1", len(outputs))
+	if got := engine.Find("he"); len(got) != 1 || got[0] != "he" {
+		t.Errorf("engine.find(\"he\") = %v, want [he]", got)
 	}
 
-	prefixes2, _, outputs2, _, err := ops.getOrLoadCache(context.Background())
+	// Second call must be a cache hit returning the same engine instance.
+	engine2, err := ops.getOrLoadEngine(context.Background())
 	if err != nil {
-		t.Fatalf("second getOrLoadCache() error: %v", err)
+		t.Fatalf("second getOrLoadEngine() error: %v", err)
 	}
-	if len(prefixes2) != len(prefixes) {
-		t.Errorf("second call returned different prefixes")
-	}
-	if len(outputs2) != len(outputs) {
-		t.Errorf("second call returned different outputs")
+	if engine2 != engine {
+		t.Errorf("second call rebuilt the engine; want cached instance")
 	}
 }
 

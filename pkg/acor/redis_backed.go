@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	redis "github.com/go-redis/redis/v8"
+	redis "github.com/redis/go-redis/v9"
 	"golang.org/x/sync/singleflight"
 
 	matchengine "github.com/skyoo2003/acor/internal/engine"

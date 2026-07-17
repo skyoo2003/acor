@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	redis "github.com/go-redis/redis/v8"
+	redis "github.com/redis/go-redis/v9"
 )
 
 // Compile-time check that v1Operations satisfies the operations interface.

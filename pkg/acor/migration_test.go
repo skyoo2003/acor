@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	miniredis "github.com/alicebob/miniredis/v2"
-	redis "github.com/go-redis/redis/v8"
+	redis "github.com/redis/go-redis/v9"
 )
 
 func TestMigrateV1ToV2(t *testing.T) {
@@ -18,14 +18,14 @@ func TestMigrateV1ToV2(t *testing.T) {
 
 	ctx := context.Background()
 	client.SAdd(ctx, "{test}:keyword", "he", "she", "his")
-	client.ZAdd(ctx, "{test}:prefix", &redis.Z{Score: 0, Member: ""})
-	client.ZAdd(ctx, "{test}:prefix", &redis.Z{Score: 1, Member: "h"})
-	client.ZAdd(ctx, "{test}:prefix", &redis.Z{Score: 1, Member: "he"})
-	client.ZAdd(ctx, "{test}:prefix", &redis.Z{Score: 1, Member: "s"})
-	client.ZAdd(ctx, "{test}:prefix", &redis.Z{Score: 1, Member: "sh"})
-	client.ZAdd(ctx, "{test}:prefix", &redis.Z{Score: 1, Member: "she"})
-	client.ZAdd(ctx, "{test}:prefix", &redis.Z{Score: 1, Member: "hi"})
-	client.ZAdd(ctx, "{test}:prefix", &redis.Z{Score: 1, Member: "his"})
+	client.ZAdd(ctx, "{test}:prefix", redis.Z{Score: 0, Member: ""})
+	client.ZAdd(ctx, "{test}:prefix", redis.Z{Score: 1, Member: "h"})
+	client.ZAdd(ctx, "{test}:prefix", redis.Z{Score: 1, Member: "he"})
+	client.ZAdd(ctx, "{test}:prefix", redis.Z{Score: 1, Member: "s"})
+	client.ZAdd(ctx, "{test}:prefix", redis.Z{Score: 1, Member: "sh"})
+	client.ZAdd(ctx, "{test}:prefix", redis.Z{Score: 1, Member: "she"})
+	client.ZAdd(ctx, "{test}:prefix", redis.Z{Score: 1, Member: "hi"})
+	client.ZAdd(ctx, "{test}:prefix", redis.Z{Score: 1, Member: "his"})
 
 	client.SAdd(ctx, "{test}:output:he", "he")
 	client.SAdd(ctx, "{test}:output:she", "he", "she")
@@ -131,9 +131,9 @@ func TestMigrationProgress(t *testing.T) {
 
 	ctx := context.Background()
 	client.SAdd(ctx, "{test}:keyword", "he")
-	client.ZAdd(ctx, "{test}:prefix", &redis.Z{Score: 0, Member: ""})
-	client.ZAdd(ctx, "{test}:prefix", &redis.Z{Score: 1, Member: "h"})
-	client.ZAdd(ctx, "{test}:prefix", &redis.Z{Score: 1, Member: "he"})
+	client.ZAdd(ctx, "{test}:prefix", redis.Z{Score: 0, Member: ""})
+	client.ZAdd(ctx, "{test}:prefix", redis.Z{Score: 1, Member: "h"})
+	client.ZAdd(ctx, "{test}:prefix", redis.Z{Score: 1, Member: "he"})
 	client.SAdd(ctx, "{test}:output:he", "he")
 	client.SAdd(ctx, "{test}:node:he", "h", "he")
 
@@ -168,12 +168,12 @@ func TestRollbackToV1(t *testing.T) {
 
 	ctx := context.Background()
 	client.SAdd(ctx, "{test}:keyword", "he")
-	client.ZAdd(ctx, "{test}:prefix", &redis.Z{Score: 0, Member: ""})
-	client.ZAdd(ctx, "{test}:prefix", &redis.Z{Score: 1, Member: "h"})
-	client.ZAdd(ctx, "{test}:prefix", &redis.Z{Score: 1, Member: "he"})
-	client.ZAdd(ctx, "{test}:suffix", &redis.Z{Score: 0, Member: ""})
-	client.ZAdd(ctx, "{test}:suffix", &redis.Z{Score: 1, Member: "eh"})
-	client.ZAdd(ctx, "{test}:suffix", &redis.Z{Score: 1, Member: "h"})
+	client.ZAdd(ctx, "{test}:prefix", redis.Z{Score: 0, Member: ""})
+	client.ZAdd(ctx, "{test}:prefix", redis.Z{Score: 1, Member: "h"})
+	client.ZAdd(ctx, "{test}:prefix", redis.Z{Score: 1, Member: "he"})
+	client.ZAdd(ctx, "{test}:suffix", redis.Z{Score: 0, Member: ""})
+	client.ZAdd(ctx, "{test}:suffix", redis.Z{Score: 1, Member: "eh"})
+	client.ZAdd(ctx, "{test}:suffix", redis.Z{Score: 1, Member: "h"})
 
 	ac := &AhoCorasick{
 		redisClient: client,
