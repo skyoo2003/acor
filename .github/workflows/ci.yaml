@@ -24,6 +24,13 @@ on:
       - ".github/workflows/*.yaml"
       - ".golangci.yaml"
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: CI
@@ -34,9 +41,9 @@ jobs:
         go-version: ["1.25", "1.26"]
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # checkout v7
       - name: Set up Go ${{ matrix.go-version }}
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # setup-go v6
         with:
           go-version: ${{ matrix.go-version }}
           cache-dependency-path: |
@@ -57,28 +64,32 @@ jobs:
         run: go vet ./...
         working-directory: server
       - name: Check SPDX headers
+        if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
         run: |
-          missing=$(git ls-files '*.go' | xargs -r grep -L -E '^// SPDX-License-Identifier:' || true)
+          missing=$(git ls-files '*.go' | xargs grep -L -E '^// SPDX-License-Identifier:' || true)
           if [ -n "$missing" ]; then
             echo "Missing SPDX headers in:"
             echo "$missing"
             exit 1
           fi
       - name: Run test
-        run: go test -race -v ./...
+        run: go test -race -v -covermode=atomic -coverprofile=coverage.out ./...
       - name: Run test (server module)
-        run: go test -race -v ./...
+        run: go test -race -v -covermode=atomic -coverprofile=coverage.out ./...
         working-directory: server
       - name: Check coverage
         if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
         run: |
-          go test -coverprofile=coverage.out -covermode=atomic ./...
-          coverage=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | sed 's/%//')
-          echo "Coverage: ${coverage}%"
-          if [ "$(echo "$coverage < 70" | bc)" -eq 1 ]; then
-            echo "Coverage ${coverage}% is below threshold 70%"
-            exit 1
-          fi
+          fail=0
+          for mod in . server; do
+            # Run in each module's dir: server/ is a separate go.mod, so the
+            # cover tool needs that module's context to resolve packages.
+            coverage=$(cd "$mod" && go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | sed 's/%//')
+            echo "${mod}: ${coverage}%"
+            awk -v c="$coverage" 'BEGIN { exit (c < 70) ? 1 : 0 }' \
+              || { echo "::error::${mod} coverage ${coverage}% is below threshold 70%"; fail=1; }
+          done
+          exit $fail
       - name: Run fuzz testing
         if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
         run: |
