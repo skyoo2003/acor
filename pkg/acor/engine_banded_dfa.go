@@ -2,6 +2,8 @@
 
 package acor
 
+import "unicode/utf8"
+
 // bandedDFA wraps a Double-Array Trie with precomputed DFA transitions for
 // states at shallow depth (band). States beyond the band use standard NFA.
 type bandedDFA struct {
@@ -19,10 +21,9 @@ var _ matchEngine = (*balancedEngine)(nil)
 // link compression. Used by PresetBalanced. PresetUltimate uses the same engine
 // with an added root-state pre-filter (see newUltimateEngine).
 type balancedEngine struct {
-	banded    *bandedDFA
-	bloom     *bloomFilter // root-state first-rune pre-filter; nil disables it (Balanced)
-	prefilter bool         // whether buildFromKeywords builds the pre-filter (Ultimate)
-	preset    Preset
+	banded *bandedDFA
+	bloom  *bloomFilter // root-state first-rune pre-filter; nil disables it (Balanced)
+	preset Preset
 }
 
 func newBalancedEngine(bandDepth int) *balancedEngine {
@@ -42,7 +43,6 @@ func newBalancedEngine(bandDepth int) *balancedEngine {
 func newUltimateEngine(bandDepth int) *balancedEngine {
 	e := newBalancedEngine(bandDepth)
 	e.preset = PresetUltimate
-	e.prefilter = true
 	return e
 }
 
@@ -52,11 +52,11 @@ func (e *balancedEngine) buildFromKeywords(keywords map[string]struct{}) {
 	e.banded.runes = e.banded.dat.runes
 	e.banded.buildDFABand()
 
-	if e.prefilter {
+	if e.preset == PresetUltimate {
 		e.bloom = newBloomFilter(len(keywords), 0.01)
 		for kw := range keywords {
-			if runes := []rune(kw); len(runes) > 0 {
-				e.bloom.add(runes[0])
+			if r, size := utf8.DecodeRuneInString(kw); size > 0 {
+				e.bloom.add(r)
 			}
 		}
 	}

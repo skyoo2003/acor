@@ -2,6 +2,8 @@
 
 package acor
 
+import "unicode/utf8"
+
 // mapNode is a trie node using Go maps for children (sparse representation).
 type mapNode struct {
 	children map[rune]int
@@ -93,9 +95,8 @@ func (e *memEfficientEngine) buildFromKeywords(keywords map[string]struct{}) {
 
 	e.bloom = newBloomFilter(len(keywords), 0.01)
 	for kw := range keywords {
-		runes := []rune(kw)
-		if len(runes) > 0 {
-			e.bloom.add(runes[0])
+		if r, size := utf8.DecodeRuneInString(kw); size > 0 {
+			e.bloom.add(r)
 		}
 	}
 }

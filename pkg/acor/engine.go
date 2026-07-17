@@ -32,8 +32,9 @@ const (
 	PresetMemoryEfficient
 
 	// PresetUltimate uses the Balanced architecture (Double-Array Trie with
-	// Banded DFA) plus a root-state byte pre-filter that skips characters which
-	// cannot start any keyword. Best for production systems that need high
+	// Banded DFA) plus a root-state first-rune pre-filter (a rune-level Bloom
+	// filter) that skips characters which cannot start any keyword. Best for
+	// production systems that need high
 	// throughput with reasonable memory usage.
 	PresetUltimate
 
