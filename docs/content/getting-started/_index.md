@@ -9,7 +9,7 @@ This section covers everything you need to start using ACOR.
 
 ## Prerequisites
 
-- Go >= 1.24
+- Go >= 1.25
 - Redis >= 3.0
 
 ## Installation

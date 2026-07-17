@@ -101,11 +101,12 @@ Stores output keywords per trie state as a hash:
 
 ### nodes key
 
-Stores node-level metadata:
+A hash mapping each keyword to a JSON array of its trie state strings. It is
+populated only by V1→V2 migration (fresh V2 collections do not write it):
 
 ```text
-{collection}:nodes
-  keyword1 -> {"count": 1, "depth": 3}
+{collection}:nodes  (hash)
+  keyword1 -> ["s0","s1","s2"]
 ```
 
 ## Recommendation

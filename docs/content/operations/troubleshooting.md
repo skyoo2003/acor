@@ -9,7 +9,7 @@ Common issues and their solutions.
 
 ## Common Errors
 
-### ErrConflictingTopology
+### ErrRedisConflictingTopology
 
 **Cause:** Multiple Redis topologies specified simultaneously.
 
@@ -65,33 +65,7 @@ opts := &acor.ParallelOptions{
 }
 ```
 
-### ErrInvalidWorkerCount
-
-**Cause:** Negative worker count in parallel matching.
-
-**Solution:** Use non-negative values. Zero defaults to runtime.NumCPU():
-
-```go
-opts := &acor.ParallelOptions{
-    Workers: 0, // Defaults to runtime.NumCPU()
-}
-```
-
-### ErrNoBoundariesFound
-
-**Cause:** Text cannot be split for parallel matching.
-
-**Solution:** Use smaller chunk size or different boundary type:
-
-```go
-opts := &acor.ParallelOptions{
-    Workers:       4,
-    Boundary: acor.ChunkBoundaryWord,
-    ChunkSize:     100, // Smaller chunks
-}
-```
-
-### ErrRedisClosed
+### ErrRedisAlreadyClosed
 
 **Cause:** Operation on closed AhoCorasick instance.
 
