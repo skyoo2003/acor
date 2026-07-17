@@ -90,14 +90,7 @@ func (e *memEfficientEngine) buildFromKeywords(keywords map[string]struct{}) {
 	}
 
 	e.trie = trie
-
-	e.bloom = newBloomFilter(len(keywords), 0.01)
-	for kw := range keywords {
-		runes := []rune(kw)
-		if len(runes) > 0 {
-			e.bloom.add(runes[0])
-		}
-	}
+	e.bloom = buildFirstRuneBloom(keywords)
 }
 
 func (e *memEfficientEngine) find(text string) []string {
@@ -109,8 +102,7 @@ func (e *memEfficientEngine) find(text string) []string {
 	state := 0
 
 	for _, ch := range text {
-		// Bloom pre-filter: only skip when at root state and char can't start any keyword.
-		if state == 0 && !e.bloom.mightContain(ch) {
+		if e.bloom.skipAtRoot(state == 0, ch) {
 			continue
 		}
 
@@ -143,7 +135,7 @@ func (e *memEfficientEngine) findIndex(text string) map[string][]int {
 	runeIndex := 0
 
 	for _, ch := range text {
-		if state == 0 && !e.bloom.mightContain(ch) {
+		if e.bloom.skipAtRoot(state == 0, ch) {
 			runeIndex++
 			continue
 		}

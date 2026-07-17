@@ -2,7 +2,10 @@
 
 package acor
 
-import "math"
+import (
+	"math"
+	"unicode/utf8"
+)
 
 // bloomFilter is a space-efficient probabilistic data structure for testing
 // membership of rune values. Used as a pre-filter to skip trie traversal for
@@ -62,6 +65,24 @@ func (bf *bloomFilter) mightContain(r rune) bool {
 
 func (bf *bloomFilter) memoryBytes() int64 {
 	return int64(len(bf.bits)) * 8
+}
+
+// skipAtRoot reports whether ch can be skipped: it cannot start any keyword and
+// traversal is at the root state. A nil filter never skips (pre-filter disabled).
+func (bf *bloomFilter) skipAtRoot(atRoot bool, r rune) bool {
+	return bf != nil && atRoot && !bf.mightContain(r)
+}
+
+// buildFirstRuneBloom builds a Bloom filter of the first rune of each keyword,
+// used as a root-state pre-filter to skip characters that cannot start a match.
+func buildFirstRuneBloom(keywords map[string]struct{}) *bloomFilter {
+	bf := newBloomFilter(len(keywords), 0.01)
+	for kw := range keywords {
+		if r, size := utf8.DecodeRuneInString(kw); size > 0 {
+			bf.add(r)
+		}
+	}
+	return bf
 }
 
 func (bf *bloomFilter) hashPair(r rune) (hash1, hash2 uint64) { //nolint:gosec
