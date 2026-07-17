@@ -102,6 +102,9 @@ func extract(path string) ([]block, error) {
 		for end < len(lines) && strings.TrimSpace(lines[end]) != "```" {
 			end++
 		}
+		if end == len(lines) {
+			return nil, fmt.Errorf("%s:%d: ```go block is missing a closing ```", path, j+1)
+		}
 		blocks = append(blocks, block{file: path, line: start, server: server,
 			code: strings.Join(lines[start:end], "\n")})
 		i = end
@@ -114,20 +117,15 @@ func wrap(code string) string {
 	if regexp.MustCompile(`(?m)^package `).MatchString(code) {
 		return code // already a full file
 	}
-	need := map[string]string{"context": "context", "acor": repoImport}
-	for sel, path := range imports {
-		if regexp.MustCompile(`\b` + sel + `\.`).MatchString(code) {
-			need[path] = path
-		}
-	}
 	var imp strings.Builder
 	imp.WriteString("import (\n")
-	for _, p := range []string{"context", repoImport} {
-		imp.WriteString("\t\"" + p + "\"\n")
-	}
-	for _, p := range imports {
-		if _, ok := need[p]; ok {
-			imp.WriteString("\t\"" + p + "\"\n")
+	// context and acor are always used by the preamble; the rest are inferred
+	// from the selectors the block references, so we never emit an unused one.
+	imp.WriteString("\t\"context\"\n")
+	imp.WriteString("\t\"" + repoImport + "\"\n")
+	for sel, path := range imports {
+		if regexp.MustCompile(`\b` + sel + `\.`).MatchString(code) {
+			imp.WriteString("\t\"" + path + "\"\n")
 		}
 	}
 	imp.WriteString(")\n")
