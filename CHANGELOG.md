@@ -3,7 +3,7 @@ All notable changes to this project will be documented in this file.
 ## [v0.8.0](https://github.com/skyoo2003/acor/releases/tag/v0.8.0) - 2026-07-17
 ### Changed
 * **BREAKING**: Merge Ultimate engine into Balanced and share Bloom pre-filter ([#138](https://github.com/skyoo2003/acor/issues/138))
-* Split server and observability into separate module ([#139](https://github.com/skyoo2003/acor/issues/139))
+* Split server and observability into separate modules ([#139](https://github.com/skyoo2003/acor/issues/139))
 * Harden and simplify GitHub Actions workflows ([#142](https://github.com/skyoo2003/acor/issues/142))
 * Update branch references from master to main ([#141](https://github.com/skyoo2003/acor/issues/141))
 * Bump Go dependencies: go-deps group ([#127](https://github.com/skyoo2003/acor/issues/127), [#133](https://github.com/skyoo2003/acor/issues/133), [#137](https://github.com/skyoo2003/acor/issues/137))
@@ -24,7 +24,7 @@ All notable changes to this project will be documented in this file.
 * Add http.MaxBytesReader (1MB) to HTTP request decoders to prevent memory exhaustion from oversized payloads ([#120](https://github.com/skyoo2003/acor/issues/120))
 * Reorder removeV2Script Lua DEL after cjson.decode for defensive programming ([#120](https://github.com/skyoo2003/acor/issues/120))
 * Replace context.Background() with context.WithCancel for proper lifecycle management and fix shutdown order ([#120](https://github.com/skyoo2003/acor/issues/120))
-* Stop cache listener on rollback and fix cancel context before stopping cache listener in Close ([#120](https://github.com/skyoo2003/acor/issues/120))
+* Stop cache listener on rollback and fix context cancellation before stopping cache listener in Close ([#120](https://github.com/skyoo2003/acor/issues/120))
 * Enable changelog in GoReleaser config to allow --release-notes flag to populate GitHub release notes ([#120](https://github.com/skyoo2003/acor/issues/120))
 ## [v0.6.0](https://github.com/skyoo2003/acor/releases/tag/v0.6.0) - 2026-04-16
 ### Added
