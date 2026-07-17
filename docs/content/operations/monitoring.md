@@ -31,7 +31,7 @@ graph LR
 Import the metrics package:
 
 ```go
-import "github.com/skyoo2003/acor/pkg/metrics"
+import "github.com/skyoo2003/acor/server/metrics"
 ```
 
 ### Available Metrics
@@ -54,7 +54,7 @@ import (
     "net/http"
 
     "github.com/prometheus/client_golang/prometheus/promhttp"
-    "github.com/skyoo2003/acor/pkg/metrics"
+    "github.com/skyoo2003/acor/server/metrics"
 )
 
 func main() {
@@ -72,7 +72,7 @@ func main() {
 Import the logging package:
 
 ```go
-import "github.com/skyoo2003/acor/pkg/logging"
+import "github.com/skyoo2003/acor/server/logging"
 ```
 
 ### Structured Logging
@@ -102,7 +102,7 @@ logger.Info("operation completed",
 Import the tracing package:
 
 ```go
-import "github.com/skyoo2003/acor/pkg/tracing"
+import "github.com/skyoo2003/acor/server/tracing"
 ```
 
 ### OpenTelemetry Setup

@@ -39,13 +39,23 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
-          cache-dependency-path: go.sum
+          cache-dependency-path: |
+            go.sum
+            server/go.sum
       - name: Execute golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # golangci-lint-action v9.3.0
         with:
           version: v2.11.3
+      - name: Execute golangci-lint (server module)
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # golangci-lint-action v9.3.0
+        with:
+          version: v2.11.3
+          working-directory: server
       - name: Run go vet
         run: go vet ./...
+      - name: Run go vet (server module)
+        run: go vet ./...
+        working-directory: server
       - name: Check SPDX headers
         run: |
           missing=$(git ls-files '*.go' | xargs -r grep -L -E '^// SPDX-License-Identifier:' || true)
@@ -56,6 +66,9 @@ jobs:
           fi
       - name: Run test
         run: go test -race -v ./...
+      - name: Run test (server module)
+        run: go test -race -v ./...
+        working-directory: server
       - name: Check coverage
         if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
         run: |

@@ -20,7 +20,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/skyoo2003/acor/pkg/acor"
-	"github.com/skyoo2003/acor/pkg/health"
+	"github.com/skyoo2003/acor/server/health"
 )
 
 const (
