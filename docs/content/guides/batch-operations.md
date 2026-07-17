@@ -13,6 +13,7 @@ Batch operations reduce network round-trips by grouping multiple operations toge
 
 ## Adding Multiple Keywords
 
+<!-- doccheck -->
 ```go
 result, err := ac.AddMany([]string{"he", "her", "him", "his"}, &acor.BatchOptions{
     Mode: acor.BatchModeTransactional,
@@ -67,6 +68,7 @@ result, err := ac.RemoveManyWithOptions([]string{"he", "her"}, &acor.BatchOption
 
 ## Finding Matches in Multiple Texts
 
+<!-- doccheck -->
 ```go
 texts := []string{"he is him", "this is hers", "hello world"}
 results, err := ac.FindMany(texts)

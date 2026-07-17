@@ -40,6 +40,7 @@ go get -u github.com/skyoo2003/acor
 
 ## Quick Start
 
+<!-- doccheck -->
 ```go
 package main
 

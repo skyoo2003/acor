@@ -97,3 +97,5 @@ jobs:
           go test -fuzz=FuzzAdd -fuzztime=30s ./pkg/acor
       - name: Run build
         run: make build
+      - name: Verify documentation examples compile
+        run: make docs-verify

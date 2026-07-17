@@ -42,3 +42,7 @@ Thumbs.db
 /docs/superpowers/
 /docs/plans/
 /docs/specs/
+
+# doccheck temp build dirs (usually auto-cleaned)
+/.doccheck/
+/server/.doccheck/

@@ -16,6 +16,7 @@ ACOR provides a Redis-backed Aho-Corasick engine with selectable architecture pr
 
 ## Quick Start
 
+<!-- doccheck -->
 ```go
 package main
 
