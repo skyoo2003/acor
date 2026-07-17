@@ -197,10 +197,13 @@ ac, err := acor.Create(&acor.AhoCorasickArgs{
     Preset:        acor.PresetBalanced,
     CaseSensitive: false,
 })
+if err != nil {
+    panic(err)
+}
 defer ac.Close()
 
-ac.Add(ctx, "hello")
-matches, _ := ac.Find(ctx, "hello world") // 0 RTT on hot path
+ac.Add("hello")
+matches, _ := ac.Find("hello world") // 0 RTT on hot path
 ```
 
 Redis is the source of truth; a local preset-optimized automaton handles reads with no Redis I/O on the hot path. Cross-instance invalidation uses Redis Pub/Sub.
@@ -275,8 +278,8 @@ acor -name mycollection add "keyword1" "keyword2"
 # Find matches
 acor -name mycollection find "sample text"
 
-# List keywords
-acor -name mycollection list
+# Show collection info
+acor -name mycollection info
 ```
 
 ## Documentation

@@ -21,7 +21,8 @@ if err != nil {
     panic(err)
 }
 
-fmt.Printf("Added: %d, Failed: %d\n", result.Success, result.Failed)
+fmt.Printf("Added: %d, Failed: %d, Skipped: %d\n",
+    len(result.Added), len(result.Failed), len(result.Skipped))
 ```
 
 ## Batch Modes
@@ -53,6 +54,15 @@ result, err := ac.RemoveMany([]string{"he", "her"})
 if err != nil {
     panic(err)
 }
+fmt.Printf("Removed: %d\n", len(result.Removed))
+```
+
+Use `RemoveManyWithOptions` to control the batch mode:
+
+```go
+result, err := ac.RemoveManyWithOptions([]string{"he", "her"}, &acor.BatchOptions{
+    Mode: acor.BatchModeTransactional,
+})
 ```
 
 ## Finding Matches in Multiple Texts
@@ -73,9 +83,23 @@ for text, matches := range results {
 
 ```go
 type BatchResult struct {
-    Success int          // Number of successful operations
-    Failed  int          // Number of failed operations
-    Errors  []BatchError // Individual errors (BestEffort mode only)
+    Added   []string       // Keywords successfully added
+    Removed []string       // Keywords successfully removed
+    Failed  []KeywordError // Keywords that could not be processed, with their errors
+    Skipped []string       // Keywords skipped (e.g. duplicates in the input)
+}
+
+type KeywordError struct {
+    Keyword string // The keyword that caused the error
+    Error   error  // The error that occurred while processing it
+}
+```
+
+Inspect failures in `BatchModeBestEffort`:
+
+```go
+for _, ke := range result.Failed {
+    fmt.Printf("%q failed: %v\n", ke.Keyword, ke.Error)
 }
 ```
 

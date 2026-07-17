@@ -140,14 +140,50 @@ services:
 
 ## Health Checks
 
-ACOR provides health check endpoints:
+The `server/health` package registers Kubernetes-compatible endpoints on an
+`http.ServeMux`:
+
+- `/healthz` — liveness; always returns `200 OK` while the process is up.
+- `/readyz` — readiness; runs every registered `Checker` and returns `503` if
+  any checker reports as unhealthy.
 
 ```go
-import "github.com/skyoo2003/acor/server/health"
+package main
 
-handler := health.NewHandler(ac)
-http.Handle("/healthz", handler.Livez())
-http.Handle("/readyz", handler.Readyz())
+import (
+    "log"
+    "net/http"
+
+    "github.com/skyoo2003/acor/pkg/acor"
+    "github.com/skyoo2003/acor/server/health"
+)
+
+// redisChecker is a readiness check that implements health.Checker.
+type redisChecker struct{ ac *acor.AhoCorasick }
+
+func (c redisChecker) Check() health.CheckResult {
+    if _, err := c.ac.Info(); err != nil {
+        return health.CheckResult{Status: health.StatusUnhealthy, Details: err.Error()}
+    }
+    return health.CheckResult{Status: health.StatusHealthy}
+}
+
+func main() {
+    ac, err := acor.Create(&acor.AhoCorasickArgs{
+        Addr: "redis:6379",
+        Name: "production",
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    checker := health.NewChecker()
+    checker.Register("redis", redisChecker{ac})
+
+    mux := http.NewServeMux()
+    health.RegisterHTTPHandlers(mux, checker) // registers /healthz and /readyz
+    log.Fatal(http.ListenAndServe(":8080", mux))
+}
 ```
 
 ## Best Practices

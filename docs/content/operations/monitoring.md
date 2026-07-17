@@ -77,17 +77,34 @@ import "github.com/skyoo2003/acor/server/logging"
 
 ### Structured Logging
 
-```go
-logger := logging.NewLogger(logging.Config{
-    Level:  "info",
-    Format: "json",
-})
+`NewLogger` takes an `io.Writer` and a level string (`debug`, `info`, `warn`,
+`error`) and returns a zerolog-based logger that always emits structured JSON.
+Attach trace/span IDs with `WithTraceID`:
 
-logger.Info("operation completed",
-    "operation", "Find",
-    "duration_ms", 12,
-    "matches", 5,
+```go
+package main
+
+import (
+    "os"
+
+    "github.com/skyoo2003/acor/server/logging"
 )
+
+func main() {
+    logger := logging.NewLogger(os.Stdout, "info")
+
+    logger.Info().
+        Str("operation", "Find").
+        Int("duration_ms", 12).
+        Int("matches", 5).
+        Msg("operation completed")
+
+    // traceID/spanID usually come from an OpenTelemetry span context;
+    // any hex strings work here.
+    traceID := "4bf92f3577b34da6a3ce929d0e0e4736"
+    spanID := "00f067aa0ba902b7"
+    logger.WithTraceID(traceID, spanID).Info().Msg("request handled")
+}
 ```
 
 ### Log Levels
