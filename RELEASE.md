@@ -5,21 +5,15 @@ automation in the repo, not an aspirational process.
 
 ## Overview
 
-| Concern         | Tool                                 | Config                                                                  |
-| --------------- | ------------------------------------ | ----------------------------------------------------------------------- |
-| Versioning      | SemVer git tags `vX.Y.Z`             | —                                                                       |
-| Changelog       | [changie](https://changie.dev)       | `.changie.yaml`, `changes/`                                             |
-| Build & publish | [GoReleaser](https://goreleaser.com) | `.goreleaser.yaml`                                                      |
-| Release trigger | GitHub Actions on tag push           | `.github/workflows/release.yaml`                                        |
-| Draft preview   | Release Drafter on merge to `main`   | `.github/workflows/release-drafter.yaml`, `.github/release-drafter.yml` |
+| Concern         | Tool                                 | Config                           |
+| --------------- | ------------------------------------ | -------------------------------- |
+| Versioning      | SemVer git tags `vX.Y.Z`             | —                                |
+| Changelog       | [changie](https://changie.dev)       | `.changie.yaml`, `changes/`      |
+| Build & publish | [GoReleaser](https://goreleaser.com) | `.goreleaser.yaml`               |
+| Release trigger | GitHub Actions on tag push           | `.github/workflows/release.yaml` |
 
-Two independent things produce release notes:
-
-- **changie** is the source of truth. Its per-version file (`changes/vX.Y.Z.md`)
-  is what GoReleaser publishes as the GitHub release body.
-- **Release Drafter** keeps a *draft* GitHub release assembled from merged-PR
-  labels — a preview to help pick the next bump (step 2). It publishes nothing
-  and is not the notes that ship.
+**changie** is the source of truth for release notes. Its per-version file
+(`changes/vX.Y.Z.md`) is what GoReleaser publishes as the GitHub release body.
 
 ## Prerequisites
 
@@ -51,10 +45,9 @@ YAML fragment under `changes/unreleased/`. Commit it with your change.
 
 1. **Confirm `main` is green** and holds everything you want to ship.
 
-2. **Pick the version** (`vX.Y.Z`, SemVer). Release Drafter's current draft
-   suggests a bump from merged PR labels — treat it as a hint, not a rule. It
-   has no `major` resolver and maps breaking changes to a *minor* bump, so the
-   major-version call is always yours.
+2. **Pick the version** (`vX.Y.Z`, SemVer). Base the bump on the kinds of the
+   unreleased fragments in `changes/unreleased/` — the major-version call is
+   always yours.
 
 3. **Batch the fragments** into a version file:
 
