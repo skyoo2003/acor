@@ -24,7 +24,7 @@
 - [ ] Linting passes (`make lint`)
 - [ ] Build succeeds (`make build`)
 - [ ] Documentation updated if needed
-- [ ] Changelog fragment added (`changie new`) for user-facing changes — see [RELEASE.md](../RELEASE.md#during-development-every-contributor)
+- [ ] Changelog fragment added (`changie new`) if this change belongs in the changelog — skip for internal-only changes (CI, tests, refactors); see [RELEASE.md](../RELEASE.md)
 - [ ] Commit messages follow guidelines
 
 ## Additional Notes
