@@ -2,8 +2,6 @@
 
 package acor
 
-import "unicode/utf8"
-
 // bandedDFA wraps a Double-Array Trie with precomputed DFA transitions for
 // states at shallow depth (band). States beyond the band use standard NFA.
 type bandedDFA struct {
@@ -53,12 +51,7 @@ func (e *balancedEngine) buildFromKeywords(keywords map[string]struct{}) {
 	e.banded.buildDFABand()
 
 	if e.preset == PresetUltimate {
-		e.bloom = newBloomFilter(len(keywords), 0.01)
-		for kw := range keywords {
-			if r, size := utf8.DecodeRuneInString(kw); size > 0 {
-				e.bloom.add(r)
-			}
-		}
+		e.bloom = buildFirstRuneBloom(keywords)
 	}
 }
 
@@ -107,7 +100,7 @@ func (e *balancedEngine) find(text string) []string {
 	state := datRootPos
 
 	for _, ch := range text {
-		if e.bloom != nil && state == datRootPos && !e.bloom.mightContain(ch) {
+		if e.bloom.skipAtRoot(state == datRootPos, ch) {
 			continue
 		}
 
@@ -148,7 +141,7 @@ func (e *balancedEngine) findIndex(text string) map[string][]int {
 	runeIndex := 0
 
 	for _, ch := range text {
-		if e.bloom != nil && state == datRootPos && !e.bloom.mightContain(ch) {
+		if e.bloom.skipAtRoot(state == datRootPos, ch) {
 			runeIndex++
 			continue
 		}
