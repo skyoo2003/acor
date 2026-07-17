@@ -81,6 +81,7 @@ import "github.com/skyoo2003/acor/server/logging"
 `error`) and returns a zerolog-based logger that always emits structured JSON.
 Attach trace/span IDs with `WithTraceID`:
 
+<!-- doccheck:server -->
 ```go
 package main
 
@@ -124,6 +125,7 @@ import "github.com/skyoo2003/acor/server/tracing"
 
 ### OpenTelemetry Setup
 
+<!-- doccheck:server -->
 ```go
 tracer, err := tracing.NewTracer(&tracing.Config{
     Enabled:     true,

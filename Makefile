@@ -1,6 +1,6 @@
-.PHONY: all setup clean build test lint lint-fix coverage vet fuzz race
+.PHONY: all setup clean build test lint lint-fix coverage vet fuzz race docs-verify
 
-all: vet lint test build
+all: vet lint test build docs-verify
 
 setup:
 	@pre-commit install
@@ -15,6 +15,9 @@ build:
 test:
 	@go test -v ./...
 	@cd server && go test -v ./...
+
+docs-verify:
+	@go run ./tools/doccheck README.md $$(find docs/content -name '*.md')
 
 lint:
 	@golangci-lint run ./...

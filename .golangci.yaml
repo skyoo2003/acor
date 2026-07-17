@@ -65,6 +65,7 @@ linters:
       - third_party$
       - builtin$
       - examples$
+      - tools/doccheck
     rules:
       - linters:
           - staticcheck
@@ -97,3 +98,4 @@ formatters:
       - third_party$
       - builtin$
       - examples$
+      - tools/doccheck
