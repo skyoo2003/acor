@@ -31,10 +31,10 @@ const (
 	// Trade-off: slower search due to failure link traversal and map lookups.
 	PresetMemoryEfficient
 
-	// PresetUltimate combines the best techniques from all presets: SIMD-aware
-	// byte scanning pre-filter, Double-Array Trie, Banded DFA, and deferred
-	// bit-set output collection. Best for production systems that need the
-	// highest throughput with reasonable memory usage.
+	// PresetUltimate uses the Balanced architecture (Double-Array Trie with
+	// Banded DFA) plus a root-state byte pre-filter that skips characters which
+	// cannot start any keyword. Best for production systems that need high
+	// throughput with reasonable memory usage.
 	PresetUltimate
 
 	// PresetDefault is an internal sentinel; not user-selectable.
