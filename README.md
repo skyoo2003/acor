@@ -239,15 +239,20 @@ ac.Find("another text")
 
 ## Observability
 
-ACOR provides built-in observability support:
+The server and observability packages live in a separate module, so the core
+library stays dependency-light. Install it with:
+
+```sh
+go get github.com/skyoo2003/acor/server
+```
 
 ```go
 import (
     "github.com/skyoo2003/acor/pkg/acor"
-    "github.com/skyoo2003/acor/pkg/metrics"
-    "github.com/skyoo2003/acor/pkg/logging"
-    "github.com/skyoo2003/acor/pkg/tracing"
-    "github.com/skyoo2003/acor/pkg/health"
+    "github.com/skyoo2003/acor/server/metrics"
+    "github.com/skyoo2003/acor/server/logging"
+    "github.com/skyoo2003/acor/server/tracing"
+    "github.com/skyoo2003/acor/server/health"
 )
 ```
 

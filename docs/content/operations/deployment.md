@@ -143,7 +143,7 @@ services:
 ACOR provides health check endpoints:
 
 ```go
-import "github.com/skyoo2003/acor/pkg/health"
+import "github.com/skyoo2003/acor/server/health"
 
 handler := health.NewHandler(ac)
 http.Handle("/healthz", handler.Livez())

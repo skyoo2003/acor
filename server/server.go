@@ -17,10 +17,10 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/skyoo2003/acor/pkg/acor"
-	"github.com/skyoo2003/acor/pkg/health"
-	"github.com/skyoo2003/acor/pkg/logging"
-	"github.com/skyoo2003/acor/pkg/metrics"
-	"github.com/skyoo2003/acor/pkg/tracing"
+	"github.com/skyoo2003/acor/server/health"
+	"github.com/skyoo2003/acor/server/logging"
+	"github.com/skyoo2003/acor/server/metrics"
+	"github.com/skyoo2003/acor/server/tracing"
 )
 
 const (
