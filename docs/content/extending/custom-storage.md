@@ -5,7 +5,7 @@ weight: 1
 
 # Custom Storage
 
-The `KVStorage` interface that abstracts ACOR's storage operations.
+`KVStorage` abstracts ACOR's storage operations.
 
 > **Not yet pluggable.** `Create()` always builds ACOR's built-in Redis storage;
 > there is currently no public constructor that accepts a custom `KVStorage`.
@@ -52,6 +52,11 @@ type KVStorage interface {
     Close() error
 }
 ```
+
+The `Z`, `StringMapResult`, and `Subscription` types referenced above are
+defined alongside `KVStorage` in
+[`pkg/acor/interfaces.go`](https://github.com/skyoo2003/acor/blob/main/pkg/acor/interfaces.go)
+and documented in [Helper Types](#helper-types) below.
 
 ## Example: In-Memory Storage
 
@@ -177,13 +182,35 @@ type Pipeliner interface {
 }
 ```
 
-## Z Type
+## Helper Types
 
-The sorted set member type:
+These types are referenced by `KVStorage` and `Pipeliner` and are defined in
+[`pkg/acor/interfaces.go`](https://github.com/skyoo2003/acor/blob/main/pkg/acor/interfaces.go).
+
+`Z` — a sorted set member (score + value):
 
 ```go
 type Z struct {
     Score  float64
     Member string
+}
+```
+
+`StringMapResult` — a deferred result from a pipelined `HGetAll`; call `Val()`
+after the pipeline's `Exec`:
+
+```go
+type StringMapResult interface {
+    Val() map[string]string
+}
+```
+
+`Subscription` — a pub/sub subscription returned by `Subscribe`:
+
+```go
+type Subscription interface {
+    Receive(ctx context.Context) error
+    Channel() <-chan PubSubMessage
+    Close() error
 }
 ```

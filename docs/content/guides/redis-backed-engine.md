@@ -97,6 +97,10 @@ The same [architecture presets](preset-engine/#architecture-presets) are availab
 | `PresetMemoryEfficient` | Millions of patterns, memory constrained |
 | `PresetUltimate` | Maximum throughput production systems |
 
+If the `Preset` field is left unset, it defaults to `PresetNone`, which runs the
+original `AhoCorasick` mode (not the preset-optimized engine). You must set
+`Preset` explicitly (e.g. `PresetBalanced`) to enable this engine.
+
 ## API Reference
 
 ```go
