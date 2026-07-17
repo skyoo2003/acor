@@ -30,6 +30,11 @@ Two independent things produce release notes:
 The release workflow itself needs no manual secrets — it uses the built-in
 `GITHUB_TOKEN` for both the GitHub release and pushing images to GHCR.
 
+Run every command below from the repo root. The `v` prefix is mandatory and
+must match across the board: `changie batch vX.Y.Z` writes `changes/vX.Y.Z.md`,
+and the tag build guards on exactly `changes/<tag>.md` — so the changie version
+and the git tag have to be the identical `vX.Y.Z` string.
+
 ## During development (every contributor)
 
 Each change that should appear in the changelog gets a fragment:
@@ -125,3 +130,9 @@ a pre-release tag unless you mean to.
 To redo a botched release: fix the fragments/changelog, delete the tag locally
 and remotely (`git push origin :vX.Y.Z`), then re-tag and push. The build
 recreates the release in place (`replace` mode, above).
+
+Watch the Docker tags: deleting the git tag does **not** remove images already
+in GHCR — they stay until a build overwrites them. And `latest-alpine` (plus
+`vMAJOR-alpine` / `vMAJOR.MINOR-alpine`) always points at whichever tag built
+*last*, so re-running an older tag's build silently drags `latest-alpine` back
+to that older version. When redoing an older release, re-tag the newest one last.
