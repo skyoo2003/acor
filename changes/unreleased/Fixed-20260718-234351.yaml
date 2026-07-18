@@ -1,0 +1,5 @@
+kind: Fixed
+body: Fix a failure-link construction bug in the Speed and MemoryEfficient in-memory engines that double-applied the goto transition. Keyword sets with nested suffixes (e.g. {a, aa, aaa}) could make MemoryEfficient Find loop forever and cause Speed to silently drop matches; Balanced and Ultimate were unaffected
+time: 2026-07-18T23:43:51.458711+09:00
+custom:
+    Issue: "152"
