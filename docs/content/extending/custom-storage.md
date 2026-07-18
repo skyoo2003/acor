@@ -7,28 +7,17 @@ weight: 1
 
 `acor.KVStorage` abstracts ACOR's storage operations.
 
-> **V1 schema only.** Custom backends are supported only with `SchemaVersion:
-> acor.SchemaV1`. The V2 schema and the preset engine rely on Redis Lua scripts
-> and a raw Redis client, so `Preset` and `EnableCache` must be unset, and
-> `MigrateV1ToV2`/`RollbackToV1` are unavailable (they return
-> `acor.ErrMigrationRequiresRedis`). Misconfigurations return
-> `acor.ErrCustomStorageRequiresV1`.
+> **Not yet pluggable.** `Create()` always builds ACOR's built-in Redis storage;
+> there is currently no public constructor that accepts a custom `KVStorage`.
+> The interface is exported for mocking/testing, and pluggable backends are
+> planned for a future release. This page documents the interface you would
+> implement once that lands. For an in-memory Redis in tests today, use
+> miniredis (see below).
 
 ## Overview
 
-Implement `acor.KVStorage` and pass it via `AhoCorasickArgs.Storage` to plug in
-a custom backend instead of the built-in Redis adapter:
-
-```go
-ac, err := acor.Create(&acor.AhoCorasickArgs{
-    Name:          "my-collection",
-    SchemaVersion: acor.SchemaV1, // required for custom storage
-    Storage:       myStorage,     // any acor.KVStorage implementation
-})
-```
-
-When `Storage` is non-nil, `Create` uses it directly and ignores the Redis
-connection fields (`Addr`, `Addrs`, `Password`, `DB`, ...). This enables:
+ACOR uses the `KVStorage` interface to abstract storage operations. Once
+pluggable backends are supported, this abstraction will allow custom backends for:
 
 - In-memory storage (testing)
 - Alternative databases

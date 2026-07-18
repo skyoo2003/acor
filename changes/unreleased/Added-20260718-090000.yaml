@@ -1,5 +1,0 @@
-kind: Added
-body: 'Pluggable storage backend: implement KVStorage and pass it via AhoCorasickArgs.Storage to run ACOR on a custom (non-Redis) backend (V1 schema only)'
-time: 2026-07-18T09:00:00.000000+09:00
-custom:
-    Issue: "151"

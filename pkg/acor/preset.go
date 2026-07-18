@@ -9,6 +9,11 @@ import "github.com/skyoo2003/acor/internal/engine"
 // memory, and feature set. The preset is fixed at creation time.
 type Preset = engine.Preset
 
+// InMemoryInfo contains statistics about an in-memory Aho-Corasick engine.
+// Re-exported from the internal engine package so callers depend only on the
+// public acor API.
+type InMemoryInfo = engine.InMemoryInfo
+
 // Preset values re-exported from the internal engine package so callers depend
 // only on the public acor API.
 const (

@@ -5,11 +5,10 @@ package acor
 import kvstore "github.com/skyoo2003/acor/internal/storage"
 
 // Storage backend contract, re-exported from the internal storage package so
-// callers depend only on the public acor package. Implement KVStorage and pass
-// it via AhoCorasickArgs.Storage to plug in a custom (non-Redis) backend; only
-// the V1 schema is supported for custom backends. The full method set is
+// callers depend only on the public acor package. The full method set is
 // documented at KVStorage in the internal/storage package and in the
-// "Custom Storage" guide.
+// "Custom Storage" guide. The built-in Redis adapter is the only backend
+// wired by Create today; the interface is exported for reference and testing.
 type (
 	// KVStorage is the key-value storage backend contract used by ACOR.
 	KVStorage = kvstore.KVStorage

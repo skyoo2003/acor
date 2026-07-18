@@ -269,7 +269,7 @@ func TestRedisStorageExists(t *testing.T) {
 	}
 
 	if setErr := store.Set(ctx, "key1", "val"); setErr != nil {
-		t.Fatal(err)
+		t.Fatal(setErr)
 	}
 
 	count, err = store.Exists(ctx, "key1", "key2")
@@ -385,7 +385,7 @@ func TestRedisStorageZOperations(t *testing.T) {
 	}
 
 	if remErr := store.ZRem(ctx, "zset", "a"); remErr != nil {
-		t.Fatal(err)
+		t.Fatal(remErr)
 	}
 
 	members, err := store.ZRange(ctx, "zset", 0, -1)
