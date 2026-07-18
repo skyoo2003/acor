@@ -9,6 +9,8 @@ import (
 
 	miniredis "github.com/alicebob/miniredis/v2"
 	redis "github.com/go-redis/redis/v8"
+
+	kvstore "github.com/skyoo2003/acor/internal/storage"
 )
 
 func TestCreateReturnsErrorWhenRedisUnavailable(t *testing.T) {
@@ -213,7 +215,7 @@ func TestStorageAdapterMethods(t *testing.T) {
 	})
 
 	t.Run("ZAdd", func(t *testing.T) {
-		if err := storage.ZAdd(ctx, "zset2", &Z{Score: 1.0, Member: "a"}); err != nil {
+		if err := storage.ZAdd(ctx, "zset2", &kvstore.Z{Score: 1.0, Member: "a"}); err != nil {
 			t.Errorf("ZAdd() error: %v", err)
 		}
 	})
@@ -266,10 +268,10 @@ func TestStorageAdapterMethods(t *testing.T) {
 	})
 
 	t.Run("TxPipelined", func(t *testing.T) {
-		err := storage.TxPipelined(ctx, func(pipe Pipeliner) error {
+		err := storage.TxPipelined(ctx, func(pipe kvstore.Pipeliner) error {
 			_ = pipe.SAdd(ctx, "txset", "member")
 			_ = pipe.HSet(ctx, "txhash", "field", "value")
-			_ = pipe.ZAdd(ctx, "txzset", &Z{Score: 1.0, Member: "a"})
+			_ = pipe.ZAdd(ctx, "txzset", &kvstore.Z{Score: 1.0, Member: "a"})
 			return nil
 		})
 		if err != nil {

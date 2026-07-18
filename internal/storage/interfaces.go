@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package acor
+package storage
 
 //go:generate go run go.uber.org/mock/mockgen -source=interfaces.go -destination=mock/mock_storage.go -package mock
 

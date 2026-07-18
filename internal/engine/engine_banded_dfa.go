@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package acor
+package engine
 
 // bandedDFA wraps a Double-Array Trie with precomputed DFA transitions for
 // states at shallow depth (band). States beyond the band use standard NFA.

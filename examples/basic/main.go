@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package acor_test
+// Command basic demonstrates basic ACOR usage: create a collection, add
+// keywords, and find matches in a text. Requires a Redis server on
+// localhost:6379.
+package main
 
 import (
 	"fmt"
@@ -9,7 +12,7 @@ import (
 	"github.com/skyoo2003/acor/pkg/acor"
 )
 
-func Example() {
+func main() {
 	ac, err := acor.Create(&acor.AhoCorasickArgs{
 		Addr: "localhost:6379",
 		Name: "example-basic",

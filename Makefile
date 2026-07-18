@@ -24,7 +24,7 @@ lint:
 	@cd server && golangci-lint run ./...
 
 coverage:
-	@go test ./... -coverprofile=coverage.out -covermode=atomic
+	@go test ./... -coverpkg=./... -coverprofile=coverage.out -covermode=atomic
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 

@@ -13,6 +13,9 @@ import (
 
 	redis "github.com/go-redis/redis/v8"
 	"golang.org/x/sync/singleflight"
+
+	matchengine "github.com/skyoo2003/acor/internal/engine"
+	kvstore "github.com/skyoo2003/acor/internal/storage"
 )
 
 // redisBackedAC is a Redis-backed Aho-Corasick automaton that combines the
@@ -24,12 +27,12 @@ import (
 // rebuilds its local automaton when another instance mutates the data.
 type redisBackedAC struct {
 	mu            sync.RWMutex
-	engine        matchEngine
+	engine        *matchengine.Engine
 	preset        Preset
 	caseSensitive bool
 	name          string
 
-	storage     KVStorage
+	storage     kvstore.KVStorage
 	redisClient redis.UniversalClient
 
 	keywordSet   map[string]struct{}
@@ -39,7 +42,7 @@ type redisBackedAC struct {
 	selfSkip      sync.Map
 	selfSkipCount uint64
 	reloadGroup   singleflight.Group
-	pubsub        Subscription
+	pubsub        kvstore.Subscription
 	stopCh        chan struct{}
 	ctx           context.Context
 	cancel        context.CancelFunc
@@ -69,7 +72,7 @@ func newRedisBacked(ctx context.Context, args *AhoCorasickArgs) (*redisBackedAC,
 	acCtx, acCancel := context.WithCancel(ctx)
 
 	ac := &redisBackedAC{
-		engine:        newMatchEngine(preset),
+		engine:        matchengine.New(preset),
 		preset:        preset,
 		caseSensitive: args.CaseSensitive,
 		name:          args.Name,
@@ -145,7 +148,7 @@ func (ac *redisBackedAC) applyReload(snap *trieSnapshot) {
 		keywordSet[kw] = struct{}{}
 	}
 	ac.keywordSet = keywordSet
-	ac.engine.buildFromKeywords(keywordSet)
+	ac.engine.Build(keywordSet)
 	ac.localVersion = snap.Version
 	ac.stale = false
 }

@@ -64,7 +64,7 @@ linters:
     paths:
       - third_party$
       - builtin$
-      - examples$
+      - examples/
       - tools/doccheck
     rules:
       - linters:
@@ -72,7 +72,7 @@ linters:
         text: "S1038:"
       - linters:
           - mnd
-        path: pkg/acor/engine_
+        path: internal/engine/
       - linters:
           - errcheck
           - gosec
@@ -97,5 +97,5 @@ formatters:
     paths:
       - third_party$
       - builtin$
-      - examples$
+      - examples/
       - tools/doccheck

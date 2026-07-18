@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package acor
+package engine
 
 // presetConfig holds tuning parameters for each architecture preset.
 type presetConfig struct {

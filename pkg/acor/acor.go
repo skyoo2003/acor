@@ -147,6 +147,8 @@ import (
 	"time"
 
 	redis "github.com/go-redis/redis/v8"
+
+	kvstore "github.com/skyoo2003/acor/internal/storage"
 )
 
 const (
@@ -182,6 +184,15 @@ var (
 	// ErrInvalidName is returned when the collection name contains characters
 	// that conflict with internal delimiters (e.g., ':').
 	ErrInvalidName = errors.New("collection name must not contain ':'")
+	// ErrCustomStorageRequiresV1 is returned when a custom Storage backend is
+	// provided with an unsupported configuration. Custom backends support only
+	// SchemaVersion 1; the preset engine and local cache are unavailable because
+	// they depend on Redis Lua scripts and a raw Redis client.
+	ErrCustomStorageRequiresV1 = errors.New("custom storage backend supports only SchemaVersion 1 (preset engine and local cache are unavailable)")
+	// ErrMigrationRequiresRedis is returned by MigrateV1ToV2 and RollbackToV1
+	// when the instance uses a custom Storage backend. Migration requires the
+	// built-in Redis backend (raw Redis client access).
+	ErrMigrationRequiresRedis = errors.New("migration requires the built-in Redis backend")
 )
 
 // Logger defines the interface for logging operations used by AhoCorasick.
@@ -262,6 +273,18 @@ type AhoCorasickArgs struct {
 	// for fast reads. Forces V2 schema.
 	// When unset (zero), the original Aho-Corasick engine is used.
 	Preset Preset
+
+	// Storage injects a custom storage backend, making ACOR pluggable beyond
+	// the built-in Redis adapter. When non-nil, Create uses this backend instead
+	// of opening a Redis connection, and the Redis connection fields above
+	// (Addr, Addrs, Password, DB, ...) are ignored.
+	//
+	// Only the V1 schema is supported with a custom backend: SchemaVersion must
+	// be SchemaV1, and Preset and EnableCache must be unset, because the V2
+	// schema and the preset engine rely on Redis Lua scripts and a raw Redis
+	// client. MigrateV1ToV2/RollbackToV1 are unavailable (they require the
+	// built-in Redis backend). Implement KVStorage to provide a backend.
+	Storage KVStorage
 }
 
 // AhoCorasick represents an Aho-Corasick automaton backed by Redis.
@@ -275,7 +298,7 @@ type AhoCorasick struct {
 	cancel        context.CancelFunc
 	name          string
 	logger        Logger
-	storage       KVStorage             // DI: all Redis ops go through this
+	storage       kvstore.KVStorage     // DI: all Redis ops go through this
 	ops           operations            // Strategy: V1 or V2 implementation
 	redisClient   redis.UniversalClient // kept for migration.go (out of scope)
 	buildTrieHook func(string) error
@@ -286,7 +309,7 @@ type AhoCorasick struct {
 	caseSensitive                   bool
 
 	cache     *trieCache
-	pubsub    Subscription
+	pubsub    kvstore.Subscription
 	stopCh    chan struct{}
 	closeOnce sync.Once
 	mode      backendMode
@@ -339,6 +362,20 @@ type AhoCorasickInfo struct {
 func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	if strings.Contains(args.Name, ":") {
 		return nil, ErrInvalidName
+	}
+
+	// --- Custom (pluggable) storage backend ---
+	// Only the V1 schema is supported: V2 and the preset engine depend on Redis
+	// Lua scripts and a raw Redis client, which a generic KVStorage cannot provide.
+	if args.Storage != nil {
+		if args.EnableCache {
+			return nil, ErrCacheRequiresV2
+		}
+		presetSet := args.Preset != PresetNone && args.Preset != PresetDefault
+		if presetSet || args.SchemaVersion != SchemaV1 {
+			return nil, ErrCustomStorageRequiresV1
+		}
+		return createWithStorage(args)
 	}
 
 	// --- Preset-Optimized Redis mode ---
@@ -467,6 +504,34 @@ func createOriginal(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	return ac, nil
 }
 
+// createWithStorage assembles an AhoCorasick that reads and writes through a
+// caller-supplied KVStorage backend instead of the built-in Redis adapter.
+// Create validates that the configuration is V1-only before calling this;
+// redisClient is left nil, so migration is unavailable.
+func createWithStorage(args *AhoCorasickArgs) (*AhoCorasick, error) {
+	ac := &AhoCorasick{
+		storage:       args.Storage,
+		name:          args.Name,
+		logger:        newLogger(args),
+		schemaVersion: SchemaV1,
+		mode:          modeOriginal,
+	}
+	ac.rollbackTimeout = resolveRollbackTimeout(args.RollbackTimeout)
+	ac.caseSensitive = args.CaseSensitive
+	ac.selfInvalidationCleanupInterval = defaultSelfInvalidationCleanupInterval
+	ac.ctx, ac.cancel = context.WithCancel(context.Background()) //nolint:gosec // G118: storing cancel func is intentional for lifecycle management
+	ac.ops = ac.newV1Ops()
+
+	if err := ac.init(); err != nil {
+		ac.cancel()
+		_ = ac.storage.Close()
+		return nil, err
+	}
+
+	ac.closeFn = ac.storage.Close
+	return ac, nil
+}
+
 // SchemaVersion returns the current schema version used by the AhoCorasick instance.
 // Returns SchemaV1 (1) for legacy schema or SchemaV2 (2) for the optimized schema.
 func (ac *AhoCorasick) SchemaVersion() int {
@@ -494,7 +559,7 @@ func (ac *AhoCorasick) init() error {
 	}
 
 	prefixKey := prefixKey(ac.name)
-	member := &Z{
+	member := &kvstore.Z{
 		Score:  initScore,
 		Member: "",
 	}

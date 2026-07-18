@@ -8,7 +8,9 @@ import (
 	"strings"
 	"time"
 
+	matchengine "github.com/skyoo2003/acor/internal/engine"
 	"github.com/skyoo2003/acor/internal/pkg/utils"
+	kvstore "github.com/skyoo2003/acor/internal/storage"
 )
 
 const redisBackedMaxRetries = 3
@@ -126,7 +128,7 @@ func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, v2 *redisBa
 
 	ac.mu.Lock()
 	ac.keywordSet[keyword] = struct{}{}
-	ac.engine.buildFromKeywords(ac.keywordSet)
+	ac.engine.Build(ac.keywordSet)
 	ac.localVersion = newVersion
 	ac.stale = false
 	ac.mu.Unlock()
@@ -256,7 +258,7 @@ func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, v2 *redi
 
 	ac.mu.Lock()
 	delete(ac.keywordSet, keyword)
-	ac.engine.buildFromKeywords(ac.keywordSet)
+	ac.engine.Build(ac.keywordSet)
 	ac.localVersion = newVersion
 	ac.stale = false
 	ac.mu.Unlock()
@@ -278,7 +280,7 @@ func (ac *redisBackedAC) Find(ctx context.Context, text string) ([]string, error
 
 	ac.mu.RLock()
 	defer ac.mu.RUnlock()
-	return ac.engine.find(text), nil
+	return ac.engine.Find(text), nil
 }
 
 // FindIndex searches the text for all keywords and returns their start indices.
@@ -294,12 +296,12 @@ func (ac *redisBackedAC) FindIndex(ctx context.Context, text string) (map[string
 
 	ac.mu.RLock()
 	defer ac.mu.RUnlock()
-	return ac.engine.findIndex(text), nil
+	return ac.engine.FindIndex(text), nil
 }
 
 // Flush removes all keywords from the automaton.
 func (ac *redisBackedAC) Flush(ctx context.Context) error {
-	err := ac.storage.TxPipelined(ctx, func(pipe Pipeliner) error {
+	err := ac.storage.TxPipelined(ctx, func(pipe kvstore.Pipeliner) error {
 		tKey := trieKey(ac.name)
 		oKey := outputsKey(ac.name)
 		nKey := nodesKey(ac.name)
@@ -322,7 +324,7 @@ func (ac *redisBackedAC) Flush(ctx context.Context) error {
 
 	ac.mu.Lock()
 	ac.keywordSet = make(map[string]struct{})
-	ac.engine.buildFromKeywords(ac.keywordSet)
+	ac.engine.Build(ac.keywordSet)
 	ac.stale = false
 	ac.mu.Unlock()
 
@@ -331,10 +333,10 @@ func (ac *redisBackedAC) Flush(ctx context.Context) error {
 }
 
 // Info returns statistics about the local automaton state.
-func (ac *redisBackedAC) Info(ctx context.Context) (*InMemoryInfo, error) {
+func (ac *redisBackedAC) Info(ctx context.Context) (*matchengine.InMemoryInfo, error) {
 	ac.mu.RLock()
 	defer ac.mu.RUnlock()
-	return ac.engine.info(), nil
+	return ac.engine.Info(), nil
 }
 
 // computeRBOutputs returns all keywords that are suffixes of the given state.

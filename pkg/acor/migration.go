@@ -88,6 +88,9 @@ func (ac *AhoCorasick) releaseMigrationLock() error {
 //	}
 //	fmt.Printf("Migrated %d keywords in %dms\n", result.Keywords, result.DurationMs)
 func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, error) { //nolint:gocyclo,funlen // Complex migration logic with multiple stages
+	if ac.redisClient == nil {
+		return nil, ErrMigrationRequiresRedis
+	}
 	if opts == nil {
 		opts = DefaultMigrationOptions()
 	}
@@ -343,6 +346,9 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 // Note: This deletes V2 keys and switches the instance to use V1 operations.
 // Any keywords added after migration to V2 will be lost.
 func (ac *AhoCorasick) RollbackToV1() error {
+	if ac.redisClient == nil {
+		return ErrMigrationRequiresRedis
+	}
 	v1Exists, err := ac.redisClient.Exists(ac.ctx, keywordKey(ac.name)).Result()
 	if err != nil {
 		return fmt.Errorf("failed to check V1 keys: %w", err)

@@ -10,6 +10,7 @@ import (
 	redis "github.com/go-redis/redis/v8"
 
 	"github.com/skyoo2003/acor/internal/pkg/utils"
+	kvstore "github.com/skyoo2003/acor/internal/storage"
 )
 
 func (ac *AhoCorasick) buildTrie(keyword string) error {
@@ -88,9 +89,9 @@ func (ac *AhoCorasick) buildTrieWithContext(ctx context.Context, keyword string)
 		_, err := ac.storage.ZScore(ctx, pKey, prefix)
 		if err == redis.Nil {
 			sKey := suffixKey(ac.name)
-			pMember := &Z{Score: memberScore, Member: prefix}
-			sMember := &Z{Score: memberScore, Member: suffix}
-			if pipeErr := ac.storage.TxPipelined(ctx, func(pipe Pipeliner) error {
+			pMember := &kvstore.Z{Score: memberScore, Member: prefix}
+			sMember := &kvstore.Z{Score: memberScore, Member: suffix}
+			if pipeErr := ac.storage.TxPipelined(ctx, func(pipe kvstore.Pipeliner) error {
 				_ = pipe.ZAdd(ctx, pKey, pMember)
 				_ = pipe.ZAdd(ctx, sKey, sMember)
 				return nil
@@ -195,7 +196,7 @@ func (ac *AhoCorasick) buildOutputWithContext(ctx context.Context, state string)
 		for i, v := range outputs {
 			args[i] = v
 		}
-		if pipeErr := ac.storage.TxPipelined(ctx, func(pipe Pipeliner) error {
+		if pipeErr := ac.storage.TxPipelined(ctx, func(pipe kvstore.Pipeliner) error {
 			_ = pipe.SAdd(ctx, oKey, args...)
 			for _, output := range outputs {
 				nKey := nodeKey(ac.name, output)

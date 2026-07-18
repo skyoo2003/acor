@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	miniredis "github.com/alicebob/miniredis/v2"
+
+	matchengine "github.com/skyoo2003/acor/internal/engine"
 )
 
 const (
@@ -94,8 +96,8 @@ func BenchmarkEngineBuild(b *testing.B) {
 			b.Run(fmt.Sprintf("%s/%dkw", preset.String(), n/1000), func(b *testing.B) {
 				b.ResetTimer()
 				for range b.N {
-					eng := newMatchEngine(preset)
-					eng.buildFromKeywords(kwSet)
+					eng := matchengine.New(preset)
+					eng.Build(kwSet)
 				}
 			})
 		}

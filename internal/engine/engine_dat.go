@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package acor
+package engine
 
 // doubleArrayTrie implements a Double-Array Trie using base[] and check[] arrays.
 // Provides O(1) state transitions with near hash-map memory efficiency.
