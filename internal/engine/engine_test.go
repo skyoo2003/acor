@@ -67,7 +67,10 @@ func TestEngineResultInvariance(t *testing.T) {
 		{"empty-text", []string{"he", "she"}, ""},
 		{"no-match", []string{"abc", "xyz"}, "the quick brown fox"},
 		{"overlapping", []string{"he", "she", "his", "hers", "hello"}, "ushers say hello to his heroes"},
-		{"single-char", []string{"a", "b", "ab"}, "abracadabra"},
+		// Input must exit the "ab" state on an in-alphabet rune to exercise the
+		// Speed DFA's fail-fallback row; "abab" does, a text like "abracadabra"
+		// dodges it (always leaving "ab" via an out-of-alphabet rune).
+		{"single-char", []string{"a", "b", "ab"}, "abab"},
 		{"repeats", []string{"na"}, "bananana"},
 		{"multibyte-hangul", []string{"한국", "국어", "안녕"}, "안녕 한국어 공부"},
 		{"multibyte-emoji", []string{"🙂", "🙂🙂"}, "hi 🙂🙂 there 🙂"},

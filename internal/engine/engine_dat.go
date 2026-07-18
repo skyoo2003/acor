@@ -2,8 +2,6 @@
 
 package engine
 
-import "unicode/utf8"
-
 // doubleArrayTrie implements a Double-Array Trie using base[] and check[] arrays.
 // Provides O(1) state transitions with near hash-map memory efficiency.
 // Used by PresetBalanced and PresetUltimate.
@@ -11,19 +9,15 @@ import "unicode/utf8"
 // Position 0 is unused (sentinel); root is at position 1. This avoids the
 // ambiguity where check[pos]=0 could mean either "empty" or "parent is state 0".
 type doubleArrayTrie struct {
-	base    []int
-	check   []int
-	fail    []int
-	output  [][]string
-	depth   []int
-	size    int
-	cap     int
-	runeMap map[rune]int
-	// asciiCode is a direct-index fast path for the runeMap: for an ASCII rune r
-	// in the alphabet, asciiCode[r] = code+1 (0 means "not in alphabet"). ASCII is
-	// the common case, so this avoids a map hash on nearly every character.
-	asciiCode [128]int32
-	runes     []rune
+	base   []int
+	check  []int
+	fail   []int
+	output [][]string
+	depth  []int
+	size   int
+	cap    int
+	runes  []rune
+	alphabetCoder
 }
 
 const (
@@ -85,14 +79,7 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 		dat.runes = append(dat.runes, r)
 	}
 	sortRunes(dat.runes)
-	dat.runeMap = make(map[rune]int, len(dat.runes))
-	dat.asciiCode = [128]int32{}
-	for i, r := range dat.runes {
-		dat.runeMap[r] = i
-		if r < utf8.RuneSelf {
-			dat.asciiCode[r] = int32(i) + 1
-		}
-	}
+	dat.alphabetCoder.build(dat.runes)
 
 	tmpChildren := make(map[int]map[rune]int)
 	tmpOutput := make(map[int][]string)
@@ -138,14 +125,14 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 
 		codes := make([]int, 0, len(children))
 		for ch := range children {
-			codes = append(codes, dat.runeMap[ch])
+			codes = append(codes, dat.index[ch])
 		}
 
 		base := dat.findBase(codes)
 		dat.base[datPos[parent]] = base
 
 		for ch, childID := range children {
-			code := dat.runeMap[ch]
+			code := dat.index[ch]
 			pos := base + code
 			dat.ensureCapacity(pos + 1)
 
@@ -232,40 +219,19 @@ func (dat *doubleArrayTrie) computeFailLinks() {
 		state := queue[0]
 		queue = queue[1:]
 
-		for _, r := range dat.runes {
-			next := dat.gotoState(state, r)
+		for code := range dat.runes {
+			next := dat.gotoStateByCode(state, code)
 			if next == 0 {
 				continue
 			}
 			queue = append(queue, next)
 
-			f := dat.fail[state]
-			for f != datRootPos && dat.gotoState(f, r) == 0 {
-				f = dat.fail[f]
-			}
-			failState := dat.gotoState(f, r)
-			if failState == 0 {
-				failState = datRootPos
-			}
-			dat.fail[next] = failState
-
+			dat.fail[next] = dat.followFailByCode(dat.fail[state], code)
 			if len(dat.output[dat.fail[next]]) > 0 {
 				dat.output[next] = append(dat.output[next], dat.output[dat.fail[next]]...)
 			}
 		}
 	}
-}
-
-// code resolves a rune to its alphabet index via the ASCII fast path, falling
-// back to the runeMap for non-ASCII runes. ok is false if ch is not in the
-// alphabet.
-func (dat *doubleArrayTrie) code(ch rune) (int, bool) {
-	if ch < utf8.RuneSelf {
-		c := dat.asciiCode[ch]
-		return int(c) - 1, c != 0
-	}
-	c, ok := dat.runeMap[ch]
-	return c, ok
 }
 
 // gotoStateByCode is gotoState with the rune already resolved to its alphabet
