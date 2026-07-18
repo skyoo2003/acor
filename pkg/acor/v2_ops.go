@@ -13,8 +13,6 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-
-	kvstore "github.com/skyoo2003/acor/internal/storage"
 )
 
 // defaultSelfInvalidationCleanupInterval controls how often cleanupExpiredSelfInvalidations
@@ -34,7 +32,7 @@ var _ operations = (*v2Operations)(nil)
 // It holds all dependencies needed for V2 Aho-Corasick operations without
 // depending directly on the AhoCorasick struct.
 type v2Operations struct {
-	storage                         kvstore.KVStorage
+	storage                         KVStorage
 	client                          redis.UniversalClient
 	name                            string
 	cache                           *trieCache
@@ -133,7 +131,7 @@ func (o *v2Operations) remove(ctx context.Context, keyword string) (int, error) 
 }
 
 func (o *v2Operations) flush(ctx context.Context) error {
-	err := o.storage.TxPipelined(ctx, func(pipe kvstore.Pipeliner) error {
+	err := o.storage.TxPipelined(ctx, func(pipe Pipeliner) error {
 		tKey := trieKey(o.name)
 		oKey := outputsKey(o.name)
 		// nodesKey is only written during migration; including it here ensures a clean state.

@@ -9,18 +9,16 @@ import (
 
 	miniredis "github.com/alicebob/miniredis/v2"
 	redis "github.com/go-redis/redis/v8"
-
-	kvstore "github.com/skyoo2003/acor/internal/storage"
 )
 
 // newInjectedStorage returns a KVStorage passed through the public Storage
 // field (not the built-in wiring), backed by an isolated miniredis.
-func newInjectedStorage(t *testing.T) kvstore.KVStorage {
+func newInjectedStorage(t *testing.T) KVStorage {
 	t.Helper()
 	mr := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	return kvstore.NewRedisStorage(client)
+	return newRedisStorage(client)
 }
 
 func TestCustomStorageV1EndToEnd(t *testing.T) {

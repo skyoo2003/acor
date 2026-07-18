@@ -147,8 +147,6 @@ import (
 	"time"
 
 	redis "github.com/go-redis/redis/v8"
-
-	kvstore "github.com/skyoo2003/acor/internal/storage"
 )
 
 const (
@@ -298,7 +296,7 @@ type AhoCorasick struct {
 	cancel        context.CancelFunc
 	name          string
 	logger        Logger
-	storage       kvstore.KVStorage     // DI: all Redis ops go through this
+	storage       KVStorage             // DI: all Redis ops go through this
 	ops           operations            // Strategy: V1 or V2 implementation
 	redisClient   redis.UniversalClient // kept for migration.go (out of scope)
 	buildTrieHook func(string) error
@@ -309,7 +307,7 @@ type AhoCorasick struct {
 	caseSensitive                   bool
 
 	cache     *trieCache
-	pubsub    kvstore.Subscription
+	pubsub    Subscription
 	stopCh    chan struct{}
 	closeOnce sync.Once
 	mode      backendMode
@@ -559,7 +557,7 @@ func (ac *AhoCorasick) init() error {
 	}
 
 	prefixKey := prefixKey(ac.name)
-	member := &kvstore.Z{
+	member := &Z{
 		Score:  initScore,
 		Member: "",
 	}

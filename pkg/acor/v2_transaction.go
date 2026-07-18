@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/skyoo2003/acor/internal/pkg/utils"
-	kvstore "github.com/skyoo2003/acor/internal/storage"
 )
 
 // versionRandBytes is the number of random bytes used to extend version timestamps
@@ -49,7 +48,7 @@ type trieSnapshot struct {
 }
 
 // readTrieSnapshot loads and deserializes the trie hash from Redis.
-func readTrieSnapshot(ctx context.Context, storage kvstore.KVStorage, name string) (*trieSnapshot, error) {
+func readTrieSnapshot(ctx context.Context, storage KVStorage, name string) (*trieSnapshot, error) {
 	trieData, err := storage.HGetAll(ctx, trieKey(name))
 	if err != nil {
 		return nil, newRedisError("HGETALL", trieKey(name), err)

@@ -15,7 +15,6 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	matchengine "github.com/skyoo2003/acor/internal/engine"
-	kvstore "github.com/skyoo2003/acor/internal/storage"
 )
 
 // redisBackedAC is a Redis-backed Aho-Corasick automaton that combines the
@@ -32,7 +31,7 @@ type redisBackedAC struct {
 	caseSensitive bool
 	name          string
 
-	storage     kvstore.KVStorage
+	storage     KVStorage
 	redisClient redis.UniversalClient
 
 	keywordSet   map[string]struct{}
@@ -42,7 +41,7 @@ type redisBackedAC struct {
 	selfSkip      sync.Map
 	selfSkipCount uint64
 	reloadGroup   singleflight.Group
-	pubsub        kvstore.Subscription
+	pubsub        Subscription
 	stopCh        chan struct{}
 	ctx           context.Context
 	cancel        context.CancelFunc

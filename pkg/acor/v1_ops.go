@@ -11,8 +11,6 @@ import (
 	"time"
 
 	redis "github.com/go-redis/redis/v8"
-
-	kvstore "github.com/skyoo2003/acor/internal/storage"
 )
 
 // Compile-time check that v1Operations satisfies the operations interface.
@@ -24,7 +22,7 @@ var _ operations = (*v1Operations)(nil)
 // gotoNode, failNode, collectOutputs, appendMatchedIndexes) which are methods
 // on *AhoCorasick. This is a temporary bridge until trie.go is refactored in T15.
 type v1Operations struct {
-	storage         kvstore.KVStorage
+	storage         KVStorage
 	name            string
 	logger          Logger
 	ac              *AhoCorasick // for trie.go helper access (temporary, cleaned up in T15)

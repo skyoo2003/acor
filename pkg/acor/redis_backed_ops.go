@@ -10,7 +10,6 @@ import (
 
 	matchengine "github.com/skyoo2003/acor/internal/engine"
 	"github.com/skyoo2003/acor/internal/pkg/utils"
-	kvstore "github.com/skyoo2003/acor/internal/storage"
 )
 
 const redisBackedMaxRetries = 3
@@ -301,7 +300,7 @@ func (ac *redisBackedAC) FindIndex(ctx context.Context, text string) (map[string
 
 // Flush removes all keywords from the automaton.
 func (ac *redisBackedAC) Flush(ctx context.Context) error {
-	err := ac.storage.TxPipelined(ctx, func(pipe kvstore.Pipeliner) error {
+	err := ac.storage.TxPipelined(ctx, func(pipe Pipeliner) error {
 		tKey := trieKey(ac.name)
 		oKey := outputsKey(ac.name)
 		nKey := nodesKey(ac.name)
