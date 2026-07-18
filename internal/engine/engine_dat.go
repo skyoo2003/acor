@@ -290,10 +290,13 @@ func (dat *doubleArrayTrie) gotoState(state int, ch rune) int {
 }
 
 func (dat *doubleArrayTrie) followFailByCode(state, code int) int {
-	for state != datRootPos && dat.gotoStateByCode(state, code) == 0 {
-		state = dat.fail[state]
-	}
+	// Compute the transition once per visited state (loop condition + post-loop
+	// value share it) instead of twice, since this runs on the fail-walk hot path.
 	next := dat.gotoStateByCode(state, code)
+	for state != datRootPos && next == 0 {
+		state = dat.fail[state]
+		next = dat.gotoStateByCode(state, code)
+	}
 	if next == 0 {
 		next = datRootPos
 	}

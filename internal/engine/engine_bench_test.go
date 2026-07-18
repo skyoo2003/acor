@@ -50,6 +50,7 @@ func benchmarkEngine(b *testing.B, findIndex bool) {
 			for _, txt := range texts {
 				b.Run(fmt.Sprintf("%dkw/%s/%s", n, bp.name, txt.name), func(b *testing.B) {
 					b.ReportAllocs()
+					b.SetBytes(int64(len(txt.text)))
 					b.ResetTimer()
 					if findIndex {
 						for i := 0; i < b.N; i++ {
