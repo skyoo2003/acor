@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package acor
+package engine
 
 // Preset selects the architecture for the in-memory Aho-Corasick engine.
 // Each preset optimizes for a different trade-off between speed, memory, and

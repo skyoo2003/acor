@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package acor
+package engine
 
 // mapNode is a trie node using Go maps for children (sparse representation).
 type mapNode struct {

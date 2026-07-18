@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package acor_test
+// Command parallel demonstrates ACOR parallel matching: splitting a large text
+// across workers with FindParallel. Requires a Redis server on localhost:6379.
+package main
 
 import (
 	"fmt"
@@ -9,7 +11,7 @@ import (
 	"github.com/skyoo2003/acor/pkg/acor"
 )
 
-func Example_parallelMatching() {
+func main() {
 	ac, err := acor.Create(&acor.AhoCorasickArgs{
 		Addr: "localhost:6379",
 		Name: "example-parallel",

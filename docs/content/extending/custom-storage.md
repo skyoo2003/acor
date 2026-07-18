@@ -5,7 +5,7 @@ weight: 1
 
 # Custom Storage
 
-`KVStorage` abstracts ACOR's storage operations.
+`acor.KVStorage` abstracts ACOR's storage operations.
 
 > **Not yet pluggable.** `Create()` always builds ACOR's built-in Redis storage;
 > there is currently no public constructor that accepts a custom `KVStorage`.
@@ -53,10 +53,11 @@ type KVStorage interface {
 }
 ```
 
-The `Z`, `StringMapResult`, and `Subscription` types referenced above are
-defined alongside `KVStorage` in
-[`pkg/acor/interfaces.go`](https://github.com/skyoo2003/acor/blob/main/pkg/acor/interfaces.go)
-and documented in [Helper Types](#helper-types) below.
+The `Z`, `Pipeliner`, `StringMapResult`, `Subscription`, and `PubSubMessage`
+types referenced above are re-exported from the `acor` package (use
+`acor.KVStorage`, `acor.Z`, etc.). Their definitions live in
+[`internal/storage/interfaces.go`](https://github.com/skyoo2003/acor/blob/main/internal/storage/interfaces.go);
+they are documented in [Helper Types](#helper-types) below.
 
 ## Example: In-Memory Storage
 
@@ -185,7 +186,7 @@ type Pipeliner interface {
 ## Helper Types
 
 These types are referenced by `KVStorage` and `Pipeliner` and are defined in
-[`pkg/acor/interfaces.go`](https://github.com/skyoo2003/acor/blob/main/pkg/acor/interfaces.go).
+[`internal/storage/interfaces.go`](https://github.com/skyoo2003/acor/blob/main/internal/storage/interfaces.go).
 
 `Z` — a sorted set member (score + value):
 

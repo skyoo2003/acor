@@ -13,6 +13,8 @@ import (
 
 	redis "github.com/go-redis/redis/v8"
 	"golang.org/x/sync/singleflight"
+
+	matchengine "github.com/skyoo2003/acor/internal/engine"
 )
 
 // redisBackedAC is a Redis-backed Aho-Corasick automaton that combines the
@@ -24,7 +26,7 @@ import (
 // rebuilds its local automaton when another instance mutates the data.
 type redisBackedAC struct {
 	mu            sync.RWMutex
-	engine        matchEngine
+	engine        *matchengine.Engine
 	preset        Preset
 	caseSensitive bool
 	name          string
@@ -69,7 +71,7 @@ func newRedisBacked(ctx context.Context, args *AhoCorasickArgs) (*redisBackedAC,
 	acCtx, acCancel := context.WithCancel(ctx)
 
 	ac := &redisBackedAC{
-		engine:        newMatchEngine(preset),
+		engine:        matchengine.New(preset),
 		preset:        preset,
 		caseSensitive: args.CaseSensitive,
 		name:          args.Name,
@@ -145,7 +147,7 @@ func (ac *redisBackedAC) applyReload(snap *trieSnapshot) {
 		keywordSet[kw] = struct{}{}
 	}
 	ac.keywordSet = keywordSet
-	ac.engine.buildFromKeywords(keywordSet)
+	ac.engine.Build(keywordSet)
 	ac.localVersion = snap.Version
 	ac.stale = false
 }

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package acor_test
+// Command batch demonstrates ACOR batch operations: AddMany with transactional
+// semantics and FindMany across multiple texts. Requires a Redis server on
+// localhost:6379.
+package main
 
 import (
 	"fmt"
@@ -9,7 +12,7 @@ import (
 	"github.com/skyoo2003/acor/pkg/acor"
 )
 
-func Example_batchOperations() {
+func main() {
 	ac, err := acor.Create(&acor.AhoCorasickArgs{
 		Addr: "localhost:6379",
 		Name: "example-batch",

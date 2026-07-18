@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package acor
+package storage
 
 import (
 	"context"
@@ -20,7 +20,7 @@ func TestRedisStorageSetNX(t *testing.T) {
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer func() { _ = client.Close() }()
 
-	store := newRedisStorage(client)
+	store := NewRedisStorage(client)
 	ctx := context.Background()
 
 	t.Run("sets new key successfully", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestRedisPipelinerDel(t *testing.T) {
 
 	ctx := context.Background()
 
-	store := newRedisStorage(client)
+	store := NewRedisStorage(client)
 	if err := store.Set(ctx, "key1", "val1"); err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestRedisPipelinerHGetAll(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
-	store := newRedisStorage(client)
+	store := NewRedisStorage(client)
 
 	if err := store.HSet(ctx, "myhash", "field1", "value1", "field2", "value2"); err != nil {
 		t.Fatal(err)
@@ -153,7 +153,7 @@ func TestRedisPipelinerSAddAndHSet(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
-	store := newRedisStorage(client)
+	store := NewRedisStorage(client)
 
 	pipe := store.Pipeline()
 	if err := pipe.SAdd(ctx, "myset", "member1", "member2"); err != nil {
@@ -191,7 +191,7 @@ func TestRedisPipelinerZAdd(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
-	store := newRedisStorage(client)
+	store := NewRedisStorage(client)
 
 	pipe := store.Pipeline()
 	if err := pipe.ZAdd(ctx, "myzset", &Z{Score: 1.0, Member: "a"}, &Z{Score: 2.0, Member: "b"}); err != nil {
@@ -218,7 +218,7 @@ func TestRedisStorageTxPipelined(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
-	store := newRedisStorage(client)
+	store := NewRedisStorage(client)
 
 	err := store.TxPipelined(ctx, func(pipe Pipeliner) error {
 		if err := pipe.SAdd(ctx, "txset", "a", "b"); err != nil {
@@ -258,7 +258,7 @@ func TestRedisStorageExists(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
-	store := newRedisStorage(client)
+	store := NewRedisStorage(client)
 
 	count, err := store.Exists(ctx, "key1", "key2")
 	if err != nil {
@@ -269,7 +269,7 @@ func TestRedisStorageExists(t *testing.T) {
 	}
 
 	if setErr := store.Set(ctx, "key1", "val"); setErr != nil {
-		t.Fatal(err)
+		t.Fatal(setErr)
 	}
 
 	count, err = store.Exists(ctx, "key1", "key2")
@@ -289,7 +289,7 @@ func TestRedisStorageSCardAndSIsMember(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
-	store := newRedisStorage(client)
+	store := NewRedisStorage(client)
 
 	if err := store.SAdd(ctx, "myset", "a", "b", "c"); err != nil {
 		t.Fatal(err)
@@ -328,7 +328,7 @@ func TestRedisStorageSRem(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
-	store := newRedisStorage(client)
+	store := NewRedisStorage(client)
 
 	if err := store.SAdd(ctx, "myset", "a", "b", "c"); err != nil {
 		t.Fatal(err)
@@ -354,7 +354,7 @@ func TestRedisStorageZOperations(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
-	store := newRedisStorage(client)
+	store := NewRedisStorage(client)
 
 	if err := store.ZAdd(ctx, "zset", &Z{Score: 1.0, Member: "a"}, &Z{Score: 2.0, Member: "b"}); err != nil {
 		t.Fatal(err)
@@ -385,7 +385,7 @@ func TestRedisStorageZOperations(t *testing.T) {
 	}
 
 	if remErr := store.ZRem(ctx, "zset", "a"); remErr != nil {
-		t.Fatal(err)
+		t.Fatal(remErr)
 	}
 
 	members, err := store.ZRange(ctx, "zset", 0, -1)
@@ -405,7 +405,7 @@ func TestRedisStoragePublish(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
-	store := newRedisStorage(client)
+	store := NewRedisStorage(client)
 
 	err := store.Publish(ctx, "test-channel", "hello")
 	if err != nil {
