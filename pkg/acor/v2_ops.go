@@ -60,10 +60,10 @@ func (o *v2Operations) find(ctx context.Context, text string) ([]string, error) 
 		return nil, err
 	}
 
-	// The match runs fully in memory; honor an already-cancelled/expired ctx
+	// The match runs fully in memory; honor an already-canceled/expired ctx
 	// before spending cycles on it (a cache hit skips the ctx-aware Redis load).
 	// ponytail: boundary check only, not mid-match. Thread ctx into the engine
-	// with per-char checks if cancelling in-flight matches on huge texts matters.
+	// with per-char checks if canceling in-flight matches on huge texts matters.
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (o *v2Operations) findIndex(ctx context.Context, text string) (map[string][
 		return nil, err
 	}
 
-	// See find: honor an already-cancelled/expired ctx before the in-memory match.
+	// See find: honor an already-canceled/expired ctx before the in-memory match.
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
