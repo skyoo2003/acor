@@ -2,14 +2,14 @@
 
 package engine
 
+import "unicode/utf8"
+
 // bandedDFA wraps a Double-Array Trie with precomputed DFA transitions for
 // states at shallow depth (band). States beyond the band use standard NFA.
 type bandedDFA struct {
 	dat       *doubleArrayTrie
 	dfaBand   [][]int
 	bandDepth int
-	runeMap   map[rune]int
-	runes     []rune
 }
 
 // Compile-time check that balancedEngine satisfies matchEngine.
@@ -46,8 +46,6 @@ func newUltimateEngine(bandDepth int) *balancedEngine {
 
 func (e *balancedEngine) buildFromKeywords(keywords map[string]struct{}) {
 	e.banded.dat.buildFromKeywords(keywords)
-	e.banded.runeMap = e.banded.dat.runeMap
-	e.banded.runes = e.banded.dat.runes
 	e.banded.buildDFABand()
 
 	if e.preset == PresetUltimate {
@@ -104,19 +102,19 @@ func (e *balancedEngine) find(text string) []string {
 			continue
 		}
 
-		ai, ok := e.banded.runeMap[ch]
+		code, ok := e.banded.dat.code(ch)
 		if !ok {
 			state = datRootPos
 			continue
 		}
 
 		if e.banded.dfaBand[state] != nil {
-			state = e.banded.dfaBand[state][ai]
+			state = e.banded.dfaBand[state][code]
 		} else {
-			if next := e.banded.dat.gotoState(state, ch); next != 0 {
+			if next := e.banded.dat.gotoStateByCode(state, code); next != 0 {
 				state = next
 			} else {
-				state = e.banded.dat.followFail(state, ch)
+				state = e.banded.dat.followFailByCode(state, code)
 			}
 		}
 		if state == 0 {
@@ -146,7 +144,7 @@ func (e *balancedEngine) findIndex(text string) map[string][]int {
 			continue
 		}
 
-		ai, ok := e.banded.runeMap[ch]
+		code, ok := e.banded.dat.code(ch)
 		if !ok {
 			state = datRootPos
 			runeIndex++
@@ -154,12 +152,12 @@ func (e *balancedEngine) findIndex(text string) map[string][]int {
 		}
 
 		if e.banded.dfaBand[state] != nil {
-			state = e.banded.dfaBand[state][ai]
+			state = e.banded.dfaBand[state][code]
 		} else {
-			if next := e.banded.dat.gotoState(state, ch); next != 0 {
+			if next := e.banded.dat.gotoStateByCode(state, code); next != 0 {
 				state = next
 			} else {
-				state = e.banded.dat.followFail(state, ch)
+				state = e.banded.dat.followFailByCode(state, code)
 			}
 		}
 		if state == 0 {
@@ -169,7 +167,7 @@ func (e *balancedEngine) findIndex(text string) map[string][]int {
 		runeIndex++
 		if state < len(e.banded.dat.output) {
 			for _, out := range e.banded.dat.output[state] {
-				startIdx := runeIndex - len([]rune(out))
+				startIdx := runeIndex - utf8.RuneCountInString(out)
 				matched[out] = append(matched[out], startIdx)
 			}
 		}

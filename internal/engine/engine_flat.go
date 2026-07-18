@@ -2,7 +2,10 @@
 
 package engine
 
-import "sort"
+import (
+	"sort"
+	"unicode/utf8"
+)
 
 // flatNode is a trie node using a map for goto transitions (flat array pool).
 type flatNode struct {
@@ -22,8 +25,23 @@ type speedEngine struct {
 	outputMap [][]string // [state] -> matched keywords
 	alphabet  []rune     // sorted unique runes from all keywords
 	alphaMap  map[rune]int
+	// asciiCode is a direct-index fast path for alphaMap: for an ASCII rune r in
+	// the alphabet, asciiCode[r] = index+1 (0 means "not in alphabet"), avoiding
+	// a map hash on nearly every character.
+	asciiCode [128]int32
 	numStates int
 	preset    Preset
+}
+
+// code resolves a rune to its alphabet index via the ASCII fast path, falling
+// back to alphaMap for non-ASCII runes. ok is false if ch is not in the alphabet.
+func (e *speedEngine) code(ch rune) (int, bool) {
+	if ch < utf8.RuneSelf {
+		c := e.asciiCode[ch]
+		return int(c) - 1, c != 0
+	}
+	c, ok := e.alphaMap[ch]
+	return c, ok
 }
 
 func newSpeedEngine() *speedEngine {
@@ -50,8 +68,12 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 	}
 	sortRunes(e.alphabet)
 	e.alphaMap = make(map[rune]int, len(e.alphabet))
+	e.asciiCode = [128]int32{}
 	for i, r := range e.alphabet {
 		e.alphaMap[r] = i
+		if r < utf8.RuneSelf {
+			e.asciiCode[r] = int32(i) + 1
+		}
 	}
 
 	nodes := []flatNode{
@@ -112,10 +134,13 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 			child := pair.child
 			queue = append(queue, child)
 
+			// Walk failure links to the deepest state that has a `ch` child, then
+			// apply goto(fail, ch) exactly once below. Assigning inside the loop
+			// and re-applying after would double-apply goto and can point a state's
+			// fail link at itself (e.g. keywords {a,aa,aaa}), corrupting the DFA.
 			fail := nodes[state].fail
 			for fail != 0 {
-				if next, ok := nodes[fail].gotoMap[ch]; ok {
-					fail = next
+				if _, ok := nodes[fail].gotoMap[ch]; ok {
 					break
 				}
 				fail = nodes[fail].fail
@@ -167,7 +192,7 @@ func (e *speedEngine) find(text string) []string {
 	state := 0
 
 	for _, ch := range text {
-		ai, ok := e.alphaMap[ch]
+		ai, ok := e.code(ch)
 		if !ok {
 			state = 0
 			continue
@@ -191,7 +216,7 @@ func (e *speedEngine) findIndex(text string) map[string][]int {
 	runeIndex := 0
 
 	for _, ch := range text {
-		ai, ok := e.alphaMap[ch]
+		ai, ok := e.code(ch)
 		if !ok {
 			state = 0
 			runeIndex++
@@ -200,7 +225,7 @@ func (e *speedEngine) findIndex(text string) map[string][]int {
 		state = e.dfa[state][ai]
 		runeIndex++
 		for _, out := range e.outputMap[state] {
-			startIdx := runeIndex - len([]rune(out))
+			startIdx := runeIndex - utf8.RuneCountInString(out)
 			matched[out] = append(matched[out], startIdx)
 		}
 	}

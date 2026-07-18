@@ -2,6 +2,8 @@
 
 package engine
 
+import "unicode/utf8"
+
 // mapNode is a trie node using Go maps for children (sparse representation).
 type mapNode struct {
 	children map[rune]int
@@ -70,10 +72,14 @@ func (e *memEfficientEngine) buildFromKeywords(keywords map[string]struct{}) {
 		for ch, child := range trie.nodes[entry.state].children {
 			queue = append(queue, queueEntry{ch, child})
 
+			// Walk failure links to the deepest state that has a `ch` child, then
+			// apply goto(fail, ch) exactly once below. Assigning inside the loop
+			// and re-applying after would double-apply goto and can point a state's
+			// fail link at itself (e.g. keywords {a,aa,aaa}), causing find to loop
+			// forever following that self-referential fail link.
 			fail := trie.nodes[entry.state].fail
 			for fail != 0 {
-				if next, ok := trie.nodes[fail].children[ch]; ok {
-					fail = next
+				if _, ok := trie.nodes[fail].children[ch]; ok {
 					break
 				}
 				fail = trie.nodes[fail].fail
@@ -153,7 +159,7 @@ func (e *memEfficientEngine) findIndex(text string) map[string][]int {
 
 		runeIndex++
 		for _, out := range e.trie.nodes[state].output {
-			startIdx := runeIndex - len([]rune(out))
+			startIdx := runeIndex - utf8.RuneCountInString(out)
 			matched[out] = append(matched[out], startIdx)
 		}
 	}
