@@ -60,10 +60,7 @@ func (o *v2Operations) find(ctx context.Context, text string) ([]string, error) 
 		return nil, err
 	}
 
-	// The match runs fully in memory; honor an already-canceled/expired ctx
-	// before spending cycles on it (a cache hit skips the ctx-aware Redis load).
-	// The check is at the match boundary only: Find is a linear in-memory scan,
-	// so mid-match cancellation isn't worth threading ctx through the engine.
+	// Honor a canceled ctx at the match boundary; the in-memory scan itself isn't ctx-threaded.
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
