@@ -7,6 +7,8 @@ weight: 4
 
 The preset-optimized Redis mode (enabled via `Preset` on `AhoCorasickArgs`) combines Redis persistence with a local preset-optimized automaton. Redis is the source of truth; reads hit the local engine with no Redis I/O on the hot path.
 
+> **Redis or Valkey:** ACOR connects with [go-redis v9](https://github.com/redis/go-redis) over the standard RESP protocol, so any Redis (>= 3.0) or Valkey (>= 7.2) server works, including Standalone, Sentinel, Cluster, and Ring topologies. Cross-instance cache invalidation uses server Pub/Sub, which behaves identically on Redis and Valkey. Both are covered by the integration test suite in CI.
+
 ## When to Use
 
 - Distributed deployments across multiple instances

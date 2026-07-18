@@ -5,6 +5,8 @@ package acor
 import (
 	"sync"
 	"time"
+
+	matchengine "github.com/skyoo2003/acor/internal/engine"
 )
 
 // pendingSelfInvalidationTTL limits how long a self-skip entry lives.
@@ -14,13 +16,10 @@ import (
 const pendingSelfInvalidationTTL = 30 * time.Second
 
 type trieCache struct {
-	mu            sync.RWMutex
-	loadMu        sync.Mutex
-	prefixes      []string
-	prefixSet     map[string]struct{}
-	outputs       map[string][]string
-	outputRuneLen map[string]int
-	valid         bool
+	mu     sync.RWMutex
+	loadMu sync.Mutex
+	engine *matchengine.Engine
+	valid  bool
 	// pendingSelfInvalidations holds self-published message IDs so the listener
 	// can skip cache invalidation already performed by the local publisher.
 	// sync.Map is used for lock-free access by concurrent publisher/listener goroutines.
@@ -72,30 +71,21 @@ func cleanupExpiredSelfInvalidations(c *trieCache) {
 	})
 }
 
-func cloneOutputs(in map[string][]string) map[string][]string {
-	if in == nil {
-		return nil
-	}
-	out := make(map[string][]string, len(in))
-	for k, v := range in {
-		out[k] = append([]string(nil), v...)
-	}
-	return out
-}
-
-// buildOutputRuneLen scans all output strings and returns a map from each
-// unique output to its rune length. This avoids repeated []rune allocations
-// in the findIndex hot loop.
-func buildOutputRuneLen(outputs map[string][]string) map[string]int {
-	m := make(map[string]int)
+// buildEngineFromOutputs builds a local Aho-Corasick match engine from the V2
+// outputs map. In an Aho-Corasick automaton every keyword has its own terminal
+// state whose output list contains that keyword, so the union of all output
+// values is exactly the keyword set. PresetBalanced matches the redis-backed
+// engine's default (DAT + banded DFA).
+func buildEngineFromOutputs(outputs map[string][]string) *matchengine.Engine {
+	keywords := make(map[string]struct{})
 	for _, outs := range outputs {
-		for _, out := range outs {
-			if _, exists := m[out]; !exists {
-				m[out] = len([]rune(out))
-			}
+		for _, kw := range outs {
+			keywords[kw] = struct{}{}
 		}
 	}
-	return m
+	engine := matchengine.New(PresetBalanced)
+	engine.Build(keywords)
+	return engine
 }
 
 func (c *trieCache) invalidate() {
@@ -104,44 +94,18 @@ func (c *trieCache) invalidate() {
 	c.valid = false
 }
 
-func (c *trieCache) set(prefixes []string, outputs map[string][]string) {
+func (c *trieCache) set(outputs map[string][]string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.prefixes = append([]string(nil), prefixes...)
-	c.outputs = cloneOutputs(outputs)
-	c.prefixSet = make(map[string]struct{}, len(prefixes))
-	for _, p := range prefixes {
-		c.prefixSet[p] = struct{}{}
-	}
-	c.outputRuneLen = buildOutputRuneLen(outputs)
+	c.engine = buildEngineFromOutputs(outputs)
 	c.valid = true
 }
 
-func (c *trieCache) get() (prefixes []string, outputs map[string][]string, valid bool) {
+// getEngine returns the cached match engine and whether the cache is valid.
+// The engine is immutable after set() (replaced atomically on reload), so the
+// caller may use the returned engine concurrently without additional locking.
+func (c *trieCache) getEngine() (*matchengine.Engine, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return append([]string(nil), c.prefixes...), cloneOutputs(c.outputs), c.valid
-}
-
-// getPrefixSet returns the cached prefix set for O(1) lookups.
-// The caller MUST NOT mutate the returned map — it is shared across goroutines
-// and replaced atomically by set(). Any mutation will cause data races or
-// cache corruption. The map is safe to read concurrently.
-//
-// Unlike get() which returns defensive copies of prefixes and outputs, this
-// returns the internal map directly for performance (called in the find hot loop).
-// This is safe because all current callers only read from the returned map.
-func (c *trieCache) getPrefixSet() map[string]struct{} {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.prefixSet
-}
-
-// getOutputRuneLen returns a map from each unique output string to its rune length.
-// Like getPrefixSet, the caller MUST NOT mutate the returned map. Returns the
-// internal map directly for performance (called in the findIndex hot loop).
-func (c *trieCache) getOutputRuneLen() map[string]int {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.outputRuneLen
+	return c.engine, c.valid
 }

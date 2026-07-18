@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	redis "github.com/go-redis/redis/v8"
+	redis "github.com/redis/go-redis/v9"
 )
 
 const testMigrationLockKey = "{test}:migration_lock"
@@ -98,7 +98,7 @@ func TestMigrationInProgress(t *testing.T) {
 
 	// Seed V1 data so migration doesn't fail for other reasons
 	client.SAdd(context.Background(), "{test}:keyword", "he")
-	client.ZAdd(context.Background(), "{test}:prefix", &redis.Z{Score: 0, Member: ""})
+	client.ZAdd(context.Background(), "{test}:prefix", redis.Z{Score: 0, Member: ""})
 
 	// Acquire the migration lock with a separate client to simulate another process
 	lockKey := "{test}:migration_lock"

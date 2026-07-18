@@ -9,7 +9,7 @@ import (
 	"log"
 	"testing"
 
-	redis "github.com/go-redis/redis/v8"
+	redis "github.com/redis/go-redis/v9"
 )
 
 func setupV1WithError(t *testing.T) *AhoCorasick {
@@ -22,7 +22,7 @@ func setupV1WithError(t *testing.T) *AhoCorasick {
 	if err := client.SAdd(context.Background(), keywordKey("test"), "he", "she").Err(); err != nil {
 		t.Fatalf("failed to seed keywords: %v", err)
 	}
-	if err := client.ZAdd(context.Background(), prefixKey("test"), &redis.Z{Score: 0, Member: "h"}, &redis.Z{Score: 1, Member: "s"}).Err(); err != nil {
+	if err := client.ZAdd(context.Background(), prefixKey("test"), redis.Z{Score: 0, Member: "h"}, redis.Z{Score: 1, Member: "s"}).Err(); err != nil {
 		t.Fatalf("failed to seed prefixes: %v", err)
 	}
 	if err := client.SAdd(context.Background(), nodeKey("test", "he"), "he").Err(); err != nil {

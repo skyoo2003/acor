@@ -1,0 +1,5 @@
+kind: Added
+body: 'First-class Valkey support: documented Valkey/Redis compatibility, an opt-in real-server integration suite (ACOR_INTEGRATION_ADDR), and a CI job validating against both redis and valkey service containers'
+time: 2026-07-18T08:34:19.439963+09:00
+custom:
+    Issue: "150"

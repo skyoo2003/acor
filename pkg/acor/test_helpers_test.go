@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	miniredis "github.com/alicebob/miniredis/v2"
-	redis "github.com/go-redis/redis/v8"
+	redis "github.com/redis/go-redis/v9"
 )
 
 type redisNoopLogger struct{}
@@ -70,7 +70,7 @@ func createAhoCorasickV1(t *testing.T) (*AhoCorasick, *miniredis.Miniredis) {
 
 	mr := createTestRedisServer(t)
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	if err := client.ZAdd(context.Background(), "{test}:prefix", &redis.Z{Score: 0, Member: ""}).Err(); err != nil {
+	if err := client.ZAdd(context.Background(), "{test}:prefix", redis.Z{Score: 0, Member: ""}).Err(); err != nil {
 		mr.Close()
 		t.Fatalf("failed to seed V1 prefix data: %v", err)
 	}

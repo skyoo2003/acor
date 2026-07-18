@@ -99,3 +99,38 @@ jobs:
         run: make build
       - name: Verify documentation examples compile
         run: make docs-verify
+
+  integration:
+    name: Integration (${{ matrix.server }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - server: redis
+            image: redis:8
+            ping: redis-cli ping
+          - server: valkey
+            image: valkey/valkey:8
+            ping: valkey-cli ping
+    services:
+      backend:
+        image: ${{ matrix.image }}
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "${{ matrix.ping }}"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # checkout v7
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # setup-go v6
+        with:
+          go-version: "1.26"
+          cache-dependency-path: go.sum
+      - name: Run integration tests against ${{ matrix.server }}
+        env:
+          ACOR_INTEGRATION_ADDR: localhost:6379
+        run: go test -race -run Integration -count=1 -v ./pkg/acor

@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	redis "github.com/go-redis/redis/v8"
+	redis "github.com/redis/go-redis/v9"
 )
 
 // TestInfoWithSchemaVersion merges TestV1Info and TestV2Info into
@@ -127,7 +127,7 @@ func TestV1V2Compatibility(t *testing.T) {
 	}
 
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	if err := client.ZAdd(context.Background(), "{v1test}:prefix", &redis.Z{Score: 0, Member: ""}).Err(); err != nil {
+	if err := client.ZAdd(context.Background(), "{v1test}:prefix", redis.Z{Score: 0, Member: ""}).Err(); err != nil {
 		t.Fatalf("failed to seed V1 prefix: %v", err)
 	}
 	if err := client.Close(); err != nil {

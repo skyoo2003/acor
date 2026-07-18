@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 type redisStorage struct {
@@ -56,9 +56,9 @@ func (s *redisStorage) SIsMember(ctx context.Context, key, member string) (bool,
 }
 
 func (s *redisStorage) ZAdd(ctx context.Context, key string, members ...*Z) error {
-	zMembers := make([]*redis.Z, len(members))
+	zMembers := make([]redis.Z, len(members))
 	for i, m := range members {
-		zMembers[i] = &redis.Z{Score: m.Score, Member: m.Member}
+		zMembers[i] = redis.Z{Score: m.Score, Member: m.Member}
 	}
 	return s.client.ZAdd(ctx, key, zMembers...).Err()
 }
@@ -119,7 +119,7 @@ func (s *redisStorage) Close() error {
 }
 
 type redisStringMapResult struct {
-	cmd *redis.StringStringMapCmd
+	cmd *redis.MapStringStringCmd
 }
 
 func (r *redisStringMapResult) Val() map[string]string {
@@ -191,9 +191,9 @@ func (p *redisPipeliner) HSet(ctx context.Context, key string, values ...interfa
 }
 
 func (p *redisPipeliner) ZAdd(ctx context.Context, key string, members ...*Z) error {
-	zMembers := make([]*redis.Z, len(members))
+	zMembers := make([]redis.Z, len(members))
 	for i, m := range members {
-		zMembers[i] = &redis.Z{Score: m.Score, Member: m.Member}
+		zMembers[i] = redis.Z{Score: m.Score, Member: m.Member}
 	}
 	return p.pipe.ZAdd(ctx, key, zMembers...).Err()
 }

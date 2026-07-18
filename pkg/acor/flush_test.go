@@ -38,7 +38,7 @@ func TestCache_FlushInvalidatesCache(t *testing.T) {
 	if _, findErr := ac.Find("hello world"); findErr != nil {
 		t.Fatal(findErr)
 	}
-	_, _, valid := ac.cache.get()
+	_, valid := ac.cache.getEngine()
 	if !valid {
 		t.Fatal("expected cache to be valid after Find")
 	}
@@ -47,7 +47,7 @@ func TestCache_FlushInvalidatesCache(t *testing.T) {
 		t.Fatal(flushErr)
 	}
 
-	_, _, valid = ac.cache.get()
+	_, valid = ac.cache.getEngine()
 	if valid {
 		t.Error("expected cache to be invalidated after Flush")
 	}

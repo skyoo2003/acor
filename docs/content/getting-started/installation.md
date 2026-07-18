@@ -8,7 +8,9 @@ weight: 1
 ## Prerequisites
 
 - **Go**: Version 1.25 or later
-- **Redis**: Version 3.0 or later
+- **Redis**: Version 3.0 or later, **or Valkey**: Version 7.2 or later
+
+ACOR uses the standard RESP protocol via [go-redis v9](https://github.com/redis/go-redis) and works with any Redis- or Valkey-compatible server. RESP3 is negotiated on connect and falls back to RESP2 automatically on servers that predate the `HELLO` command.
 
 ## Install the Package
 

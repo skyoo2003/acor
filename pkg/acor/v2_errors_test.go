@@ -9,7 +9,7 @@ import (
 	"log"
 	"testing"
 
-	redis "github.com/go-redis/redis/v8"
+	redis "github.com/redis/go-redis/v9"
 )
 
 func setupV2WithError(t *testing.T) *AhoCorasick {

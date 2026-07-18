@@ -3,7 +3,7 @@
 package acor
 
 import (
-	redis "github.com/go-redis/redis/v8"
+	redis "github.com/redis/go-redis/v9"
 
 	kvstore "github.com/skyoo2003/acor/internal/storage"
 )

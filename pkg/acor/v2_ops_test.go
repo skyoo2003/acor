@@ -8,7 +8,7 @@ import (
 	"log"
 	"testing"
 
-	redis "github.com/go-redis/redis/v8"
+	redis "github.com/redis/go-redis/v9"
 )
 
 func TestV2Find(t *testing.T) {
