@@ -29,7 +29,7 @@ func TestPubSub_Invalidate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, _, valid := ac1.cache.get(); !valid {
+	if _, valid := ac1.cache.getEngine(); !valid {
 		t.Fatal("expected cache to be valid after Find()")
 	}
 
@@ -47,12 +47,10 @@ func TestPubSub_Invalidate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		if _, _, valid := ac1.cache.get(); !valid {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
+	if !eventually(t, time.Second, func() bool {
+		_, valid := ac1.cache.getEngine()
+		return !valid
+	}) {
+		t.Error("expected ac1 cache to be invalidated after ac2.Add()")
 	}
-	t.Error("expected ac1 cache to be invalidated after ac2.Add()")
 }

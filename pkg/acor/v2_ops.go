@@ -285,11 +285,11 @@ func (o *v2Operations) fetchTrieData(ctx context.Context) (prefixes []string, ou
 
 // loadCache fetches trie data and populates the cache.
 func (o *v2Operations) loadCache(ctx context.Context) error {
-	prefixes, outputs, err := o.fetchTrieData(ctx)
+	_, outputs, err := o.fetchTrieData(ctx)
 	if err != nil {
 		return err
 	}
-	o.cache.set(prefixes, outputs)
+	o.cache.set(outputs)
 	return nil
 }
 

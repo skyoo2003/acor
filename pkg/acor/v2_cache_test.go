@@ -49,7 +49,7 @@ func TestV2PublishInvalidate(t *testing.T) {
 	defer mr.Close()
 
 	cache := &trieCache{}
-	cache.set([]string{"a"}, map[string][]string{"a": {"a"}})
+	cache.set(map[string][]string{"a": {"a"}})
 
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer func() { _ = client.Close() }()
@@ -64,7 +64,7 @@ func TestV2PublishInvalidate(t *testing.T) {
 
 	ops.publishInvalidate(context.Background())
 
-	_, _, valid := cache.get()
+	_, valid := cache.getEngine()
 	if valid {
 		t.Error("cache should be invalid after publishInvalidate")
 	}
@@ -136,21 +136,18 @@ func TestV2LoadCache(t *testing.T) {
 		t.Fatalf("loadCache() error: %v", err)
 	}
 
-	prefixes, outputs, valid := cache.get()
+	engine, valid := cache.getEngine()
 	if !valid {
 		t.Fatal("cache should be valid after loadCache")
 	}
-	if len(prefixes) != 3 {
-		t.Errorf("len(prefixes) = %d, want 3", len(prefixes))
-	}
-	if len(outputs) != 1 {
-		t.Errorf("len(outputs) = %d, want 1", len(outputs))
+	if got := engine.Find("she"); len(got) != 1 || got[0] != "he" {
+		t.Errorf("engine.Find(\"she\") = %v, want [he]", got)
 	}
 }
 
 func TestNewTrieCache(t *testing.T) {
 	cache := &trieCache{}
-	_, _, valid := cache.get()
+	_, valid := cache.getEngine()
 	if valid {
 		t.Error("new cache should not be valid")
 	}
@@ -205,7 +202,7 @@ func TestV2PublishInvalidateWithPublishError(t *testing.T) {
 	mr.Close()
 
 	cache := &trieCache{}
-	cache.set([]string{"a"}, map[string][]string{"a": {"a"}})
+	cache.set(map[string][]string{"a": {"a"}})
 
 	ops := &v2Operations{
 		storage: newRedisStorage(redis.NewClient(&redis.Options{Addr: "localhost:1"})),
@@ -218,7 +215,7 @@ func TestV2PublishInvalidateWithPublishError(t *testing.T) {
 
 	ops.publishInvalidate(context.Background())
 
-	_, _, valid := cache.get()
+	_, valid := cache.getEngine()
 	if valid {
 		t.Error("cache should be invalid even if publish fails")
 	}

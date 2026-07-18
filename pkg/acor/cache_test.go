@@ -10,11 +10,7 @@ import (
 )
 
 func TestTrieCache_Invalidate(t *testing.T) {
-	cache := &trieCache{
-		prefixes: []string{"a", "ab"},
-		outputs:  map[string][]string{"ab": {"ab"}},
-		valid:    true,
-	}
+	cache := &trieCache{valid: true}
 
 	cache.invalidate()
 
@@ -23,74 +19,52 @@ func TestTrieCache_Invalidate(t *testing.T) {
 	}
 }
 
-func TestTrieCache_SetAndGet(t *testing.T) {
+func TestTrieCache_SetBuildsEngine(t *testing.T) {
 	cache := &trieCache{}
 
-	prefixes := []string{"a", "ab", "abc"}
-	outputs := map[string][]string{
+	cache.set(map[string][]string{
 		"ab":  {"ab"},
 		"abc": {"abc"},
-	}
+	})
 
-	cache.set(prefixes, outputs)
-
-	gotPrefixes, gotOutputs, valid := cache.get()
-
+	engine, valid := cache.getEngine()
 	if !valid {
 		t.Error("expected cache to be valid after set()")
 	}
-	if len(gotPrefixes) != 3 {
-		t.Errorf("expected 3 prefixes, got %d", len(gotPrefixes))
-	}
-	if len(gotOutputs) != 2 {
-		t.Errorf("expected 2 outputs, got %d", len(gotOutputs))
+	if got := engine.Find("abc"); len(got) != 2 {
+		t.Errorf("expected engine to match ab and abc in \"abc\", got %v", got)
 	}
 }
 
 func TestTrieCache_SetOverwritesPrevious(t *testing.T) {
 	cache := &trieCache{}
 
-	// Set "old" data
-	cache.set([]string{"old"}, map[string][]string{"old": {"old"}})
-
-	prefixes, _, valid := cache.get()
+	cache.set(map[string][]string{"old": {"old"}})
+	engine, valid := cache.getEngine()
 	if !valid {
 		t.Fatal("expected cache to be valid after first set()")
 	}
-	if len(prefixes) != 1 || prefixes[0] != "old" {
-		t.Errorf("expected prefixes [old], got %v", prefixes)
+	if got := engine.Find("old"); len(got) != 1 || got[0] != "old" {
+		t.Errorf("expected engine to match [old], got %v", got)
 	}
 
-	// Set "new" data — should overwrite
-	cache.set([]string{"new"}, map[string][]string{"new": {"new"}})
-
-	prefixes, outputs, valid := cache.get()
-	if !valid {
-		t.Fatal("expected cache to be valid after second set()")
+	// Set "new" data — should overwrite the previous engine.
+	cache.set(map[string][]string{"new": {"new"}})
+	engine, _ = cache.getEngine()
+	if got := engine.Find("new"); len(got) != 1 || got[0] != "new" {
+		t.Errorf("expected engine to match [new], got %v", got)
 	}
-	if len(prefixes) != 1 || prefixes[0] != "new" { //nolint:goconst // test value
-		t.Errorf("expected prefixes [new], got %v", prefixes)
-	}
-	if _, exists := outputs["old"]; exists {
-		t.Error("expected old key to be gone from outputs after overwrite")
-	}
-	if len(outputs["new"]) != 1 || outputs["new"][0] != "new" {
-		t.Errorf("expected outputs[new]=[new], got %v", outputs["new"])
+	if got := engine.Find("old"); len(got) != 0 {
+		t.Errorf("expected old keyword gone after overwrite, got %v", got)
 	}
 }
 
 func TestTrieCache_GetAfterInvalidate(t *testing.T) {
-	cache := &trieCache{
-		prefixes: []string{"a"},
-		outputs:  map[string][]string{"a": {"a"}},
-		valid:    true,
-	}
+	cache := &trieCache{valid: true}
 
 	cache.invalidate()
 
-	_, _, valid := cache.get()
-
-	if valid {
+	if _, valid := cache.getEngine(); valid {
 		t.Error("expected valid=false after invalidate")
 	}
 }
@@ -105,7 +79,7 @@ func TestTrieCache_ConcurrentAccess(t *testing.T) {
 
 		go func() {
 			defer wg.Done()
-			cache.set([]string{"a"}, map[string][]string{"a": {"a"}})
+			cache.set(map[string][]string{"a": {"a"}})
 		}()
 
 		go func() {
@@ -115,7 +89,7 @@ func TestTrieCache_ConcurrentAccess(t *testing.T) {
 
 		go func() {
 			defer wg.Done()
-			cache.get()
+			cache.getEngine()
 		}()
 	}
 

@@ -398,7 +398,7 @@ func TestCache_FindUsesLocalCache(t *testing.T) {
 		t.Errorf("Find() = %v, want [%s]", results, testKeywordHello)
 	}
 
-	_, _, valid := ac.cache.get()
+	_, valid := ac.cache.getEngine()
 	if !valid {
 		t.Error("expected cache to be valid after Find")
 	}
@@ -440,7 +440,7 @@ func TestCache_FindIndexUsesLocalCache(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, valid := ac.cache.get()
+	_, valid := ac.cache.getEngine()
 	if valid {
 		t.Fatal("expected cache to be invalid before FindIndex")
 	}
@@ -453,7 +453,7 @@ func TestCache_FindIndexUsesLocalCache(t *testing.T) {
 		t.Errorf("FindIndex() = %v, want matches with hello at one position", matches)
 	}
 
-	_, _, valid = ac.cache.get()
+	_, valid = ac.cache.getEngine()
 	if !valid {
 		t.Error("expected cache to be valid after FindIndex")
 	}

@@ -464,7 +464,7 @@ func TestCache_AddInvalidatesCache(t *testing.T) {
 	}
 
 	_, _ = ac.Find("first test")
-	_, _, valid := ac.cache.get()
+	_, valid := ac.cache.getEngine()
 	if !valid {
 		t.Fatal("expected cache to be valid after Find")
 	}
@@ -473,7 +473,7 @@ func TestCache_AddInvalidatesCache(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, valid = ac.cache.get()
+	_, valid = ac.cache.getEngine()
 	if valid {
 		t.Error("expected cache to be invalidated after Add")
 	}
@@ -497,7 +497,7 @@ func TestCache_RemoveInvalidatesCache(t *testing.T) {
 	}
 
 	_, _ = ac.Find("hello world")
-	_, _, valid := ac.cache.get()
+	_, valid := ac.cache.getEngine()
 	if !valid {
 		t.Fatal("expected cache to be valid after Find")
 	}
@@ -506,7 +506,7 @@ func TestCache_RemoveInvalidatesCache(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, valid = ac.cache.get()
+	_, valid = ac.cache.getEngine()
 	if valid {
 		t.Error("expected cache to be invalidated after Remove")
 	}

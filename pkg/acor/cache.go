@@ -16,12 +16,10 @@ import (
 const pendingSelfInvalidationTTL = 30 * time.Second
 
 type trieCache struct {
-	mu       sync.RWMutex
-	loadMu   sync.Mutex
-	prefixes []string
-	outputs  map[string][]string
-	engine   *matchengine.Engine
-	valid    bool
+	mu     sync.RWMutex
+	loadMu sync.Mutex
+	engine *matchengine.Engine
+	valid  bool
 	// pendingSelfInvalidations holds self-published message IDs so the listener
 	// can skip cache invalidation already performed by the local publisher.
 	// sync.Map is used for lock-free access by concurrent publisher/listener goroutines.
@@ -73,17 +71,6 @@ func cleanupExpiredSelfInvalidations(c *trieCache) {
 	})
 }
 
-func cloneOutputs(in map[string][]string) map[string][]string {
-	if in == nil {
-		return nil
-	}
-	out := make(map[string][]string, len(in))
-	for k, v := range in {
-		out[k] = append([]string(nil), v...)
-	}
-	return out
-}
-
 // buildEngineFromOutputs builds a local Aho-Corasick match engine from the V2
 // outputs map. In an Aho-Corasick automaton every keyword has its own terminal
 // state whose output list contains that keyword, so the union of all output
@@ -107,19 +94,11 @@ func (c *trieCache) invalidate() {
 	c.valid = false
 }
 
-func (c *trieCache) set(prefixes []string, outputs map[string][]string) {
+func (c *trieCache) set(outputs map[string][]string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.prefixes = append([]string(nil), prefixes...)
-	c.outputs = cloneOutputs(outputs)
 	c.engine = buildEngineFromOutputs(outputs)
 	c.valid = true
-}
-
-func (c *trieCache) get() (prefixes []string, outputs map[string][]string, valid bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return append([]string(nil), c.prefixes...), cloneOutputs(c.outputs), c.valid
 }
 
 // getEngine returns the cached match engine and whether the cache is valid.
