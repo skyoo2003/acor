@@ -62,8 +62,8 @@ func (o *v2Operations) find(ctx context.Context, text string) ([]string, error) 
 
 	// The match runs fully in memory; honor an already-canceled/expired ctx
 	// before spending cycles on it (a cache hit skips the ctx-aware Redis load).
-	// ponytail: boundary check only, not mid-match. Thread ctx into the engine
-	// with per-char checks if canceling in-flight matches on huge texts matters.
+	// The check is at the match boundary only: Find is a linear in-memory scan,
+	// so mid-match cancellation isn't worth threading ctx through the engine.
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -298,9 +298,9 @@ func (o *v2Operations) loadCache(ctx context.Context) error {
 // (see trieCache.set) and reused across Find calls with no Redis I/O.
 //
 // When caching is disabled (cache == nil) it fetches the trie from Redis and
-// builds a throwaway engine per call.
-// ponytail: build-per-find on the uncached path — Redis I/O dominates, so an
-// extra automaton build is negligible; add engine caching if that ever changes.
+// builds a throwaway engine per call. Redis I/O dominates that path, so the
+// extra automaton build is negligible; enabling the cache is the way to avoid
+// both, not per-call engine caching.
 func (o *v2Operations) getOrLoadEngine(ctx context.Context) (*matchengine.Engine, error) {
 	if o.cache == nil {
 		_, outputs, err := o.fetchTrieData(ctx)
