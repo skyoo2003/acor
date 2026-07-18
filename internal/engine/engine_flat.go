@@ -52,7 +52,7 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 		e.alphabet = append(e.alphabet, r)
 	}
 	sortRunes(e.alphabet)
-	e.alphabetCoder.build(e.alphabet)
+	e.build(e.alphabet)
 
 	nodes := []flatNode{
 		{gotoMap: make(map[rune]int), depth: 0},

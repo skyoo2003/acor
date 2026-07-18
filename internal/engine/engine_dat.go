@@ -79,7 +79,7 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 		dat.runes = append(dat.runes, r)
 	}
 	sortRunes(dat.runes)
-	dat.alphabetCoder.build(dat.runes)
+	dat.build(dat.runes)
 
 	tmpChildren := make(map[int]map[rune]int)
 	tmpOutput := make(map[int][]string)
@@ -234,8 +234,8 @@ func (dat *doubleArrayTrie) computeFailLinks() {
 	}
 }
 
-// gotoStateByCode is gotoState with the rune already resolved to its alphabet
-// index, so callers in the hot loop avoid re-resolving the rune on every fail hop.
+// gotoStateByCode resolves a goto transition with the rune already mapped to its
+// alphabet index, so callers in the hot loop avoid re-resolving the rune on every fail hop.
 func (dat *doubleArrayTrie) gotoStateByCode(state, code int) int {
 	pos := dat.base[state] + code
 	if pos < 0 || pos >= dat.size {
@@ -245,14 +245,6 @@ func (dat *doubleArrayTrie) gotoStateByCode(state, code int) int {
 		return 0
 	}
 	return pos
-}
-
-func (dat *doubleArrayTrie) gotoState(state int, ch rune) int {
-	code, ok := dat.code(ch)
-	if !ok {
-		return 0
-	}
-	return dat.gotoStateByCode(state, code)
 }
 
 func (dat *doubleArrayTrie) followFailByCode(state, code int) int {
