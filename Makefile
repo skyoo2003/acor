@@ -1,4 +1,4 @@
-.PHONY: all setup clean build test lint lint-fix coverage vet fuzz race docs-verify
+.PHONY: all setup clean build test lint lint-fix coverage vet fuzz race docs-verify proto
 
 all: vet lint test build docs-verify
 
@@ -18,6 +18,13 @@ test:
 
 docs-verify:
 	@go run ./tools/doccheck README.md $$(find docs/content -name '*.md')
+
+# Regenerate gRPC/protobuf code. Requires protoc, protoc-gen-go, protoc-gen-go-grpc.
+proto:
+	@protoc -I server/proto \
+		--go_out=server --go_opt=module=github.com/skyoo2003/acor/server \
+		--go-grpc_out=server --go-grpc_opt=module=github.com/skyoo2003/acor/server \
+		server/proto/acor/v1/acor.proto
 
 lint:
 	@golangci-lint run ./...

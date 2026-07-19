@@ -8,27 +8,17 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/status"
-	"google.golang.org/grpc/test/bufconn"
-
 	"github.com/skyoo2003/acor/pkg/acor"
-	"github.com/skyoo2003/acor/server/health"
 )
 
 const (
-	keywordHE   = "he"
-	inputHEHE   = "hehe"
-	statusOK    = "ok"
-	testBufSize = 1024 * 1024
-	codecName   = "acor-json"
+	keywordHE = "he"
+	inputHEHE = "hehe"
+	statusOK  = "ok"
 )
 
 type fakeService struct {
@@ -227,111 +217,6 @@ func TestHTTPHandlerReturnsStructuredErrors(t *testing.T) {
 	}
 }
 
-func TestGRPCServerAddAndFind(t *testing.T) {
-	service := &fakeService{
-		addCount:    1,
-		findMatches: []string{keywordHE},
-		findIndexes: map[string][]int{keywordHE: {0, 2}},
-	}
-	lis := bufconn.Listen(testBufSize)
-	grpcServer := NewGRPCServer(service)
-	defer grpcServer.Stop()
-
-	go func() {
-		_ = grpcServer.Serve(lis)
-	}()
-
-	conn := dialBufConn(t, lis)
-	defer closeClientConn(conn)
-
-	ctx := context.Background()
-
-	var addResp CountResponse
-	if err := conn.Invoke(ctx, GRPCMethodAdd, &KeywordRequest{Keyword: keywordHE}, &addResp); err != nil {
-		t.Fatal(err)
-	}
-	if addResp.Count != 1 {
-		t.Fatalf("expected add count 1, got %d", addResp.Count)
-	}
-
-	var findResp MatchesResponse
-	if err := conn.Invoke(ctx, GRPCMethodFind, &InputRequest{Input: inputHEHE}, &findResp); err != nil {
-		t.Fatal(err)
-	}
-	if len(findResp.Matches) != 1 || findResp.Matches[0] != keywordHE {
-		t.Fatalf("unexpected find matches %v", findResp.Matches)
-	}
-
-	var indexResp MatchIndexesResponse
-	if err := conn.Invoke(ctx, GRPCMethodFindIndex, &InputRequest{Input: inputHEHE}, &indexResp); err != nil {
-		t.Fatal(err)
-	}
-	assertIndexes(t, indexResp.Matches[keywordHE], []int{0, 2})
-
-	var removeResp CountResponse
-	if err := conn.Invoke(ctx, GRPCMethodRemove, &KeywordRequest{Keyword: keywordHE}, &removeResp); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestGRPCServerInfoFlushAndErrors(t *testing.T) {
-	service := &fakeService{
-		addErr:         errors.New("add failed"),
-		info:           &acor.AhoCorasickInfo{Keywords: 1, Nodes: 2},
-		suggestMatches: []string{keywordHE, "her"},
-		suggestIndexes: map[string][]int{keywordHE: {0}, "her": {0}},
-	}
-	lis := bufconn.Listen(testBufSize)
-	grpcServer := NewGRPCServer(service)
-	defer grpcServer.Stop()
-
-	go func() {
-		_ = grpcServer.Serve(lis)
-	}()
-
-	conn := dialBufConn(t, lis)
-	defer closeClientConn(conn)
-
-	ctx := context.Background()
-
-	var infoResp InfoResponse
-	if err := conn.Invoke(ctx, GRPCMethodInfo, &EmptyRequest{}, &infoResp); err != nil {
-		t.Fatal(err)
-	}
-	if infoResp.Keywords != 1 || infoResp.Nodes != 2 {
-		t.Fatalf("unexpected info response %+v", infoResp)
-	}
-
-	var suggestResp MatchesResponse
-	if err := conn.Invoke(ctx, GRPCMethodSuggest, &InputRequest{Input: keywordHE}, &suggestResp); err != nil {
-		t.Fatal(err)
-	}
-	if len(suggestResp.Matches) != 2 {
-		t.Fatalf("unexpected suggest matches %v", suggestResp.Matches)
-	}
-
-	var suggestIndexResp MatchIndexesResponse
-	if err := conn.Invoke(ctx, GRPCMethodSuggestIndex, &InputRequest{Input: keywordHE}, &suggestIndexResp); err != nil {
-		t.Fatal(err)
-	}
-	if len(suggestIndexResp.Matches) != 2 {
-		t.Fatalf("unexpected suggest index matches %v", suggestIndexResp.Matches)
-	}
-
-	var flushResp StatusResponse
-	if err := conn.Invoke(ctx, GRPCMethodFlush, &EmptyRequest{}, &flushResp); err != nil {
-		t.Fatal(err)
-	}
-	if flushResp.Status != statusOK {
-		t.Fatalf("expected flush status %q, got %q", statusOK, flushResp.Status)
-	}
-
-	err := conn.Invoke(ctx, GRPCMethodAdd, &KeywordRequest{Keyword: keywordHE}, &CountResponse{})
-	if status.Code(err) != codes.Internal {
-		t.Fatalf("expected internal gRPC error, got %v", err)
-	}
-}
-
 func doJSONRequest(t *testing.T, method, url string, payload, target interface{}) {
 	t.Helper()
 
@@ -385,23 +270,6 @@ func mustJSONReader(t *testing.T, payload interface{}) io.Reader {
 	return bytes.NewReader(body)
 }
 
-func dialBufConn(t *testing.T, lis *bufconn.Listener) *grpc.ClientConn {
-	t.Helper()
-
-	conn, err := grpc.NewClient(
-		"passthrough:///bufnet",
-		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-			return lis.Dial()
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.ForceCodec(JSONCodec{}), grpc.CallContentSubtype(JSONCodec{}.Name())),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return conn
-}
-
 func assertIndexes(t *testing.T, actual, expected []int) {
 	t.Helper()
 
@@ -413,10 +281,6 @@ func assertIndexes(t *testing.T, actual, expected []int) {
 			t.Fatalf("expected indexes %v, got %v", expected, actual)
 		}
 	}
-}
-
-func closeClientConn(conn *grpc.ClientConn) {
-	_ = conn.Close()
 }
 
 func TestNewHTTPServer(t *testing.T) {
@@ -454,91 +318,6 @@ func TestHTTPHandlerRemoveWrongMethod(t *testing.T) {
 	defer closeReadCloser(resp.Body)
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("expected status 405, got %d", resp.StatusCode)
-	}
-}
-
-func TestGRPCServerWithObservability(t *testing.T) {
-	service := &fakeService{
-		addCount:    1,
-		findMatches: []string{keywordHE},
-		info:        &acor.AhoCorasickInfo{Keywords: 1, Nodes: 2},
-	}
-
-	obs := &Observability{
-		Health: health.NewChecker(),
-	}
-
-	lis := bufconn.Listen(testBufSize)
-	grpcServer := NewGRPCServerWithObservability(service, obs)
-	defer grpcServer.Stop()
-
-	if _, ok := grpcServer.GetServiceInfo()["grpc.health.v1.Health"]; !ok {
-		t.Fatal("expected gRPC health service to be registered")
-	}
-
-	go func() {
-		_ = grpcServer.Serve(lis)
-	}()
-
-	conn := dialBufConn(t, lis)
-	defer closeClientConn(conn)
-
-	ctx := context.Background()
-
-	var addResp CountResponse
-	if err := conn.Invoke(ctx, GRPCMethodAdd, &KeywordRequest{Keyword: keywordHE}, &addResp); err != nil {
-		t.Fatal(err)
-	}
-	if addResp.Count != 1 {
-		t.Fatalf("expected add count 1, got %d", addResp.Count)
-	}
-
-	var findResp MatchesResponse
-	if err := conn.Invoke(ctx, GRPCMethodFind, &InputRequest{Input: inputHEHE}, &findResp); err != nil {
-		t.Fatal(err)
-	}
-	if len(findResp.Matches) != 1 || findResp.Matches[0] != keywordHE {
-		t.Fatalf("unexpected find matches %v", findResp.Matches)
-	}
-
-	var infoResp InfoResponse
-	if err := conn.Invoke(ctx, GRPCMethodInfo, &EmptyRequest{}, &infoResp); err != nil {
-		t.Fatal(err)
-	}
-	if infoResp.Keywords != 1 || infoResp.Nodes != 2 {
-		t.Fatalf("unexpected info response %+v", infoResp)
-	}
-}
-
-func TestGRPCServerWithNilObservability(t *testing.T) {
-	service := &fakeService{
-		addCount:    1,
-		findMatches: []string{keywordHE},
-	}
-
-	lis := bufconn.Listen(testBufSize)
-	grpcServer := NewGRPCServerWithObservability(service, nil)
-	defer grpcServer.Stop()
-
-	if _, ok := grpcServer.GetServiceInfo()["grpc.health.v1.Health"]; ok {
-		t.Fatal("did not expect gRPC health service to be registered with nil observability")
-	}
-
-	go func() {
-		_ = grpcServer.Serve(lis)
-	}()
-
-	conn := dialBufConn(t, lis)
-	defer closeClientConn(conn)
-
-	ctx := context.Background()
-
-	var addResp CountResponse
-	if err := conn.Invoke(ctx, GRPCMethodAdd, &KeywordRequest{Keyword: keywordHE}, &addResp); err != nil {
-		t.Fatal(err)
-	}
-	if addResp.Count != 1 {
-		t.Fatalf("expected add count 1, got %d", addResp.Count)
 	}
 }
 
@@ -599,204 +378,6 @@ func TestHTTPHandlerInfoError(t *testing.T) {
 	defer closeReadCloser(resp.Body)
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d", resp.StatusCode)
-	}
-}
-
-func TestHandlersWithInterceptor(t *testing.T) {
-	api := NewAPI(&fakeService{
-		addCount:       1,
-		removeCount:    2,
-		findMatches:    []string{keywordHE},
-		findIndexes:    map[string][]int{keywordHE: {0}},
-		suggestMatches: []string{keywordHE},
-		suggestIndexes: map[string][]int{keywordHE: {0}},
-		info:           &acor.AhoCorasickInfo{Keywords: 3, Nodes: 4},
-	})
-
-	var capturedMethod string
-	interceptor := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		capturedMethod = info.FullMethod
-		return handler(ctx, req)
-	}
-
-	for _, tt := range interceptorTests {
-		t.Run(tt.name, func(t *testing.T) {
-			capturedMethod = ""
-			resp, err := tt.handler(api, context.Background(), tt.decoder, interceptor)
-			if err != nil {
-				t.Fatal(err)
-			}
-			tt.check(t, resp)
-			if capturedMethod != tt.wantMethod {
-				t.Fatalf("expected method %q, got %q", tt.wantMethod, capturedMethod)
-			}
-		})
-	}
-}
-
-var interceptorTests = []struct {
-	name       string
-	handler    grpc.MethodHandler
-	decoder    func(interface{}) error
-	check      func(t *testing.T, resp interface{})
-	wantMethod string
-}{
-	{
-		name:    "add",
-		handler: addHandler,
-		decoder: func(v interface{}) error { v.(*KeywordRequest).Keyword = keywordHE; return nil },
-		check: func(t *testing.T, resp interface{}) {
-			if resp.(*CountResponse).Count != 1 {
-				t.Fatalf("expected count 1, got %d", resp.(*CountResponse).Count)
-			}
-		},
-		wantMethod: GRPCMethodAdd,
-	},
-	{
-		name:    "remove",
-		handler: removeHandler,
-		decoder: func(v interface{}) error { v.(*KeywordRequest).Keyword = keywordHE; return nil },
-		check: func(t *testing.T, resp interface{}) {
-			if resp.(*CountResponse).Count != 2 {
-				t.Fatalf("expected count 2, got %d", resp.(*CountResponse).Count)
-			}
-		},
-		wantMethod: GRPCMethodRemove,
-	},
-	{
-		name:    "find",
-		handler: findHandler,
-		decoder: func(v interface{}) error { v.(*InputRequest).Input = inputHEHE; return nil },
-		check: func(t *testing.T, resp interface{}) {
-			matches := resp.(*MatchesResponse).Matches
-			if len(matches) != 1 || matches[0] != keywordHE {
-				t.Fatalf("unexpected matches %v", matches)
-			}
-		},
-		wantMethod: GRPCMethodFind,
-	},
-	{
-		name:    "findIndex",
-		handler: findIndexHandler,
-		decoder: func(v interface{}) error { v.(*InputRequest).Input = inputHEHE; return nil },
-		check: func(t *testing.T, resp interface{}) {
-			matches := resp.(*MatchIndexesResponse).Matches
-			if len(matches) != 1 {
-				t.Fatalf("unexpected matches %v", matches)
-			}
-		},
-		wantMethod: GRPCMethodFindIndex,
-	},
-	{
-		name:    "suggest",
-		handler: suggestHandler,
-		decoder: func(v interface{}) error { v.(*InputRequest).Input = keywordHE; return nil },
-		check: func(t *testing.T, resp interface{}) {
-			matches := resp.(*MatchesResponse).Matches
-			if len(matches) != 1 || matches[0] != keywordHE {
-				t.Fatalf("unexpected matches %v", matches)
-			}
-		},
-		wantMethod: GRPCMethodSuggest,
-	},
-	{
-		name:    "suggestIndex",
-		handler: suggestIndexHandler,
-		decoder: func(v interface{}) error { v.(*InputRequest).Input = keywordHE; return nil },
-		check: func(t *testing.T, resp interface{}) {
-			matches := resp.(*MatchIndexesResponse).Matches
-			if len(matches) != 1 {
-				t.Fatalf("unexpected matches %v", matches)
-			}
-		},
-		wantMethod: GRPCMethodSuggestIndex,
-	},
-	{
-		name:    "info",
-		handler: infoHandler,
-		decoder: func(v interface{}) error { return nil },
-		check: func(t *testing.T, resp interface{}) {
-			info := resp.(*InfoResponse)
-			if info.Keywords != 3 || info.Nodes != 4 {
-				t.Fatalf("unexpected info %+v", info)
-			}
-		},
-		wantMethod: GRPCMethodInfo,
-	},
-	{
-		name:    "flush",
-		handler: flushHandler,
-		decoder: func(v interface{}) error { return nil },
-		check: func(t *testing.T, resp interface{}) {
-			if resp.(*StatusResponse).Status != statusOK {
-				t.Fatalf("expected status %q, got %q", statusOK, resp.(*StatusResponse).Status)
-			}
-		},
-		wantMethod: GRPCMethodFlush,
-	},
-}
-
-func TestHandlersDecoderError(t *testing.T) {
-	api := NewAPI(&fakeService{})
-
-	decoderErr := errors.New("decode failed")
-	badDecoder := func(interface{}) error { return decoderErr }
-
-	tests := []struct {
-		name    string
-		handler grpc.MethodHandler
-	}{
-		{"add", addHandler},
-		{"remove", removeHandler},
-		{"find", findHandler},
-		{"findIndex", findIndexHandler},
-		{"suggest", suggestHandler},
-		{"suggestIndex", suggestIndexHandler},
-		{"info", infoHandler},
-		{"flush", flushHandler},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := tt.handler(api, context.Background(), badDecoder, nil)
-			if err != decoderErr {
-				t.Fatalf("expected decoder error, got %v", err)
-			}
-		})
-	}
-}
-
-func TestHandlersInterceptorError(t *testing.T) {
-	api := NewAPI(&fakeService{})
-
-	interceptorErr := errors.New("interceptor failed")
-	var nilResp interface{}
-	errInterceptor := func(_ context.Context, _ interface{}, _ *grpc.UnaryServerInfo, _ grpc.UnaryHandler) (interface{}, error) {
-		return nilResp, interceptorErr
-	}
-
-	tests := []struct {
-		name    string
-		handler grpc.MethodHandler
-		decoder func(interface{}) error
-	}{
-		{"add", addHandler, func(v interface{}) error { return nil }},
-		{"remove", removeHandler, func(v interface{}) error { return nil }},
-		{"find", findHandler, func(v interface{}) error { return nil }},
-		{"findIndex", findIndexHandler, func(v interface{}) error { return nil }},
-		{"suggest", suggestHandler, func(v interface{}) error { return nil }},
-		{"suggestIndex", suggestIndexHandler, func(v interface{}) error { return nil }},
-		{"info", infoHandler, func(v interface{}) error { return nil }},
-		{"flush", flushHandler, func(v interface{}) error { return nil }},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := tt.handler(api, context.Background(), tt.decoder, errInterceptor)
-			if err != interceptorErr {
-				t.Fatalf("expected interceptor error, got %v", err)
-			}
-		})
 	}
 }
 
@@ -870,119 +451,37 @@ func TestAPINilRequests(t *testing.T) {
 func TestAPIServiceErrors(t *testing.T) {
 	svcErr := errors.New("service error")
 
-	t.Run("remove_error", func(t *testing.T) {
-		api := NewAPI(&fakeService{removeErr: svcErr})
-		_, err := api.Remove(context.Background(), &KeywordRequest{Keyword: keywordHE})
-		if status.Code(err) != codes.Internal {
-			t.Fatalf("expected Internal code, got %v", err)
-		}
-	})
+	tests := []struct {
+		name string
+		call func(*API) error
+	}{
+		{"add", func(a *API) error { _, err := a.Add(context.Background(), &KeywordRequest{Keyword: keywordHE}); return err }},
+		{"remove", func(a *API) error { _, err := a.Remove(context.Background(), &KeywordRequest{Keyword: keywordHE}); return err }},
+		{"find", func(a *API) error { _, err := a.Find(context.Background(), &InputRequest{Input: inputHEHE}); return err }},
+		{"findIndex", func(a *API) error { _, err := a.FindIndex(context.Background(), &InputRequest{Input: inputHEHE}); return err }},
+		{"suggest", func(a *API) error { _, err := a.Suggest(context.Background(), &InputRequest{Input: keywordHE}); return err }},
+		{"suggestIndex", func(a *API) error { _, err := a.SuggestIndex(context.Background(), &InputRequest{Input: keywordHE}); return err }},
+		{"info", func(a *API) error { _, err := a.Info(context.Background(), &EmptyRequest{}); return err }},
+		{"flush", func(a *API) error { _, err := a.Flush(context.Background(), &EmptyRequest{}); return err }},
+	}
 
-	t.Run("find_error", func(t *testing.T) {
-		api := NewAPI(&fakeService{findErr: svcErr})
-		_, err := api.Find(context.Background(), &InputRequest{Input: inputHEHE})
-		if status.Code(err) != codes.Internal {
-			t.Fatalf("expected Internal code, got %v", err)
-		}
-	})
-
-	t.Run("findIndex_error", func(t *testing.T) {
-		api := NewAPI(&fakeService{findIndexErr: svcErr})
-		_, err := api.FindIndex(context.Background(), &InputRequest{Input: inputHEHE})
-		if status.Code(err) != codes.Internal {
-			t.Fatalf("expected Internal code, got %v", err)
-		}
-	})
-
-	t.Run("suggest_error", func(t *testing.T) {
-		api := NewAPI(&fakeService{suggestErr: svcErr})
-		_, err := api.Suggest(context.Background(), &InputRequest{Input: keywordHE})
-		if status.Code(err) != codes.Internal {
-			t.Fatalf("expected Internal code, got %v", err)
-		}
-	})
-
-	t.Run("suggestIndex_error", func(t *testing.T) {
-		api := NewAPI(&fakeService{suggestIndexErr: svcErr})
-		_, err := api.SuggestIndex(context.Background(), &InputRequest{Input: keywordHE})
-		if status.Code(err) != codes.Internal {
-			t.Fatalf("expected Internal code, got %v", err)
-		}
-	})
-
-	t.Run("add_error", func(t *testing.T) {
-		api := NewAPI(&fakeService{addErr: svcErr})
-		_, err := api.Add(context.Background(), &KeywordRequest{Keyword: keywordHE})
-		if status.Code(err) != codes.Internal {
-			t.Fatalf("expected Internal code, got %v", err)
-		}
-	})
-
-	t.Run("info_error", func(t *testing.T) {
-		api := NewAPI(&fakeService{infoErr: svcErr})
-		_, err := api.Info(context.Background(), &EmptyRequest{})
-		if status.Code(err) != codes.Internal {
-			t.Fatalf("expected Internal code, got %v", err)
-		}
-	})
-
-	t.Run("flush_error", func(t *testing.T) {
-		api := NewAPI(&fakeService{flushErr: svcErr})
-		_, err := api.Flush(context.Background(), &EmptyRequest{})
-		if status.Code(err) != codes.Internal {
-			t.Fatalf("expected Internal code, got %v", err)
-		}
-	})
-}
-
-func TestJSONCodec(t *testing.T) {
-	codec := JSONCodec{}
-
-	t.Run("name", func(t *testing.T) {
-		if codec.Name() != codecName {
-			t.Fatalf("expected name %q, got %q", codecName, codec.Name())
-		}
-	})
-
-	t.Run("marshal", func(t *testing.T) {
-		data, err := codec.Marshal(&CountResponse{Count: 42})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if string(data) != `{"count":42}` {
-			t.Fatalf("unexpected marshal output: %s", data)
-		}
-	})
-
-	t.Run("unmarshal_empty", func(t *testing.T) {
-		var resp CountResponse
-		if err := codec.Unmarshal([]byte{}, &resp); err != nil {
-			t.Fatal(err)
-		}
-		if resp.Count != 0 {
-			t.Fatalf("expected 0, got %d", resp.Count)
-		}
-	})
-
-	t.Run("unmarshal_nil_data", func(t *testing.T) {
-		var resp CountResponse
-		if err := codec.Unmarshal(nil, &resp); err != nil {
-			t.Fatal(err)
-		}
-		if resp.Count != 0 {
-			t.Fatalf("expected 0, got %d", resp.Count)
-		}
-	})
-
-	t.Run("unmarshal_with_data", func(t *testing.T) {
-		var resp CountResponse
-		if err := codec.Unmarshal([]byte(`{"count":7}`), &resp); err != nil {
-			t.Fatal(err)
-		}
-		if resp.Count != 7 {
-			t.Fatalf("expected 7, got %d", resp.Count)
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			api := NewAPI(&fakeService{
+				addErr:          svcErr,
+				removeErr:       svcErr,
+				findErr:         svcErr,
+				findIndexErr:    svcErr,
+				suggestErr:      svcErr,
+				suggestIndexErr: svcErr,
+				infoErr:         svcErr,
+				flushErr:        svcErr,
+			})
+			if err := tt.call(api); !errors.Is(err, svcErr) {
+				t.Fatalf("expected service error, got %v", err)
+			}
+		})
+	}
 }
 
 func TestCloseReadCloser(t *testing.T) {

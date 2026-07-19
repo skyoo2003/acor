@@ -3,39 +3,21 @@
 package tracing
 
 import (
-	"context"
-
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/status"
+	"go.opentelemetry.io/otel/trace/noop"
+	"google.golang.org/grpc/stats"
 )
 
-func GRPCUnaryInterceptor(tracer *Tracer) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		ctx, span := tracer.Tracer.Start(
-			ctx,
-			info.FullMethod,
-			trace.WithAttributes(
-				attribute.String("rpc.system", "grpc"),
-				attribute.String("rpc.method", info.FullMethod),
-			),
-		)
-		defer span.End()
-
-		resp, err := handler(ctx, req)
-
-		if err != nil {
-			st, _ := status.FromError(err)
-			span.SetStatus(codes.Error, st.Message())
-			span.SetAttributes(
-				attribute.Int("rpc.grpc.status_code", int(st.Code())),
-			)
-		} else {
-			span.SetStatus(codes.Ok, "")
-		}
-
-		return resp, err
+// GRPCStatsHandler returns the standard OpenTelemetry gRPC server instrumentation
+// bound to the given Tracer's provider, so the Tracer that a caller passes
+// actually controls gRPC tracing. A nil or disabled Tracer yields a no-op
+// provider (no spans), independent of any global provider. Attach it with
+// grpc.StatsHandler(...); the interceptor form is deprecated upstream.
+func GRPCStatsHandler(t *Tracer) stats.Handler {
+	var provider trace.TracerProvider = noop.NewTracerProvider()
+	if t != nil && t.provider != nil {
+		provider = t.provider
 	}
+	return otelgrpc.NewServerHandler(otelgrpc.WithTracerProvider(provider))
 }
