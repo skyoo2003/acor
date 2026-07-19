@@ -84,7 +84,8 @@ jobs:
           for mod in . server; do
             # Run in each module's dir: server/ is a separate go.mod, so the
             # cover tool needs that module's context to resolve packages.
-            coverage=$(cd "$mod" && go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | sed 's/%//')
+            # Exclude generated protobuf (*.pb.go) from the coverage denominator.
+            coverage=$(cd "$mod" && grep -v '\.pb\.go:' coverage.out > coverage.nogen.out && go tool cover -func=coverage.nogen.out | tail -1 | awk '{print $3}' | sed 's/%//')
             echo "${mod}: ${coverage}%"
             awk -v c="$coverage" 'BEGIN { exit (c < 70) ? 1 : 0 }' \
               || { echo "::error::${mod} coverage ${coverage}% is below threshold 70%"; fail=1; }
