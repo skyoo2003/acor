@@ -58,8 +58,8 @@ func TestGRPCServerWithObservability(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = conn.Close() })
 
-	if _, err := acorv1.NewAcorClient(conn).Add(ctx, &acorv1.KeywordRequest{Keyword: keywordHE}); err != nil {
-		t.Fatal(err)
+	if _, addErr := acorv1.NewAcorClient(conn).Add(ctx, &acorv1.KeywordRequest{Keyword: keywordHE}); addErr != nil {
+		t.Fatal(addErr)
 	}
 
 	hResp, err := healthpb.NewHealthClient(conn).Check(ctx, &healthpb.HealthCheckRequest{})

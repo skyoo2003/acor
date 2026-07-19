@@ -13,11 +13,11 @@ import (
 
 // healthPollInterval is how often the gRPC serving status is re-derived from the
 // checker. Kept short so grpc.health.v1 probes track live readiness, matching
-// the per-request behaviour of the HTTP /readyz endpoint.
+// the per-request behavior of the HTTP /readyz endpoint.
 const healthPollInterval = 5 * time.Second
 
 // RegisterGRPCHealthServer installs the standard grpc.health.v1 service and keeps
-// its serving status in sync with the checker until ctx is cancelled. The overall
+// its serving status in sync with the checker until ctx is canceled. The overall
 // server ("") and each named service track the checker's live result; a nil
 // checker reports SERVING. On ctx cancellation the server is marked NOT_SERVING
 // (graceful drain). The returned *grpchealth.Server is also handed back for

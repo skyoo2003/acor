@@ -13,7 +13,7 @@ import (
 // GRPCUnaryInterceptor returns the standard go-grpc-middleware logging
 // interceptor writing through the zerolog-backed Logger. It logs one record per
 // completed call (FinishCall), matching the previous one-line-per-request
-// behaviour rather than the middleware default of start+finish.
+// behavior rather than the middleware default of start+finish.
 func GRPCUnaryInterceptor(logger *Logger) grpc.UnaryServerInterceptor {
 	if logger == nil {
 		panic("logging: nil logger passed to GRPCUnaryInterceptor")
@@ -29,12 +29,14 @@ func zerologAdapter(logger *Logger) grpclog.Logger {
 	return grpclog.LoggerFunc(func(_ context.Context, level grpclog.Level, msg string, fields ...any) {
 		var event *zerolog.Event
 		switch level {
-		case grpclog.LevelError:
-			event = logger.Error()
-		case grpclog.LevelWarn:
-			event = logger.Warn()
 		case grpclog.LevelDebug:
 			event = logger.Debug()
+		case grpclog.LevelInfo:
+			event = logger.Info()
+		case grpclog.LevelWarn:
+			event = logger.Warn()
+		case grpclog.LevelError:
+			event = logger.Error()
 		default:
 			event = logger.Info()
 		}

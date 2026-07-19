@@ -455,12 +455,30 @@ func TestAPIServiceErrors(t *testing.T) {
 		name string
 		call func(*API) error
 	}{
-		{"add", func(a *API) error { _, err := a.Add(context.Background(), &KeywordRequest{Keyword: keywordHE}); return err }},
-		{"remove", func(a *API) error { _, err := a.Remove(context.Background(), &KeywordRequest{Keyword: keywordHE}); return err }},
-		{"find", func(a *API) error { _, err := a.Find(context.Background(), &InputRequest{Input: inputHEHE}); return err }},
-		{"findIndex", func(a *API) error { _, err := a.FindIndex(context.Background(), &InputRequest{Input: inputHEHE}); return err }},
-		{"suggest", func(a *API) error { _, err := a.Suggest(context.Background(), &InputRequest{Input: keywordHE}); return err }},
-		{"suggestIndex", func(a *API) error { _, err := a.SuggestIndex(context.Background(), &InputRequest{Input: keywordHE}); return err }},
+		{"add", func(a *API) error {
+			_, err := a.Add(context.Background(), &KeywordRequest{Keyword: keywordHE})
+			return err
+		}},
+		{"remove", func(a *API) error {
+			_, err := a.Remove(context.Background(), &KeywordRequest{Keyword: keywordHE})
+			return err
+		}},
+		{"find", func(a *API) error {
+			_, err := a.Find(context.Background(), &InputRequest{Input: inputHEHE})
+			return err
+		}},
+		{"findIndex", func(a *API) error {
+			_, err := a.FindIndex(context.Background(), &InputRequest{Input: inputHEHE})
+			return err
+		}},
+		{"suggest", func(a *API) error {
+			_, err := a.Suggest(context.Background(), &InputRequest{Input: keywordHE})
+			return err
+		}},
+		{"suggestIndex", func(a *API) error {
+			_, err := a.SuggestIndex(context.Background(), &InputRequest{Input: keywordHE})
+			return err
+		}},
 		{"info", func(a *API) error { _, err := a.Info(context.Background(), &EmptyRequest{}); return err }},
 		{"flush", func(a *API) error { _, err := a.Flush(context.Background(), &EmptyRequest{}); return err }},
 	}

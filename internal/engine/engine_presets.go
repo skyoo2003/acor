@@ -16,7 +16,9 @@ func newMatchEngine(preset Preset) matchEngine {
 		return newMemEfficientEngine()
 	case PresetUltimate:
 		return newUltimateEngine(defaultBandDepth)
-	default: // PresetBalanced, PresetNone, PresetDefault
+	case PresetNone, PresetBalanced, PresetDefault:
+		return newBalancedEngine(defaultBandDepth)
+	default:
 		return newBalancedEngine(defaultBandDepth)
 	}
 }

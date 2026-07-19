@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	redis "github.com/redis/go-redis/v9"
-
 )
 
 func (ac *AhoCorasick) buildTrie(keyword string) error {

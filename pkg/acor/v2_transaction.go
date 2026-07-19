@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
 )
 
 // versionRandBytes is the number of random bytes used to extend version timestamps
