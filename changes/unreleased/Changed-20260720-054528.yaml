@@ -1,0 +1,5 @@
+kind: Changed
+body: gRPC request logs now use go-grpc-middleware field names (grpc.method, grpc.code, grpc.time_ms; message "finished call") instead of the previous "request completed" line with method / status / latency_ms; update log-based alerts
+time: 2026-07-20T05:45:28.430909+09:00
+custom:
+    Issue: "153"

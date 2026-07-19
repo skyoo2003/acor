@@ -1,0 +1,5 @@
+kind: Changed
+body: '**BREAKING**: Rename gRPC Prometheus metrics from acor_grpc_requests_total / acor_grpc_request_duration_seconds to the standard grpc_server_* series; update dashboards and alerts'
+time: 2026-07-20T05:45:20.782815+09:00
+custom:
+    Issue: "153"

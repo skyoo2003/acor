@@ -9,7 +9,6 @@ import (
 	"time"
 
 	matchengine "github.com/skyoo2003/acor/internal/engine"
-	"github.com/skyoo2003/acor/internal/pkg/utils"
 )
 
 const redisBackedMaxRetries = 3
@@ -69,7 +68,7 @@ func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, v2 *redisBa
 		prefix := string(keywordRunes[:i+1])
 		if _, exists := prefixSet[prefix]; !exists {
 			newPrefixes = append(newPrefixes, prefix)
-			newSuffixes = append(newSuffixes, utils.Reverse(prefix))
+			newSuffixes = append(newSuffixes, reverse(prefix))
 			prefixSet[prefix] = struct{}{}
 		}
 	}
@@ -205,7 +204,7 @@ func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, v2 *redi
 
 	newSuffixes := make([]string, len(newPrefixes))
 	for i, p := range newPrefixes {
-		newSuffixes[i] = utils.Reverse(p)
+		newSuffixes[i] = reverse(p)
 	}
 
 	newOutputs := make(map[string][]string)

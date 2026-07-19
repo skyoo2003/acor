@@ -301,8 +301,8 @@ type AhoCorasickInfo struct {
 	// Nodes is the number of trie nodes (prefixes) in the automaton.
 	// This is typically larger than Keywords as it includes all prefixes.
 	Nodes int
-	// Preset is the engine architecture preset, or PresetDefault (-1) when
-	// using the original non-preset engine.
+	// Preset is the engine architecture preset, or the internal default
+	// sentinel (-1) when using the original non-preset engine.
 	Preset Preset
 	// MemoryBytes is the estimated memory usage in bytes.
 	// Zero when using the original non-preset engine.
@@ -342,7 +342,7 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	}
 
 	// --- Preset-Optimized Redis mode ---
-	if args.Preset != PresetNone && args.Preset != PresetDefault {
+	if args.Preset != PresetNone && args.Preset != presetDefault {
 		if !args.hasAnyRedisConfig() {
 			return nil, ErrPresetRequiresRedis
 		}

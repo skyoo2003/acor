@@ -58,7 +58,7 @@ func newRedisBacked(ctx context.Context, args *AhoCorasickArgs) (*redisBackedAC,
 	}
 
 	preset := args.Preset
-	if preset == PresetNone || preset == PresetDefault {
+	if preset == PresetNone || preset == presetDefault {
 		preset = PresetBalanced
 	}
 

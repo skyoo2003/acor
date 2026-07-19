@@ -101,7 +101,11 @@ The HTTP handler exposes JSON endpoints on `/v1/*` plus `/healthz`.
 - `GET /v1/info`
 - `POST /v1/flush`
 
-The gRPC service name is `acor.server.v1.Acor` and mirrors the same operations.
+The gRPC adapter serves the same eight operations as the `acor.server.v1.Acor`
+service, defined in `server/proto/acor/v1/acor.proto` (standard protobuf wire
+format). Start one with `server.NewGRPCServer(service, opts...)` and generate
+clients from the `.proto` with your language's protobuf toolchain. Regenerate
+the Go stubs with `make proto`.
 
 ## Batch Operations
 

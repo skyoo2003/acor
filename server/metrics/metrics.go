@@ -3,6 +3,7 @@
 package metrics
 
 import (
+	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -10,12 +11,13 @@ import (
 type Registry struct {
 	HTTPRequestsTotal      *prometheus.CounterVec
 	HTTPRequestDuration    *prometheus.HistogramVec
-	GRPCRequestsTotal      *prometheus.CounterVec
-	GRPCRequestDuration    *prometheus.HistogramVec
 	RedisOperationsTotal   *prometheus.CounterVec
 	RedisOperationDuration *prometheus.HistogramVec
 	KeywordsTotal          prometheus.Gauge
 	TrieNodesTotal         prometheus.Gauge
+	// GRPCServer holds the standard grpc_server_* Prometheus metrics. Install it
+	// on a gRPC server via its UnaryServerInterceptor().
+	GRPCServer *grpcprom.ServerMetrics
 }
 
 func NewRegistry(registerer prometheus.Registerer) *Registry {
@@ -25,7 +27,11 @@ func NewRegistry(registerer prometheus.Registerer) *Registry {
 	factory := promauto.With(registerer)
 	namespace := "acor"
 
+	grpcServer := grpcprom.NewServerMetrics(grpcprom.WithServerHandlingTimeHistogram())
+	registerer.MustRegister(grpcServer)
+
 	return &Registry{
+		GRPCServer: grpcServer,
 		HTTPRequestsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
@@ -42,23 +48,6 @@ func NewRegistry(registerer prometheus.Registerer) *Registry {
 				Buckets:   prometheus.DefBuckets,
 			},
 			[]string{"method", "path"},
-		),
-		GRPCRequestsTotal: factory.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Name:      "grpc_requests_total",
-				Help:      "Total number of gRPC requests",
-			},
-			[]string{"method", "status"},
-		),
-		GRPCRequestDuration: factory.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Namespace: namespace,
-				Name:      "grpc_request_duration_seconds",
-				Help:      "gRPC request latency in seconds",
-				Buckets:   prometheus.DefBuckets,
-			},
-			[]string{"method"},
 		),
 		RedisOperationsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{

@@ -1,0 +1,57 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package acor.server.v1;
+
+option go_package = "github.com/skyoo2003/acor/server/proto/acor/v1;acorv1";
+
+// Acor is the gRPC surface for an Aho-Corasick keyword collection. It mirrors
+// the HTTP/JSON adapter one-to-one.
+service Acor {
+  rpc Add(KeywordRequest) returns (CountResponse);
+  rpc Remove(KeywordRequest) returns (CountResponse);
+  rpc Find(InputRequest) returns (MatchesResponse);
+  rpc FindIndex(InputRequest) returns (MatchIndexesResponse);
+  rpc Suggest(InputRequest) returns (MatchesResponse);
+  rpc SuggestIndex(InputRequest) returns (MatchIndexesResponse);
+  rpc Info(EmptyRequest) returns (InfoResponse);
+  rpc Flush(EmptyRequest) returns (StatusResponse);
+}
+
+message KeywordRequest {
+  string keyword = 1;
+}
+
+message InputRequest {
+  string input = 1;
+}
+
+message EmptyRequest {}
+
+message CountResponse {
+  int64 count = 1;
+}
+
+message MatchesResponse {
+  repeated string matches = 1;
+}
+
+// Positions holds the start offsets of one matched keyword. Needed because
+// proto3 maps cannot have a repeated value directly.
+message Positions {
+  repeated int64 positions = 1;
+}
+
+message MatchIndexesResponse {
+  map<string, Positions> matches = 1;
+}
+
+message InfoResponse {
+  int64 keywords = 1;
+  int64 nodes = 2;
+}
+
+message StatusResponse {
+  string status = 1;
+}

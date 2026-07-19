@@ -83,16 +83,3 @@ type matchEngine interface {
 	findIndex(text string) map[string][]int
 	info() *InMemoryInfo
 }
-
-// matchEngineBase provides shared fields for matchEngine implementations.
-type matchEngineBase struct {
-	preset        Preset
-	caseSensitive bool
-	keywordSet    map[string]struct{}
-}
-
-func (e *matchEngineBase) init(preset Preset, caseSensitive bool) {
-	e.preset = preset
-	e.caseSensitive = caseSensitive
-	e.keywordSet = make(map[string]struct{})
-}

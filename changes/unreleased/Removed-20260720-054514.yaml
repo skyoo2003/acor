@@ -1,0 +1,5 @@
+kind: Removed
+body: '**BREAKING**: Unexport PresetDefault; it was an internal, non-user-selectable sentinel identical to PresetNone. Use acor.PresetNone instead'
+time: 2026-07-20T05:45:14.541265+09:00
+custom:
+    Issue: "153"

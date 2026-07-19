@@ -40,12 +40,16 @@ import "github.com/skyoo2003/acor/server/metrics"
 | --------------------------------------- | --------- | ------------------------------------------- |
 | `acor_http_requests_total`              | Counter   | Total HTTP requests by method, path, status |
 | `acor_http_request_duration_seconds`    | Histogram | HTTP request latency                        |
-| `acor_grpc_requests_total`              | Counter   | Total gRPC requests by method, status       |
-| `acor_grpc_request_duration_seconds`    | Histogram | gRPC request latency                        |
 | `acor_redis_operations_total`           | Counter   | Total Redis operations by type, status      |
 | `acor_redis_operation_duration_seconds` | Histogram | Redis operation latency                     |
 | `acor_keywords_total`                   | Gauge     | Number of registered keywords               |
 | `acor_trie_nodes_total`                 | Gauge     | Number of trie nodes                        |
+| `grpc_server_handled_total`             | Counter   | Total gRPC requests by method, code         |
+| `grpc_server_handling_seconds`          | Histogram | gRPC request latency                        |
+
+gRPC metrics use the standard `grpc_server_*` names from
+`go-grpc-middleware/providers/prometheus`, wired via
+`NewGRPCServerWithObservability`.
 
 ### Exposing Metrics
 
@@ -145,7 +149,7 @@ The core `pkg/acor` library does not emit its own spans. Request spans are
 created by the `server/tracing` middleware for incoming traffic:
 
 - HTTP requests — via `tracing.HTTPMiddleware`
-- gRPC calls — via the `tracing` unary interceptor
+- gRPC calls — via the standard `otelgrpc` stats handler (`tracing.GRPCStatsHandler`)
 
 To trace individual `Add`/`Find`/`Remove` calls, wrap them in your own spans
 using the OpenTelemetry API.

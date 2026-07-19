@@ -4,39 +4,48 @@ package logging
 
 import (
 	"context"
-	"time"
 
+	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
+// GRPCUnaryInterceptor returns the standard go-grpc-middleware logging
+// interceptor writing through the zerolog-backed Logger. It logs one record per
+// completed call (FinishCall), matching the previous one-line-per-request
+// behavior rather than the middleware default of start+finish.
 func GRPCUnaryInterceptor(logger *Logger) grpc.UnaryServerInterceptor {
 	if logger == nil {
 		panic("logging: nil logger passed to GRPCUnaryInterceptor")
 	}
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		start := time.Now()
+	return grpclog.UnaryServerInterceptor(
+		zerologAdapter(logger),
+		grpclog.WithLogOnEvents(grpclog.FinishCall),
+	)
+}
 
-		resp, err := handler(ctx, req)
-
-		duration := time.Since(start)
-		st, _ := status.FromError(err)
-
+// zerologAdapter bridges the middleware's Logger contract to zerolog.
+func zerologAdapter(logger *Logger) grpclog.Logger {
+	return grpclog.LoggerFunc(func(_ context.Context, level grpclog.Level, msg string, fields ...any) {
 		var event *zerolog.Event
-		if st.Code() != codes.OK {
+		switch level {
+		case grpclog.LevelDebug:
+			event = logger.Debug()
+		case grpclog.LevelInfo:
+			event = logger.Info()
+		case grpclog.LevelWarn:
+			event = logger.Warn()
+		case grpclog.LevelError:
 			event = logger.Error()
-		} else {
+		default:
 			event = logger.Info()
 		}
 
-		event.
-			Str("method", info.FullMethod).
-			Str("status", st.Code().String()).
-			Int64("latency_ms", duration.Milliseconds()).
-			Msg("request completed")
-
-		return resp, err
-	}
+		it := grpclog.Fields(fields).Iterator()
+		for it.Next() {
+			k, v := it.At()
+			event = event.Interface(k, v)
+		}
+		event.Msg(msg)
+	})
 }
