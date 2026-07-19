@@ -9,7 +9,6 @@ import (
 
 	redis "github.com/redis/go-redis/v9"
 
-	"github.com/skyoo2003/acor/internal/pkg/utils"
 )
 
 func (ac *AhoCorasick) buildTrie(keyword string) error {
@@ -80,7 +79,7 @@ func (ac *AhoCorasick) buildTrieWithContext(ctx context.Context, keyword string)
 	keywordRunes := []rune(keyword)
 	for idx := range keywordRunes {
 		prefix := string(keywordRunes[:idx+1])
-		suffix := utils.Reverse(prefix)
+		suffix := reverse(prefix)
 
 		ac.logger.Printf("buildTrie(%s) > Prefix(%s) Suffix(%s)", keyword, prefix, suffix)
 
@@ -147,7 +146,7 @@ func (ac *AhoCorasick) rebuildOutputWithContext(ctx context.Context, suffix stri
 
 		sKeyword := sKeywords[0]
 		if strings.HasPrefix(sKeyword, suffix) {
-			state := utils.Reverse(sKeyword)
+			state := reverse(sKeyword)
 			if buildErr := ac.buildOutputWithContext(ctx, state); buildErr != nil {
 				return buildErr
 			}
@@ -214,7 +213,7 @@ func (ac *AhoCorasick) pruneTrieWithContext(ctx context.Context, keyword string)
 	keywordRunes := []rune(keyword)
 	for idx := len(keywordRunes); idx > 0; idx-- {
 		prefix := string(keywordRunes[:idx])
-		suffix := utils.Reverse(prefix)
+		suffix := reverse(prefix)
 
 		kKey := keywordKey(ac.name)
 		kExists, err := ac.storage.SIsMember(ctx, kKey, prefix)

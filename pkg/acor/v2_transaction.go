@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skyoo2003/acor/internal/pkg/utils"
 )
 
 // versionRandBytes is the number of random bytes used to extend version timestamps
@@ -138,7 +137,7 @@ func (o *v2Operations) tryAddV2(ctx context.Context, keyword string) (int, error
 		prefix := string(keywordRunes[:i+1])
 		if _, exists := prefixSet[prefix]; !exists {
 			newPrefixes = append(newPrefixes, prefix)
-			newSuffixes = append(newSuffixes, utils.Reverse(prefix))
+			newSuffixes = append(newSuffixes, reverse(prefix))
 			prefixSet[prefix] = struct{}{}
 		}
 	}
@@ -255,7 +254,7 @@ func (o *v2Operations) tryRemoveV2(ctx context.Context, keyword string) (int, er
 
 	newSuffixes := make([]string, len(newPrefixes))
 	for i, p := range newPrefixes {
-		newSuffixes[i] = utils.Reverse(p)
+		newSuffixes[i] = reverse(p)
 	}
 
 	newOutputs := make(map[string][]string)

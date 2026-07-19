@@ -28,6 +28,8 @@ const (
 	PresetMemoryEfficient = engine.PresetMemoryEfficient
 	// PresetUltimate is Balanced plus a root-state first-rune pre-filter.
 	PresetUltimate = engine.PresetUltimate
-	// PresetDefault is an internal sentinel; not user-selectable.
-	PresetDefault = engine.PresetDefault
 )
+
+// presetDefault is an internal sentinel (-1) meaning "unset"; it behaves
+// identically to PresetNone and is not part of the public API.
+const presetDefault = engine.PresetDefault

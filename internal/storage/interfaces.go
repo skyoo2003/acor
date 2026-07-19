@@ -72,7 +72,9 @@ type KVStorage interface {
 	Close() error
 }
 
-// StringMapResult represents a deferred string map result from a pipeline HGetAll operation.
+// StringMapResult represents a deferred string map result from a pipeline
+// HGetAll operation. Exposed as an interface so custom Pipeliner backends can
+// return their own deferred result type.
 type StringMapResult interface {
 	// Val returns the map result. Must be called after Exec on the pipeline.
 	Val() map[string]string
