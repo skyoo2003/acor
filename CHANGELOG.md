@@ -1,5 +1,38 @@
 # Changelog
 All notable changes to this project will be documented in this file.
+
+## [v0.9.0](https://github.com/skyoo2003/acor/releases/tag/v0.9.0) - 2026-07-20
+
+### Added
+
+* First-class Valkey support: documented Valkey/Redis compatibility, an opt-in real-server integration suite (ACOR_INTEGRATION_ADDR), and a CI job validating against both redis and valkey service containers ([#150](https://github.com/skyoo2003/acor/issues/150))
+* Standard-library gRPC observability via NewGRPCServerWithObservability: OpenTelemetry tracing (otelgrpc stats handler), Prometheus grpc_server_* metrics, zerolog request logging, and a live grpc.health.v1 health service backed by a background readiness poller ([#153](https://github.com/skyoo2003/acor/issues/153))
+
+### Changed
+
+* Migrate the Redis client from go-redis/v8 to go-redis/v9 (RESP3 by default, with automatic RESP2 fallback for servers without HELLO). No public API changes ([#150](https://github.com/skyoo2003/acor/issues/150))
+* Speed up V2 cached Find/FindIndex by building a local Aho-Corasick automaton once per cache load instead of recomputing the failure function per character. Match latency is now constant with dictionary size (4-12x faster, ~300x fewer allocations on large dictionaries) ([#150](https://github.com/skyoo2003/acor/issues/150))
+* Halve resident V2 cache memory by no longer retaining a full clone of the outputs map alongside the built Aho-Corasick automaton; the cache now keeps only the engine it matches against ([#150](https://github.com/skyoo2003/acor/issues/150))
+* Speed up in-memory Aho-Corasick matching (Speed/Balanced/Ultimate presets and the V2 cached path) with an ASCII direct-index fast path and rune-code threading through the double-array-trie failure traversal, removing a map lookup on nearly every character. Default Balanced Find/FindIndex is ~2.2-2.4x faster (Speed up to 3x) with no change to match results ([#152](https://github.com/skyoo2003/acor/issues/152))
+* **BREAKING**: Rebuild the gRPC adapter on standard protobuf (previously a hand-rolled JSON-over-gRPC codec). The acor.server.v1.Acor service is now defined in server/proto/acor/v1/acor.proto and served via server.NewGRPCServer / NewGRPCServerWithObservability; regenerate Go stubs with make proto. Existing gRPC clients must regenerate from the .proto ([#153](https://github.com/skyoo2003/acor/issues/153))
+* **BREAKING**: Rename gRPC Prometheus metrics from acor_grpc_requests_total / acor_grpc_request_duration_seconds to the standard grpc_server_* series; update dashboards and alerts ([#153](https://github.com/skyoo2003/acor/issues/153))
+* gRPC request logs now use go-grpc-middleware field names (grpc.method, grpc.code, grpc.time_ms; message "finished call") instead of the previous "request completed" line with method / status / latency_ms; update log-based alerts ([#153](https://github.com/skyoo2003/acor/issues/153))
+* Reorganize internals: extract the Aho-Corasick engines into internal/engine and storage into internal/storage, leaving the public API in pkg/acor unchanged ([#151](https://github.com/skyoo2003/acor/issues/151))
+
+### Removed
+
+* **BREAKING**: Unexport PresetDefault; it was an internal, non-user-selectable sentinel identical to PresetNone. Use acor.PresetNone instead ([#153](https://github.com/skyoo2003/acor/issues/153))
+
+### Fixed
+
+* Fix a failure-link construction bug in the Speed and MemoryEfficient in-memory engines that double-applied the goto transition. Keyword sets with nested suffixes (e.g. {a, aa, aaa}) could make MemoryEfficient Find loop forever and cause Speed to silently drop matches; Balanced and Ultimate were unaffected ([#152](https://github.com/skyoo2003/acor/issues/152))
+* Fix the Speed in-memory engine (PresetSpeed) silently dropping matches when a keyword's failure link points to a state inserted later in the trie. The full DFA transition table was filled in state-id order, so a fail-fallback row could be copied before it was populated (e.g. keywords {aab, b} against "aabb" dropped the trailing "b"); it is now filled in breadth-first order. Balanced, MemoryEfficient, and Ultimate were unaffected ([#152](https://github.com/skyoo2003/acor/issues/152))
+
+### Documentation
+
+* Add a CI guard that compiles the documented Go examples to keep them from drifting ([#149](https://github.com/skyoo2003/acor/issues/149))
+* Fix broken Go code examples in the documentation ([#147](https://github.com/skyoo2003/acor/issues/147))
+* Fix stale descriptions and cross-cutting drift across the documentation ([#148](https://github.com/skyoo2003/acor/issues/148))
 ## [v0.8.0](https://github.com/skyoo2003/acor/releases/tag/v0.8.0) - 2026-07-17
 ### Changed
 * **BREAKING**: Merge Ultimate engine into Balanced and share Bloom pre-filter ([#138](https://github.com/skyoo2003/acor/issues/138))
@@ -10,12 +43,14 @@ All notable changes to this project will be documented in this file.
 * Bump CI dependencies: GitHub Actions ([#126](https://github.com/skyoo2003/acor/issues/126), [#128](https://github.com/skyoo2003/acor/issues/128), [#131](https://github.com/skyoo2003/acor/issues/131), [#136](https://github.com/skyoo2003/acor/issues/136))
 ### Documentation
 * Add release guide (RELEASE.md) ([#143](https://github.com/skyoo2003/acor/issues/143))
+
 ## [v0.7.0](https://github.com/skyoo2003/acor/releases/tag/v0.7.0) - 2026-04-20
 ### Added
 - Add RedisBackedAC with preset-optimized engine and benchmarks ([#124](https://github.com/skyoo2003/acor/issues/124))
 - Open-source project setup (LICENSE, CLAUDE.md, issue/PR templates, etc.) ([#122](https://github.com/skyoo2003/acor/issues/122))
 ### Changed
 - Reorganize .gitignore with categorized sections ([#123](https://github.com/skyoo2003/acor/issues/123))
+
 ## [v0.6.1](https://github.com/skyoo2003/acor/releases/tag/v0.6.1) - 2026-04-17
 ### Changed
 * Extract ops constructors into newV2Ops/newV1Ops helpers, preserve configured values across ops swaps, and promote caseSensitive to struct field ([#120](https://github.com/skyoo2003/acor/issues/120))
@@ -26,6 +61,7 @@ All notable changes to this project will be documented in this file.
 * Replace context.Background() with context.WithCancel for proper lifecycle management and fix shutdown order ([#120](https://github.com/skyoo2003/acor/issues/120))
 * Stop cache listener on rollback and fix context cancellation before stopping cache listener in Close ([#120](https://github.com/skyoo2003/acor/issues/120))
 * Enable changelog in GoReleaser config to allow --release-notes flag to populate GitHub release notes ([#120](https://github.com/skyoo2003/acor/issues/120))
+
 ## [v0.6.0](https://github.com/skyoo2003/acor/releases/tag/v0.6.0) - 2026-04-16
 ### Added
 * Add case-sensitive matching support via CaseSensitive field in AhoCorasickArgs ([#112](https://github.com/skyoo2003/acor/issues/112))
@@ -50,12 +86,14 @@ All notable changes to this project will be documented in this file.
 * Pin third-party GitHub Actions to commit SHAs to prevent supply chain attacks ([#111](https://github.com/skyoo2003/acor/issues/111))
 ### Documentation
 * Sync API reference and V2 schema docs with source code ([#112](https://github.com/skyoo2003/acor/issues/112))
+
 ## [v0.5.1](https://github.com/skyoo2003/acor/releases/tag/v0.5.1) - 2026-04-14
 ### Fixed
 * Prevent pub/sub self-message from invalidating local cache ([#106](https://github.com/skyoo2003/acor/issues/106))
 ### Documentation
 * Fix broken Hugo documentation links with relative paths ([#107](https://github.com/skyoo2003/acor/issues/107))
 * Add single page template to fix broken links ([#105](https://github.com/skyoo2003/acor/issues/105))
+
 ## [v0.5.0](https://github.com/skyoo2003/acor/releases/tag/v0.5.0) - 2026-04-13
 ### Added
 * Add local caching for Find/FindIndex operations with Redis Pub/Sub invalidation ([#99](https://github.com/skyoo2003/acor/issues/99))
@@ -83,6 +121,7 @@ All notable changes to this project will be documented in this file.
 ### Documentation
 * Add cross-references between Hugo documentation pages ([#98](https://github.com/skyoo2003/acor/issues/98))
 * Add comprehensive Hugo documentation: guides, API reference, deployment, monitoring, troubleshooting ([#96](https://github.com/skyoo2003/acor/issues/96))
+
 ## [v0.4.0](https://github.com/skyoo2003/acor/releases/tag/v0.4.0) - 2026-03-18
 ### Added
 * Add CLI commands: migrate, migrate-rollback, schema-version ([#83](https://github.com/skyoo2003/acor/issues/83))
@@ -107,6 +146,7 @@ All notable changes to this project will be documented in this file.
 * Correct migration progress step constants ([#83](https://github.com/skyoo2003/acor/issues/83))
 ### Documentation
 * Add performance tradeoffs and migration notes to README ([#83](https://github.com/skyoo2003/acor/issues/83))
+
 ## [v0.3.0](https://github.com/skyoo2003/acor/releases/tag/v0.3.0) - 2026-03-14
 ### Added
 * Add index APIs for find and suggest ([#67](https://github.com/skyoo2003/acor/issues/67))
@@ -117,6 +157,7 @@ All notable changes to this project will be documented in this file.
 * Handle Redis errors during AC execution ([#68](https://github.com/skyoo2003/acor/issues/68))
 ### Documentation
 * Add GitHub Pages documentation and deployment workflow ([#76](https://github.com/skyoo2003/acor/issues/76))
+
 ## [v0.2.0](https://github.com/skyoo2003/acor/releases/tag/v0.2.0) - 2021-07-09
 
 ### Changed
@@ -128,12 +169,14 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Fixed NodeKey output was not written ([#13](https://github.com/skyoo2003/acor/issues/13))
+
 ## [v0.1.0](https://github.com/skyoo2003/acor/releases/tag/v0.1.0) - 2020-11-17
 
 ### Changed
 * Bump go-redis/redis libraries
 * Applied go modules
 * Bump Go required version (1.8 -> 1.11)
+
 ## [v0.0.0](https://github.com/skyoo2003/acor/releases/tag/v0.0.0) - 2017-06-29
 
 ### Added

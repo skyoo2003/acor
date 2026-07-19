@@ -1,5 +1,0 @@
-kind: Changed
-body: Speed up V2 cached Find/FindIndex by building a local Aho-Corasick automaton once per cache load instead of recomputing the failure function per character. Match latency is now constant with dictionary size (4-12x faster, ~300x fewer allocations on large dictionaries)
-time: 2026-07-18T08:34:37.43803+09:00
-custom:
-    Issue: "150"

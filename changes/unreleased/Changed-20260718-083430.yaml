@@ -1,5 +1,0 @@
-kind: Changed
-body: Migrate the Redis client from go-redis/v8 to go-redis/v9 (RESP3 by default, with automatic RESP2 fallback for servers without HELLO). No public API changes
-time: 2026-07-18T08:34:30.667228+09:00
-custom:
-    Issue: "150"

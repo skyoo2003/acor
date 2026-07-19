@@ -1,5 +1,0 @@
-kind: Added
-body: 'Standard-library gRPC observability via NewGRPCServerWithObservability: OpenTelemetry tracing (otelgrpc stats handler), Prometheus grpc_server_* metrics, zerolog request logging, and a live grpc.health.v1 health service backed by a background readiness poller'
-time: 2026-07-20T05:45:14.534571+09:00
-custom:
-    Issue: "153"
