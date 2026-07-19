@@ -1,0 +1,5 @@
+kind: Changed
+body: Speed up in-memory Aho-Corasick matching (Speed/Balanced/Ultimate presets and the V2 cached path) with an ASCII direct-index fast path and rune-code threading through the double-array-trie failure traversal, removing a map lookup on nearly every character. Default Balanced Find/FindIndex is ~2.2-2.4x faster (Speed up to 3x) with no change to match results
+time: 2026-07-18T23:43:51.465208+09:00
+custom:
+    Issue: "152"

@@ -2,7 +2,10 @@
 
 package engine
 
-import "sort"
+import (
+	"sort"
+	"unicode/utf8"
+)
 
 // flatNode is a trie node using a map for goto transitions (flat array pool).
 type flatNode struct {
@@ -21,7 +24,7 @@ type speedEngine struct {
 	dfa       [][]int    // [state][alphabetIndex] -> nextState
 	outputMap [][]string // [state] -> matched keywords
 	alphabet  []rune     // sorted unique runes from all keywords
-	alphaMap  map[rune]int
+	alphabetCoder
 	numStates int
 	preset    Preset
 }
@@ -49,10 +52,7 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 		e.alphabet = append(e.alphabet, r)
 	}
 	sortRunes(e.alphabet)
-	e.alphaMap = make(map[rune]int, len(e.alphabet))
-	for i, r := range e.alphabet {
-		e.alphaMap[r] = i
-	}
+	e.build(e.alphabet)
 
 	nodes := []flatNode{
 		{gotoMap: make(map[rune]int), depth: 0},
@@ -80,6 +80,9 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 	alphaSize := len(e.alphabet)
 
 	queue := make([]int, 0)
+	// bfsOrder records non-root states in BFS (non-decreasing depth) order, used
+	// below to fill the DFA so that e.dfa[fail] is always populated first.
+	bfsOrder := make([]int, 0, numStates)
 	sortedChildren := func(gotoMap map[rune]int) []struct {
 		ch    rune
 		child int
@@ -106,16 +109,20 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 	for len(queue) > 0 {
 		state := queue[0]
 		queue = queue[1:]
+		bfsOrder = append(bfsOrder, state)
 
 		for _, pair := range sortedChildren(nodes[state].gotoMap) {
 			ch := pair.ch
 			child := pair.child
 			queue = append(queue, child)
 
+			// Walk failure links to the deepest state that has a `ch` child, then
+			// apply goto(fail, ch) exactly once below. Assigning inside the loop
+			// and re-applying after would double-apply goto and can point a state's
+			// fail link at itself (e.g. keywords {a,aa,aaa}), corrupting the DFA.
 			fail := nodes[state].fail
 			for fail != 0 {
-				if next, ok := nodes[fail].gotoMap[ch]; ok {
-					fail = next
+				if _, ok := nodes[fail].gotoMap[ch]; ok {
 					break
 				}
 				fail = nodes[fail].fail
@@ -145,7 +152,12 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 		}
 	}
 
-	for s := 1; s < numStates; s++ {
+	// Fill non-root rows in BFS (non-decreasing depth) order. A fail link always
+	// points to a strictly shallower state, so e.dfa[fail] is already filled when
+	// we copy from it. Iterating by state id is wrong: ids come from trie-insertion
+	// order, so a fail link can point to a higher-id (not-yet-filled) state, leaving
+	// the copied row all zeros and silently dropping matches.
+	for _, s := range bfsOrder {
 		for ai, r := range e.alphabet {
 			if child, ok := nodes[s].gotoMap[r]; ok {
 				e.dfa[s][ai] = child
@@ -167,7 +179,7 @@ func (e *speedEngine) find(text string) []string {
 	state := 0
 
 	for _, ch := range text {
-		ai, ok := e.alphaMap[ch]
+		ai, ok := e.code(ch)
 		if !ok {
 			state = 0
 			continue
@@ -191,7 +203,7 @@ func (e *speedEngine) findIndex(text string) map[string][]int {
 	runeIndex := 0
 
 	for _, ch := range text {
-		ai, ok := e.alphaMap[ch]
+		ai, ok := e.code(ch)
 		if !ok {
 			state = 0
 			runeIndex++
@@ -200,7 +212,7 @@ func (e *speedEngine) findIndex(text string) map[string][]int {
 		state = e.dfa[state][ai]
 		runeIndex++
 		for _, out := range e.outputMap[state] {
-			startIdx := runeIndex - len([]rune(out))
+			startIdx := runeIndex - utf8.RuneCountInString(out)
 			matched[out] = append(matched[out], startIdx)
 		}
 	}
@@ -220,7 +232,7 @@ func (e *speedEngine) info() *InMemoryInfo {
 		mem += int64(16 + len(outs)*16)
 	}
 	mem += int64(len(e.alphabet)) * 16
-	mem += int64(len(e.alphaMap)) * 24
+	mem += int64(len(e.index)) * 24
 
 	return &InMemoryInfo{
 		Keywords:    e.countKeywords(),

@@ -9,15 +9,15 @@ package engine
 // Position 0 is unused (sentinel); root is at position 1. This avoids the
 // ambiguity where check[pos]=0 could mean either "empty" or "parent is state 0".
 type doubleArrayTrie struct {
-	base    []int
-	check   []int
-	fail    []int
-	output  [][]string
-	depth   []int
-	size    int
-	cap     int
-	runeMap map[rune]int
-	runes   []rune
+	base   []int
+	check  []int
+	fail   []int
+	output [][]string
+	depth  []int
+	size   int
+	cap    int
+	runes  []rune
+	alphabetCoder
 }
 
 const (
@@ -79,10 +79,7 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 		dat.runes = append(dat.runes, r)
 	}
 	sortRunes(dat.runes)
-	dat.runeMap = make(map[rune]int, len(dat.runes))
-	for i, r := range dat.runes {
-		dat.runeMap[r] = i
-	}
+	dat.build(dat.runes)
 
 	tmpChildren := make(map[int]map[rune]int)
 	tmpOutput := make(map[int][]string)
@@ -128,14 +125,14 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 
 		codes := make([]int, 0, len(children))
 		for ch := range children {
-			codes = append(codes, dat.runeMap[ch])
+			codes = append(codes, dat.index[ch])
 		}
 
 		base := dat.findBase(codes)
 		dat.base[datPos[parent]] = base
 
 		for ch, childID := range children {
-			code := dat.runeMap[ch]
+			code := dat.index[ch]
 			pos := base + code
 			dat.ensureCapacity(pos + 1)
 
@@ -222,23 +219,14 @@ func (dat *doubleArrayTrie) computeFailLinks() {
 		state := queue[0]
 		queue = queue[1:]
 
-		for _, r := range dat.runes {
-			next := dat.gotoState(state, r)
+		for code := range dat.runes {
+			next := dat.gotoStateByCode(state, code)
 			if next == 0 {
 				continue
 			}
 			queue = append(queue, next)
 
-			f := dat.fail[state]
-			for f != datRootPos && dat.gotoState(f, r) == 0 {
-				f = dat.fail[f]
-			}
-			failState := dat.gotoState(f, r)
-			if failState == 0 {
-				failState = datRootPos
-			}
-			dat.fail[next] = failState
-
+			dat.fail[next] = dat.followFailByCode(dat.fail[state], code)
 			if len(dat.output[dat.fail[next]]) > 0 {
 				dat.output[next] = append(dat.output[next], dat.output[dat.fail[next]]...)
 			}
@@ -246,11 +234,9 @@ func (dat *doubleArrayTrie) computeFailLinks() {
 	}
 }
 
-func (dat *doubleArrayTrie) gotoState(state int, ch rune) int {
-	code, ok := dat.runeMap[ch]
-	if !ok {
-		return 0
-	}
+// gotoStateByCode resolves a goto transition with the rune already mapped to its
+// alphabet index, so callers in the hot loop avoid re-resolving the rune on every fail hop.
+func (dat *doubleArrayTrie) gotoStateByCode(state, code int) int {
 	pos := dat.base[state] + code
 	if pos < 0 || pos >= dat.size {
 		return 0
@@ -261,11 +247,14 @@ func (dat *doubleArrayTrie) gotoState(state int, ch rune) int {
 	return pos
 }
 
-func (dat *doubleArrayTrie) followFail(state int, ch rune) int {
-	for state != datRootPos && dat.gotoState(state, ch) == 0 {
+func (dat *doubleArrayTrie) followFailByCode(state, code int) int {
+	// Compute the transition once per visited state (loop condition + post-loop
+	// value share it) instead of twice, since this runs on the fail-walk hot path.
+	next := dat.gotoStateByCode(state, code)
+	for state != datRootPos && next == 0 {
 		state = dat.fail[state]
+		next = dat.gotoStateByCode(state, code)
 	}
-	next := dat.gotoState(state, ch)
 	if next == 0 {
 		next = datRootPos
 	}
