@@ -1,5 +1,0 @@
-kind: Changed
-body: 'Reorganize internals: extract the Aho-Corasick engines into internal/engine and storage into internal/storage, leaving the public API in pkg/acor unchanged'
-time: 2026-07-20T06:21:40.425041+09:00
-custom:
-    Issue: "151"

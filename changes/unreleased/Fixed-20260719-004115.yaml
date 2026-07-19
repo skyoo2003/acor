@@ -1,5 +1,0 @@
-kind: Fixed
-body: Fix the Speed in-memory engine (PresetSpeed) silently dropping matches when a keyword's failure link points to a state inserted later in the trie. The full DFA transition table was filled in state-id order, so a fail-fallback row could be copied before it was populated (e.g. keywords {aab, b} against "aabb" dropped the trailing "b"); it is now filled in breadth-first order. Balanced, MemoryEfficient, and Ultimate were unaffected
-time: 2026-07-19T00:41:15.000000+09:00
-custom:
-    Issue: "152"

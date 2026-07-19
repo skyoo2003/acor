@@ -1,5 +1,0 @@
-kind: Changed
-body: '**BREAKING**: Rebuild the gRPC adapter on standard protobuf (previously a hand-rolled JSON-over-gRPC codec). The acor.server.v1.Acor service is now defined in server/proto/acor/v1/acor.proto and served via server.NewGRPCServer / NewGRPCServerWithObservability; regenerate Go stubs with make proto. Existing gRPC clients must regenerate from the .proto'
-time: 2026-07-20T05:45:14.525903+09:00
-custom:
-    Issue: "153"

@@ -1,5 +1,0 @@
-kind: Documentation
-body: Fix broken Go code examples in the documentation
-time: 2026-07-20T06:22:03.161543+09:00
-custom:
-    Issue: "147"
