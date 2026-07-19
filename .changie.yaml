@@ -1,13 +1,30 @@
+# Changie configuration — https://changie.dev/config/
+# Source of truth for release notes; see RELEASE.md for the release workflow.
+
 changesDir: changes
 unreleasedDir: unreleased
 headerPath: header.tpl.md
 changelogPath: CHANGELOG.md
 versionExt: md
+
+# --- Templates -------------------------------------------------------------
 versionFormat: '## [{{ .Version }}](https://github.com/skyoo2003/acor/releases/tag/{{ .Version }}) - {{ .Time.Format "2006-01-02" }}'
+kindFormat: '### {{ .Kind }}'
+changeFormat: '* {{ .Body }} ([#{{ .Custom.Issue }}](https://github.com/skyoo2003/acor/issues/{{ .Custom.Issue }}))'
 
+# --- Spacing (Keep a Changelog / markdownlint-friendly) --------------------
+# Applied on `changie merge`, so the whole CHANGELOG re-flows cleanly.
+newlines:
+  beforeChangelogVersion: 1   # blank line after the header and between versions
+  beforeKind: 1               # blank line before each "### Kind" header
+  afterKind: 1                # blank line after each "### Kind" header
 
-kindFormat: "### {{ .Kind }}"
-changeFormat: "* {{ .Body }} ([#{{ .Custom.Issue }}](https://github.com/skyoo2003/acor/issues/{{ .Custom.Issue }}))"
+# --- Change body prompt ----------------------------------------------------
+body:
+  block: true                 # allow multi-line bodies (entries here run long)
+  minLength: 5
+
+# --- Kinds -----------------------------------------------------------------
 kinds:
   - label: Added
   - label: Changed
@@ -16,6 +33,8 @@ kinds:
   - label: Fixed
   - label: Security
   - label: Documentation
+
+# --- Prompted custom fields ------------------------------------------------
 custom:
   - key: Issue
     label: Issue Number
