@@ -1,0 +1,5 @@
+kind: Documentation
+body: Add a CI guard that compiles the documented Go examples to keep them from drifting
+time: 2026-07-20T06:21:40.443032+09:00
+custom:
+    Issue: "149"
