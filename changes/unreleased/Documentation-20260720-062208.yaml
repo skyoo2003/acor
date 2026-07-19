@@ -1,0 +1,5 @@
+kind: Documentation
+body: Fix stale descriptions and cross-cutting drift across the documentation
+time: 2026-07-20T06:22:08.956705+09:00
+custom:
+    Issue: "148"
