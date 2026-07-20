@@ -81,9 +81,6 @@ func (ac *AhoCorasick) FindMatchesContext(ctx context.Context, text string, opts
 			matches = leftmostLongest(matches)
 		}
 	}
-	if matches == nil {
-		matches = []Match{}
-	}
 	return matches, nil
 }
 

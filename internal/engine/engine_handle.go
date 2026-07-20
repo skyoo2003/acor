@@ -2,7 +2,7 @@
 
 package engine
 
-import "unicode/utf8"
+import "strings"
 
 // Engine is the exported handle to an in-memory Aho-Corasick match engine.
 // It wraps the preset-selected internal implementation so callers outside this
@@ -61,15 +61,15 @@ func (e *Engine) Stream(next func() (rune, bool), emit func(Match) bool) {
 }
 
 // stringRuneSource adapts a string to the rune-pull source matchStream expects.
-// It decodes runes exactly like a range loop (invalid UTF-8 yields RuneError).
+// strings.Reader.ReadRune decodes exactly like a range loop (invalid UTF-8
+// yields RuneError).
 func stringRuneSource(s string) func() (rune, bool) {
-	i := 0
+	rd := strings.NewReader(s)
 	return func() (rune, bool) {
-		if i >= len(s) {
+		r, _, err := rd.ReadRune()
+		if err != nil {
 			return 0, false
 		}
-		r, size := utf8.DecodeRuneInString(s[i:])
-		i += size
 		return r, true
 	}
 }
