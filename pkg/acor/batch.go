@@ -169,7 +169,6 @@ func (ac *AhoCorasick) rollbackAdded(ctx context.Context, keywords []string) {
 		case sem <- struct{}{}:
 		case <-ctx.Done():
 			wg.Wait()
-			commit(ctx)
 			return
 		}
 		wg.Add(1)
@@ -318,7 +317,6 @@ func (ac *AhoCorasick) rollbackRemoved(ctx context.Context, keywords []string) {
 		case sem <- struct{}{}:
 		case <-ctx.Done():
 			wg.Wait()
-			commit(ctx)
 			return
 		}
 		wg.Add(1)
