@@ -9,6 +9,18 @@ import (
 	"sync"
 )
 
+// batchWriter is implemented by modes (preset) that can coalesce the local
+// automaton rebuild and pub/sub invalidation across a batch of writes. When
+// ac.ops satisfies it, AddMany/RemoveMany write each keyword with the rebuild
+// deferred and then commit a single rebuild + publish, turning N per-keyword
+// automaton rebuilds into one. Modes without a per-write local rebuild (V1, V2)
+// do not implement it and fall back to the plain per-keyword path.
+type batchWriter interface {
+	addDeferred(ctx context.Context, keyword string) (int, error)
+	removeDeferred(ctx context.Context, keyword string) (int, error)
+	commitBatch(ctx context.Context)
+}
+
 // AddMany adds multiple keywords to the Aho-Corasick automaton in batch mode.
 // This is more efficient than calling Add repeatedly for large keyword sets.
 //
@@ -32,6 +44,12 @@ func (ac *AhoCorasick) AddMany(keywords []string, opts *BatchOptions) (*BatchRes
 func (ac *AhoCorasick) addManyBestEffort(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
 	seen := make(map[string]bool)
 
+	bw, batched := ac.ops.(batchWriter)
+	add := ac.ops.add
+	if batched {
+		add = bw.addDeferred
+	}
+
 	for _, keyword := range keywords {
 		keyword = strings.TrimSpace(keyword)
 		if keyword == "" {
@@ -48,7 +66,7 @@ func (ac *AhoCorasick) addManyBestEffort(ctx context.Context, keywords []string,
 		}
 		seen[keyword] = true
 
-		count, err := ac.ops.add(ctx, keyword)
+		count, err := add(ctx, keyword)
 		if err != nil {
 			result.Failed = append(result.Failed, KeywordError{
 				Keyword: keyword,
@@ -64,12 +82,22 @@ func (ac *AhoCorasick) addManyBestEffort(ctx context.Context, keywords []string,
 		}
 	}
 
+	if batched && len(result.Added) > 0 {
+		bw.commitBatch(ctx)
+	}
+
 	return result, nil
 }
 
 func (ac *AhoCorasick) addManyTransactional(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
 	added := make([]string, 0)
 	seen := make(map[string]bool)
+
+	bw, batched := ac.ops.(batchWriter)
+	add := ac.ops.add
+	if batched {
+		add = bw.addDeferred
+	}
 
 	rollbackCtx := context.WithoutCancel(ctx)
 	for _, keyword := range keywords {
@@ -85,8 +113,10 @@ func (ac *AhoCorasick) addManyTransactional(ctx context.Context, keywords []stri
 		}
 		seen[keyword] = true
 
-		count, err := ac.ops.add(ctx, keyword)
+		count, err := add(ctx, keyword)
 		if err != nil {
+			// rollbackAdded uses regular (rebuilding) removes, so it also repairs
+			// the deferred, not-yet-rebuilt local engine before returning.
 			ac.rollbackAdded(rollbackCtx, added)
 			return nil, fmt.Errorf("batch add failed at keyword %q: %w", keyword, err)
 		}
@@ -96,6 +126,10 @@ func (ac *AhoCorasick) addManyTransactional(ctx context.Context, keywords []stri
 		} else {
 			result.Skipped = append(result.Skipped, keyword)
 		}
+	}
+
+	if batched && len(added) > 0 {
+		bw.commitBatch(ctx)
 	}
 
 	result.Added = added
@@ -159,6 +193,12 @@ func (ac *AhoCorasick) RemoveManyWithOptions(keywords []string, opts *BatchOptio
 func (ac *AhoCorasick) removeManyBestEffort(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
 	seen := make(map[string]bool)
 
+	bw, batched := ac.ops.(batchWriter)
+	remove := ac.ops.remove
+	if batched {
+		remove = bw.removeDeferred
+	}
+
 	for _, keyword := range keywords {
 		keyword = strings.TrimSpace(keyword)
 		if keyword == "" {
@@ -175,7 +215,7 @@ func (ac *AhoCorasick) removeManyBestEffort(ctx context.Context, keywords []stri
 		}
 		seen[keyword] = true
 
-		_, err := ac.ops.remove(ctx, keyword)
+		_, err := remove(ctx, keyword)
 		if err != nil {
 			result.Failed = append(result.Failed, KeywordError{
 				Keyword: keyword,
@@ -187,12 +227,22 @@ func (ac *AhoCorasick) removeManyBestEffort(ctx context.Context, keywords []stri
 		result.Removed = append(result.Removed, keyword)
 	}
 
+	if batched && len(result.Removed) > 0 {
+		bw.commitBatch(ctx)
+	}
+
 	return result, nil
 }
 
 func (ac *AhoCorasick) removeManyTransactional(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
 	removed := make([]string, 0)
 	seen := make(map[string]bool)
+
+	bw, batched := ac.ops.(batchWriter)
+	remove := ac.ops.remove
+	if batched {
+		remove = bw.removeDeferred
+	}
 
 	rollbackCtx := context.WithoutCancel(ctx)
 	for _, keyword := range keywords {
@@ -208,13 +258,19 @@ func (ac *AhoCorasick) removeManyTransactional(ctx context.Context, keywords []s
 		}
 		seen[keyword] = true
 
-		_, err := ac.ops.remove(ctx, keyword)
+		_, err := remove(ctx, keyword)
 		if err != nil {
+			// rollbackRemoved re-adds via regular (rebuilding) adds, repairing the
+			// deferred local engine before returning.
 			ac.rollbackRemoved(rollbackCtx, removed)
 			return nil, fmt.Errorf("batch remove failed at keyword %q: %w", keyword, err)
 		}
 
 		removed = append(removed, keyword)
+	}
+
+	if batched && len(removed) > 0 {
+		bw.commitBatch(ctx)
 	}
 
 	result.Removed = removed

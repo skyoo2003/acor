@@ -2,7 +2,11 @@
 
 package acor
 
-import "context"
+import (
+	"context"
+
+	matchengine "github.com/skyoo2003/acor/internal/engine"
+)
 
 // operations defines the core Aho-Corasick methods shared by V1 and V2
 // implementations. This unexported interface is the Strategy pattern
@@ -22,4 +26,8 @@ type operations interface {
 	suggestIndex(ctx context.Context, input string) (map[string][]int, error)
 	flush(ctx context.Context) error
 	info(ctx context.Context) (*AhoCorasickInfo, error)
+	// loadEngine returns an immutable in-memory match engine snapshot for the
+	// current keyword set. FindMatches, Contains, and FindStream all scan through
+	// it, so match semantics stay identical to find/findIndex across every mode.
+	loadEngine(ctx context.Context) (*matchengine.Engine, error)
 }

@@ -4,10 +4,15 @@ package acor
 
 import (
 	"context"
+
+	matchengine "github.com/skyoo2003/acor/internal/engine"
 )
 
-// Compile-time check.
-var _ operations = (*presetRedisOps)(nil)
+// Compile-time checks.
+var (
+	_ operations  = (*presetRedisOps)(nil)
+	_ batchWriter = (*presetRedisOps)(nil)
+)
 
 // presetRedisOps adapts a redisBackedAC to satisfy the operations interface
 // used by AhoCorasick. Suggest/SuggestIndex are not supported in preset mode.
@@ -33,6 +38,24 @@ func (o *presetRedisOps) find(ctx context.Context, text string) ([]string, error
 
 func (o *presetRedisOps) findIndex(ctx context.Context, text string) (map[string][]int, error) {
 	return o.ac.FindIndex(ctx, text)
+}
+
+func (o *presetRedisOps) loadEngine(ctx context.Context) (*matchengine.Engine, error) {
+	return o.ac.loadEngine(ctx)
+}
+
+// batchWriter: coalesce the local rebuild + invalidation across a batch.
+
+func (o *presetRedisOps) addDeferred(ctx context.Context, keyword string) (int, error) {
+	return o.ac.addDeferred(ctx, keyword)
+}
+
+func (o *presetRedisOps) removeDeferred(ctx context.Context, keyword string) (int, error) {
+	return o.ac.removeDeferred(ctx, keyword)
+}
+
+func (o *presetRedisOps) commitBatch(ctx context.Context) {
+	o.ac.commitBatch(ctx)
 }
 
 func (o *presetRedisOps) suggest(_ context.Context, _ string) ([]string, error) {

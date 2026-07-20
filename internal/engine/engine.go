@@ -61,6 +61,15 @@ func (p Preset) String() string {
 	}
 }
 
+// Match is a single keyword occurrence in the searched text. Start and End are
+// rune offsets (half-open [Start, End)), consistent with FindIndex's rune-based
+// offsets. Matches are reported in scan order (by end position).
+type Match struct {
+	Keyword string
+	Start   int
+	End     int
+}
+
 // InMemoryInfo contains statistics about an in-memory Aho-Corasick engine.
 type InMemoryInfo struct {
 	// Keywords is the number of keywords in the automaton.
@@ -81,5 +90,11 @@ type matchEngine interface {
 	buildFromKeywords(keywords map[string]struct{})
 	find(text string) []string
 	findIndex(text string) map[string][]int
+	// matchStream pulls runes from next until it returns ok=false, emitting every
+	// match (overlaps included) to emit in scan order. It stops early if emit
+	// returns false. This is the shared traversal behind FindMatches, Contains,
+	// and streaming; find/findIndex keep their own tight loops to avoid the
+	// per-rune closure overhead on those hot paths.
+	matchStream(next func() (rune, bool), emit func(Match) bool)
 	info() *InMemoryInfo
 }

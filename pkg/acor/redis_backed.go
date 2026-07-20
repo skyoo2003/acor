@@ -141,15 +141,39 @@ func (ac *redisBackedAC) initTrie(ctx context.Context) error {
 	return nil
 }
 
+// buildEngine returns a freshly built engine for the given keyword set. The
+// engine is replaced (not mutated in place) on every rebuild so that a pointer
+// obtained under RLock stays immutable after the lock is released — this is what
+// makes lock-free scanning (loadEngine) and long-running streaming safe.
+func buildEngine(preset Preset, keywordSet map[string]struct{}) *matchengine.Engine {
+	e := matchengine.New(preset)
+	e.Build(keywordSet)
+	return e
+}
+
 func (ac *redisBackedAC) applyReload(snap *trieSnapshot) {
 	keywordSet := make(map[string]struct{}, len(snap.Keywords))
 	for _, kw := range snap.Keywords {
 		keywordSet[kw] = struct{}{}
 	}
 	ac.keywordSet = keywordSet
-	ac.engine.Build(keywordSet)
+	ac.engine = buildEngine(ac.preset, keywordSet)
 	ac.localVersion = snap.Version
 	ac.stale = false
+}
+
+// loadEngine returns an immutable engine snapshot for the current keyword set,
+// refreshing from Redis first if the local copy is stale. The returned engine is
+// never mutated after this point (rebuilds swap in a new one), so the caller may
+// scan it without holding ac.mu.
+func (ac *redisBackedAC) loadEngine(ctx context.Context) (*matchengine.Engine, error) {
+	if err := ac.ensureValid(ctx); err != nil {
+		return nil, err
+	}
+	ac.mu.RLock()
+	e := ac.engine
+	ac.mu.RUnlock()
+	return e, nil
 }
 
 func (ac *redisBackedAC) reloadFromRedis(ctx context.Context) error {

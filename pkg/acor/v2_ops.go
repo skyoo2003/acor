@@ -327,6 +327,11 @@ func (o *v2Operations) getOrLoadEngine(ctx context.Context) (*matchengine.Engine
 	return engine, nil
 }
 
+// loadEngine returns the cached (or per-call throwaway) match engine snapshot.
+func (o *v2Operations) loadEngine(ctx context.Context) (*matchengine.Engine, error) {
+	return o.getOrLoadEngine(ctx)
+}
+
 // --- publishInvalidate ---
 
 // publishInvalidate invalidates the local cache and publishes an invalidation

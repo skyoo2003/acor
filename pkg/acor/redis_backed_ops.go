@@ -18,6 +18,19 @@ const redisBackedRetryBackoff = 10 * time.Millisecond
 // to Redis via a V2 Lua script (optimistic locking), then the local automaton
 // is rebuilt and an invalidation is published.
 func (ac *redisBackedAC) Add(ctx context.Context, keyword string) (int, error) {
+	return ac.addWith(ctx, keyword, true)
+}
+
+// addDeferred writes a keyword but skips the local rebuild and pub/sub publish;
+// commitBatch performs both once for the whole batch. This turns AddMany's N
+// per-keyword automaton rebuilds into a single rebuild.
+func (ac *redisBackedAC) addDeferred(ctx context.Context, keyword string) (int, error) {
+	return ac.addWith(ctx, keyword, false)
+}
+
+// addWith is the shared Add path. rebuild=true rebuilds the local engine and
+// publishes on success (single Add); rebuild=false defers both (batch writes).
+func (ac *redisBackedAC) addWith(ctx context.Context, keyword string, rebuild bool) (int, error) {
 	keyword = normalizeKeyword(keyword, ac.caseSensitive)
 	if keyword == "" {
 		return 0, nil
@@ -26,7 +39,7 @@ func (ac *redisBackedAC) Add(ctx context.Context, keyword string) (int, error) {
 	v2 := &redisBackedV2{client: ac.redisClient}
 
 	for attempt := 0; attempt < redisBackedMaxRetries; attempt++ {
-		added, err := ac.tryAdd(ctx, keyword, v2)
+		added, err := ac.tryAdd(ctx, keyword, v2, rebuild)
 		if errors.Is(err, ErrConcurrencyConflict) {
 			backoff := time.Duration(attempt+1) * redisBackedRetryBackoff
 			select {
@@ -36,12 +49,15 @@ func (ac *redisBackedAC) Add(ctx context.Context, keyword string) (int, error) {
 			}
 			continue
 		}
+		if err == nil && added == 1 && rebuild {
+			ac.publishInvalidate(ctx)
+		}
 		return added, err
 	}
 	return 0, ErrConcurrencyConflict
 }
 
-func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, v2 *redisBackedV2) (int, error) { //nolint:gocyclo,funlen
+func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, v2 *redisBackedV2, rebuild bool) (int, error) { //nolint:gocyclo,funlen
 	snap, err := readTrieSnapshot(ctx, ac.storage, ac.name)
 	if err != nil {
 		return 0, err
@@ -124,19 +140,54 @@ func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, v2 *redisBa
 		return 0, ErrConcurrencyConflict
 	}
 
+	ac.applyLocalWrite(keyword, true, newVersion, rebuild)
+	return 1, nil
+}
+
+// applyLocalWrite applies a committed Redis write to the local state under lock.
+// add selects insertion vs deletion of keyword in the keyword set. rebuild=true
+// rebuilds the engine now and clears the stale flag; rebuild=false marks the
+// engine stale so a concurrent Find reloads from Redis until commitBatch rebuilds.
+func (ac *redisBackedAC) applyLocalWrite(keyword string, add bool, newVersion int64, rebuild bool) {
 	ac.mu.Lock()
-	ac.keywordSet[keyword] = struct{}{}
-	ac.engine.Build(ac.keywordSet)
+	if add {
+		ac.keywordSet[keyword] = struct{}{}
+	} else {
+		delete(ac.keywordSet, keyword)
+	}
 	ac.localVersion = newVersion
+	if rebuild {
+		ac.engine = buildEngine(ac.preset, ac.keywordSet)
+		ac.stale = false
+	} else {
+		ac.stale = true
+	}
+	ac.mu.Unlock()
+}
+
+// commitBatch rebuilds the local engine once from the current keyword set and
+// publishes a single invalidation, collapsing the rebuild/publish that
+// addDeferred/removeDeferred skipped during a batch.
+func (ac *redisBackedAC) commitBatch(ctx context.Context) {
+	ac.mu.Lock()
+	ac.engine = buildEngine(ac.preset, ac.keywordSet)
 	ac.stale = false
 	ac.mu.Unlock()
-
 	ac.publishInvalidate(ctx)
-	return 1, nil
 }
 
 // Remove deletes a keyword from the automaton.
 func (ac *redisBackedAC) Remove(ctx context.Context, keyword string) (int, error) {
+	return ac.removeWith(ctx, keyword, true)
+}
+
+// removeDeferred is Remove with the local rebuild and publish deferred to
+// commitBatch; see addDeferred.
+func (ac *redisBackedAC) removeDeferred(ctx context.Context, keyword string) (int, error) {
+	return ac.removeWith(ctx, keyword, false)
+}
+
+func (ac *redisBackedAC) removeWith(ctx context.Context, keyword string, rebuild bool) (int, error) {
 	keyword = normalizeKeyword(keyword, ac.caseSensitive)
 	if keyword == "" {
 		return 0, nil
@@ -145,7 +196,7 @@ func (ac *redisBackedAC) Remove(ctx context.Context, keyword string) (int, error
 	v2 := &redisBackedV2{client: ac.redisClient}
 
 	for attempt := 0; attempt < redisBackedMaxRetries; attempt++ {
-		removed, err := ac.tryRemove(ctx, keyword, v2)
+		removed, err := ac.tryRemove(ctx, keyword, v2, rebuild)
 		if errors.Is(err, ErrConcurrencyConflict) {
 			backoff := time.Duration(attempt+1) * redisBackedRetryBackoff
 			select {
@@ -155,12 +206,15 @@ func (ac *redisBackedAC) Remove(ctx context.Context, keyword string) (int, error
 			}
 			continue
 		}
+		if err == nil && removed == 1 && rebuild {
+			ac.publishInvalidate(ctx)
+		}
 		return removed, err
 	}
 	return 0, ErrConcurrencyConflict
 }
 
-func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, v2 *redisBackedV2) (int, error) { //nolint:gocyclo,funlen
+func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, v2 *redisBackedV2, rebuild bool) (int, error) { //nolint:gocyclo,funlen
 	snap, err := readTrieSnapshot(ctx, ac.storage, ac.name)
 	if err != nil {
 		return 0, err
@@ -254,14 +308,7 @@ func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, v2 *redi
 		return 0, ErrConcurrencyConflict
 	}
 
-	ac.mu.Lock()
-	delete(ac.keywordSet, keyword)
-	ac.engine.Build(ac.keywordSet)
-	ac.localVersion = newVersion
-	ac.stale = false
-	ac.mu.Unlock()
-
-	ac.publishInvalidate(ctx)
+	ac.applyLocalWrite(keyword, false, newVersion, rebuild)
 	return 1, nil
 }
 
@@ -272,13 +319,11 @@ func (ac *redisBackedAC) Find(ctx context.Context, text string) ([]string, error
 	}
 	text = normalizeText(text, ac.caseSensitive)
 
-	if err := ac.ensureValid(ctx); err != nil {
+	e, err := ac.loadEngine(ctx)
+	if err != nil {
 		return nil, err
 	}
-
-	ac.mu.RLock()
-	defer ac.mu.RUnlock()
-	return ac.engine.Find(text), nil
+	return e.Find(text), nil
 }
 
 // FindIndex searches the text for all keywords and returns their start indices.
@@ -288,13 +333,11 @@ func (ac *redisBackedAC) FindIndex(ctx context.Context, text string) (map[string
 	}
 	text = normalizeText(text, ac.caseSensitive)
 
-	if err := ac.ensureValid(ctx); err != nil {
+	e, err := ac.loadEngine(ctx)
+	if err != nil {
 		return nil, err
 	}
-
-	ac.mu.RLock()
-	defer ac.mu.RUnlock()
-	return ac.engine.FindIndex(text), nil
+	return e.FindIndex(text), nil
 }
 
 // Flush removes all keywords from the automaton.
@@ -322,7 +365,7 @@ func (ac *redisBackedAC) Flush(ctx context.Context) error {
 
 	ac.mu.Lock()
 	ac.keywordSet = make(map[string]struct{})
-	ac.engine.Build(ac.keywordSet)
+	ac.engine = buildEngine(ac.preset, ac.keywordSet)
 	ac.stale = false
 	ac.mu.Unlock()
 
