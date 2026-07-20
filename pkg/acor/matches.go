@@ -46,9 +46,16 @@ type MatchOptions struct {
 	// WholeWord assumes a script that delimits words with spaces or punctuation.
 	// Scripts written without inter-word boundaries (CJK, Thai, …) classify every
 	// adjacent character as a word rune, so a WholeWord match there is almost
-	// always treated as mid-word and dropped; use FindMatches without WholeWord
-	// for such text.
+	// always treated as mid-word and dropped; use FindMatches without WholeWord,
+	// or supply WordRune, for such text.
 	WholeWord bool
+	// WordRune overrides which runes count as part of a word when WholeWord is
+	// set. A match is whole-word only when the runes immediately before its start
+	// and at its end are not word runes. nil uses the default (letters, digits,
+	// combining marks, underscore). Supply a predicate for scripts the default
+	// misclassifies — e.g. return false for CJK ideographs so a CJK term bounded
+	// by spaces or ASCII is reported. Ignored unless WholeWord is true.
+	WordRune func(rune) bool
 }
 
 // FindMatches searches text and returns matches carrying each keyword and its
@@ -85,7 +92,11 @@ func (ac *AhoCorasick) FindMatchesContext(ctx context.Context, text string, opts
 		// through a WholeWord gate) there is nothing to filter and the rune slice
 		// would be a wasted large allocation.
 		if opts.WholeWord && len(matches) > 0 {
-			matches = filterWholeWord(matches, []rune(norm))
+			isWord := isWordRune
+			if opts.WordRune != nil {
+				isWord = opts.WordRune
+			}
+			matches = filterWholeWord(matches, []rune(norm), isWord)
 		}
 		if opts.Kind == MatchKindLeftmostLongest {
 			matches = leftmostLongest(matches)
@@ -206,13 +217,13 @@ func leftmostLongest(ms []Match) []Match {
 }
 
 // filterWholeWord keeps only matches bounded by non-word runes (or the text
-// edges). runes is the searched text as a rune slice, so Match rune offsets index
-// directly into it.
-func filterWholeWord(ms []Match, runes []rune) []Match {
+// edges), per the isWord predicate. runes is the searched text as a rune slice,
+// so Match rune offsets index directly into it.
+func filterWholeWord(ms []Match, runes []rune, isWord func(rune) bool) []Match {
 	out := make([]Match, 0, len(ms))
 	for _, m := range ms {
-		beforeOK := m.Start == 0 || !isWordRune(runes[m.Start-1])
-		afterOK := m.End >= len(runes) || !isWordRune(runes[m.End])
+		beforeOK := m.Start == 0 || !isWord(runes[m.Start-1])
+		afterOK := m.End >= len(runes) || !isWord(runes[m.End])
 		if beforeOK && afterOK {
 			out = append(out, m)
 		}

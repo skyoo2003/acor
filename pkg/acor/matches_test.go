@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode"
 )
 
 func addAll(t *testing.T, ac *AhoCorasick, kws ...string) {
@@ -97,6 +98,34 @@ func TestFindMatches_WholeWord_CombiningMark(t *testing.T) {
 		t.Fatal(err)
 	} else if len(got) != 1 {
 		t.Errorf("whole-word should match standalone 'cafe', got %v", got)
+	}
+}
+
+// TestFindMatches_WholeWord_CustomWordRune shows the WordRune override making
+// WholeWord usable for a script the default misclassifies (CJK): the default
+// drops the match, a Han-aware predicate keeps it.
+func TestFindMatches_WholeWord_CustomWordRune(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer ac.Close()
+
+	addAll(t, ac, "違禁")
+
+	// Default WholeWord drops it: the following '詞' is a letter (word rune).
+	if got, err := ac.FindMatches("違禁詞", &MatchOptions{WholeWord: true}); err != nil {
+		t.Fatal(err)
+	} else if len(got) != 0 {
+		t.Errorf("default WholeWord should drop the CJK-adjacent match, got %v", got)
+	}
+
+	// Treat Han ideographs as non-word so a term bounded by other Han still counts.
+	nonHan := func(r rune) bool { return isWordRune(r) && !unicode.Is(unicode.Han, r) }
+	got, err := ac.FindMatches("違禁詞", &MatchOptions{WholeWord: true, WordRune: nonHan})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Keyword != "違禁" {
+		t.Errorf("custom WordRune should match the CJK term, got %v", got)
 	}
 }
 

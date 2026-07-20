@@ -174,6 +174,55 @@ func TestRemoveMany_NoOpDoesNotCommit(t *testing.T) {
 	}
 }
 
+// TestInvalidationPoll_DetectsMissedWrite proves the version-poll safety net:
+// after a remote write whose Pub/Sub invalidation was lost, the poller marks the
+// engine stale and the next read reloads.
+func TestInvalidationPoll_DetectsMissedWrite(t *testing.T) {
+	mr := createTestRedisServer(t)
+	defer mr.Close()
+	ac, err := Create(&AhoCorasickArgs{
+		Addr:                     mr.Addr(),
+		Name:                     "test",
+		Preset:                   PresetBalanced,
+		InvalidationPollInterval: 40 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ac.Close()
+
+	if ok, _ := ac.Contains("zeta"); ok {
+		t.Fatal("precondition: 'zeta' should be absent")
+	}
+
+	// Simulate a write on another node whose invalidation never arrived: write a
+	// valid trie state directly to Redis with a distinct version and DO NOT publish.
+	raw := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer raw.Close()
+	ctx := context.Background()
+	if err := raw.HSet(ctx, trieKey("test"), map[string]interface{}{
+		"keywords": `["zeta"]`,
+		"version":  int64(1), // differs from the init timestamp version
+	}).Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	// The 40ms poller should detect the version change and mark stale; the next
+	// Contains reloads and sees 'zeta'. Poll with a deadline to avoid flakiness.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if ok, err := ac.Contains("zeta"); err != nil {
+			t.Fatal(err)
+		} else if ok {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("poller did not pick up the out-of-band write within the deadline")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
 func TestAddMany_Transactional_Coalesces(t *testing.T) {
 	ac, mr := createPresetAC(t)
 	defer mr.Close()

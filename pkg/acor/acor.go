@@ -262,6 +262,17 @@ type AhoCorasickArgs struct {
 	// for fast reads. Forces V2 schema.
 	// When unset (zero), the original Aho-Corasick engine is used.
 	Preset Preset
+
+	// InvalidationPollInterval enables a background safety net for the Preset
+	// engine: every interval it compares the collection's stored version against
+	// the local one and reloads if they differ. Cross-instance invalidation is
+	// normally driven by best-effort Redis Pub/Sub, which has no delivery
+	// guarantee — a dropped message leaves a node serving stale data until the
+	// next local write. This poll bounds that staleness to the interval.
+	//
+	// Disabled by default (zero). Recommended for multi-instance deployments
+	// (e.g. 30 * time.Second). Only applies to Preset mode; ignored otherwise.
+	InvalidationPollInterval time.Duration
 }
 
 // AhoCorasick represents an Aho-Corasick automaton backed by Redis.
