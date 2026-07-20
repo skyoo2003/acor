@@ -1,0 +1,5 @@
+kind: Fixed
+body: 'RemoveMany and RemoveManyWithOptions no longer report keywords that were not present as removed: an absent keyword is now recorded in BatchResult.Skipped instead of BatchResult.Removed, matching AddMany and single Remove. In Preset mode this also prevents a no-op RemoveMany from triggering an unnecessary cluster-wide cache reload.'
+time: 2026-07-21T05:45:13.672811+09:00
+custom:
+    Issue: "158"
