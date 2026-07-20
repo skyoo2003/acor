@@ -142,6 +142,38 @@ func TestRemoveMany_CoalescesRebuild(t *testing.T) {
 	}
 }
 
+// TestRemoveMany_NoOpDoesNotCommit guards against the reload storm: removing
+// keywords that are not present must not publish an invalidation or report them
+// as removed.
+func TestRemoveMany_NoOpDoesNotCommit(t *testing.T) {
+	ac, mr := createPresetAC(t)
+	defer mr.Close()
+	defer ac.Close()
+
+	if _, err := ac.AddMany([]string{"alpha", "beta"}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	var result *BatchResult
+	n := countInvalidations(t, mr, "test", func() {
+		var err error
+		result, err = ac.RemoveMany([]string{"absent1", "absent2"})
+		if err != nil {
+			t.Fatalf("RemoveMany: %v", err)
+		}
+	})
+
+	if n != 0 {
+		t.Errorf("no-op RemoveMany published %d invalidations, want 0", n)
+	}
+	if len(result.Removed) != 0 {
+		t.Errorf("no-op RemoveMany reported %v as removed, want none", result.Removed)
+	}
+	if len(result.Skipped) != 2 {
+		t.Errorf("no-op RemoveMany skipped %d, want 2 (%v)", len(result.Skipped), result.Skipped)
+	}
+}
+
 func TestAddMany_Transactional_Coalesces(t *testing.T) {
 	ac, mr := createPresetAC(t)
 	defer mr.Close()

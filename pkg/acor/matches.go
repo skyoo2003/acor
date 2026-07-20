@@ -5,6 +5,7 @@ package acor
 import (
 	"bufio"
 	"context"
+	"errors"
 	"io"
 	"sort"
 	"unicode"
@@ -38,9 +39,15 @@ type MatchOptions struct {
 	// Kind selects overlapping (default) or leftmost-longest non-overlapping.
 	Kind MatchKind
 	// WholeWord, when true, drops matches whose neighboring runes are word
-	// characters (letters, digits, or underscore) — e.g. it stops "class" from
-	// matching inside "classic". Boundaries are the string start/end or any
-	// non-word rune.
+	// characters (letters, digits, combining marks, or underscore) — e.g. it stops
+	// "class" from matching inside "classic". Boundaries are the string start/end
+	// or any non-word rune.
+	//
+	// WholeWord assumes a script that delimits words with spaces or punctuation.
+	// Scripts written without inter-word boundaries (CJK, Thai, …) classify every
+	// adjacent character as a word rune, so a WholeWord match there is almost
+	// always treated as mid-word and dropped; use FindMatches without WholeWord
+	// for such text.
 	WholeWord bool
 }
 
@@ -74,7 +81,10 @@ func (ac *AhoCorasick) FindMatchesContext(ctx context.Context, text string, opts
 
 	matches := eng.FindMatches(norm)
 	if opts != nil {
-		if opts.WholeWord {
+		// Guard the []rune conversion: on the common zero-match path (a clean doc
+		// through a WholeWord gate) there is nothing to filter and the rune slice
+		// would be a wasted large allocation.
+		if opts.WholeWord && len(matches) > 0 {
 			matches = filterWholeWord(matches, []rune(norm))
 		}
 		if opts.Kind == MatchKindLeftmostLongest {
@@ -151,7 +161,9 @@ func (ac *AhoCorasick) FindStreamContext(ctx context.Context, r io.Reader, onMat
 		}
 		ru, _, e := br.ReadRune()
 		if e != nil {
-			if e != io.EOF {
+			// errors.Is, not ==: a decorator reader may return a wrapped io.EOF at
+			// end of input, which is a normal completion, not a scan failure.
+			if !errors.Is(e, io.EOF) {
 				scanErr = e
 			}
 			return 0, false
@@ -209,5 +221,8 @@ func filterWholeWord(ms []Match, runes []rune) []Match {
 }
 
 func isWordRune(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
+	// unicode.Mark: a combining mark (e.g. U+0301) belongs to the base letter it
+	// decorates, so a match ending right before one (decomposed/NFD text like
+	// "cafe"+combining-acute) is mid-word, not a whole word.
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.Is(unicode.Mark, r) || r == '_'
 }

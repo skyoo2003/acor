@@ -165,14 +165,20 @@ func (ac *redisBackedAC) applyLocalWrite(keyword string, add bool, newVersion in
 	ac.mu.Unlock()
 }
 
-// commitBatch rebuilds the local engine once from the current keyword set and
-// publishes a single invalidation, collapsing the rebuild/publish that
-// addDeferred/removeDeferred skipped during a batch.
+// commitBatch refreshes the local engine once and publishes a single
+// invalidation, collapsing the rebuild/publish that addDeferred/removeDeferred
+// skipped during a batch.
+//
+// It reloads from Redis (the source of truth) rather than rebuilding from the
+// local keyword set: that set is only incrementally maintained, so it can miss a
+// keyword another node wrote concurrently, and a remote invalidation received
+// during the batch must not be silently cleared by setting stale=false against a
+// stale local view. On reload failure the deferred writes left the engine stale,
+// so the next Find retries the reload.
 func (ac *redisBackedAC) commitBatch(ctx context.Context) {
-	ac.mu.Lock()
-	ac.engine = buildEngine(ac.preset, ac.keywordSet)
-	ac.stale = false
-	ac.mu.Unlock()
+	if err := ac.reloadFromRedis(ctx); err != nil {
+		ac.markStale()
+	}
 	ac.publishInvalidate(ctx)
 }
 

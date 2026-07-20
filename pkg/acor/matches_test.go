@@ -3,6 +3,8 @@
 package acor
 
 import (
+	"fmt"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -71,6 +73,67 @@ func TestFindMatches_WholeWord(t *testing.T) {
 		t.Fatal(err)
 	} else if len(got) != 1 || got[0].Keyword != "class" {
 		t.Errorf("whole-word should match standalone 'class', got %v", got)
+	}
+}
+
+// TestFindMatches_WholeWord_CombiningMark guards against a false positive on
+// decomposed (NFD) text: "cafe" must not be reported as a whole word inside
+// "café" written as "cafe" + U+0301 (combining acute), because the combining
+// mark belongs to the preceding letter.
+func TestFindMatches_WholeWord_CombiningMark(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer ac.Close()
+
+	addAll(t, ac, "cafe")
+	decomposed := "café" // café in NFD
+	if got, err := ac.FindMatches(decomposed, &MatchOptions{WholeWord: true}); err != nil {
+		t.Fatal(err)
+	} else if len(got) != 0 {
+		t.Errorf("whole-word should reject 'cafe' before a combining mark, got %v", got)
+	}
+	// Control: a real standalone "cafe" still matches.
+	if got, err := ac.FindMatches("the cafe opens", &MatchOptions{WholeWord: true}); err != nil {
+		t.Fatal(err)
+	} else if len(got) != 1 {
+		t.Errorf("whole-word should match standalone 'cafe', got %v", got)
+	}
+}
+
+// wrappedEOFReader returns its data, then a wrapped io.EOF (not the bare
+// sentinel) — as some decorator/decompressor readers do.
+type wrappedEOFReader struct {
+	data []byte
+	pos  int
+}
+
+func (r *wrappedEOFReader) Read(p []byte) (int, error) {
+	if r.pos >= len(r.data) {
+		return 0, fmt.Errorf("stream done: %w", io.EOF)
+	}
+	n := copy(p, r.data[r.pos:])
+	r.pos += n
+	return n, nil
+}
+
+// TestFindStream_WrappedEOF confirms a wrapped io.EOF at end of input is treated
+// as normal completion, not a scan error.
+func TestFindStream_WrappedEOF(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer ac.Close()
+
+	addAll(t, ac, "abc")
+	var found []Match
+	err := ac.FindStream(&wrappedEOFReader{data: []byte("xabcx")}, func(m Match) bool {
+		found = append(found, m)
+		return true
+	})
+	if err != nil {
+		t.Errorf("wrapped io.EOF should be normal completion, got err %v", err)
+	}
+	if len(found) != 1 || found[0].Keyword != "abc" {
+		t.Errorf("FindStream over wrapped-EOF reader = %v, want single abc", found)
 	}
 }
 

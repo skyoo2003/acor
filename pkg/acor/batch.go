@@ -21,6 +21,26 @@ type batchWriter interface {
 	commitBatch(ctx context.Context)
 }
 
+// batchAddFns returns the per-keyword add function and a commit function for a
+// batch. In a batchWriter mode (preset) the add is deferred and commit runs the
+// single coalesced rebuild+publish; otherwise add is the plain per-keyword add
+// (which already rebuilt+published) and commit is a no-op. Callers gate commit on
+// whether anything actually changed, so no-op batches never trigger a rebuild.
+func (ac *AhoCorasick) batchAddFns() (add func(context.Context, string) (int, error), commit func(context.Context)) {
+	if bw, ok := ac.ops.(batchWriter); ok {
+		return bw.addDeferred, bw.commitBatch
+	}
+	return ac.ops.add, func(context.Context) {}
+}
+
+// batchRemoveFns is batchAddFns for the remove side.
+func (ac *AhoCorasick) batchRemoveFns() (remove func(context.Context, string) (int, error), commit func(context.Context)) {
+	if bw, ok := ac.ops.(batchWriter); ok {
+		return bw.removeDeferred, bw.commitBatch
+	}
+	return ac.ops.remove, func(context.Context) {}
+}
+
 // AddMany adds multiple keywords to the Aho-Corasick automaton in batch mode.
 // This is more efficient than calling Add repeatedly for large keyword sets.
 //
@@ -43,12 +63,7 @@ func (ac *AhoCorasick) AddMany(keywords []string, opts *BatchOptions) (*BatchRes
 
 func (ac *AhoCorasick) addManyBestEffort(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
 	seen := make(map[string]bool)
-
-	bw, batched := ac.ops.(batchWriter)
-	add := ac.ops.add
-	if batched {
-		add = bw.addDeferred
-	}
+	add, commit := ac.batchAddFns()
 
 	for _, keyword := range keywords {
 		keyword = strings.TrimSpace(keyword)
@@ -82,8 +97,8 @@ func (ac *AhoCorasick) addManyBestEffort(ctx context.Context, keywords []string,
 		}
 	}
 
-	if batched && len(result.Added) > 0 {
-		bw.commitBatch(ctx)
+	if len(result.Added) > 0 {
+		commit(ctx)
 	}
 
 	return result, nil
@@ -92,12 +107,7 @@ func (ac *AhoCorasick) addManyBestEffort(ctx context.Context, keywords []string,
 func (ac *AhoCorasick) addManyTransactional(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
 	added := make([]string, 0)
 	seen := make(map[string]bool)
-
-	bw, batched := ac.ops.(batchWriter)
-	add := ac.ops.add
-	if batched {
-		add = bw.addDeferred
-	}
+	add, commit := ac.batchAddFns()
 
 	rollbackCtx := context.WithoutCancel(ctx)
 	for _, keyword := range keywords {
@@ -115,8 +125,8 @@ func (ac *AhoCorasick) addManyTransactional(ctx context.Context, keywords []stri
 
 		count, err := add(ctx, keyword)
 		if err != nil {
-			// rollbackAdded uses regular (rebuilding) removes, so it also repairs
-			// the deferred, not-yet-rebuilt local engine before returning.
+			// rollbackAdded also repairs the deferred, not-yet-committed local
+			// engine (it ends with its own commit) before returning.
 			ac.rollbackAdded(rollbackCtx, added)
 			return nil, fmt.Errorf("batch add failed at keyword %q: %w", keyword, err)
 		}
@@ -128,8 +138,8 @@ func (ac *AhoCorasick) addManyTransactional(ctx context.Context, keywords []stri
 		}
 	}
 
-	if batched && len(added) > 0 {
-		bw.commitBatch(ctx)
+	if len(added) > 0 {
+		commit(ctx)
 	}
 
 	result.Added = added
@@ -140,6 +150,11 @@ func (ac *AhoCorasick) rollbackAdded(ctx context.Context, keywords []string) {
 	if len(keywords) == 0 {
 		return
 	}
+
+	// Use the deferred write + single commit so a failed batch triggers one
+	// rebuild/publish, not one per rolled-back keyword (commit is a no-op outside
+	// batchWriter modes, where each remove already rebuilt/published).
+	remove, commit := ac.batchRemoveFns()
 
 	maxWorkers := 10
 	if len(keywords) < maxWorkers {
@@ -154,6 +169,7 @@ func (ac *AhoCorasick) rollbackAdded(ctx context.Context, keywords []string) {
 		case sem <- struct{}{}:
 		case <-ctx.Done():
 			wg.Wait()
+			commit(ctx)
 			return
 		}
 		wg.Add(1)
@@ -162,12 +178,13 @@ func (ac *AhoCorasick) rollbackAdded(ctx context.Context, keywords []string) {
 				<-sem
 				wg.Done()
 			}()
-			if _, err := ac.ops.remove(ctx, k); err != nil && ac.logger != nil {
+			if _, err := remove(ctx, k); err != nil && ac.logger != nil {
 				ac.logger.Printf("rollback: failed to remove %q: %v", k, err)
 			}
 		}(keyword)
 	}
 	wg.Wait()
+	commit(ctx)
 }
 
 // RemoveMany removes multiple keywords from the Aho-Corasick automaton.
@@ -192,12 +209,7 @@ func (ac *AhoCorasick) RemoveManyWithOptions(keywords []string, opts *BatchOptio
 
 func (ac *AhoCorasick) removeManyBestEffort(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
 	seen := make(map[string]bool)
-
-	bw, batched := ac.ops.(batchWriter)
-	remove := ac.ops.remove
-	if batched {
-		remove = bw.removeDeferred
-	}
+	remove, commit := ac.batchRemoveFns()
 
 	for _, keyword := range keywords {
 		keyword = strings.TrimSpace(keyword)
@@ -215,7 +227,7 @@ func (ac *AhoCorasick) removeManyBestEffort(ctx context.Context, keywords []stri
 		}
 		seen[keyword] = true
 
-		_, err := remove(ctx, keyword)
+		count, err := remove(ctx, keyword)
 		if err != nil {
 			result.Failed = append(result.Failed, KeywordError{
 				Keyword: keyword,
@@ -224,11 +236,18 @@ func (ac *AhoCorasick) removeManyBestEffort(ctx context.Context, keywords []stri
 			continue
 		}
 
-		result.Removed = append(result.Removed, keyword)
+		// Only count as removed when a keyword was actually present (count > 0),
+		// matching AddMany and single Remove. This keeps a no-op RemoveMany from
+		// reporting phantom removals and from firing a needless cluster-wide commit.
+		if count > 0 {
+			result.Removed = append(result.Removed, keyword)
+		} else {
+			result.Skipped = append(result.Skipped, keyword)
+		}
 	}
 
-	if batched && len(result.Removed) > 0 {
-		bw.commitBatch(ctx)
+	if len(result.Removed) > 0 {
+		commit(ctx)
 	}
 
 	return result, nil
@@ -237,12 +256,7 @@ func (ac *AhoCorasick) removeManyBestEffort(ctx context.Context, keywords []stri
 func (ac *AhoCorasick) removeManyTransactional(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
 	removed := make([]string, 0)
 	seen := make(map[string]bool)
-
-	bw, batched := ac.ops.(batchWriter)
-	remove := ac.ops.remove
-	if batched {
-		remove = bw.removeDeferred
-	}
+	remove, commit := ac.batchRemoveFns()
 
 	rollbackCtx := context.WithoutCancel(ctx)
 	for _, keyword := range keywords {
@@ -258,19 +272,25 @@ func (ac *AhoCorasick) removeManyTransactional(ctx context.Context, keywords []s
 		}
 		seen[keyword] = true
 
-		_, err := remove(ctx, keyword)
+		count, err := remove(ctx, keyword)
 		if err != nil {
-			// rollbackRemoved re-adds via regular (rebuilding) adds, repairing the
-			// deferred local engine before returning.
+			// rollbackRemoved re-adds the actually-removed keywords and ends with its
+			// own commit, repairing the deferred local engine before returning.
 			ac.rollbackRemoved(rollbackCtx, removed)
 			return nil, fmt.Errorf("batch remove failed at keyword %q: %w", keyword, err)
 		}
 
-		removed = append(removed, keyword)
+		// Track only keywords that were present, so rollback re-adds exactly those
+		// and a no-op transactional RemoveMany does not fire a commit.
+		if count > 0 {
+			removed = append(removed, keyword)
+		} else {
+			result.Skipped = append(result.Skipped, keyword)
+		}
 	}
 
-	if batched && len(removed) > 0 {
-		bw.commitBatch(ctx)
+	if len(removed) > 0 {
+		commit(ctx)
 	}
 
 	result.Removed = removed
@@ -281,6 +301,9 @@ func (ac *AhoCorasick) rollbackRemoved(ctx context.Context, keywords []string) {
 	if len(keywords) == 0 {
 		return
 	}
+
+	// Deferred write + single commit, mirroring rollbackAdded.
+	add, commit := ac.batchAddFns()
 
 	maxWorkers := 10
 	if len(keywords) < maxWorkers {
@@ -295,6 +318,7 @@ func (ac *AhoCorasick) rollbackRemoved(ctx context.Context, keywords []string) {
 		case sem <- struct{}{}:
 		case <-ctx.Done():
 			wg.Wait()
+			commit(ctx)
 			return
 		}
 		wg.Add(1)
@@ -303,12 +327,13 @@ func (ac *AhoCorasick) rollbackRemoved(ctx context.Context, keywords []string) {
 				<-sem
 				wg.Done()
 			}()
-			if _, err := ac.ops.add(ctx, k); err != nil && ac.logger != nil {
+			if _, err := add(ctx, k); err != nil && ac.logger != nil {
 				ac.logger.Printf("rollback: failed to re-add %q: %v", k, err)
 			}
 		}(keyword)
 	}
 	wg.Wait()
+	commit(ctx)
 }
 
 // FindMany searches for keywords in multiple texts and returns a map of text to matches.
