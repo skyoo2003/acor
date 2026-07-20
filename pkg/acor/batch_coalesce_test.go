@@ -26,16 +26,16 @@ func createPresetAC(t *testing.T) (*AhoCorasick, *miniredis.Miniredis) {
 	return ac, mr
 }
 
-// countInvalidations subscribes to the collection's invalidation channel and
-// returns how many messages arrive within a short drain window. One message per
-// commitBatch is the observable proof that a batch coalesces to a single rebuild.
-func countInvalidations(t *testing.T, mr *miniredis.Miniredis, name string, during func()) int {
+// countInvalidations subscribes to the "test" collection's invalidation channel
+// and returns how many messages arrive within a short drain window. One message
+// per commitBatch is the observable proof that a batch coalesces to a single rebuild.
+func countInvalidations(t *testing.T, mr *miniredis.Miniredis, during func()) int {
 	t.Helper()
 	ctx := context.Background()
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer client.Close()
 
-	sub := client.Subscribe(ctx, invalidateChannelPrefix+name)
+	sub := client.Subscribe(ctx, invalidateChannelPrefix+"test")
 	defer sub.Close()
 	if _, err := sub.Receive(ctx); err != nil { // confirm subscription is live
 		t.Fatalf("subscribe: %v", err)
@@ -64,7 +64,7 @@ func TestAddMany_CoalescesRebuild(t *testing.T) {
 	keywords := []string{"alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta"}
 
 	var result *BatchResult
-	n := countInvalidations(t, mr, "test", func() {
+	n := countInvalidations(t, mr, func() {
 		var err error
 		result, err = ac.AddMany(keywords, nil)
 		if err != nil {
@@ -113,7 +113,7 @@ func TestRemoveMany_CoalescesRebuild(t *testing.T) {
 
 	toRemove := []string{"beta", "delta"}
 	var result *BatchResult
-	n := countInvalidations(t, mr, "test", func() {
+	n := countInvalidations(t, mr, func() {
 		var err error
 		result, err = ac.RemoveMany(toRemove)
 		if err != nil {
@@ -155,7 +155,7 @@ func TestRemoveMany_NoOpDoesNotCommit(t *testing.T) {
 	}
 
 	var result *BatchResult
-	n := countInvalidations(t, mr, "test", func() {
+	n := countInvalidations(t, mr, func() {
 		var err error
 		result, err = ac.RemoveMany([]string{"absent1", "absent2"})
 		if err != nil {
@@ -229,7 +229,7 @@ func TestAddMany_Transactional_Coalesces(t *testing.T) {
 	defer ac.Close()
 
 	keywords := []string{"one", "two", "three", "four"}
-	n := countInvalidations(t, mr, "test", func() {
+	n := countInvalidations(t, mr, func() {
 		if _, err := ac.AddMany(keywords, &BatchOptions{Mode: BatchModeTransactional}); err != nil {
 			t.Fatalf("transactional AddMany: %v", err)
 		}
