@@ -37,6 +37,7 @@ type redisBackedAC struct {
 	keywordSet   map[string]struct{}
 	localVersion int64
 	stale        bool
+	pollInterval time.Duration
 
 	selfSkip      sync.Map
 	selfSkipCount uint64
@@ -78,6 +79,7 @@ func newRedisBacked(ctx context.Context, args *AhoCorasickArgs) (*redisBackedAC,
 		storage:       storage,
 		redisClient:   redisClient,
 		keywordSet:    make(map[string]struct{}),
+		pollInterval:  args.InvalidationPollInterval,
 		ctx:           acCtx,
 		cancel:        acCancel,
 	}
@@ -98,6 +100,10 @@ func newRedisBacked(ctx context.Context, args *AhoCorasickArgs) (*redisBackedAC,
 		acCancel()
 		_ = storage.Close()
 		return nil, fmt.Errorf("pub/sub setup failed: %w", err)
+	}
+
+	if ac.pollInterval > 0 {
+		ac.startPoller()
 	}
 
 	return ac, nil
@@ -141,15 +147,39 @@ func (ac *redisBackedAC) initTrie(ctx context.Context) error {
 	return nil
 }
 
+// buildEngine returns a freshly built engine for the given keyword set. The
+// engine is replaced (not mutated in place) on every rebuild so that a pointer
+// obtained under RLock stays immutable after the lock is released — this is what
+// makes lock-free scanning (loadEngine) and long-running streaming safe.
+func buildEngine(preset Preset, keywordSet map[string]struct{}) *matchengine.Engine {
+	e := matchengine.New(preset)
+	e.Build(keywordSet)
+	return e
+}
+
 func (ac *redisBackedAC) applyReload(snap *trieSnapshot) {
 	keywordSet := make(map[string]struct{}, len(snap.Keywords))
 	for _, kw := range snap.Keywords {
 		keywordSet[kw] = struct{}{}
 	}
 	ac.keywordSet = keywordSet
-	ac.engine.Build(keywordSet)
+	ac.engine = buildEngine(ac.preset, keywordSet)
 	ac.localVersion = snap.Version
 	ac.stale = false
+}
+
+// loadEngine returns an immutable engine snapshot for the current keyword set,
+// refreshing from Redis first if the local copy is stale. The returned engine is
+// never mutated after this point (rebuilds swap in a new one), so the caller may
+// scan it without holding ac.mu.
+func (ac *redisBackedAC) loadEngine(ctx context.Context) (*matchengine.Engine, error) {
+	if err := ac.ensureValid(ctx); err != nil {
+		return nil, err
+	}
+	ac.mu.RLock()
+	e := ac.engine
+	ac.mu.RUnlock()
+	return e, nil
 }
 
 func (ac *redisBackedAC) reloadFromRedis(ctx context.Context) error {
@@ -200,6 +230,15 @@ func (ac *redisBackedAC) ensureValid(ctx context.Context) error {
 
 const selfInvalTTL = 30 * time.Second
 
+// publishRetryAttempts / publishRetryBackoff give the fire-and-forget invalidation
+// PUBLISH a few tries before giving up, so a single transient blip does not drop a
+// whole batch's cross-node notification. The version poller (InvalidationPollInterval)
+// is the durable safety net; this just narrows the transient-failure window.
+const (
+	publishRetryAttempts = 3
+	publishRetryBackoff  = 10 * time.Millisecond
+)
+
 func (ac *redisBackedAC) startListener() error {
 	channel := invalidateChannelPrefix + ac.name
 	pubsub := ac.storage.Subscribe(ac.ctx, channel)
@@ -240,6 +279,42 @@ func (ac *redisBackedAC) handleInvalidation(payload string) {
 	ac.markStale()
 }
 
+// startPoller runs a background safety net for missed Pub/Sub invalidations:
+// every pollInterval it compares the stored collection version against the local
+// one and marks the engine stale on any difference, so a dropped invalidation
+// self-heals within one interval instead of persisting until the next local write.
+func (ac *redisBackedAC) startPoller() {
+	go func() {
+		ticker := time.NewTicker(ac.pollInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				ac.pollVersion()
+			case <-ac.stopCh:
+				return
+			case <-ac.ctx.Done():
+				return
+			}
+		}
+	}()
+}
+
+// pollVersion marks the engine stale if Redis holds a version other than the one
+// last loaded locally. A transient read error is ignored; the next tick retries.
+func (ac *redisBackedAC) pollVersion() {
+	snap, err := readTrieSnapshot(ac.ctx, ac.storage, ac.name)
+	if err != nil {
+		return
+	}
+	ac.mu.RLock()
+	changed := snap.Version != ac.localVersion
+	ac.mu.RUnlock()
+	if changed {
+		ac.markStale()
+	}
+}
+
 func (ac *redisBackedAC) skipSelfSet(id string) {
 	ac.selfSkip.Store(id, time.Now())
 }
@@ -270,7 +345,22 @@ func (ac *redisBackedAC) publishInvalidate(ctx context.Context) {
 		ac.cleanupExpiredSelfSkips()
 	}
 
-	err := ac.storage.Publish(ctx, channel, payload)
+	var err error
+	for attempt := 0; attempt < publishRetryAttempts; attempt++ {
+		if err = ac.storage.Publish(ctx, channel, payload); err == nil {
+			break
+		}
+		if attempt == publishRetryAttempts-1 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			// Undelivered: drop the self-skip entry so it does not linger, then stop.
+			ac.selfSkip.Delete(msgID)
+			return
+		case <-time.After(publishRetryBackoff):
+		}
+	}
 	if err != nil {
 		ac.selfSkip.Delete(msgID)
 	}

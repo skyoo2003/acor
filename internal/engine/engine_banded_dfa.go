@@ -173,6 +173,59 @@ func (e *balancedEngine) findIndex(text string) map[string][]int {
 	return matched
 }
 
+func (e *balancedEngine) matchStream(next func() (rune, bool), emit func(Match) bool) {
+	dat := e.banded.dat
+	if dat.size <= datRootPos+1 {
+		return
+	}
+	band := e.banded.dfaBand
+	bloom := e.bloom
+
+	state := datRootPos
+	runeIndex := 0
+
+	for {
+		ch, ok := next()
+		if !ok {
+			return
+		}
+		if bloom != nil && bloom.skipAtRoot(state == datRootPos, ch) {
+			runeIndex++
+			continue
+		}
+
+		code, ok := dat.code(ch)
+		if !ok {
+			state = datRootPos
+			runeIndex++
+			continue
+		}
+
+		if band[state] != nil {
+			state = band[state][code]
+		} else {
+			if nx := dat.gotoStateByCode(state, code); nx != 0 {
+				state = nx
+			} else {
+				state = dat.followFailByCode(state, code)
+			}
+		}
+		if state == 0 {
+			state = datRootPos
+		}
+
+		runeIndex++
+		if state < len(dat.output) {
+			for _, out := range dat.output[state] {
+				start := runeIndex - utf8.RuneCountInString(out)
+				if !emit(Match{Keyword: out, Start: start, End: runeIndex}) {
+					return
+				}
+			}
+		}
+	}
+}
+
 func (e *balancedEngine) info() *InMemoryInfo {
 	dat := e.banded.dat
 	if dat.size <= datRootPos+1 {

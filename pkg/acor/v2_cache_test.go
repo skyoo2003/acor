@@ -35,9 +35,9 @@ func TestV2GetOrLoadEngineNoCache(t *testing.T) {
 		"he": `["he"]`,
 	})
 
-	engine, err := ops.getOrLoadEngine(context.Background())
+	engine, err := ops.loadEngine(context.Background())
 	if err != nil {
-		t.Fatalf("getOrLoadEngine() error: %v", err)
+		t.Fatalf("loadEngine() error: %v", err)
 	}
 	if got := engine.Find("she"); len(got) != 1 || got[0] != "he" {
 		t.Errorf("engine.find(\"she\") = %v, want [he]", got)
@@ -179,18 +179,18 @@ func TestV2GetOrLoadEngineDoubleCheck(t *testing.T) {
 		logger:  &testLogger{},
 	}
 
-	engine, err := ops.getOrLoadEngine(context.Background())
+	engine, err := ops.loadEngine(context.Background())
 	if err != nil {
-		t.Fatalf("getOrLoadEngine() error: %v", err)
+		t.Fatalf("loadEngine() error: %v", err)
 	}
 	if got := engine.Find("he"); len(got) != 1 || got[0] != "he" {
 		t.Errorf("engine.find(\"he\") = %v, want [he]", got)
 	}
 
 	// Second call must be a cache hit returning the same engine instance.
-	engine2, err := ops.getOrLoadEngine(context.Background())
+	engine2, err := ops.loadEngine(context.Background())
 	if err != nil {
-		t.Fatalf("second getOrLoadEngine() error: %v", err)
+		t.Fatalf("second loadEngine() error: %v", err)
 	}
 	if engine2 != engine {
 		t.Errorf("second call rebuilt the engine; want cached instance")

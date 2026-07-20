@@ -11,6 +11,8 @@ import (
 	"time"
 
 	redis "github.com/redis/go-redis/v9"
+
+	matchengine "github.com/skyoo2003/acor/internal/engine"
 )
 
 // Compile-time check that v1Operations satisfies the operations interface.
@@ -225,6 +227,24 @@ func (o *v1Operations) findIndex(ctx context.Context, text string) (map[string][
 	o.logger.Println(fmt.Sprintf("FindIndex(%s) > Matched(%v) : Count(%d)", text, matched, len(matched)))
 
 	return matched, nil
+}
+
+// loadEngine builds a fresh in-memory automaton from the V1 keyword set. V1
+// stores keywords already normalized (lowercased when !caseSensitive), so no
+// re-normalization is needed here. Unlike V2 there is no cache, so this is an
+// O(keywords) build per call — acceptable for the legacy schema.
+func (o *v1Operations) loadEngine(ctx context.Context) (*matchengine.Engine, error) {
+	kws, err := o.storage.SMembers(ctx, keywordKey(o.name))
+	if err != nil {
+		return nil, newRedisError("SMEMBERS", keywordKey(o.name), err)
+	}
+	set := make(map[string]struct{}, len(kws))
+	for _, k := range kws {
+		set[k] = struct{}{}
+	}
+	e := matchengine.New(PresetBalanced)
+	e.Build(set)
+	return e, nil
 }
 
 func (o *v1Operations) flush(_ context.Context) error {

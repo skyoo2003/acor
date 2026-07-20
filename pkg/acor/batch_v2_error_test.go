@@ -132,9 +132,9 @@ func TestV2GetOrLoadEngineError(t *testing.T) {
 	}
 	defer func() { _ = ops.client.Close() }()
 
-	_, err := ops.getOrLoadEngine(context.Background())
+	_, err := ops.loadEngine(context.Background())
 	if err == nil {
-		t.Fatal("expected error from closed Redis in getOrLoadEngine")
+		t.Fatal("expected error from closed Redis in loadEngine")
 	}
 }
 

@@ -220,6 +220,36 @@ func (e *speedEngine) findIndex(text string) map[string][]int {
 	return matched
 }
 
+func (e *speedEngine) matchStream(next func() (rune, bool), emit func(Match) bool) {
+	if e.dfa == nil {
+		return
+	}
+
+	state := 0
+	runeIndex := 0
+
+	for {
+		ch, ok := next()
+		if !ok {
+			return
+		}
+		ai, ok := e.code(ch)
+		if !ok {
+			state = 0
+			runeIndex++
+			continue
+		}
+		state = e.dfa[state][ai]
+		runeIndex++
+		for _, out := range e.outputMap[state] {
+			start := runeIndex - utf8.RuneCountInString(out)
+			if !emit(Match{Keyword: out, Start: start, End: runeIndex}) {
+				return
+			}
+		}
+	}
+}
+
 func (e *speedEngine) info() *InMemoryInfo {
 	if e.dfa == nil {
 		return &InMemoryInfo{Preset: e.preset}

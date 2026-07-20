@@ -167,6 +167,45 @@ func (e *memEfficientEngine) findIndex(text string) map[string][]int {
 	return matched
 }
 
+func (e *memEfficientEngine) matchStream(next func() (rune, bool), emit func(Match) bool) {
+	if len(e.trie.nodes) <= 1 {
+		return
+	}
+
+	state := 0
+	runeIndex := 0
+
+	for {
+		ch, ok := next()
+		if !ok {
+			return
+		}
+		if e.bloom.skipAtRoot(state == 0, ch) {
+			runeIndex++
+			continue
+		}
+
+		for {
+			if nx, ok := e.trie.nodes[state].children[ch]; ok {
+				state = nx
+				break
+			}
+			if state == 0 {
+				break
+			}
+			state = e.trie.nodes[state].fail
+		}
+
+		runeIndex++
+		for _, out := range e.trie.nodes[state].output {
+			start := runeIndex - utf8.RuneCountInString(out)
+			if !emit(Match{Keyword: out, Start: start, End: runeIndex}) {
+				return
+			}
+		}
+	}
+}
+
 func (e *memEfficientEngine) info() *InMemoryInfo {
 	return &InMemoryInfo{
 		Keywords:    countUniqueOutputs(e.trie.nodes),

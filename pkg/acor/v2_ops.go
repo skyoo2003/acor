@@ -55,7 +55,7 @@ func (o *v2Operations) find(ctx context.Context, text string) ([]string, error) 
 		text = strings.ToLower(text)
 	}
 
-	engine, err := o.getOrLoadEngine(ctx)
+	engine, err := o.loadEngine(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func (o *v2Operations) findIndex(ctx context.Context, text string) (map[string][
 		text = strings.ToLower(text)
 	}
 
-	engine, err := o.getOrLoadEngine(ctx)
+	engine, err := o.loadEngine(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -290,15 +290,15 @@ func (o *v2Operations) loadCache(ctx context.Context) error {
 	return nil
 }
 
-// getOrLoadEngine returns the locally cached Aho-Corasick match engine, loading
-// it from storage on a cache miss. The engine is built once per cache load
-// (see trieCache.set) and reused across Find calls with no Redis I/O.
+// loadEngine returns the locally cached Aho-Corasick match engine, loading it
+// from storage on a cache miss. The engine is built once per cache load (see
+// trieCache.set) and reused across Find calls with no Redis I/O.
 //
 // When caching is disabled (cache == nil) it fetches the trie from Redis and
 // builds a throwaway engine per call. Redis I/O dominates that path, so the
 // extra automaton build is negligible; enabling the cache is the way to avoid
 // both, not per-call engine caching.
-func (o *v2Operations) getOrLoadEngine(ctx context.Context) (*matchengine.Engine, error) {
+func (o *v2Operations) loadEngine(ctx context.Context) (*matchengine.Engine, error) {
 	if o.cache == nil {
 		_, outputs, err := o.fetchTrieData(ctx)
 		if err != nil {

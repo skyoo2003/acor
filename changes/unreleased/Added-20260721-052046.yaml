@@ -1,0 +1,5 @@
+kind: Added
+body: 'Add AhoCorasickArgs.InvalidationPollInterval: an opt-in background safety net for Preset mode that reloads when the collection''s stored version changes, bounding staleness from a dropped best-effort Pub/Sub invalidation. Add MatchOptions.WordRune to override whole-word boundary detection for scripts the default misclassifies (e.g. CJK). The Preset commit path also retries the invalidation publish a few times on transient failure.'
+time: 2026-07-21T05:20:46.758804+09:00
+custom:
+    Issue: "158"
