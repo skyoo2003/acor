@@ -1,0 +1,5 @@
+kind: Changed
+body: Coalesce the preset-mode local automaton rebuild and pub/sub invalidation across AddMany/RemoveMany, so a batch of N writes triggers one rebuild instead of one per keyword (O(N^2) to O(N) bulk-load). The Redis-backed engine now swaps in a freshly built automaton on each rebuild, making local match snapshots immutable and scannable lock-free.
+time: 2026-07-20T23:41:49.469596+09:00
+custom:
+    Issue: "158"
