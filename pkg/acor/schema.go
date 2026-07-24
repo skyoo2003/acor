@@ -70,8 +70,8 @@ type MigrationResult struct {
 // Stats returns migration statistics as a map.
 func (r *MigrationResult) Stats() map[string]interface{} {
 	return map[string]interface{}{
-		"keywords":     r.Keywords,
-		"prefixes":     r.Prefixes,
+		fieldKeywords:  r.Keywords,
+		fieldPrefixes:  r.Prefixes,
 		"outputs_keys": r.OutputsKeys,
 		"nodes_keys":   r.NodesKeys,
 		"keys_before":  r.KeysBefore,

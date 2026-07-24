@@ -2,7 +2,10 @@
 
 package acor
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // Key format constants define the Redis key patterns used by the V1 schema.
 // These constants use %s as a placeholder for the collection name.
@@ -18,6 +21,24 @@ const (
 	OutputKey = "%s:output"
 	// NodeKey is the format for node set keys: "{name}:node:{keyword}"
 	NodeKey = "%s:node"
+)
+
+// V2 trie-hash field names and the internal arg-map keys passed to the Lua
+// transaction helpers. Kept as constants so a typo can't silently break a
+// Redis read or write.
+const (
+	fieldKeywords = "keywords"
+	fieldPrefixes = "prefixes"
+	fieldSuffixes = "suffixes"
+	fieldVersion  = "version"
+
+	argTrieKey    = "trieKey"
+	argOutputsKey = "outputsKey"
+
+	// emptyKeywordsJSON and emptyStringArrayJSON are the default JSON values
+	// stored in an empty V2 trie hash.
+	emptyKeywordsJSON    = "[]"
+	emptyStringArrayJSON = `[""]`
 )
 
 func keyPrefix(name string) string {
@@ -54,4 +75,15 @@ func outputsKey(name string) string {
 
 func nodesKey(name string) string {
 	return fmt.Sprintf("%s:nodes", keyPrefix(name))
+}
+
+// emptyTrieFields returns the hash fields written to initialize an empty V2
+// trie. The version is stamped fresh on each call.
+func emptyTrieFields() map[string]interface{} {
+	return map[string]interface{}{
+		fieldKeywords: emptyKeywordsJSON,
+		fieldPrefixes: emptyStringArrayJSON,
+		fieldSuffixes: emptyStringArrayJSON,
+		fieldVersion:  time.Now().UnixNano(),
+	}
 }

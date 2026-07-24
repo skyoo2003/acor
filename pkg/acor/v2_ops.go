@@ -160,12 +160,7 @@ func (o *v2Operations) flush(ctx context.Context) error {
 		if err := pipe.Del(ctx, oKey, nKey); err != nil {
 			return err
 		}
-		if err := pipe.HSet(ctx, tKey, map[string]interface{}{
-			"keywords": "[]",
-			"prefixes": "[\"\"]",
-			"suffixes": "[\"\"]",
-			"version":  time.Now().UnixNano(),
-		}); err != nil {
+		if err := pipe.HSet(ctx, tKey, emptyTrieFields()); err != nil {
 			return err
 		}
 		return nil
@@ -186,14 +181,14 @@ func (o *v2Operations) info(ctx context.Context) (*AhoCorasickInfo, error) {
 	}
 
 	var keywords []string
-	if data, ok := result["keywords"]; ok {
+	if data, ok := result[fieldKeywords]; ok {
 		if err := json.Unmarshal([]byte(data), &keywords); err != nil {
 			return nil, newOperationError("unmarshal", SchemaV2, err)
 		}
 	}
 
 	var prefixes []string
-	if data, ok := result["prefixes"]; ok {
+	if data, ok := result[fieldPrefixes]; ok {
 		if err := json.Unmarshal([]byte(data), &prefixes); err != nil {
 			return nil, newOperationError("unmarshal", SchemaV2, err)
 		}
@@ -220,7 +215,7 @@ func (o *v2Operations) suggest(ctx context.Context, input string) ([]string, err
 	}
 
 	var keywords []string
-	if data, ok := result["keywords"]; ok {
+	if data, ok := result[fieldKeywords]; ok {
 		if err := json.Unmarshal([]byte(data), &keywords); err != nil {
 			return nil, newOperationError("unmarshal", SchemaV2, err)
 		}
@@ -261,7 +256,7 @@ func (o *v2Operations) fetchTrieData(ctx context.Context) (prefixes []string, ou
 	}
 
 	trieData := trieResult.Val()
-	if data, ok := trieData["prefixes"]; ok {
+	if data, ok := trieData[fieldPrefixes]; ok {
 		if unmarshalErr := json.Unmarshal([]byte(data), &prefixes); unmarshalErr != nil {
 			return nil, nil, newOperationError("unmarshal", SchemaV2, unmarshalErr)
 		}

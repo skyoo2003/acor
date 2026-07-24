@@ -68,11 +68,11 @@ var removeV2Script = redis.NewScript(`
 // for "trieKey" and "outputsKey". Returns an error if either key is missing
 // or not a string.
 func validateScriptArgs(args map[string]interface{}) error {
-	trieKey, ok := args["trieKey"].(string)
+	trieKey, ok := args[argTrieKey].(string)
 	if !ok || trieKey == "" {
 		return fmt.Errorf("validateScriptArgs: missing or invalid trieKey")
 	}
-	outputsKey, ok := args["outputsKey"].(string)
+	outputsKey, ok := args[argOutputsKey].(string)
 	if !ok || outputsKey == "" {
 		return fmt.Errorf("validateScriptArgs: missing or invalid outputsKey")
 	}
@@ -84,9 +84,9 @@ func (o *v2Operations) runAddV2Script(ctx context.Context, client redis.Universa
 		return nil, err
 	}
 	return addV2Script.Run(ctx, client,
-		[]string{args["trieKey"].(string), args["outputsKey"].(string)},
-		args["oldVersion"], args["newVersion"], args["keywords"],
-		args["prefixes"], args["suffixes"], args["outputs"]), nil
+		[]string{args[argTrieKey].(string), args[argOutputsKey].(string)},
+		args["oldVersion"], args["newVersion"], args[fieldKeywords],
+		args[fieldPrefixes], args[fieldSuffixes], args["outputs"]), nil
 }
 
 func (o *v2Operations) runRemoveV2Script(ctx context.Context, client redis.UniversalClient, args map[string]interface{}) (*redis.Cmd, error) {
@@ -94,7 +94,7 @@ func (o *v2Operations) runRemoveV2Script(ctx context.Context, client redis.Unive
 		return nil, err
 	}
 	return removeV2Script.Run(ctx, client,
-		[]string{args["trieKey"].(string), args["outputsKey"].(string)},
-		args["oldVersion"], args["newVersion"], args["keywords"],
-		args["prefixes"], args["suffixes"], args["outputs"]), nil
+		[]string{args[argTrieKey].(string), args[argOutputsKey].(string)},
+		args["oldVersion"], args["newVersion"], args[fieldKeywords],
+		args[fieldPrefixes], args[fieldSuffixes], args["outputs"]), nil
 }

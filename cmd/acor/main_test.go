@@ -13,7 +13,6 @@ import (
 
 const (
 	collectionNameSample = "sample"
-	commandFind          = "find"
 	testKeywordHello     = "hello"
 	testKeywordHE        = "he"
 )

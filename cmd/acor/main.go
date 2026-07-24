@@ -61,6 +61,26 @@ Migrate options:
 `
 )
 
+const (
+	commandAdd             = "add"
+	commandRemove          = "remove"
+	commandFind            = "find"
+	commandFindIndex       = "find-index"
+	commandSuggest         = "suggest"
+	commandSuggestIndex    = "suggest-index"
+	commandInfo            = "info"
+	commandFlush           = "flush"
+	commandMigrate         = "migrate"
+	commandMigrateRollback = "migrate-rollback"
+	commandSchemaVersion   = "schema-version"
+
+	defaultCollectionName = "default"
+
+	jsonKeyCount   = "count"
+	jsonKeyMatches = "matches"
+	jsonKeyStatus  = "status"
+)
+
 type service interface {
 	Add(string) (int, error)
 	Remove(string) (int, error)
@@ -155,7 +175,7 @@ func parseArgs(args []string) (*acor.AhoCorasickArgs, *migrateOptions, []string,
 	fs.StringVar(&config.ringAddrs, "ring-addrs", "", "comma-separated shard=addr pairs")
 	fs.StringVar(&config.password, "password", "", "redis password")
 	fs.IntVar(&config.db, "db", 0, "redis db number")
-	fs.StringVar(&config.name, "name", "default", "pattern collection name")
+	fs.StringVar(&config.name, "name", defaultCollectionName, "pattern collection name")
 	fs.BoolVar(&config.debug, "debug", false, "enable debug logging")
 	fs.BoolVar(&config.dryRun, "dry-run", false, "preview migration without making changes")
 	fs.BoolVar(&config.keepOldKeys, "keep-old-keys", false, "keep V1 keys after migration")
@@ -170,7 +190,7 @@ func parseArgs(args []string) (*acor.AhoCorasickArgs, *migrateOptions, []string,
 
 	config.name = strings.TrimSpace(config.name)
 	if config.name == "" {
-		config.name = "default"
+		config.name = defaultCollectionName
 	}
 
 	ringAddrs, err := parseRingAddrs(config.ringAddrs)
@@ -245,27 +265,27 @@ func parseRingAddrs(raw string) (map[string]string, error) {
 
 func commandHandler(command string) (commandRunner, bool, error) {
 	switch command {
-	case "add":
+	case commandAdd:
 		return runAdd, true, nil
-	case "remove":
+	case commandRemove:
 		return runRemove, true, nil
-	case "find":
+	case commandFind:
 		return runFind, true, nil
-	case "find-index":
+	case commandFindIndex:
 		return runFindIndex, true, nil
-	case "suggest":
+	case commandSuggest:
 		return runSuggest, true, nil
-	case "suggest-index":
+	case commandSuggestIndex:
 		return runSuggestIndex, true, nil
-	case "info":
+	case commandInfo:
 		return runInfo, false, nil
-	case "flush":
+	case commandFlush:
 		return runFlush, false, nil
-	case "migrate":
+	case commandMigrate:
 		return runMigrate, false, nil
-	case "migrate-rollback":
+	case commandMigrateRollback:
 		return runMigrateRollback, false, nil
-	case "schema-version":
+	case commandSchemaVersion:
 		return runSchemaVersion, false, nil
 	default:
 		return nil, false, fmt.Errorf("unknown command %q", command)
@@ -295,7 +315,7 @@ func runAdd(stdout io.Writer, ac service, input string, _ *migrateOptions) error
 	if err != nil {
 		return err
 	}
-	return writeJSON(stdout, map[string]int{"count": count})
+	return writeJSON(stdout, map[string]int{jsonKeyCount: count})
 }
 
 func runRemove(stdout io.Writer, ac service, input string, _ *migrateOptions) error {
@@ -303,7 +323,7 @@ func runRemove(stdout io.Writer, ac service, input string, _ *migrateOptions) er
 	if err != nil {
 		return err
 	}
-	return writeJSON(stdout, map[string]int{"count": count})
+	return writeJSON(stdout, map[string]int{jsonKeyCount: count})
 }
 
 func runFind(stdout io.Writer, ac service, input string, _ *migrateOptions) error {
@@ -311,7 +331,7 @@ func runFind(stdout io.Writer, ac service, input string, _ *migrateOptions) erro
 	if err != nil {
 		return err
 	}
-	return writeJSON(stdout, map[string][]string{"matches": matches})
+	return writeJSON(stdout, map[string][]string{jsonKeyMatches: matches})
 }
 
 func runFindIndex(stdout io.Writer, ac service, input string, _ *migrateOptions) error {
@@ -319,7 +339,7 @@ func runFindIndex(stdout io.Writer, ac service, input string, _ *migrateOptions)
 	if err != nil {
 		return err
 	}
-	return writeJSON(stdout, map[string]map[string][]int{"matches": matches})
+	return writeJSON(stdout, map[string]map[string][]int{jsonKeyMatches: matches})
 }
 
 func runSuggest(stdout io.Writer, ac service, input string, _ *migrateOptions) error {
@@ -327,7 +347,7 @@ func runSuggest(stdout io.Writer, ac service, input string, _ *migrateOptions) e
 	if err != nil {
 		return err
 	}
-	return writeJSON(stdout, map[string][]string{"matches": matches})
+	return writeJSON(stdout, map[string][]string{jsonKeyMatches: matches})
 }
 
 func runSuggestIndex(stdout io.Writer, ac service, input string, _ *migrateOptions) error {
@@ -335,7 +355,7 @@ func runSuggestIndex(stdout io.Writer, ac service, input string, _ *migrateOptio
 	if err != nil {
 		return err
 	}
-	return writeJSON(stdout, map[string]map[string][]int{"matches": matches})
+	return writeJSON(stdout, map[string]map[string][]int{jsonKeyMatches: matches})
 }
 
 func runInfo(stdout io.Writer, ac service, _ string, _ *migrateOptions) error {
@@ -353,7 +373,7 @@ func runFlush(stdout io.Writer, ac service, _ string, _ *migrateOptions) error {
 	if err := ac.Flush(); err != nil {
 		return err
 	}
-	return writeJSON(stdout, map[string]string{"status": "ok"})
+	return writeJSON(stdout, map[string]string{jsonKeyStatus: "ok"})
 }
 
 func runMigrate(stdout io.Writer, ac service, _ string, opts *migrateOptions) error {
@@ -371,7 +391,7 @@ func runMigrateRollback(stdout io.Writer, ac service, _ string, _ *migrateOption
 	if err := ac.RollbackToV1(); err != nil {
 		return err
 	}
-	return writeJSON(stdout, map[string]string{"status": "rolled_back"})
+	return writeJSON(stdout, map[string]string{jsonKeyStatus: "rolled_back"})
 }
 
 func runSchemaVersion(stdout io.Writer, ac service, _ string, _ *migrateOptions) error {
