@@ -1,6 +1,33 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v0.10.0](https://github.com/skyoo2003/acor/releases/tag/v0.10.0) - 2026-07-25
+
+### Added
+
+* Add FindMatches, Contains, and FindStream matching APIs (plus Context variants). FindMatches returns matches in scan order with rune-offset spans and takes MatchKind (overlapping default, or non-overlapping leftmost-longest) and WholeWord options; Contains is an early-exit containment gate; FindStream scans an io.Reader without buffering the whole input. Available in preset, V2, and V1 modes with matching semantics identical to Find/FindIndex. ([#158](https://github.com/skyoo2003/acor/issues/158))
+* Add AhoCorasickArgs.InvalidationPollInterval: an opt-in background safety net for Preset mode that reloads when the collection's stored version changes, bounding staleness from a dropped best-effort Pub/Sub invalidation. Add MatchOptions.WordRune to override whole-word boundary detection for scripts the default misclassifies (e.g. CJK). The Preset commit path also retries the invalidation publish a few times on transient failure. ([#158](https://github.com/skyoo2003/acor/issues/158))
+* Expose Redis connection-resilience knobs on AhoCorasickArgs: DialTimeout, ReadTimeout, WriteTimeout, MaxRetries, and PoolSize. They pass straight through to go-redis across all topologies (standalone, cluster, sentinel, ring); a zero value keeps the existing go-redis default, so behavior is unchanged unless set. ([#161](https://github.com/skyoo2003/acor/issues/161))
+
+### Changed
+
+* Coalesce the preset-mode local automaton rebuild and pub/sub invalidation across AddMany/RemoveMany, so a batch of N writes triggers one rebuild instead of one per keyword (O(N^2) to O(N) bulk-load). The Redis-backed engine now swaps in a freshly built automaton on each rebuild, making local match snapshots immutable and scannable lock-free. ([#158](https://github.com/skyoo2003/acor/issues/158))
+* Pinned golangci-lint to the CI version via `go run` in the Makefile and relaxed the `goconst` config to upstream defaults, so local `make lint` no longer diverges from CI. Repeated string literals (Redis field names, CLI commands, JSON keys) were extracted into named constants — no functional changes. ([#160](https://github.com/skyoo2003/acor/issues/160))
+
+### Removed
+
+* Removed the unused exported errors ErrNoBoundariesFound and ErrStreamInterrupted, which were declared but never returned by any operation. ([#159](https://github.com/skyoo2003/acor/issues/159))
+
+### Fixed
+
+* RemoveMany and RemoveManyWithOptions no longer report keywords that were not present as removed: an absent keyword is now recorded in BatchResult.Skipped instead of BatchResult.Removed, matching AddMany and single Remove. In Preset mode this also prevents a no-op RemoveMany from triggering an unnecessary cluster-wide cache reload. ([#158](https://github.com/skyoo2003/acor/issues/158))
+* The internal match engine no longer panics on an invalid (negative) rune supplied to Engine.Stream; such runes are treated as not in the alphabet, matching any other out-of-alphabet character. ([#159](https://github.com/skyoo2003/acor/issues/159))
+* FindParallel/FindIndexParallel now clamp a negative ParallelOptions.Overlap to 0. A negative overlap previously pushed each chunk's start past the previous boundary, dropping the runes in between and silently losing any match there. ([#159](https://github.com/skyoo2003/acor/issues/159))
+* FindParallel now returns a deduplicated result set regardless of text size. The single-chunk fast path previously returned Find's per-occurrence multiplicity, contradicting the documented dedup contract that the multi-chunk path already followed. ([#159](https://github.com/skyoo2003/acor/issues/159))
+
+### Documentation
+
+* Documented on FindParallel and FindIndexParallel that a keyword longer than opts.Overlap straddling a chunk boundary can be missed, and to set Overlap to at least the longest expected keyword length. ([#159](https://github.com/skyoo2003/acor/issues/159))
 ## [v0.9.0](https://github.com/skyoo2003/acor/releases/tag/v0.9.0) - 2026-07-20
 
 ### Added
@@ -33,6 +60,7 @@ All notable changes to this project will be documented in this file.
 * Add a CI guard that compiles the documented Go examples to keep them from drifting ([#149](https://github.com/skyoo2003/acor/issues/149))
 * Fix broken Go code examples in the documentation ([#147](https://github.com/skyoo2003/acor/issues/147))
 * Fix stale descriptions and cross-cutting drift across the documentation ([#148](https://github.com/skyoo2003/acor/issues/148))
+
 ## [v0.8.0](https://github.com/skyoo2003/acor/releases/tag/v0.8.0) - 2026-07-17
 ### Changed
 * **BREAKING**: Merge Ultimate engine into Balanced and share Bloom pre-filter ([#138](https://github.com/skyoo2003/acor/issues/138))

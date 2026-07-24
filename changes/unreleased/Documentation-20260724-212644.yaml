@@ -1,5 +1,0 @@
-kind: Documentation
-body: Documented on FindParallel and FindIndexParallel that a keyword longer than opts.Overlap straddling a chunk boundary can be missed, and to set Overlap to at least the longest expected keyword length.
-time: 2026-07-24T21:26:44.278338+09:00
-custom:
-    Issue: "159"

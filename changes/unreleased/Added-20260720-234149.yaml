@@ -1,5 +1,0 @@
-kind: Added
-body: Add FindMatches, Contains, and FindStream matching APIs (plus Context variants). FindMatches returns matches in scan order with rune-offset spans and takes MatchKind (overlapping default, or non-overlapping leftmost-longest) and WholeWord options; Contains is an early-exit containment gate; FindStream scans an io.Reader without buffering the whole input. Available in preset, V2, and V1 modes with matching semantics identical to Find/FindIndex.
-time: 2026-07-20T23:41:49.45952+09:00
-custom:
-    Issue: "158"
