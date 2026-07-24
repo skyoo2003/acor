@@ -1,0 +1,5 @@
+kind: Fixed
+body: FindParallel/FindIndexParallel now clamp a negative ParallelOptions.Overlap to 0. A negative overlap previously pushed each chunk's start past the previous boundary, dropping the runes in between and silently losing any match there.
+time: 2026-07-24T21:27:02.887904+09:00
+custom:
+    Issue: "159"

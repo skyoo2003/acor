@@ -92,7 +92,27 @@ func normalizeParallelOptions(opts *ParallelOptions) *ParallelOptions {
 	if opts.Workers <= 0 {
 		opts.Workers = runtime.NumCPU()
 	}
+	if opts.Overlap < 0 {
+		// A negative overlap would push the next chunk's start past the current
+		// boundary, dropping the runes in between and silently losing any match
+		// there. Clamp to 0 (no overlap) rather than error, matching how Workers
+		// is corrected above.
+		opts.Overlap = 0
+	}
 	return opts
+}
+
+// dedupPreservingOrder returns in with duplicates removed, keeping first-seen order.
+func dedupPreservingOrder(in []string) []string {
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 //nolint:gocritic // Returns channels for concurrent result collection
@@ -140,7 +160,9 @@ func runStringWorkersCtx(ctx context.Context, ac *AhoCorasick, chunks []chunk, w
 	return results, errors
 }
 
-// collectOrderedStringResults collects matches preserving chunk order and multiplicity.
+// collectOrderedStringResults collects matches preserving chunk order and
+// deduplicating across chunks (a keyword appears at most once), matching the
+// FindParallel contract.
 func collectOrderedStringResults(results <-chan indexedStringResult, errors <-chan error) ([]string, error) {
 	var allChunkResults []indexedStringResult
 	var firstErr error
@@ -170,18 +192,12 @@ func collectOrderedStringResults(results <-chan indexedStringResult, errors <-ch
 		return allChunkResults[i].chunkIndex < allChunkResults[j].chunkIndex
 	})
 
-	seen := make(map[string]struct{})
 	var allMatches []string
 	for _, r := range allChunkResults {
-		for _, m := range r.matches {
-			if _, ok := seen[m]; !ok {
-				seen[m] = struct{}{}
-				allMatches = append(allMatches, m)
-			}
-		}
+		allMatches = append(allMatches, r.matches...)
 	}
 
-	return allMatches, firstErr
+	return dedupPreservingOrder(allMatches), firstErr
 }
 
 // FindParallel searches for keywords in text using parallel processing.
@@ -192,7 +208,14 @@ func collectOrderedStringResults(results <-chan indexedStringResult, errors <-ch
 // within a single chunk, this method delegates to Find without parallelization.
 //
 // Note: Due to chunk overlap for boundary handling, duplicate matches are
-// automatically deduplicated in the returned slice.
+// automatically deduplicated in the returned slice, so each keyword appears at
+// most once regardless of how many times or in how many chunks it occurs. (Find
+// reports every occurrence; FindParallel reports a set.)
+//
+// Limitation: a keyword longer than opts.Overlap that straddles a chunk boundary
+// can be missed, since it fits in no single chunk. Set Overlap to at least your
+// longest expected keyword length, or use FindStream (which never splits a match)
+// when this matters.
 //
 // Example:
 //
@@ -213,7 +236,13 @@ func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]strin
 		return []string{}, nil
 	}
 	if len(chunks) == 1 {
-		return ac.Find(text)
+		// Match the multi-chunk contract: dedup so the result set doesn't depend
+		// on whether the text fit in one chunk.
+		matches, err := ac.Find(text)
+		if err != nil {
+			return nil, err
+		}
+		return dedupPreservingOrder(matches), nil
 	}
 
 	results, errors := runStringWorkers(ac, chunks, opts.Workers)
@@ -323,6 +352,10 @@ func collectIndexResults(results <-chan indexedResult, errors <-chan error) (map
 // The returned map has keywords as keys and sorted slices of unique start indices.
 // Due to chunk overlap, matches at chunk boundaries may have duplicate indices
 // that are automatically deduplicated.
+//
+// Limitation: like FindParallel, a keyword longer than opts.Overlap that straddles
+// a chunk boundary can be missed. Set Overlap to at least your longest expected
+// keyword length.
 //
 // Example:
 //

@@ -166,6 +166,87 @@ func TestBatchAddAndParallelFind(t *testing.T) {
 	}
 }
 
+func stringSet(in []string) map[string]struct{} {
+	m := make(map[string]struct{}, len(in))
+	for _, s := range in {
+		m[s] = struct{}{}
+	}
+	return m
+}
+
+// A negative Overlap used to push each chunk's start past the previous boundary,
+// dropping the runes in the gap and silently losing matches there. It must now be
+// clamped to 0, so the result set matches a plain Find (no whole-word keyword,
+// which cannot straddle a word boundary, is lost).
+func TestFindParallelNegativeOverlapNoDrop(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	keywords := []string{"apple", "banana", "cherry", "date"}
+	for _, k := range keywords {
+		if _, err := ac.Add(k); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	text := "apple banana cherry date apple banana cherry date apple"
+	opts := &ParallelOptions{
+		Workers:   2,
+		ChunkSize: 10,
+		Boundary:  ChunkBoundaryWord,
+		Overlap:   -10,
+	}
+
+	got, err := ac.FindParallel(text, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := ac.Find(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g, w := stringSet(got), stringSet(want); !reflect.DeepEqual(g, w) {
+		t.Errorf("negative overlap dropped matches: got %v, want %v", g, w)
+	}
+}
+
+// FindParallel deduplicates its result set, so the same text must return the same
+// set whether it fits in one chunk (fast path) or spans several. Previously the
+// single-chunk path returned Find's per-occurrence multiplicity, contradicting the
+// documented contract.
+func TestFindParallelDedupConsistentAcrossChunkSizes(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+	defer func() { _ = ac.Flush() }()
+
+	for _, k := range []string{"test", "run"} {
+		if _, err := ac.Add(k); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	text := "test run test run test" // repeated keywords
+
+	single, err := ac.FindParallel(text, &ParallelOptions{ChunkSize: 1000, Boundary: ChunkBoundaryWord})
+	if err != nil {
+		t.Fatal(err)
+	}
+	multi, err := ac.FindParallel(text, &ParallelOptions{ChunkSize: 8, Boundary: ChunkBoundaryWord, Overlap: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(single) != len(stringSet(single)) {
+		t.Errorf("single-chunk path returned duplicates: %v", single)
+	}
+	if !reflect.DeepEqual(stringSet(single), stringSet(multi)) {
+		t.Errorf("single-chunk %v != multi-chunk %v", single, multi)
+	}
+}
+
 func TestFindIndexParallel(t *testing.T) {
 	ac, mr := createAhoCorasick(t)
 	defer mr.Close()
