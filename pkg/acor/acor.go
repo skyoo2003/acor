@@ -223,6 +223,26 @@ type AhoCorasickArgs struct {
 	// DB is the Redis database number to select (0-15, default: 0).
 	// Not supported in cluster mode.
 	DB int
+
+	// The following knobs tune connection resilience. They are passed straight
+	// through to go-redis; a zero value means "use the go-redis default", as
+	// documented in go-redis's Options. They apply across all topologies
+	// (standalone, cluster, sentinel, ring).
+	// See https://pkg.go.dev/github.com/redis/go-redis/v9#Options for details.
+
+	// DialTimeout is the timeout for establishing new connections.
+	DialTimeout time.Duration
+	// ReadTimeout is the timeout for socket reads. Use -1 for no timeout.
+	ReadTimeout time.Duration
+	// WriteTimeout is the timeout for socket writes. Use -1 for no timeout.
+	WriteTimeout time.Duration
+	// MaxRetries is the number of retries before giving up on a command.
+	// Use -1 to disable retries.
+	MaxRetries int
+	// PoolSize is the maximum number of socket connections per server —
+	// per node in cluster mode, per shard in ring mode, and per
+	// master/replica in sentinel mode.
+	PoolSize int
 	// Name identifies the pattern collection. All keywords added to this instance
 	// are stored under this namespace in Redis. Required.
 	Name string

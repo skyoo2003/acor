@@ -70,9 +70,14 @@ func validateRedisTopology(args *AhoCorasickArgs, addrs []string, ringAddrs map[
 
 func newRingRedisClient(args *AhoCorasickArgs, ringAddrs map[string]string) redis.UniversalClient {
 	return redis.NewRing(&redis.RingOptions{
-		Addrs:    ringAddrs,
-		Password: args.Password,
-		DB:       args.DB,
+		Addrs:        ringAddrs,
+		Password:     args.Password,
+		DB:           args.DB,
+		DialTimeout:  args.DialTimeout,
+		ReadTimeout:  args.ReadTimeout,
+		WriteTimeout: args.WriteTimeout,
+		MaxRetries:   args.MaxRetries,
+		PoolSize:     args.PoolSize,
 	})
 }
 
@@ -82,13 +87,23 @@ func newSentinelRedisClient(args *AhoCorasickArgs, addrs []string) redis.Univers
 		MasterName:    strings.TrimSpace(args.MasterName),
 		Password:      args.Password,
 		DB:            args.DB,
+		DialTimeout:   args.DialTimeout,
+		ReadTimeout:   args.ReadTimeout,
+		WriteTimeout:  args.WriteTimeout,
+		MaxRetries:    args.MaxRetries,
+		PoolSize:      args.PoolSize,
 	})
 }
 
 func newClusterRedisClient(args *AhoCorasickArgs, addrs []string) (redis.UniversalClient, error) {
 	client := redis.NewClusterClient(&redis.ClusterOptions{
-		Addrs:    addrs,
-		Password: args.Password,
+		Addrs:        addrs,
+		Password:     args.Password,
+		DialTimeout:  args.DialTimeout,
+		ReadTimeout:  args.ReadTimeout,
+		WriteTimeout: args.WriteTimeout,
+		MaxRetries:   args.MaxRetries,
+		PoolSize:     args.PoolSize,
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), defaultRedisClusterPingTimeout)
 	defer cancel()
@@ -105,9 +120,14 @@ func newStandaloneRedisClient(args *AhoCorasickArgs, addrs []string) redis.Unive
 		addr = addrs[0]
 	}
 	return redis.NewClient(&redis.Options{
-		Addr:     addr,
-		Password: args.Password,
-		DB:       args.DB,
+		Addr:         addr,
+		Password:     args.Password,
+		DB:           args.DB,
+		DialTimeout:  args.DialTimeout,
+		ReadTimeout:  args.ReadTimeout,
+		WriteTimeout: args.WriteTimeout,
+		MaxRetries:   args.MaxRetries,
+		PoolSize:     args.PoolSize,
 	})
 }
 
