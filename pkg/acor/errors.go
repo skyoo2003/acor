@@ -12,12 +12,6 @@ var (
 	ErrEmptyKeyword = errors.New("keyword cannot be empty")
 	// ErrInvalidChunkSize is returned when ParallelOptions.ChunkSize is <= 0.
 	ErrInvalidChunkSize = errors.New("chunk size must be positive")
-	// ErrNoBoundariesFound is returned when parallel processing cannot find
-	// suitable chunk boundaries in the text.
-	ErrNoBoundariesFound = errors.New("could not find suitable chunk boundaries")
-	// ErrStreamInterrupted is returned when stream processing is interrupted
-	// before completion.
-	ErrStreamInterrupted = errors.New("stream processing was interrupted")
 	// ErrCacheRequiresV2 is returned when cache is enabled with V1 schema.
 	// Cache functionality requires V2 schema for Pub/Sub invalidation support.
 	ErrCacheRequiresV2 = errors.New("local cache requires V2 schema")

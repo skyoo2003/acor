@@ -1,0 +1,5 @@
+kind: Removed
+body: Removed the unused exported errors ErrNoBoundariesFound and ErrStreamInterrupted, which were declared but never returned by any operation.
+time: 2026-07-24T21:26:44.272496+09:00
+custom:
+    Issue: "159"

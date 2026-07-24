@@ -1,0 +1,5 @@
+kind: Fixed
+body: FindParallel now returns a deduplicated result set regardless of text size. The single-chunk fast path previously returned Find's per-occurrence multiplicity, contradicting the documented dedup contract that the multi-chunk path already followed.
+time: 2026-07-24T21:27:03.915714+09:00
+custom:
+    Issue: "159"
