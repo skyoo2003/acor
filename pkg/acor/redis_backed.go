@@ -134,12 +134,7 @@ func (ac *redisBackedAC) initTrie(ctx context.Context) error {
 		return fmt.Errorf("check trie key: %w", err)
 	}
 	if exists == 0 {
-		err := ac.storage.HSet(ctx, trieKey(ac.name), map[string]interface{}{
-			"keywords": "[]",
-			"prefixes": "[\"\"]",
-			"suffixes": "[\"\"]",
-			"version":  time.Now().UnixNano(),
-		})
+		err := ac.storage.HSet(ctx, trieKey(ac.name), emptyTrieFields())
 		if err != nil {
 			return fmt.Errorf("initialize trie: %w", err)
 		}
@@ -388,9 +383,9 @@ func (rb *redisBackedV2) runAddScript(ctx context.Context, args map[string]inter
 		return 0, err
 	}
 	cmd := addV2Script.Run(ctx, rb.client,
-		[]string{args["trieKey"].(string), args["outputsKey"].(string)},
-		args["oldVersion"], args["newVersion"], args["keywords"],
-		args["prefixes"], args["suffixes"], args["outputs"])
+		[]string{args[argTrieKey].(string), args[argOutputsKey].(string)},
+		args["oldVersion"], args["newVersion"], args[fieldKeywords],
+		args[fieldPrefixes], args[fieldSuffixes], args["outputs"])
 	return cmd.Int64()
 }
 
@@ -399,8 +394,8 @@ func (rb *redisBackedV2) runRemoveScript(ctx context.Context, args map[string]in
 		return 0, err
 	}
 	cmd := removeV2Script.Run(ctx, rb.client,
-		[]string{args["trieKey"].(string), args["outputsKey"].(string)},
-		args["oldVersion"], args["newVersion"], args["keywords"],
-		args["prefixes"], args["suffixes"], args["outputs"])
+		[]string{args[argTrieKey].(string), args[argOutputsKey].(string)},
+		args["oldVersion"], args["newVersion"], args[fieldKeywords],
+		args[fieldPrefixes], args[fieldSuffixes], args["outputs"])
 	return cmd.Int64()
 }

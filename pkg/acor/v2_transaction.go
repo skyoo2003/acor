@@ -54,22 +54,22 @@ func readTrieSnapshot(ctx context.Context, storage KVStorage, name string) (*tri
 
 	snap := &trieSnapshot{}
 
-	if data, ok := trieData["keywords"]; ok {
+	if data, ok := trieData[fieldKeywords]; ok {
 		if err := json.Unmarshal([]byte(data), &snap.Keywords); err != nil {
 			return nil, newOperationError("unmarshal", SchemaV2, err)
 		}
 	}
-	if data, ok := trieData["prefixes"]; ok {
+	if data, ok := trieData[fieldPrefixes]; ok {
 		if err := json.Unmarshal([]byte(data), &snap.Prefixes); err != nil {
 			return nil, newOperationError("unmarshal", SchemaV2, err)
 		}
 	}
-	if data, ok := trieData["suffixes"]; ok {
+	if data, ok := trieData[fieldSuffixes]; ok {
 		if err := json.Unmarshal([]byte(data), &snap.Suffixes); err != nil {
 			return nil, newOperationError("unmarshal", SchemaV2, err)
 		}
 	}
-	if v, ok := trieData["version"]; ok {
+	if v, ok := trieData[fieldVersion]; ok {
 		if err := json.Unmarshal([]byte(v), &snap.Version); err != nil {
 			snap.Version = 0
 		}
@@ -81,19 +81,19 @@ func readTrieSnapshot(ctx context.Context, storage KVStorage, name string) (*tri
 // marshalTrieArgs serializes trie data into the args map for Lua scripts.
 func marshalTrieArgs(snap *trieSnapshot, outputs map[string]string, newVersion int64) (map[string]interface{}, error) {
 	args := map[string]interface{}{
-		"trieKey":    "", // caller must set
-		"outputsKey": "", // caller must set
-		"newVersion": newVersion,
-		"oldVersion": snap.Version,
+		argTrieKey:    "", // caller must set
+		argOutputsKey: "", // caller must set
+		"newVersion":  newVersion,
+		"oldVersion":  snap.Version,
 	}
 	var err error
-	if args["keywords"], err = toJSON(snap.Keywords); err != nil {
+	if args[fieldKeywords], err = toJSON(snap.Keywords); err != nil {
 		return nil, newOperationError("marshal", SchemaV2, err)
 	}
-	if args["prefixes"], err = toJSON(snap.Prefixes); err != nil {
+	if args[fieldPrefixes], err = toJSON(snap.Prefixes); err != nil {
 		return nil, newOperationError("marshal", SchemaV2, err)
 	}
-	if args["suffixes"], err = toJSON(snap.Suffixes); err != nil {
+	if args[fieldSuffixes], err = toJSON(snap.Suffixes); err != nil {
 		return nil, newOperationError("marshal", SchemaV2, err)
 	}
 	if args["outputs"], err = toJSON(outputs); err != nil {
@@ -183,8 +183,8 @@ func (o *v2Operations) tryAddV2(ctx context.Context, keyword string) (int, error
 	if err != nil {
 		return 0, err
 	}
-	args["trieKey"] = trieKey(o.name)
-	args["outputsKey"] = outputsKey(o.name)
+	args[argTrieKey] = trieKey(o.name)
+	args[argOutputsKey] = outputsKey(o.name)
 
 	cmd, err := o.runAddV2Script(ctx, o.client, args)
 	if err != nil {
@@ -292,8 +292,8 @@ func (o *v2Operations) tryRemoveV2(ctx context.Context, keyword string) (int, er
 	if err != nil {
 		return 0, err
 	}
-	args["trieKey"] = trieKey(o.name)
-	args["outputsKey"] = outputsKey(o.name)
+	args[argTrieKey] = trieKey(o.name)
+	args[argOutputsKey] = outputsKey(o.name)
 
 	cmd, err := o.runRemoveV2Script(ctx, o.client, args)
 	if err != nil {

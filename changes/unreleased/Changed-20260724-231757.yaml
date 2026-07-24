@@ -1,0 +1,5 @@
+kind: Changed
+body: Pinned golangci-lint to the CI version via `go run` in the Makefile and relaxed the `goconst` config to upstream defaults, so local `make lint` no longer diverges from CI. Repeated string literals (Redis field names, CLI commands, JSON keys) were extracted into named constants — no functional changes.
+time: 2026-07-24T23:17:57.819714+09:00
+custom:
+    Issue: "160"

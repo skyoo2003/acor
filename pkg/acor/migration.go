@@ -231,22 +231,22 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	}
 
 	trieFields := map[string]interface{}{
-		"version": time.Now().UnixNano(),
+		fieldVersion: time.Now().UnixNano(),
 	}
 	if keywordsJSON, marshalErr := toJSON(keywords); marshalErr != nil {
 		return result, fmt.Errorf("migration: failed to marshal keywords: %w", marshalErr)
 	} else {
-		trieFields["keywords"] = keywordsJSON
+		trieFields[fieldKeywords] = keywordsJSON
 	}
 	if prefixesJSON, marshalErr := toJSON(prefixes); marshalErr != nil {
 		return result, fmt.Errorf("migration: failed to marshal prefixes: %w", marshalErr)
 	} else {
-		trieFields["prefixes"] = prefixesJSON
+		trieFields[fieldPrefixes] = prefixesJSON
 	}
 	if suffixesJSON, marshalErr := toJSON(suffixes); marshalErr != nil {
 		return result, fmt.Errorf("migration: failed to marshal suffixes: %w", marshalErr)
 	} else {
-		trieFields["suffixes"] = suffixesJSON
+		trieFields[fieldSuffixes] = suffixesJSON
 	}
 	if hsetErr := ac.redisClient.HSet(ac.ctx, tempTrieKey, trieFields).Err(); hsetErr != nil {
 		cleanup()

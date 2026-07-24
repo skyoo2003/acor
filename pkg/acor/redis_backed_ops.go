@@ -129,8 +129,8 @@ func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, v2 *redisBa
 	if marshalErr != nil {
 		return 0, marshalErr
 	}
-	args["trieKey"] = trieKey(ac.name)
-	args["outputsKey"] = outputsKey(ac.name)
+	args[argTrieKey] = trieKey(ac.name)
+	args[argOutputsKey] = outputsKey(ac.name)
 
 	val, err := v2.runAddScript(ctx, args)
 	if err != nil {
@@ -303,8 +303,8 @@ func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, v2 *redi
 	if marshalErr != nil {
 		return 0, marshalErr
 	}
-	args["trieKey"] = trieKey(ac.name)
-	args["outputsKey"] = outputsKey(ac.name)
+	args[argTrieKey] = trieKey(ac.name)
+	args[argOutputsKey] = outputsKey(ac.name)
 
 	val, err := v2.runRemoveScript(ctx, args)
 	if err != nil {
@@ -355,12 +355,7 @@ func (ac *redisBackedAC) Flush(ctx context.Context) error {
 		if err := pipe.Del(ctx, oKey, nKey); err != nil {
 			return err
 		}
-		if err := pipe.HSet(ctx, tKey, map[string]interface{}{
-			"keywords": "[]",
-			"prefixes": "[\"\"]",
-			"suffixes": "[\"\"]",
-			"version":  time.Now().UnixNano(),
-		}); err != nil {
+		if err := pipe.HSet(ctx, tKey, emptyTrieFields()); err != nil {
 			return err
 		}
 		return nil

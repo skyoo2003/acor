@@ -491,12 +491,7 @@ func (ac *AhoCorasick) init() error {
 			return fmt.Errorf("failed to check trie key: %w", err)
 		}
 		if exists == 0 {
-			err := ac.storage.HSet(ac.ctx, trieKey(ac.name), map[string]interface{}{
-				"keywords": "[]",
-				"prefixes": "[\"\"]",
-				"suffixes": "[\"\"]",
-				"version":  time.Now().UnixNano(),
-			})
+			err := ac.storage.HSet(ac.ctx, trieKey(ac.name), emptyTrieFields())
 			if err != nil {
 				return fmt.Errorf("failed to initialize V2 trie: %w", err)
 			}
