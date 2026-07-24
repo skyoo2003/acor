@@ -1,5 +1,0 @@
-kind: Fixed
-body: The internal match engine no longer panics on an invalid (negative) rune supplied to Engine.Stream; such runes are treated as not in the alphabet, matching any other out-of-alphabet character.
-time: 2026-07-24T21:26:44.266844+09:00
-custom:
-    Issue: "159"

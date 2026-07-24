@@ -1,5 +1,0 @@
-kind: Added
-body: 'Expose Redis connection-resilience knobs on AhoCorasickArgs: DialTimeout, ReadTimeout, WriteTimeout, MaxRetries, and PoolSize. They pass straight through to go-redis across all topologies (standalone, cluster, sentinel, ring); a zero value keeps the existing go-redis default, so behavior is unchanged unless set.'
-time: 2026-07-24T23:38:49.515892+09:00
-custom:
-    Issue: "161"
