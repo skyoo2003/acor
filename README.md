@@ -5,7 +5,7 @@
 [![Current Release](https://img.shields.io/github/release/skyoo2003/acor.svg)](https://github.com/skyoo2003/acor/releases/latest)
 [![CI Status](https://github.com/skyoo2003/acor/actions/workflows/ci.yaml/badge.svg)](https://github.com/skyoo2003/acor/actions/workflows/ci.yaml)
 [![Docs](https://img.shields.io/badge/docs-github_pages-1b6b57)](https://skyoo2003.github.io/acor/)
-[![Go Reference](https://pkg.go.dev/badge/github.com/skyoo2003/acor.svg)](https://pkg.go.dev/github.com/skyoo2003/acor)
+[![Go Reference](https://pkg.go.dev/badge/github.com/skyoo2003/acor/pkg/acor.svg)](https://pkg.go.dev/github.com/skyoo2003/acor/pkg/acor)
 [![Go Report Card](https://goreportcard.com/badge/github.com/skyoo2003/acor)](https://goreportcard.com/report/github.com/skyoo2003/acor)
 [![License](https://img.shields.io/github/license/skyoo2003/acor.svg)](LICENSE)
 [![Sponsor](https://img.shields.io/badge/sponsor-GitHub-pink)](https://github.com/sponsors/skyoo2003)
@@ -37,7 +37,7 @@ ACOR talks the standard RESP protocol via [go-redis v9](https://github.com/redis
 ## Installation
 
 ```sh
-go get -u github.com/skyoo2003/acor
+go get github.com/skyoo2003/acor/pkg/acor@latest
 ```
 
 ## Quick Start
@@ -82,6 +82,25 @@ func main() {
  }
 }
 ```
+
+## Match Details and Streaming
+
+`FindMatches` returns occurrences in scan order with half-open rune spans.
+Use `MatchKindLeftmostLongest` for non-overlapping results and `WholeWord` to
+exclude matches embedded in larger words.
+
+<!-- doccheck -->
+```go
+matches, err := ac.FindMatches("classic class", &acor.MatchOptions{
+    Kind:      acor.MatchKindLeftmostLongest,
+    WholeWord: true,
+})
+_ = matches
+_ = err
+```
+
+Use `Contains` for an early-exit presence check and `FindStream` to scan an
+`io.Reader` without loading the entire input.
 
 ## Redis Topologies
 
@@ -161,7 +180,7 @@ result, err := ac.AddMany([]string{"he", "her", "him", "his"}, &acor.BatchOption
 })
 
 // Remove multiple keywords
-result, err = ac.RemoveMany([]string{"he", "her"}, nil)
+result, err = ac.RemoveMany([]string{"he", "her"})
 
 // Find matches in multiple texts
 matches, err := ac.FindMany([]string{"he is him", "this is hers"})
@@ -301,7 +320,7 @@ Run `acor` with no arguments to see all commands (also: `remove`, `suggest-index
 
 Full documentation is available at [GitHub Pages](https://skyoo2003.github.io/acor/).
 
-API reference: [pkg.go.dev](https://pkg.go.dev/github.com/skyoo2003/acor)
+API reference: [pkg.go.dev](https://pkg.go.dev/github.com/skyoo2003/acor/pkg/acor)
 
 ## Contributing
 

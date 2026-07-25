@@ -9,6 +9,7 @@ This guide walks you through building your first ACOR application.
 
 ## Basic Usage
 
+<!-- doccheck -->
 ```go
 package main
 
@@ -47,6 +48,25 @@ func main() {
     }
 }
 ```
+
+## Match Occurrences
+
+Use `FindMatches` when you need occurrence order and both ends of each match.
+Offsets are rune-based and use half-open spans `[Start, End)`.
+
+<!-- doccheck -->
+```go
+matches, err := ac.FindMatches("classic class", &acor.MatchOptions{
+    Kind:      acor.MatchKindLeftmostLongest,
+    WholeWord: true,
+})
+_ = matches
+_ = err
+```
+
+Use `Contains` when only presence matters, or `FindStream` for an `io.Reader`.
+See the [API Reference](../reference/api/) for matching options and streaming
+behavior.
 
 ## Redis Topologies
 

@@ -37,8 +37,29 @@ Instance A ──Find()──▶ local engine (0 RTT)
 - **Invalidation**: Redis Pub/Sub notifies all instances on mutation
 - **Degraded mode**: If reload fails, the last-good engine continues serving reads
 
+## Invalidation Safety
+
+Redis Pub/Sub is best effort. In a multi-instance deployment, set
+`InvalidationPollInterval` to bound how long a dropped invalidation can leave a
+local preset engine stale:
+
+<!-- doccheck -->
+```go
+args := &acor.AhoCorasickArgs{
+    Addr:                     "localhost:6379",
+    Name:                     "my-collection",
+    Preset:                   acor.PresetBalanced,
+    InvalidationPollInterval: 30 * time.Second,
+}
+_ = args
+```
+
+The zero value disables polling. Polling only applies to Preset mode; normal
+invalidation still uses Pub/Sub.
+
 ## Quick Start
 
+<!-- doccheck -->
 ```go
 package main
 
@@ -87,6 +108,11 @@ type AhoCorasickArgs struct {
 ```
 
 All standard Redis topologies are supported (Standalone, Sentinel, Cluster, Ring) via the connection fields on `AhoCorasickArgs`.
+
+Connection resilience can be tuned with `DialTimeout`, `ReadTimeout`,
+`WriteTimeout`, `MaxRetries`, and `PoolSize`. These values pass directly to
+go-redis for every topology; zero keeps the go-redis default. Use `-1` to
+disable read/write timeouts or command retries where supported.
 
 ## Preset Selection
 
