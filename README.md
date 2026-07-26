@@ -6,7 +6,6 @@
 [![CI Status](https://github.com/skyoo2003/acor/actions/workflows/ci.yaml/badge.svg)](https://github.com/skyoo2003/acor/actions/workflows/ci.yaml)
 [![Docs](https://img.shields.io/badge/docs-github_pages-1b6b57)](https://skyoo2003.github.io/acor/)
 [![Go Reference](https://pkg.go.dev/badge/github.com/skyoo2003/acor/pkg/acor.svg)](https://pkg.go.dev/github.com/skyoo2003/acor/pkg/acor)
-[![Go Report Card](https://goreportcard.com/badge/github.com/skyoo2003/acor)](https://goreportcard.com/report/github.com/skyoo2003/acor)
 [![License](https://img.shields.io/github/license/skyoo2003/acor.svg)](LICENSE)
 [![Sponsor](https://img.shields.io/badge/sponsor-GitHub-pink)](https://github.com/sponsors/skyoo2003)
 
