@@ -15,7 +15,7 @@ This section covers everything you need to start using ACOR.
 ## Installation
 
 ```bash
-go get github.com/skyoo2003/acor/pkg/acor@latest
+go get github.com/skyoo2003/acor/pkg/acor@v0.10.0
 ```
 
 ## Next Steps

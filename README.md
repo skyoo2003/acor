@@ -36,7 +36,7 @@ ACOR talks the standard RESP protocol via [go-redis v9](https://github.com/redis
 ## Installation
 
 ```sh
-go get github.com/skyoo2003/acor/pkg/acor@latest
+go get github.com/skyoo2003/acor/pkg/acor@v0.10.0
 ```
 
 ## Quick Start
@@ -279,7 +279,7 @@ ACOR includes a command-line interface for common operations:
 
 ```sh
 # Install
-go install github.com/skyoo2003/acor/cmd/acor@latest
+go install github.com/skyoo2003/acor/cmd/acor@v0.10.0
 
 # Add keywords
 acor -name mycollection add "keyword1" "keyword2"
