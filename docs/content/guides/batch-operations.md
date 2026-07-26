@@ -113,5 +113,5 @@ for _, ke := range result.Failed {
 
 ## Next Steps
 
-- [Parallel Matching](parallel-matching/) - Process large texts efficiently
-- [API Reference](../reference/api/) - Complete API documentation
+- [Parallel Matching](../parallel-matching/) - Process large texts efficiently
+- [API Reference](../../reference/api/) - Complete API documentation

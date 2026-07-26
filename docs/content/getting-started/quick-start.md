@@ -102,8 +102,8 @@ args := &acor.AhoCorasickArgs{
 
 ## Next Steps
 
-- [Batch Operations](../guides/batch-operations/) - Optimize bulk operations
-- [Parallel Matching](../guides/parallel-matching/) - Process large texts efficiently
-- [Redis-Backed Engine](../guides/redis-backed-engine/) - Redis persistence with local speed
-- [Match Details](../reference/api/#findmatches) - Ordered rune spans, matching options, and streaming
-- [API Reference](../reference/api/) - Complete API documentation
+- [Batch Operations](../../guides/batch-operations/) - Optimize bulk operations
+- [Parallel Matching](../../guides/parallel-matching/) - Process large texts efficiently
+- [Redis-Backed Engine](../../guides/redis-backed-engine/) - Redis persistence with local speed
+- [Match Details](../../reference/api/#findmatches) - Ordered rune spans, matching options, and streaming
+- [API Reference](../../reference/api/) - Complete API documentation

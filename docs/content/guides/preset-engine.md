@@ -113,5 +113,5 @@ ac.Flush()
 
 ## Next Steps
 
-- [Redis-Backed Engine](redis-backed-engine/) - Redis persistence details
-- [API Reference](../reference/api/) - Complete API documentation
+- [Redis-Backed Engine](../redis-backed-engine/) - Redis persistence details
+- [API Reference](../../reference/api/) - Complete API documentation

@@ -31,158 +31,29 @@ func main() {
   }
   defer ac.Close()
 
-  _, _ = ac.Add("he")
-  _, _ = ac.Add("her")
-  matched, _ := ac.Find("he is her")
+  _, _ = ac.Add("redis")
+  matched, _ := ac.Find("redis-backed matching")
   fmt.Println(matched)
 }
 ```
 
-## Redis Topologies
+## Explore the Documentation
 
-- **Standalone**: use `Addr` for a single Redis server.
-- **Sentinel**: use `Addrs` with `MasterName` for failover-aware access.
-- **Cluster**: use `Addrs` with `DB` left at `0`.
-- **Ring**: use `RingAddrs` with shard-to-address mappings.
-
-```go
-sentinelArgs := &acor.AhoCorasickArgs{
-  Addrs:      []string{"localhost:26379", "localhost:26380"},
-  MasterName: "mymaster",
-  Name:       "sample",
-}
-
-clusterArgs := &acor.AhoCorasickArgs{
-  Addrs: []string{"localhost:7000", "localhost:7001", "localhost:7002"},
-  Name:  "sample",
-}
-
-ringArgs := &acor.AhoCorasickArgs{
-  RingAddrs: map[string]string{
-    "shard-1": "localhost:7000",
-    "shard-2": "localhost:7001",
-  },
-  Name: "sample",
-}
-```
-
-## CLI Commands
-
-<ul>
-  <li><code>add &lt;keyword&gt;</code> inserts a keyword into the collection.</li>
-  <li><code>remove &lt;keyword&gt;</code> removes a keyword and prunes related trie state.</li>
-  <li><code>find &lt;input&gt;</code> and <code>find-index &lt;input&gt;</code> return matches or match offsets.</li>
-  <li><code>suggest &lt;input&gt;</code> and <code>suggest-index &lt;input&gt;</code> return prefix suggestions and their offsets.</li>
-  <li><code>info</code> returns keyword and node counts.</li>
-  <li><code>flush</code> clears stored trie state.</li>
-</ul>
-
-| Flag | Purpose |
-| --- | --- |
-| `-addr` | Standalone Redis server address |
-| `-addrs` | Sentinel or Cluster seed addresses |
-| `-master-name` | Redis Sentinel master name |
-| `-ring-addrs` | Comma-separated `shard=addr` pairs |
-| `-password` | Redis password |
-| `-db` | Redis DB number |
-| `-name` | Pattern collection name, default `default` |
-| `-debug` | Enable debug logging |
-
-## HTTP and gRPC Adapters
-
-The HTTP handler exposes JSON endpoints on `/v1/*` plus `/healthz`.
-
-- `POST /v1/add`
-- `POST /v1/remove`
-- `POST /v1/find`
-- `POST /v1/find-index`
-- `POST /v1/suggest`
-- `POST /v1/suggest-index`
-- `GET /v1/info`
-- `POST /v1/flush`
-
-The gRPC adapter serves the same eight operations as the `acor.server.v1.Acor`
-service, defined in `server/proto/acor/v1/acor.proto` (standard protobuf wire
-format). Start one with `server.NewGRPCServer(service, opts...)` and generate
-clients from the `.proto` with your language's protobuf toolchain. Regenerate
-the Go stubs with `make proto`.
-
-## Batch Operations
-
-For better performance when working with multiple keywords:
-
-```go
-// Add multiple keywords with transactional mode
-result, _ := ac.AddMany([]string{"he", "her", "him"}, &acor.BatchOptions{
-    Mode: acor.BatchModeTransactional,
-})
-
-// Find matches in multiple texts
-matches, _ := ac.FindMany([]string{"he is him", "this is hers"})
-```
-
-## Parallel Matching
-
-Process large texts using multiple goroutines:
-
-```go
-matches, _ := ac.FindParallel(largeText, &acor.ParallelOptions{
-    Workers:       4,
-    Boundary: acor.ChunkBoundaryWord,
-})
-```
-
-## Observability
-
-ACOR provides built-in observability packages in a separate module
-(`go get github.com/skyoo2003/acor/server`), so the core library stays
-dependency-light:
-
-- **Metrics**: Prometheus metrics for HTTP, gRPC, and Redis
-- **Logging**: Structured JSON logging with zerolog
-- **Tracing**: OpenTelemetry distributed tracing
-- **Health**: Kubernetes-compatible health checks
-
-```go
-import (
-    "github.com/skyoo2003/acor/server/metrics"
-    "github.com/skyoo2003/acor/server/logging"
-    "github.com/skyoo2003/acor/server/tracing"
-    "github.com/skyoo2003/acor/server/health"
-)
-```
-
-## In-Memory and Redis-Backed Engines
-
-ACOR also provides a preset-optimized engine variant:
-
-- **Preset-optimized Redis mode** (`Preset: PresetBalanced`): Redis persistence with a local preset-optimized automaton for 0-RTT reads
-
-Both support four presets: Speed, Balanced, MemoryEfficient, and Ultimate.
-
-## Documentation Sections
-
-- [Getting Started][getting-started-link] - Installation and quick start guide
-- [Guides][guides-link] - Usage patterns and advanced features
-- [Reference][reference-link] - API and schema documentation
-- [Operations][operations-link] - Deployment and monitoring
-- [Extending][extending-link] - Custom storage backends
-
-[getting-started-link]: getting-started/
-[guides-link]: guides/
-[reference-link]: reference/
-[operations-link]: operations/
-[extending-link]: extending/
-
-## Development Workflow
-
-Run local checks with:
-
-```sh
-make test
-make build
-```
-
-CI runs on pushes and pull requests against `master`. Releases are tag-based, and the GitHub Pages site is built from the Hugo source in `docs/`.
-
-The source code is licensed under Apache License 2.0. Contributions should include tests when behavior changes.
+<div class="doc-grid">
+  <a class="doc-card" href="getting-started/">
+    <strong>Getting Started</strong>
+    <span>Install ACOR and build your first matcher.</span>
+  </a>
+  <a class="doc-card" href="guides/">
+    <strong>Guides</strong>
+    <span>Use batch, parallel, and Redis-backed engines.</span>
+  </a>
+  <a class="doc-card" href="reference/">
+    <strong>API Reference</strong>
+    <span>Review public APIs and storage schemas.</span>
+  </a>
+  <a class="doc-card" href="operations/">
+    <strong>Operations</strong>
+    <span>Deploy, monitor, and troubleshoot ACOR.</span>
+  </a>
+</div>

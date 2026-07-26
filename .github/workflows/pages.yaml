@@ -7,6 +7,12 @@ on:
     paths:
       - docs/**
       - .github/workflows/pages.yaml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - docs/**
+      - .github/workflows/pages.yaml
   workflow_dispatch:
 
 permissions:
@@ -15,7 +21,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -50,6 +56,7 @@ jobs:
           path: docs/public
 
   deploy:
+    if: github.event_name != 'pull_request'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

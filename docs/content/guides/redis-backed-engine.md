@@ -116,7 +116,7 @@ disable read/write timeouts or command retries where supported.
 
 ## Preset Selection
 
-The same [architecture presets](preset-engine/#architecture-presets) are available:
+The same [architecture presets](../preset-engine/#architecture-presets) are available:
 
 | Preset | Use Case |
 |--------|----------|
@@ -172,5 +172,5 @@ Use a `Preset`-optimized `AhoCorasick` when you need the fastest possible reads 
 
 ## Next Steps
 
-- [Preset-Optimized Engine](preset-engine/) - Redis-backed engine with local speed
-- [API Reference](../reference/api/) - Complete API documentation
+- [Preset-Optimized Engine](../preset-engine/) - Redis-backed engine with local speed
+- [API Reference](../../reference/api/) - Complete API documentation
