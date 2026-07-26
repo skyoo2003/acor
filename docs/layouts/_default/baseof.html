@@ -1,40 +1,73 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ site.Language.LanguageCode }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ if .Title }}{{ .Title }} | {{ end }}{{ site.Title }}</title>
+  <title>{{ if .IsHome }}{{ site.Title }}{{ else }}{{ .Title }} | {{ site.Title }}{{ end }}</title>
   <style>
     :root {
       color-scheme: light;
-      --bg: #f3efe6;
-      --surface: #fffdfa;
-      --surface-strong: #f6f1e8;
-      --text: #1e1f1c;
-      --muted: #5d6057;
-      --line: #d9d1c1;
-      --accent: #1b6b57;
-      --accent-soft: #dcefe8;
-      --code: #f4f0e7;
-      --shadow: 0 18px 40px rgba(49, 45, 35, 0.08);
+      --bg: #f4f6f4;
+      --surface: #ffffff;
+      --text: #1d2522;
+      --muted: #596560;
+      --line: #d7dfdc;
+      --accent: #176b57;
+      --accent-hover: #0d5443;
+      --accent-soft: #e3f1ec;
+      --inline-code: #edf2f0;
+      --code-block: #f7f9f8;
+      --shadow: 0 12px 30px rgba(31, 47, 41, 0.07);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --bg: #101512;
+        --surface: #181e1b;
+        --text: #edf2f0;
+        --muted: #abb8b3;
+        --line: #34403b;
+        --accent: #76d5bc;
+        --accent-hover: #9be4d1;
+        --accent-soft: #1c392f;
+        --inline-code: #25302c;
+        --code-block: #ffffff;
+        --shadow: none;
+      }
     }
 
     * {
       box-sizing: border-box;
     }
 
+    html {
+      scroll-padding-top: 5rem;
+    }
+
     body {
       margin: 0;
-      font-family: Georgia, "Times New Roman", serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background:
-        radial-gradient(circle at top right, rgba(27, 107, 87, 0.18), transparent 24%),
-        linear-gradient(180deg, #f8f4ec 0%, var(--bg) 100%);
+        radial-gradient(circle at top right, rgba(23, 107, 87, 0.12), transparent 24rem),
+        var(--bg);
       color: var(--text);
-      line-height: 1.65;
+      line-height: 1.7;
     }
 
     a {
       color: var(--accent);
+      text-underline-offset: 0.18em;
+    }
+
+    a:hover {
+      color: var(--accent-hover);
+    }
+
+    a:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 3px;
+      border-radius: 3px;
     }
 
     code,
@@ -42,8 +75,83 @@
       font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     }
 
+    :not(pre) > code {
+      padding: 0.15rem 0.35rem;
+      border-radius: 4px;
+      background: var(--inline-code);
+      font-size: 0.9em;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: 0.5rem;
+      left: 0.5rem;
+      z-index: 100;
+      padding: 0.6rem 0.8rem;
+      background: var(--surface);
+      transform: translateY(-150%);
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+    }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--line);
+      background: var(--bg);
+    }
+
+    .site-nav {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 1.25rem;
+      align-items: center;
+      width: min(1180px, calc(100% - 2rem));
+      min-height: 4rem;
+      margin: 0 auto;
+    }
+
+    .brand {
+      color: var(--text);
+      font-size: 1.15rem;
+      font-weight: 750;
+      letter-spacing: 0.04em;
+      text-decoration: none;
+    }
+
+    .nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.15rem;
+    }
+
+    .nav-links a,
+    .github-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 2.75rem;
+      padding: 0 0.65rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .nav-links a:hover,
+    .nav-links a.active,
+    .github-link:hover {
+      color: var(--accent);
+    }
+
+    .nav-links a.active {
+      box-shadow: inset 0 -2px var(--accent);
+    }
+
     .page {
-      width: min(960px, calc(100% - 2rem));
+      width: min(1180px, calc(100% - 2rem));
       margin: 0 auto;
       padding: 2rem 0 4rem;
     }
@@ -52,111 +160,336 @@
     .content {
       background: var(--surface);
       border: 1px solid var(--line);
-      border-radius: 24px;
+      border-radius: 20px;
       box-shadow: var(--shadow);
     }
 
     .hero {
-      padding: 2.5rem;
-      margin-bottom: 1.5rem;
+      max-width: 900px;
+      padding: clamp(1.5rem, 4vw, 3rem);
+      margin: 0 auto 1.5rem;
     }
 
     .eyebrow {
       display: inline-block;
-      padding: 0.35rem 0.7rem;
+      padding: 0.3rem 0.65rem;
       border-radius: 999px;
       background: var(--accent-soft);
       color: var(--accent);
-      font-size: 0.8rem;
-      font-weight: 700;
+      font-size: 0.78rem;
+      font-weight: 750;
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
 
-    h1,
-    h2,
-    h3 {
-      line-height: 1.15;
-      margin: 0;
-    }
-
-    h1 {
-      font-size: clamp(2.4rem, 6vw, 4.4rem);
-      margin-top: 0.85rem;
-    }
-
-    h2 {
-      font-size: 1.7rem;
-      margin: 2rem 0 0.85rem;
-    }
-
-    p,
-    ul,
-    table,
-    pre {
+    .hero h1 {
+      max-width: 19ch;
       margin: 0.85rem 0 0;
+      font-size: clamp(2.25rem, 6vw, 3.8rem);
+      line-height: 1.08;
     }
 
-    .hero p,
-    .content {
+    .hero p {
+      max-width: 68ch;
+      margin: 1rem 0 0;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .home-layout {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .docs-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 76ch) minmax(190px, 240px);
+      gap: 2rem;
+      justify-content: center;
+      align-items: start;
+    }
+
+    .breadcrumbs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      max-width: 1020px;
+      margin: 0 auto 0.75rem;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .breadcrumbs a {
       color: var(--muted);
     }
 
     .content {
-      padding: 1.75rem;
+      min-width: 0;
+      padding: clamp(1.25rem, 3vw, 2.25rem);
     }
 
     .content > *:first-child {
       margin-top: 0;
     }
 
+    .content h1,
     .content h2,
-    .content h3,
-    .content strong {
+    .content h3 {
       color: var(--text);
+      line-height: 1.25;
+    }
+
+    .content h1 {
+      margin: 0 0 1rem;
+      font-size: clamp(2rem, 5vw, 2.7rem);
+    }
+
+    .content h2 {
+      margin: 2.4rem 0 0.8rem;
+      font-size: 1.55rem;
+    }
+
+    .content h3 {
+      margin: 1.8rem 0 0.65rem;
+      font-size: 1.18rem;
+    }
+
+    p,
+    ul,
+    ol,
+    table,
+    pre,
+    blockquote {
+      margin: 0.9rem 0 0;
+    }
+
+    ul,
+    ol {
+      padding-left: 1.35rem;
+    }
+
+    li + li {
+      margin-top: 0.35rem;
     }
 
     pre {
+      max-width: 100%;
       padding: 1rem;
       overflow-x: auto;
-      border-radius: 16px;
-      background: var(--code);
       border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--code-block);
+      color: #1d2522;
+      line-height: 1.55;
+    }
+
+    pre code {
+      padding: 0;
+      background: none;
+      font-size: 0.88rem;
     }
 
     table {
+      display: block;
       width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
       border-collapse: collapse;
+      font-size: 0.94rem;
     }
 
     th,
     td {
-      padding: 0.8rem;
+      min-width: 8rem;
+      padding: 0.7rem 0.8rem;
       text-align: left;
       vertical-align: top;
+      border-bottom: 1px solid var(--line);
+    }
+
+    th {
+      color: var(--text);
+      background: var(--inline-code);
+    }
+
+    blockquote {
+      padding-left: 1rem;
+      border-left: 3px solid var(--accent);
+      color: var(--muted);
+    }
+
+    .toc {
+      position: sticky;
+      top: 5.5rem;
+      max-height: calc(100vh - 7rem);
+      padding-left: 1rem;
+      overflow-y: auto;
+      border-left: 1px solid var(--line);
+      font-size: 0.88rem;
+    }
+
+    .toc strong {
+      font-size: 0.82rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .toc ul {
+      margin: 0.65rem 0 0;
+      padding-left: 0;
+      list-style: none;
+    }
+
+    .toc ul ul {
+      margin-top: 0.25rem;
+      padding-left: 0.85rem;
+    }
+
+    .toc li + li {
+      margin-top: 0.4rem;
+    }
+
+    .toc a {
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    .toc a:hover {
+      color: var(--accent);
+    }
+
+    .doc-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.8rem;
+      margin-top: 1rem;
+    }
+
+    .doc-card {
+      display: block;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .doc-card:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .doc-card strong,
+    .doc-card span {
+      display: block;
+    }
+
+    .doc-card span {
+      margin-top: 0.2rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .site-footer {
+      padding: 1.5rem 1rem;
       border-top: 1px solid var(--line);
+      color: var(--muted);
+      text-align: center;
+      font-size: 0.85rem;
     }
 
-    ul {
-      padding-left: 1.2rem;
+    @media (max-width: 900px) {
+      .docs-layout {
+        grid-template-columns: minmax(0, 76ch);
+      }
+
+      .toc {
+        position: static;
+        max-height: none;
+        padding: 1rem 1.25rem;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--surface);
+      }
     }
 
-    @media (max-width: 860px) {
+    @media (max-width: 700px) {
+      .site-nav {
+        grid-template-columns: auto 1fr;
+        gap: 0 0.75rem;
+        padding-top: 0.35rem;
+      }
+
+      .github-link {
+        justify-self: end;
+      }
+
+      .nav-links {
+        grid-column: 1 / -1;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+      }
+
+      .nav-links a {
+        white-space: nowrap;
+      }
+
+      .page {
+        width: min(100% - 1rem, 1180px);
+        padding-top: 1rem;
+      }
+
       .hero,
       .content {
-        padding: 1.3rem;
+        border-radius: 14px;
+      }
+
+      .doc-grid {
+        grid-template-columns: 1fr;
       }
     }
   </style>
 </head>
 <body>
-  <main class="page">
-    <section class="hero">
-      <span class="eyebrow">ACOR Documentation</span>
-      <h1>{{ .Params.hero_title }}</h1>
-      <p>{{ .Params.hero_text }}</p>
-    </section>
-    {{ block "main" . }}{{ end }}
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-header">
+    <nav class="site-nav" aria-label="Primary navigation">
+      <a class="brand" href="{{ site.Home.RelPermalink }}">ACOR</a>
+      <div class="nav-links">
+        {{ range site.Menus.main }}
+          {{ $href := .URL | relURL }}
+          <a href="{{ $href }}"{{ if hasPrefix $.RelPermalink $href }} class="active" aria-current="location"{{ end }}>{{ .Name }}</a>
+        {{ end }}
+      </div>
+      <a class="github-link" href="https://github.com/skyoo2003/acor">GitHub</a>
+    </nav>
+  </header>
+  <main id="main-content" class="page">
+    {{ if .IsHome }}
+      <section class="hero">
+        <span class="eyebrow">ACOR Documentation</span>
+        <h1>{{ .Params.hero_title }}</h1>
+        <p>{{ .Params.hero_text }}</p>
+      </section>
+    {{ else }}
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        {{ range .Ancestors.Reverse }}
+          <a href="{{ .RelPermalink }}">{{ if .IsHome }}Home{{ else }}{{ .LinkTitle }}{{ end }}</a>
+          <span aria-hidden="true">/</span>
+        {{ end }}
+        <span aria-current="page">{{ .LinkTitle }}</span>
+      </nav>
+    {{ end }}
+    <div class="{{ if .IsHome }}home-layout{{ else }}docs-layout{{ end }}">
+      {{ block "main" . }}{{ end }}
+      {{ if not .IsHome }}
+        <aside class="toc" aria-label="On this page">
+          <strong>On this page</strong>
+          {{ .TableOfContents }}
+        </aside>
+      {{ end }}
+    </div>
   </main>
+  <footer class="site-footer">ACOR · Apache License 2.0</footer>
 </body>
 </html>

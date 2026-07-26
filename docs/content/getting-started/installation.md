@@ -62,5 +62,5 @@ acor --help
 
 ## Next Steps
 
-- [Quick Start](quick-start/) - Build your first application
-- [Guides](../guides/) - Learn about batch operations and parallel matching
+- [Quick Start](../quick-start/) - Build your first application
+- [Guides](../../guides/) - Learn about batch operations and parallel matching
