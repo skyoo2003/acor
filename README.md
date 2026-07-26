@@ -85,22 +85,10 @@ func main() {
 
 ## Match Details and Streaming
 
-`FindMatches` returns occurrences in scan order with half-open rune spans.
-Use `MatchKindLeftmostLongest` for non-overlapping results and `WholeWord` to
-exclude matches embedded in larger words.
-
-<!-- doccheck -->
-```go
-matches, err := ac.FindMatches("classic class", &acor.MatchOptions{
-    Kind:      acor.MatchKindLeftmostLongest,
-    WholeWord: true,
-})
-_ = matches
-_ = err
-```
-
-Use `Contains` for an early-exit presence check and `FindStream` to scan an
-`io.Reader` without loading the entire input.
+Use `FindMatches` for ordered rune spans, `Contains` for an early-exit presence
+check, and `FindStream` for an `io.Reader`. See the
+[matching API reference](docs/content/reference/api.md#findmatches) for options
+and a compiled example.
 
 ## Redis Topologies
 

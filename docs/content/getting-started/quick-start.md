@@ -49,25 +49,6 @@ func main() {
 }
 ```
 
-## Match Occurrences
-
-Use `FindMatches` when you need occurrence order and both ends of each match.
-Offsets are rune-based and use half-open spans `[Start, End)`.
-
-<!-- doccheck -->
-```go
-matches, err := ac.FindMatches("classic class", &acor.MatchOptions{
-    Kind:      acor.MatchKindLeftmostLongest,
-    WholeWord: true,
-})
-_ = matches
-_ = err
-```
-
-Use `Contains` when only presence matters, or `FindStream` for an `io.Reader`.
-See the [API Reference](../reference/api/) for matching options and streaming
-behavior.
-
 ## Redis Topologies
 
 ACOR supports multiple Redis configurations:
@@ -124,4 +105,5 @@ args := &acor.AhoCorasickArgs{
 - [Batch Operations](../guides/batch-operations/) - Optimize bulk operations
 - [Parallel Matching](../guides/parallel-matching/) - Process large texts efficiently
 - [Redis-Backed Engine](../guides/redis-backed-engine/) - Redis persistence with local speed
+- [Match Details](../reference/api/#findmatches) - Ordered rune spans, matching options, and streaming
 - [API Reference](../reference/api/) - Complete API documentation
