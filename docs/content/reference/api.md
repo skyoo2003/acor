@@ -5,7 +5,9 @@ weight: 1
 
 # API Reference
 
-Complete API documentation for ACOR.
+Core API documentation for ACOR. See
+[pkg.go.dev](https://pkg.go.dev/github.com/skyoo2003/acor/pkg/acor) for the
+complete generated reference.
 
 ## Core Types
 
@@ -22,6 +24,11 @@ type AhoCorasickArgs struct {
     MasterName                      string            // Sentinel master name
     Password                        string            // Redis password
     DB                              int               // Redis database number (0-15, default: 0)
+    DialTimeout                     time.Duration     // Connection timeout (zero: go-redis default)
+    ReadTimeout                     time.Duration     // Socket read timeout (zero: go-redis default)
+    WriteTimeout                    time.Duration     // Socket write timeout (zero: go-redis default)
+    MaxRetries                      int               // Command retries (zero: go-redis default; -1: disabled)
+    PoolSize                        int               // Connections per server (zero: go-redis default)
     Name                            string            // Collection name (required)
     Debug                           bool              // Enable debug logging to stdout
     Logger                          Logger            // Custom logger (nil disables logging)
@@ -31,6 +38,7 @@ type AhoCorasickArgs struct {
     CaseSensitive                   bool              // Enable case-sensitive matching (default: false)
     RollbackTimeout                 time.Duration     // V1 rollback timeout (default: 10s)
     Preset                           Preset            // Architecture preset (default: PresetNone)
+    InvalidationPollInterval        time.Duration     // Preset version polling (zero: disabled)
 }
 ```
 <!-- AUTO-GENERATED:types:end -->
@@ -80,6 +88,10 @@ Remove multiple keywords in a batch.
 
 ```go
 result, err := ac.RemoveMany([]string{"a", "b"})
+// Use RemoveManyWithOptions when transactional behavior is required.
+result, err = ac.RemoveManyWithOptions([]string{"c", "d"}, &acor.BatchOptions{
+    Mode: acor.BatchModeTransactional,
+})
 ```
 
 ### Find
@@ -100,6 +112,71 @@ positions, err := ac.FindIndex("sample text")
 // Returns: map[string][]int{"keyword": {startPos, ...}, ...}
 ```
 
+### FindMatches
+
+Return every occurrence in scan order with its keyword and half-open rune span
+`[Start, End)`. The default includes overlapping matches; use
+`MatchKindLeftmostLongest` for non-overlapping tokenization or replacement.
+
+<!-- doccheck -->
+```go
+matches, err := ac.FindMatches("classic class", &acor.MatchOptions{
+    Kind:      acor.MatchKindLeftmostLongest,
+    WholeWord: true,
+})
+_ = matches
+_ = err
+```
+
+```go
+type Match struct {
+    Keyword string
+    Start   int // Rune offset, inclusive
+    End     int // Rune offset, exclusive
+}
+
+type MatchOptions struct {
+    Kind      MatchKind
+    WholeWord bool
+    WordRune  func(rune) bool // Optional whole-word predicate
+}
+
+const (
+    MatchKindOverlapping MatchKind = iota // Default
+    MatchKindLeftmostLongest
+)
+```
+
+`WholeWord` uses letters, digits, combining marks, and underscores as word
+runes. Set `WordRune` when those defaults do not fit the input script.
+
+### Contains
+
+Report whether any keyword occurs, stopping at the first match.
+
+```go
+found, err := ac.Contains("sample text")
+```
+
+### FindStream
+
+Scan an `io.Reader` without buffering the whole input. Matches include
+overlaps, retain rune offsets across reads, and arrive in scan order. Returning
+`false` from the callback stops the scan.
+
+<!-- doccheck -->
+```go
+err := ac.FindStream(strings.NewReader("sample text"), func(match acor.Match) bool {
+    _ = match
+    return true
+})
+_ = err
+```
+
+Streaming does not apply whole-word or leftmost-longest filtering because
+those modes require buffering. Use `FindMatches` for bounded strings that need
+those options.
+
 ### FindMany
 
 Find matches in multiple texts.
@@ -118,6 +195,17 @@ matches, err := ac.FindParallel(largeText, &acor.ParallelOptions{
     Workers:   4,
     Boundary:  acor.ChunkBoundaryWord,
 })
+```
+
+Keywords longer than `ParallelOptions.Overlap` can be missed at chunk
+boundaries. Set `Overlap` to at least the longest expected keyword.
+
+### FindIndexParallel
+
+Find start positions using the same parallel chunking options.
+
+```go
+positions, err := ac.FindIndexParallel(largeText, acor.DefaultParallelOptions())
 ```
 
 ### Info
@@ -154,7 +242,7 @@ Statistics about an Aho-Corasick instance.
 type AhoCorasickInfo struct {
     Keywords    int    // Number of keywords
     Nodes       int    // Number of trie nodes (states)
-    Preset      Preset // Architecture preset (zero in original mode)
+    Preset      Preset // Architecture preset (internal default sentinel in original mode)
     MemoryBytes int64  // Estimated memory usage in bytes (zero in original mode)
     TrieDepth   int    // Maximum trie depth (zero in original mode)
 }
@@ -172,7 +260,6 @@ const (
     PresetBalanced                      // Double-Array Trie + Banded DFA — best speed-to-memory ratio
     PresetMemoryEfficient               // Map-based + Bloom filter — min memory, slower search
     PresetUltimate                      // Balanced engine + first-rune Bloom pre-filter — high throughput
-    PresetDefault         Preset = -1   // Internal sentinel; not user-selectable
 )
 ```
 
@@ -219,6 +306,8 @@ removed, err := ac.Remove("keyword") // (int, error)
 // Find (0 RTT on hot path — reads from local engine)
 matches, err := ac.Find("text")       // ([]string, error)
 positions, err := ac.FindIndex("text") // (map[string][]int, error)
+spans, err := ac.FindMatches("text", nil) // ([]Match, error)
+found, err := ac.Contains("text")          // (bool, error)
 
 // Info
 info, err := ac.Info()   // (*AhoCorasickInfo, error)
@@ -228,6 +317,19 @@ err := ac.Flush()
 
 // Close
 err := ac.Close()
+```
+
+## Context Variants
+
+Operations that may perform Redis I/O also accept an explicit
+`context.Context`: `AddContext`, `RemoveContext`, `FindContext`,
+`FindIndexContext`, `FindMatchesContext`, `ContainsContext`,
+`FindStreamContext`, `FlushContext`, `InfoContext`, `SuggestContext`,
+`SuggestIndexContext`, `AddManyContext`, `RemoveManyContext`,
+`FindManyContext`, `FindParallelContext`, and `FindIndexParallelContext`.
+
+```go
+matches, err := ac.FindMatchesContext(ctx, text, nil)
 ```
 
 ## Suggest Methods
@@ -265,7 +367,7 @@ type BatchResult struct {
     Added   []string       // Successfully added keywords
     Removed []string       // Successfully removed keywords
     Failed  []KeywordError // Keywords that failed with their errors
-    Skipped []string       // Keywords that were skipped (e.g., duplicates)
+    Skipped []string       // Duplicate adds or absent removes
 }
 ```
 

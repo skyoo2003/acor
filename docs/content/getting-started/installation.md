@@ -15,7 +15,7 @@ ACOR uses the standard RESP protocol via [go-redis v9](https://github.com/redis/
 ## Install the Package
 
 ```bash
-go get -u github.com/skyoo2003/acor
+go get github.com/skyoo2003/acor/pkg/acor@latest
 ```
 
 ## Verify Installation

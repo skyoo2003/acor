@@ -6,10 +6,10 @@ hero_text: ACOR is a Go library and CLI for storing and querying Aho-Corasick pa
 
 ## Getting Started
 
-ACOR requires Go 1.25 or newer and Redis 3.0 or newer.
+ACOR requires Go 1.25 or newer and Redis 3.0 or newer, or Valkey 7.2 or newer.
 
 ```sh
-go get -u github.com/skyoo2003/acor
+go get github.com/skyoo2003/acor/pkg/acor@latest
 ```
 
 ```go

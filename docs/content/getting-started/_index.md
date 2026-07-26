@@ -10,12 +10,12 @@ This section covers everything you need to start using ACOR.
 ## Prerequisites
 
 - Go >= 1.25
-- Redis >= 3.0
+- Redis >= 3.0 or Valkey >= 7.2
 
 ## Installation
 
 ```bash
-go get -u github.com/skyoo2003/acor
+go get github.com/skyoo2003/acor/pkg/acor@latest
 ```
 
 ## Next Steps

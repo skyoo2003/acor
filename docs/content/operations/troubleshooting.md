@@ -116,10 +116,43 @@ redis GET on key "...": context deadline exceeded
 ```
 
 **Solutions:**
-1. Increase timeout
+1. Tune `DialTimeout`, `ReadTimeout`, or `WriteTimeout` when measurements show
+   the defaults are too short
 2. Check Redis load
 3. Check network latency
-4. Scale Redis cluster
+4. Set `MaxRetries` for transient failures or adjust `PoolSize` for measured
+   connection contention
+5. Scale Redis cluster
+
+Zero values keep the go-redis defaults across Standalone, Sentinel, Cluster,
+and Ring modes.
+
+<!-- doccheck -->
+```go
+args := &acor.AhoCorasickArgs{
+    Addr:         "localhost:6379",
+    Name:         "my-collection",
+    DialTimeout:  5 * time.Second,
+    ReadTimeout:  3 * time.Second,
+    WriteTimeout: 3 * time.Second,
+    MaxRetries:   3,
+}
+_ = args
+```
+
+### Preset Cache Appears Stale
+
+**Cause:** Preset mode normally reloads through best-effort Redis Pub/Sub. A
+disconnected subscriber can miss an invalidation.
+
+**Solution:** In multi-instance deployments, set
+`InvalidationPollInterval` to the maximum acceptable staleness window:
+
+```go
+args.InvalidationPollInterval = 30 * time.Second
+```
+
+The option is disabled by default and ignored outside Preset mode.
 
 ## Performance Issues
 
