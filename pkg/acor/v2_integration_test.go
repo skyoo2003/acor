@@ -636,15 +636,18 @@ func TestV2TryAddBadPrefixesJSON(t *testing.T) {
 
 // TestV2LegacySuffixesFieldIgnored pins the compatibility contract for
 // collections written before the "suffixes" field was dropped: the leftover
-// value is never parsed, so even a corrupt one cannot fail a write.
+// value is never parsed, so even a corrupt one cannot fail a write, and it is
+// gone once the collection is flushed.
 func TestV2LegacySuffixesFieldIgnored(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
+	ctx := context.Background()
+
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer func() { _ = client.Close() }()
 
-	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
+	client.HSet(ctx, "{test}:trie", map[string]interface{}{
 		"keywords": `[]`,
 		"prefixes": `[""]`,
 		"suffixes": `not-json`,
@@ -654,8 +657,27 @@ func TestV2LegacySuffixesFieldIgnored(t *testing.T) {
 	ops := newTestV2Ops(t, mr)
 	defer func() { _ = ops.client.Close() }()
 
-	if _, err := ops.tryAddV2(context.Background(), "she"); err != nil {
+	if _, err := ops.tryAddV2(ctx, "she"); err != nil {
 		t.Fatalf("legacy suffixes field should be ignored, got: %v", err)
+	}
+
+	// A write leaves the field alone; only a flush rewrites the whole hash.
+	if exists, err := client.HExists(ctx, "{test}:trie", "suffixes").Result(); err != nil {
+		t.Fatal(err)
+	} else if !exists {
+		t.Error("write should leave the legacy suffixes field untouched")
+	}
+
+	if err := ops.flush(ctx); err != nil {
+		t.Fatalf("flush failed: %v", err)
+	}
+
+	exists, err := client.HExists(ctx, "{test}:trie", "suffixes").Result()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists {
+		t.Error("legacy suffixes field should be gone after flush")
 	}
 }
 

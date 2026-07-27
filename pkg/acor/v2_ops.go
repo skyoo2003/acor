@@ -120,9 +120,10 @@ func (o *v2Operations) flush(ctx context.Context) error {
 		// nodesKey is only written during migration; including it here ensures a clean state.
 		nKey := nodesKey(o.name)
 
-		// Delete outputs and nodes keys; overwrite trie key with HSET below
-		// instead of DEL+HSET to avoid an unnecessary round-trip in the pipeline.
-		if err := pipe.Del(ctx, oKey, nKey); err != nil {
+		// The trie key is deleted too, not just overwritten, so fields no
+		// longer written by this version (the pre-v0.11 "suffixes") don't
+		// survive a flush. It costs nothing: same DEL, one more key.
+		if err := pipe.Del(ctx, oKey, nKey, tKey); err != nil {
 			return err
 		}
 		if err := pipe.HSet(ctx, tKey, emptyTrieFields()); err != nil {

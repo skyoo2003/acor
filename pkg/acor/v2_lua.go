@@ -64,13 +64,12 @@ type v2ScriptArgs struct {
 
 // runV2Script evaluates v2WriteScript and returns its reply: 1 when the write
 // committed, 0 when the optimistic-lock version check failed.
+//
+// ClearOutputs goes out as a bool: go-redis encodes it as the "1"/"0" the
+// script compares against, so there is no flag string to keep in sync.
 func runV2Script(ctx context.Context, client redis.UniversalClient, args *v2ScriptArgs) (int64, error) {
-	clearFlag := "0"
-	if args.ClearOutputs {
-		clearFlag = "1"
-	}
 	return v2WriteScript.Run(ctx, client,
 		[]string{args.TrieKey, args.OutputsKey},
 		args.OldVersion, args.NewVersion, args.Keywords,
-		args.Prefixes, args.Outputs, clearFlag).Int64()
+		args.Prefixes, args.Outputs, args.ClearOutputs).Int64()
 }
