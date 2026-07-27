@@ -77,14 +77,11 @@ func TestLuaVersionComparisonAbove2to53(t *testing.T) {
 	args["trieKey"] = trieKey("test")
 	args["outputsKey"] = outputsKey("test")
 
-	cmd, err := ops.runAddV2Script(ctx, ops.client, args)
+	val, err := runV2Script(ctx, ops.client, addV2Script, args)
 	if err != nil {
 		t.Fatalf("addV2Script with matching large version failed: %v", err)
 	}
-	result, err := cmd.Int()
-	if err != nil {
-		t.Fatalf("addV2Script with matching large version failed: %v", err)
-	}
+	result := int(val)
 	if result != 1 {
 		t.Errorf("addV2Script = %d, want 1 (version should match for %d)", result, largeOldVersion)
 	}
@@ -98,14 +95,11 @@ func TestLuaVersionComparisonAbove2to53(t *testing.T) {
 	args2["trieKey"] = trieKey("test")
 	args2["outputsKey"] = outputsKey("test")
 
-	cmd2, err := ops.runAddV2Script(ctx, ops.client, args2)
+	val2, err := runV2Script(ctx, ops.client, addV2Script, args2)
 	if err != nil {
 		t.Fatalf("addV2Script conflict check failed: %v", err)
 	}
-	result2, err := cmd2.Int()
-	if err != nil {
-		t.Fatalf("addV2Script conflict check failed: %v", err)
-	}
+	result2 := int(val2)
 	if result2 != 0 {
 		t.Errorf("addV2Script = %d, want 0 (conflict between %d and %d should be detected)",
 			result2, largeOldVersion, largeNewVersion)
@@ -194,14 +188,11 @@ func TestLuaVersionStringComparison(t *testing.T) {
 			args["trieKey"] = trieKey("test")
 			args["outputsKey"] = outputsKey("test")
 
-			cmd, err := ops.runAddV2Script(ctx, ops.client, args)
+			val, err := runV2Script(ctx, ops.client, addV2Script, args)
 			if err != nil {
 				t.Fatalf("addV2Script error: %v", err)
 			}
-			result, err := cmd.Int()
-			if err != nil {
-				t.Fatalf("addV2Script error: %v", err)
-			}
+			result := int(val)
 
 			if tt.wantConflict {
 				if result != 0 {
@@ -251,14 +242,11 @@ func TestLuaVersionRemoveScriptPrecision(t *testing.T) {
 	args["trieKey"] = trieKey("test")
 	args["outputsKey"] = outputsKey("test")
 
-	cmd, err := ops.runRemoveV2Script(ctx, ops.client, args)
+	val, err := runV2Script(ctx, ops.client, removeV2Script, args)
 	if err != nil {
 		t.Fatalf("removeV2Script error: %v", err)
 	}
-	result, err := cmd.Int()
-	if err != nil {
-		t.Fatalf("removeV2Script error: %v", err)
-	}
+	result := int(val)
 	if result != 1 {
 		t.Errorf("removeV2Script = %d, want 1 (version %d should match)", result, largeVersion)
 	}
@@ -271,14 +259,11 @@ func TestLuaVersionRemoveScriptPrecision(t *testing.T) {
 	args2["trieKey"] = trieKey("test")
 	args2["outputsKey"] = outputsKey("test")
 
-	cmd2, err := ops.runRemoveV2Script(ctx, ops.client, args2)
+	val2, err := runV2Script(ctx, ops.client, removeV2Script, args2)
 	if err != nil {
 		t.Fatalf("removeV2Script stale version error: %v", err)
 	}
-	result2, err := cmd2.Int()
-	if err != nil {
-		t.Fatalf("removeV2Script stale version error: %v", err)
-	}
+	result2 := int(val2)
 	if result2 != 0 {
 		t.Errorf("removeV2Script = %d, want 0 (stale version should conflict)", result2)
 	}
