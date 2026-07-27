@@ -2,10 +2,7 @@
 
 package acor
 
-import (
-	"context"
-	"sort"
-)
+import "context"
 
 // AddContext inserts a keyword with context for cancellation and timeout propagation.
 func (ac *AhoCorasick) AddContext(ctx context.Context, keyword string) (int, error) {
@@ -101,6 +98,7 @@ func (ac *AhoCorasick) FindManyContext(ctx context.Context, texts []string) (map
 }
 
 // FindParallelContext searches for keywords using parallel processing with context.
+// Like FindParallel, the result is a set: each keyword appears at most once.
 func (ac *AhoCorasick) FindParallelContext(ctx context.Context, text string, opts *ParallelOptions) ([]string, error) {
 	opts = normalizeParallelOptions(opts)
 	if opts.ChunkSize <= 0 {
@@ -111,17 +109,19 @@ func (ac *AhoCorasick) FindParallelContext(ctx context.Context, text string, opt
 	if len(chunks) == 0 {
 		return []string{}, nil
 	}
-	if len(chunks) == 1 {
-		return ac.FindContext(ctx, text)
-	}
 
-	results, errors := runStringWorkersCtx(ctx, ac, chunks, opts.Workers)
-	allMatches, err := collectOrderedStringResults(results, errors)
-
+	perChunk, err := scanChunks(ctx, chunks, opts.Workers, func(ctx context.Context, c chunk) ([]string, error) {
+		return ac.ops.find(ctx, c.text)
+	})
 	if err != nil {
 		return nil, err
 	}
-	return allMatches, nil
+
+	var all []string
+	for _, matches := range perChunk {
+		all = append(all, matches...)
+	}
+	return dedupPreservingOrder(all), nil
 }
 
 // FindIndexParallelContext searches for keywords with indices using parallel processing with context.
@@ -135,24 +135,12 @@ func (ac *AhoCorasick) FindIndexParallelContext(ctx context.Context, text string
 	if len(chunks) == 0 {
 		return map[string][]int{}, nil
 	}
-	if len(chunks) == 1 {
-		return ac.FindIndexContext(ctx, text)
-	}
 
-	results, errors := runIndexWorkersCtx(ctx, ac, chunks, opts.Workers)
-	allMatches, err := collectIndexResults(results, errors)
+	perChunk, err := scanChunks(ctx, chunks, opts.Workers, func(ctx context.Context, c chunk) (map[string][]int, error) {
+		return ac.ops.findIndex(ctx, c.text)
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	result := make(map[string][]int)
-	for keyword, indices := range allMatches {
-		sortedIndices := make([]int, 0, len(indices))
-		for idx := range indices {
-			sortedIndices = append(sortedIndices, idx)
-		}
-		sort.Ints(sortedIndices)
-		result[keyword] = sortedIndices
-	}
-	return result, nil
+	return mergeIndexResults(chunks, perChunk), nil
 }

@@ -6,7 +6,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // batchWriter is implemented by modes (preset) that can coalesce the local
@@ -146,43 +147,49 @@ func (ac *AhoCorasick) addManyTransactional(ctx context.Context, keywords []stri
 	return result, nil
 }
 
+// rollbackAdded undoes the adds a failed transactional batch already committed.
 func (ac *AhoCorasick) rollbackAdded(ctx context.Context, keywords []string) {
+	remove, commit := ac.batchRemoveFns()
+	ac.rollbackBatch(ctx, keywords, "remove", remove, commit)
+}
+
+// rollbackRemoved re-adds the removes a failed transactional batch already committed.
+func (ac *AhoCorasick) rollbackRemoved(ctx context.Context, keywords []string) {
+	add, commit := ac.batchAddFns()
+	ac.rollbackBatch(ctx, keywords, "re-add", add, commit)
+}
+
+// rollbackBatchWorkers caps how many undo operations run at once. Rollback is
+// off the hot path and hits Redis per keyword, so a small fixed pool is enough.
+const rollbackBatchWorkers = 10
+
+// rollbackBatch applies undo to every keyword concurrently and then commits once.
+// It uses the deferred write plus a single commit so a failed batch triggers one
+// rebuild and publish rather than one per keyword (commit is a no-op outside
+// batchWriter modes, where each write already rebuilt and published).
+//
+// Errors are logged, not returned: this is the failure path already, and the
+// caller is about to return the original error.
+func (ac *AhoCorasick) rollbackBatch(ctx context.Context, keywords []string, op string,
+	undo func(context.Context, string) (int, error), commit func(context.Context)) {
 	if len(keywords) == 0 {
 		return
 	}
 
-	// Use the deferred write + single commit so a failed batch triggers one
-	// rebuild/publish, not one per rolled-back keyword (commit is a no-op outside
-	// batchWriter modes, where each remove already rebuilt/published).
-	remove, commit := ac.batchRemoveFns()
-
-	maxWorkers := 10
-	if len(keywords) < maxWorkers {
-		maxWorkers = len(keywords)
-	}
-
-	sem := make(chan struct{}, maxWorkers)
-	var wg sync.WaitGroup
-
+	var g errgroup.Group
+	g.SetLimit(min(rollbackBatchWorkers, len(keywords)))
 	for _, keyword := range keywords {
-		select {
-		case sem <- struct{}{}:
-		case <-ctx.Done():
-			wg.Wait()
-			return
+		if ctx.Err() != nil {
+			break
 		}
-		wg.Add(1)
-		go func(k string) {
-			defer func() {
-				<-sem
-				wg.Done()
-			}()
-			if _, err := remove(ctx, k); err != nil && ac.logger != nil {
-				ac.logger.Printf("rollback: failed to remove %q: %v", k, err)
+		g.Go(func() error {
+			if _, err := undo(ctx, keyword); err != nil && ac.logger != nil {
+				ac.logger.Printf("rollback: failed to %s %q: %v", op, keyword, err)
 			}
-		}(keyword)
+			return nil
+		})
 	}
-	wg.Wait()
+	_ = g.Wait()
 	commit(ctx)
 }
 
@@ -294,44 +301,6 @@ func (ac *AhoCorasick) removeManyTransactional(ctx context.Context, keywords []s
 
 	result.Removed = removed
 	return result, nil
-}
-
-func (ac *AhoCorasick) rollbackRemoved(ctx context.Context, keywords []string) {
-	if len(keywords) == 0 {
-		return
-	}
-
-	// Deferred write + single commit, mirroring rollbackAdded.
-	add, commit := ac.batchAddFns()
-
-	maxWorkers := 10
-	if len(keywords) < maxWorkers {
-		maxWorkers = len(keywords)
-	}
-
-	sem := make(chan struct{}, maxWorkers)
-	var wg sync.WaitGroup
-
-	for _, keyword := range keywords {
-		select {
-		case sem <- struct{}{}:
-		case <-ctx.Done():
-			wg.Wait()
-			return
-		}
-		wg.Add(1)
-		go func(k string) {
-			defer func() {
-				<-sem
-				wg.Done()
-			}()
-			if _, err := add(ctx, k); err != nil && ac.logger != nil {
-				ac.logger.Printf("rollback: failed to re-add %q: %v", k, err)
-			}
-		}(keyword)
-	}
-	wg.Wait()
-	commit(ctx)
 }
 
 // FindMany searches for keywords in multiple texts and returns a map of text to matches.
