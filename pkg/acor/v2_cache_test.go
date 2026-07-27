@@ -28,7 +28,6 @@ func TestV2GetOrLoadEngineNoCache(t *testing.T) {
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
 		"keywords": `["he"]`,
 		"prefixes": `["","h","he"]`,
-		"suffixes": `["","e","eh"]`,
 		"version":  "100",
 	})
 	client.HSet(context.Background(), "{test}:outputs", map[string]interface{}{
@@ -116,7 +115,6 @@ func TestV2LoadCache(t *testing.T) {
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
 		"keywords": `["he"]`,
 		"prefixes": `["","h","he"]`,
-		"suffixes": `["","e","eh"]`,
 		"version":  "100",
 	})
 	client.HSet(context.Background(), "{test}:outputs", map[string]interface{}{
@@ -163,7 +161,6 @@ func TestV2GetOrLoadEngineDoubleCheck(t *testing.T) {
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
 		"keywords": `["he"]`,
 		"prefixes": `["","h","he"]`,
-		"suffixes": `["","e","eh"]`,
 		"version":  "100",
 	})
 	client.HSet(context.Background(), "{test}:outputs", map[string]interface{}{

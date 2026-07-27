@@ -407,7 +407,6 @@ func TestV2FlushWithNodes(t *testing.T) {
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
 		"keywords": `["he"]`,
 		"prefixes": `["","h","he"]`,
-		"suffixes": `["","e","eh"]`,
 		"version":  "100",
 	})
 	client.HSet(context.Background(), "{test}:outputs", map[string]interface{}{
@@ -635,14 +634,20 @@ func TestV2TryAddBadPrefixesJSON(t *testing.T) {
 	}
 }
 
-func TestV2TryAddBadSuffixesJSON(t *testing.T) {
+// TestV2LegacySuffixesFieldIgnored pins the compatibility contract for
+// collections written before the "suffixes" field was dropped: the leftover
+// value is never parsed, so even a corrupt one cannot fail a write, and it is
+// gone once the collection is flushed.
+func TestV2LegacySuffixesFieldIgnored(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
+
+	ctx := context.Background()
 
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer func() { _ = client.Close() }()
 
-	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
+	client.HSet(ctx, "{test}:trie", map[string]interface{}{
 		"keywords": `[]`,
 		"prefixes": `[""]`,
 		"suffixes": `not-json`,
@@ -652,9 +657,61 @@ func TestV2TryAddBadSuffixesJSON(t *testing.T) {
 	ops := newTestV2Ops(t, mr)
 	defer func() { _ = ops.client.Close() }()
 
-	_, err := ops.tryAddV2(context.Background(), "she")
-	if err == nil {
-		t.Fatal("expected error for bad JSON in suffixes")
+	if _, err := ops.tryAddV2(ctx, "she"); err != nil {
+		t.Fatalf("legacy suffixes field should be ignored, got: %v", err)
+	}
+
+	// A write leaves the field alone; only a flush rewrites the whole hash.
+	if exists, err := client.HExists(ctx, "{test}:trie", "suffixes").Result(); err != nil {
+		t.Fatal(err)
+	} else if !exists {
+		t.Error("write should leave the legacy suffixes field untouched")
+	}
+
+	if err := ops.flush(ctx); err != nil {
+		t.Fatalf("flush failed: %v", err)
+	}
+
+	exists, err := client.HExists(ctx, "{test}:trie", "suffixes").Result()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists {
+		t.Error("legacy suffixes field should be gone after flush")
+	}
+}
+
+// TestPresetFlushDropsLegacySuffixes pins the same contract for preset mode,
+// which reaches the V2 trie hash through its own flush.
+func TestPresetFlushDropsLegacySuffixes(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	ctx := context.Background()
+
+	ac, createErr := Create(&AhoCorasickArgs{Addr: mr.Addr(), Name: "test", Preset: PresetBalanced})
+	if createErr != nil {
+		t.Fatalf("Create: %v", createErr)
+	}
+	defer func() { _ = ac.Close() }()
+
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() { _ = client.Close() }()
+
+	if hsetErr := client.HSet(ctx, "{test}:trie", "suffixes", "not-json").Err(); hsetErr != nil {
+		t.Fatal(hsetErr)
+	}
+
+	if flushErr := ac.Flush(); flushErr != nil {
+		t.Fatalf("flush failed: %v", flushErr)
+	}
+
+	exists, err := client.HExists(ctx, "{test}:trie", "suffixes").Result()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists {
+		t.Error("legacy suffixes field should be gone after a preset-mode flush")
 	}
 }
 

@@ -1,0 +1,8 @@
+kind: Changed
+body: |-
+    The V2 trie hash no longer stores a `suffixes` field. It held every prefix reversed, was rewritten on each add and remove, and was never read by any matcher — only the V1 schema's suffix sorted set is used, for its own rebuild walk. Existing collections are unaffected: a leftover `suffixes` field is ignored on read and disappears on the next `Flush`, so old and new binaries can run against the same collection during a rolling upgrade.
+
+    The two V2 Lua scripts were also merged into one, differing only by a flag for whether the outputs hash is cleared first.
+time: 2026-07-27T23:06:40.000000+09:00
+custom:
+    Issue: "170"

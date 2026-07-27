@@ -67,16 +67,9 @@ func BenchmarkFindV2(b *testing.B) {
 		"hel", "hell", "hello", "w", "wo", "wor", "worl", "world",
 		"b", "be", "ben", "benc", "bench", "benchm", "benchma", "benchmar", "benchmark",
 	}
-	suffixes := []string{
-		"", "e", "eh", "s", "hs", "ehs", "i", "ih", "si", "sih",
-		"r", "reh", "sreh", "l", "ll", "leh", "lleh", "d", "dl", "dor", "drow",
-		"k", "kc", "kram", "kcehc", "kramdneb",
-	}
-
 	client.HSet(context.Background(), "{bench}:trie", map[string]interface{}{
 		"keywords": toJSONOrFatal(b, keywords),
 		"prefixes": toJSONOrFatal(b, prefixes),
-		"suffixes": toJSONOrFatal(b, suffixes),
 		"version":  time.Now().Unix(),
 	})
 
@@ -153,7 +146,6 @@ func BenchmarkAddV2(b *testing.B) {
 	_ = client.HSet(context.Background(), "{bench}:trie", map[string]interface{}{
 		"keywords": "[]",
 		"prefixes": `[""]`,
-		"suffixes": `[""]`,
 		"version":  time.Now().Unix(),
 	}).Err()
 	_ = client.Close()

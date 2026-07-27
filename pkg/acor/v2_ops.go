@@ -114,24 +114,8 @@ func (o *v2Operations) remove(ctx context.Context, keyword string) (int, error) 
 }
 
 func (o *v2Operations) flush(ctx context.Context) error {
-	err := o.storage.TxPipelined(ctx, func(pipe Pipeliner) error {
-		tKey := trieKey(o.name)
-		oKey := outputsKey(o.name)
-		// nodesKey is only written during migration; including it here ensures a clean state.
-		nKey := nodesKey(o.name)
-
-		// Delete outputs and nodes keys; overwrite trie key with HSET below
-		// instead of DEL+HSET to avoid an unnecessary round-trip in the pipeline.
-		if err := pipe.Del(ctx, oKey, nKey); err != nil {
-			return err
-		}
-		if err := pipe.HSet(ctx, tKey, emptyTrieFields()); err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		return newRedisError("TXPIPELINED", trieKey(o.name), err)
+	if err := flushV2Keys(ctx, o.storage, o.name); err != nil {
+		return err
 	}
 
 	o.publishInvalidate(ctx)

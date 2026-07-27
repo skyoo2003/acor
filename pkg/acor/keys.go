@@ -20,20 +20,15 @@ const (
 	NodeKey = "%s:node"
 )
 
-// V2 trie-hash field names and the internal arg-map keys passed to the Lua
-// transaction helpers. Kept as constants so a typo can't silently break a
+// V2 trie-hash field names. Kept as constants so a typo can't silently break a
 // Redis read or write.
 const (
 	fieldKeywords = "keywords"
 	fieldPrefixes = "prefixes"
-	fieldSuffixes = "suffixes"
 	fieldVersion  = "version"
 
-	argTrieKey    = "trieKey"
-	argOutputsKey = "outputsKey"
-
 	// emptyKeywordsJSON and emptyStringArrayJSON are the default JSON values
-	// stored in an empty V2 trie hash.
+	// stored in an empty V2 trie hash: no keywords, and the root prefix only.
 	emptyKeywordsJSON    = "[]"
 	emptyStringArrayJSON = `[""]`
 )
@@ -82,7 +77,6 @@ func emptyTrieFields() map[string]interface{} {
 	return map[string]interface{}{
 		fieldKeywords: emptyKeywordsJSON,
 		fieldPrefixes: emptyStringArrayJSON,
-		fieldSuffixes: emptyStringArrayJSON,
 		fieldVersion:  time.Now().UnixNano(),
 	}
 }

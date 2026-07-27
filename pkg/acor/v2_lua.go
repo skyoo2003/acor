@@ -4,31 +4,44 @@ package acor
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/redis/go-redis/v9"
 )
 
-// --- Lua scripts (precompiled with redis.NewScript for EVALSHA optimization) ---
-
-var addV2Script = redis.NewScript(`
+// v2WriteScript commits a planned trie mutation under optimistic locking:
+// it rejects the write (returns 0) when another client has already moved the
+// version on, and otherwise swaps in the new trie fields and output states.
+//
+// Add and remove differ only in whether stale output states must be dropped
+// first: add rewrites the states it touched, remove replaces the whole set.
+// That is the clearOutputs flag.
+//
+// Precompiled with redis.NewScript so calls go out as EVALSHA.
+var v2WriteScript = redis.NewScript(`
 	local trieKey = KEYS[1]
 	local outputsKey = KEYS[2]
 	local oldVersion = ARGV[1]
 	local newVersion = ARGV[2]
 	local keywords = ARGV[3]
 	local prefixes = ARGV[4]
-	local suffixes = ARGV[5]
-	local outputsJson = ARGV[6]
+	local outputsJson = ARGV[5]
+	local clearOutputs = ARGV[6] == '1'
 
 	local currentVersion = redis.call('HGET', trieKey, 'version')
 	if currentVersion and currentVersion ~= oldVersion then
 		return 0
 	end
 
-	redis.call('HSET', trieKey, 'keywords', keywords, 'prefixes', prefixes, 'suffixes', suffixes, 'version', newVersion)
+	redis.call('HSET', trieKey, 'keywords', keywords, 'prefixes', prefixes, 'version', newVersion)
 
+	-- Decode before the DEL: a cjson error aborts the script without rolling
+	-- back the commands already run, so nothing destructive may precede it.
 	local outputs = cjson.decode(outputsJson)
+
+	if clearOutputs then
+		redis.call('DEL', outputsKey)
+	end
+
 	for state, jsonOuts in pairs(outputs) do
 		redis.call('HSET', outputsKey, state, jsonOuts)
 	end
@@ -36,57 +49,30 @@ var addV2Script = redis.NewScript(`
 	return 1
 `)
 
-var removeV2Script = redis.NewScript(`
-	local trieKey = KEYS[1]
-	local outputsKey = KEYS[2]
-	local oldVersion = ARGV[1]
-	local newVersion = ARGV[2]
-	local keywords = ARGV[3]
-	local prefixes = ARGV[4]
-	local suffixes = ARGV[5]
-	local outputsJson = ARGV[6]
-
-	local currentVersion = redis.call('HGET', trieKey, 'version')
-	if currentVersion and currentVersion ~= oldVersion then
-		return 0
-	end
-
-	redis.call('HSET', trieKey, 'keywords', keywords, 'prefixes', prefixes, 'suffixes', suffixes, 'version', newVersion)
-
-	local outputs = cjson.decode(outputsJson)
-	redis.call('DEL', outputsKey)
-	for state, jsonOuts in pairs(outputs) do
-		redis.call('HSET', outputsKey, state, jsonOuts)
-	end
-
-	return 1
-`)
-
-// --- Lua script helpers ---
-
-// validateScriptArgs checks that the args map contains valid string values
-// for "trieKey" and "outputsKey". Returns an error if either key is missing
-// or not a string.
-func validateScriptArgs(args map[string]interface{}) error {
-	trieKey, ok := args[argTrieKey].(string)
-	if !ok || trieKey == "" {
-		return fmt.Errorf("validateScriptArgs: missing or invalid trieKey")
-	}
-	outputsKey, ok := args[argOutputsKey].(string)
-	if !ok || outputsKey == "" {
-		return fmt.Errorf("validateScriptArgs: missing or invalid outputsKey")
-	}
-	return nil
+// v2ScriptArgs is the complete argument set for v2WriteScript, built by
+// marshalTrieArgs. Keeping the arguments typed here means a missing or mistyped
+// one is a compile error rather than a runtime assertion.
+type v2ScriptArgs struct {
+	TrieKey    string
+	OutputsKey string
+	OldVersion int64
+	NewVersion int64
+	Keywords   string // JSON array of keywords
+	Prefixes   string // JSON array of trie prefixes
+	Outputs    string // JSON object: state -> JSON array of matched keywords
+	// ClearOutputs drops the outputs hash before writing, for removes where a
+	// state's output list may have shrunk to nothing.
+	ClearOutputs bool
 }
 
-// runV2Script evaluates one of the V2 transaction scripts and returns its reply:
-// 1 when the write committed, 0 when the optimistic-lock version check failed.
-func runV2Script(ctx context.Context, client redis.UniversalClient, script *redis.Script, args map[string]interface{}) (int64, error) {
-	if err := validateScriptArgs(args); err != nil {
-		return 0, err
-	}
-	return script.Run(ctx, client,
-		[]string{args[argTrieKey].(string), args[argOutputsKey].(string)},
-		args["oldVersion"], args["newVersion"], args[fieldKeywords],
-		args[fieldPrefixes], args[fieldSuffixes], args["outputs"]).Int64()
+// runV2Script evaluates v2WriteScript and returns its reply: 1 when the write
+// committed, 0 when the optimistic-lock version check failed.
+//
+// ClearOutputs goes out as a bool: go-redis encodes it as the "1"/"0" the
+// script compares against, so there is no flag string to keep in sync.
+func runV2Script(ctx context.Context, client redis.UniversalClient, args *v2ScriptArgs) (int64, error) {
+	return v2WriteScript.Run(ctx, client,
+		[]string{args.TrieKey, args.OutputsKey},
+		args.OldVersion, args.NewVersion, args.Keywords,
+		args.Prefixes, args.Outputs, args.ClearOutputs).Int64()
 }

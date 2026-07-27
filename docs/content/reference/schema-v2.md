@@ -13,7 +13,7 @@ V2 consolidates storage into 3 keys:
 
 | Key Pattern | Purpose |
 |-------------|---------|
-| `{name}:trie` | Serialized trie structure (keywords, prefixes, suffixes, version) |
+| `{name}:trie` | Serialized trie structure (keywords, prefixes, version) |
 | `{name}:outputs` | All output mappings (state -> keywords) |
 | `{name}:nodes` | Node metadata (migration only, cleaned up by flush) |
 
@@ -79,15 +79,17 @@ acor -name mycollection migrate
 
 ### trie key
 
-Stores the serialized trie as a hash with four fields:
+Stores the serialized trie as a hash with three fields:
 
 ```text
 {collection}:trie
   keywords -> ["keyword1", "keyword2", ...]
   prefixes  -> ["", "h", "he", ...]
-  suffixes  -> ["", "e", "eh", ...]
   version   -> <int64 optimistic lock>
 ```
+
+Collections written before v0.11 also carry a `suffixes` field. It is never
+read, is left alone by writes, and is dropped by the next `Flush()`.
 
 ### outputs key
 

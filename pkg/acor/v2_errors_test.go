@@ -21,7 +21,6 @@ func setupV2WithError(t *testing.T) *AhoCorasick {
 	if err := client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
 		"keywords": `["he","she"]`,
 		"prefixes": `["","h","he","s","sh","she"]`,
-		"suffixes": `["","e","eh","s","hs","ehs"]`,
 		"version":  "100",
 	}).Err(); err != nil {
 		t.Fatalf("failed to seed trie data: %v", err)

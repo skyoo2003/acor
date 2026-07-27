@@ -54,7 +54,7 @@ func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, rebuild boo
 		return 0, nil
 	}
 
-	newVersion, err := commitV2Write(ctx, ac.redisClient, addV2Script, ac.name, snap, outputs)
+	newVersion, err := commitV2Write(ctx, ac.redisClient, ac.name, snap, outputs, false)
 	if err != nil {
 		return 0, err
 	}
@@ -136,7 +136,7 @@ func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, rebuild 
 		return 0, nil
 	}
 
-	newVersion, err := commitV2Write(ctx, ac.redisClient, removeV2Script, ac.name, snap, outputs)
+	newVersion, err := commitV2Write(ctx, ac.redisClient, ac.name, snap, outputs, true)
 	if err != nil {
 		return 0, err
 	}
@@ -175,20 +175,8 @@ func (ac *redisBackedAC) findIndex(ctx context.Context, text string) (map[string
 
 // flush removes all keywords from the automaton.
 func (ac *redisBackedAC) flush(ctx context.Context) error {
-	err := ac.storage.TxPipelined(ctx, func(pipe Pipeliner) error {
-		tKey := trieKey(ac.name)
-		oKey := outputsKey(ac.name)
-		nKey := nodesKey(ac.name)
-		if err := pipe.Del(ctx, oKey, nKey); err != nil {
-			return err
-		}
-		if err := pipe.HSet(ctx, tKey, emptyTrieFields()); err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		return newRedisError("TXPIPELINED", trieKey(ac.name), err)
+	if err := flushV2Keys(ctx, ac.storage, ac.name); err != nil {
+		return err
 	}
 
 	ac.mu.Lock()
