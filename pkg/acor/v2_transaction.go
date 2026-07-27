@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	mrand "math/rand/v2"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -150,20 +151,40 @@ func commitV2Write(ctx context.Context, client redis.UniversalClient, script *re
 }
 
 // retryOnConflict runs attempt until it stops reporting a lost optimistic-lock
-// race, backing off linearly in between. Shared by both V2 write paths.
+// race, backing off in between. Shared by both V2 write paths.
 func retryOnConflict(ctx context.Context, attempt func() (int, error)) (int, error) {
 	for i := 0; i < maxRetries; i++ {
 		n, err := attempt()
 		if !errors.Is(err, ErrConcurrencyConflict) {
 			return n, err
 		}
+		// Nothing left to wait for after the last attempt.
+		if i == maxRetries-1 {
+			break
+		}
 		select {
 		case <-ctx.Done():
 			return 0, ctx.Err()
-		case <-time.After(time.Duration(i+1) * retryBackoffBase):
+		case <-time.After(conflictBackoff(i)):
 		}
 	}
 	return 0, ErrConcurrencyConflict
+}
+
+// conflictBackoff returns how long to wait before retry attempt+1: a linear
+// ramp plus jitter in [0, retryBackoffBase).
+//
+// The jitter is what keeps contention from persisting. Two writers that lose
+// the same CAS race lose it at the same instant, so a purely deterministic
+// schedule wakes them together and they collide again on every retry. Spreading
+// the wakeups over one base interval breaks that lockstep.
+//
+// math/rand is the right tool here: this only spreads load, and no security
+// property depends on the value. Version stamps and invalidation IDs, which do
+// need unpredictability, keep using crypto/rand.
+func conflictBackoff(attempt int) time.Duration {
+	jitter := mrand.N(retryBackoffBase) //nolint:gosec // G404: load spreading, not a security decision.
+	return time.Duration(attempt+1)*retryBackoffBase + jitter
 }
 
 func (o *v2Operations) tryAddV2(ctx context.Context, keyword string) (int, error) {

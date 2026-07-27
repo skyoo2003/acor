@@ -116,3 +116,28 @@ func TestV2RemoveMaxRetriesExhausted(t *testing.T) {
 		t.Fatalf("remove() should succeed on retry, got: %v", err)
 	}
 }
+
+// TestConflictBackoffBounds pins the backoff window per attempt: a linear ramp
+// with jitter that never reaches into the next attempt's slot, so the schedule
+// stays ordered while still spreading concurrent writers.
+func TestConflictBackoffBounds(t *testing.T) {
+	for attempt := range maxRetries {
+		lo := time.Duration(attempt+1) * retryBackoffBase
+		hi := lo + retryBackoffBase
+
+		// Sample enough times to catch a jitter range that is off by a factor.
+		var sawJitter bool
+		for range 200 {
+			got := conflictBackoff(attempt)
+			if got < lo || got >= hi {
+				t.Fatalf("conflictBackoff(%d) = %v, want [%v, %v)", attempt, got, lo, hi)
+			}
+			if got != lo {
+				sawJitter = true
+			}
+		}
+		if !sawJitter {
+			t.Errorf("conflictBackoff(%d) never varied from %v; jitter is not being applied", attempt, lo)
+		}
+	}
+}
