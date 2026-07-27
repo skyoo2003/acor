@@ -31,9 +31,7 @@ func TestToJSONError(t *testing.T) {
 	}
 }
 
-func TestComputeOutputsV2(t *testing.T) {
-	ops := &v2Operations{}
-
+func TestComputeOutputs(t *testing.T) {
 	prefixSet := map[string]struct{}{
 		"":    {},
 		"h":   {},
@@ -62,13 +60,13 @@ func TestComputeOutputsV2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.state, func(t *testing.T) {
-			got := ops.computeOutputsV2(tt.state, prefixSet, keywordSet)
+			got := computeOutputs(tt.state, prefixSet, keywordSet)
 			if len(got) != len(tt.want) {
-				t.Fatalf("computeOutputsV2(%q) = %v, want %v", tt.state, got, tt.want)
+				t.Fatalf("computeOutputs(%q) = %v, want %v", tt.state, got, tt.want)
 			}
 			for i, v := range got {
 				if v != tt.want[i] {
-					t.Errorf("computeOutputsV2(%q)[%d] = %q, want %q", tt.state, i, v, tt.want[i])
+					t.Errorf("computeOutputs(%q)[%d] = %q, want %q", tt.state, i, v, tt.want[i])
 				}
 			}
 		})

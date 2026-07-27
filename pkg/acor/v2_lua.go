@@ -79,22 +79,14 @@ func validateScriptArgs(args map[string]interface{}) error {
 	return nil
 }
 
-func (o *v2Operations) runAddV2Script(ctx context.Context, client redis.UniversalClient, args map[string]interface{}) (*redis.Cmd, error) {
+// runV2Script evaluates one of the V2 transaction scripts and returns its reply:
+// 1 when the write committed, 0 when the optimistic-lock version check failed.
+func runV2Script(ctx context.Context, client redis.UniversalClient, script *redis.Script, args map[string]interface{}) (int64, error) {
 	if err := validateScriptArgs(args); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return addV2Script.Run(ctx, client,
+	return script.Run(ctx, client,
 		[]string{args[argTrieKey].(string), args[argOutputsKey].(string)},
 		args["oldVersion"], args["newVersion"], args[fieldKeywords],
-		args[fieldPrefixes], args[fieldSuffixes], args["outputs"]), nil
-}
-
-func (o *v2Operations) runRemoveV2Script(ctx context.Context, client redis.UniversalClient, args map[string]interface{}) (*redis.Cmd, error) {
-	if err := validateScriptArgs(args); err != nil {
-		return nil, err
-	}
-	return removeV2Script.Run(ctx, client,
-		[]string{args[argTrieKey].(string), args[argOutputsKey].(string)},
-		args["oldVersion"], args["newVersion"], args[fieldKeywords],
-		args[fieldPrefixes], args[fieldSuffixes], args["outputs"]), nil
+		args[fieldPrefixes], args[fieldSuffixes], args["outputs"]).Int64()
 }

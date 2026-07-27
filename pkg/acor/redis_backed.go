@@ -371,31 +371,3 @@ func (ac *redisBackedAC) cleanupExpiredSelfSkips() {
 		return true
 	})
 }
-
-// --- V2 Lua script adapter ---
-
-type redisBackedV2 struct {
-	client redis.UniversalClient
-}
-
-func (rb *redisBackedV2) runAddScript(ctx context.Context, args map[string]interface{}) (int64, error) {
-	if err := validateScriptArgs(args); err != nil {
-		return 0, err
-	}
-	cmd := addV2Script.Run(ctx, rb.client,
-		[]string{args[argTrieKey].(string), args[argOutputsKey].(string)},
-		args["oldVersion"], args["newVersion"], args[fieldKeywords],
-		args[fieldPrefixes], args[fieldSuffixes], args["outputs"])
-	return cmd.Int64()
-}
-
-func (rb *redisBackedV2) runRemoveScript(ctx context.Context, args map[string]interface{}) (int64, error) {
-	if err := validateScriptArgs(args); err != nil {
-		return 0, err
-	}
-	cmd := removeV2Script.Run(ctx, rb.client,
-		[]string{args[argTrieKey].(string), args[argOutputsKey].(string)},
-		args["oldVersion"], args["newVersion"], args[fieldKeywords],
-		args[fieldPrefixes], args[fieldSuffixes], args["outputs"])
-	return cmd.Int64()
-}

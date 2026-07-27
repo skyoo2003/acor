@@ -4,13 +4,7 @@ package acor
 
 import (
 	"context"
-	"errors"
-	"strings"
-	"time"
 )
-
-const redisBackedMaxRetries = 3
-const redisBackedRetryBackoff = 10 * time.Millisecond
 
 // redisBackedAC implements the operations interface directly, so AhoCorasick
 // dispatches into it with no adapter in between. Suggest/SuggestIndex are the
@@ -42,108 +36,27 @@ func (ac *redisBackedAC) addWith(ctx context.Context, keyword string, rebuild bo
 		return 0, nil
 	}
 
-	v2 := &redisBackedV2{client: ac.redisClient}
-
-	for attempt := 0; attempt < redisBackedMaxRetries; attempt++ {
-		added, err := ac.tryAdd(ctx, keyword, v2, rebuild)
-		if errors.Is(err, ErrConcurrencyConflict) {
-			backoff := time.Duration(attempt+1) * redisBackedRetryBackoff
-			select {
-			case <-ctx.Done():
-				return 0, ctx.Err()
-			case <-time.After(backoff):
-			}
-			continue
-		}
-		if err == nil && added == 1 && rebuild {
-			ac.publishInvalidate(ctx)
-		}
-		return added, err
+	added, err := retryOnConflict(ctx, func() (int, error) { return ac.tryAdd(ctx, keyword, rebuild) })
+	if err == nil && added == 1 && rebuild {
+		ac.publishInvalidate(ctx)
 	}
-	return 0, ErrConcurrencyConflict
+	return added, err
 }
 
-func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, v2 *redisBackedV2, rebuild bool) (int, error) { //nolint:gocyclo,funlen
+func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, rebuild bool) (int, error) {
 	snap, err := readTrieSnapshot(ctx, ac.storage, ac.name)
 	if err != nil {
 		return 0, err
 	}
 
-	for _, kw := range snap.Keywords {
-		if kw == keyword {
-			return 0, nil
-		}
+	outputs, changed := planAdd(snap, keyword)
+	if !changed {
+		return 0, nil
 	}
 
-	keywordSet := make(map[string]struct{}, len(snap.Keywords)+1)
-	for _, kw := range snap.Keywords {
-		keywordSet[kw] = struct{}{}
-	}
-	prefixSet := make(map[string]struct{}, len(snap.Prefixes))
-	for _, p := range snap.Prefixes {
-		prefixSet[p] = struct{}{}
-	}
-
-	keywordRunes := []rune(keyword)
-	var newPrefixes, newSuffixes []string
-	for i := 0; i < len(keywordRunes); i++ {
-		prefix := string(keywordRunes[:i+1])
-		if _, exists := prefixSet[prefix]; !exists {
-			newPrefixes = append(newPrefixes, prefix)
-			newSuffixes = append(newSuffixes, reverse(prefix))
-			prefixSet[prefix] = struct{}{}
-		}
-	}
-
-	keywordSet[keyword] = struct{}{}
-	newOutputs := make(map[string][]string)
-	for _, prefix := range newPrefixes {
-		outs := computeRBOutputs(prefix, prefixSet, keywordSet)
-		if len(outs) > 0 {
-			newOutputs[prefix] = outs
-		}
-	}
-	for _, prefix := range snap.Prefixes {
-		if prefix == "" {
-			continue
-		}
-		outs := computeRBOutputs(prefix, prefixSet, keywordSet)
-		if len(outs) > 0 {
-			newOutputs[prefix] = outs
-		}
-	}
-
-	snap.Keywords = append(snap.Keywords, keyword)
-	snap.Prefixes = append(snap.Prefixes, newPrefixes...)
-	snap.Suffixes = append(snap.Suffixes, newSuffixes...)
-
-	newVersion, genErr := generateVersion()
-	if genErr != nil {
-		return 0, genErr
-	}
-
-	outputsToSet := make(map[string]string)
-	for state, outs := range newOutputs {
-		jsonOuts, marshalErr := toJSON(outs)
-		if marshalErr != nil {
-			return 0, marshalErr
-		}
-		outputsToSet[state] = jsonOuts
-	}
-
-	args, marshalErr := marshalTrieArgs(snap, outputsToSet, newVersion)
-	if marshalErr != nil {
-		return 0, marshalErr
-	}
-	args[argTrieKey] = trieKey(ac.name)
-	args[argOutputsKey] = outputsKey(ac.name)
-
-	val, err := v2.runAddScript(ctx, args)
+	newVersion, err := commitV2Write(ctx, ac.redisClient, addV2Script, ac.name, snap, outputs)
 	if err != nil {
 		return 0, err
-	}
-	if val == 0 {
-		return 0, ErrConcurrencyConflict
 	}
 
 	ac.applyLocalWrite(keyword, true, newVersion, rebuild)
@@ -205,119 +118,27 @@ func (ac *redisBackedAC) removeWith(ctx context.Context, keyword string, rebuild
 		return 0, nil
 	}
 
-	v2 := &redisBackedV2{client: ac.redisClient}
-
-	for attempt := 0; attempt < redisBackedMaxRetries; attempt++ {
-		removed, err := ac.tryRemove(ctx, keyword, v2, rebuild)
-		if errors.Is(err, ErrConcurrencyConflict) {
-			backoff := time.Duration(attempt+1) * redisBackedRetryBackoff
-			select {
-			case <-ctx.Done():
-				return 0, ctx.Err()
-			case <-time.After(backoff):
-			}
-			continue
-		}
-		if err == nil && removed == 1 && rebuild {
-			ac.publishInvalidate(ctx)
-		}
-		return removed, err
+	removed, err := retryOnConflict(ctx, func() (int, error) { return ac.tryRemove(ctx, keyword, rebuild) })
+	if err == nil && removed == 1 && rebuild {
+		ac.publishInvalidate(ctx)
 	}
-	return 0, ErrConcurrencyConflict
+	return removed, err
 }
 
-func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, v2 *redisBackedV2, rebuild bool) (int, error) { //nolint:gocyclo,funlen
+func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, rebuild bool) (int, error) {
 	snap, err := readTrieSnapshot(ctx, ac.storage, ac.name)
 	if err != nil {
 		return 0, err
 	}
 
-	keywordExists := false
-	newKeywords := make([]string, 0, len(snap.Keywords))
-	for _, kw := range snap.Keywords {
-		if kw == keyword {
-			keywordExists = true
-		} else {
-			newKeywords = append(newKeywords, kw)
-		}
-	}
-	if !keywordExists {
+	outputs, changed := planRemove(snap, keyword)
+	if !changed {
 		return 0, nil
 	}
 
-	keywordSet := make(map[string]struct{})
-	for _, kw := range newKeywords {
-		keywordSet[kw] = struct{}{}
-	}
-
-	newPrefixes := []string{""}
-	for _, prefix := range snap.Prefixes {
-		if prefix == "" {
-			continue
-		}
-		for kw := range keywordSet {
-			if strings.HasPrefix(kw, prefix) {
-				newPrefixes = append(newPrefixes, prefix)
-				break
-			}
-		}
-	}
-
-	prefixSet := make(map[string]struct{})
-	for _, p := range newPrefixes {
-		prefixSet[p] = struct{}{}
-	}
-
-	newSuffixes := make([]string, len(newPrefixes))
-	for i, p := range newPrefixes {
-		newSuffixes[i] = reverse(p)
-	}
-
-	newOutputs := make(map[string][]string)
-	for _, prefix := range newPrefixes {
-		if prefix == "" {
-			continue
-		}
-		outs := computeRBOutputs(prefix, prefixSet, keywordSet)
-		if len(outs) > 0 {
-			newOutputs[prefix] = outs
-		}
-	}
-
-	newVersion, genErr := generateVersion()
-	if genErr != nil {
-		return 0, genErr
-	}
-
-	outputsToSet := make(map[string]string)
-	for state, outs := range newOutputs {
-		jsonOuts, marshalErr := toJSON(outs)
-		if marshalErr != nil {
-			return 0, marshalErr
-		}
-		outputsToSet[state] = jsonOuts
-	}
-
-	updatedSnap := &trieSnapshot{
-		Keywords: newKeywords,
-		Prefixes: newPrefixes,
-		Suffixes: newSuffixes,
-		Version:  snap.Version,
-	}
-
-	args, marshalErr := marshalTrieArgs(updatedSnap, outputsToSet, newVersion)
-	if marshalErr != nil {
-		return 0, marshalErr
-	}
-	args[argTrieKey] = trieKey(ac.name)
-	args[argOutputsKey] = outputsKey(ac.name)
-
-	val, err := v2.runRemoveScript(ctx, args)
+	newVersion, err := commitV2Write(ctx, ac.redisClient, removeV2Script, ac.name, snap, outputs)
 	if err != nil {
 		return 0, err
-	}
-	if val == 0 {
-		return 0, ErrConcurrencyConflict
 	}
 
 	ac.applyLocalWrite(keyword, false, newVersion, rebuild)
@@ -402,22 +223,4 @@ func (ac *redisBackedAC) suggest(_ context.Context, _ string) ([]string, error) 
 
 func (ac *redisBackedAC) suggestIndex(_ context.Context, _ string) (map[string][]int, error) {
 	return nil, ErrSuggestRequiresRedis
-}
-
-// computeRBOutputs returns all keywords that are suffixes of the given state.
-func computeRBOutputs(state string, prefixSet, keywordSet map[string]struct{}) []string {
-	var outputs []string
-	if _, isKeyword := keywordSet[state]; isKeyword {
-		outputs = append(outputs, state)
-	}
-	stateRunes := []rune(state)
-	for i := 1; i < len(stateRunes); i++ {
-		failState := string(stateRunes[i:])
-		if _, isPrefix := prefixSet[failState]; isPrefix {
-			if _, isKeyword := keywordSet[failState]; isKeyword {
-				outputs = append(outputs, failState)
-			}
-		}
-	}
-	return outputs
 }

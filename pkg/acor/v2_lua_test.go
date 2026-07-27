@@ -110,14 +110,11 @@ func TestLuaScriptInt64SafetyAdd(t *testing.T) {
 	args["trieKey"] = trieKey("test")
 	args["outputsKey"] = outputsKey("test")
 
-	cmd, err := ops.runAddV2Script(ctx, ops.client, args)
+	val, err := runV2Script(ctx, ops.client, addV2Script, args)
 	if err != nil {
 		t.Fatalf("runAddV2Script failed: %v", err)
 	}
-	result, err := cmd.Int64()
-	if err != nil {
-		t.Fatalf("cmd.Int64() failed: %v", err)
-	}
+	result := val
 	if result != 1 {
 		t.Errorf("addV2Script Int64 result = %d, want 1", result)
 	}
@@ -154,14 +151,11 @@ func TestLuaScriptInt64SafetyRemove(t *testing.T) {
 	args["trieKey"] = trieKey("test")
 	args["outputsKey"] = outputsKey("test")
 
-	cmd, err := ops.runRemoveV2Script(ctx, ops.client, args)
+	val, err := runV2Script(ctx, ops.client, removeV2Script, args)
 	if err != nil {
 		t.Fatalf("runRemoveV2Script failed: %v", err)
 	}
-	result, err := cmd.Int64()
-	if err != nil {
-		t.Fatalf("cmd.Int64() failed: %v", err)
-	}
+	result := val
 	if result != 1 {
 		t.Errorf("removeV2Script Int64 result = %d, want 1", result)
 	}

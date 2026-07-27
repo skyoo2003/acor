@@ -6,9 +6,11 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"strings"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // versionRandBytes is the number of random bytes used to extend version timestamps
@@ -110,225 +112,94 @@ func toJSON(v any) (string, error) {
 	return string(b), nil
 }
 
-func (o *v2Operations) tryAddV2(ctx context.Context, keyword string) (int, error) { //nolint:gocyclo,funlen
+// commitV2Write stamps a fresh version onto a planned mutation and commits it
+// through script under optimistic locking. It returns the version it wrote, or
+// ErrConcurrencyConflict when another writer won the race and the caller should
+// re-read the snapshot and retry.
+func commitV2Write(ctx context.Context, client redis.UniversalClient, script *redis.Script,
+	name string, snap *trieSnapshot, outputs map[string][]string) (int64, error) {
+	newVersion, err := generateVersion()
+	if err != nil {
+		return 0, err
+	}
+
+	encoded := make(map[string]string, len(outputs))
+	for state, outs := range outputs {
+		jsonOuts, marshalErr := toJSON(outs)
+		if marshalErr != nil {
+			return 0, newOperationError("marshal", SchemaV2, marshalErr)
+		}
+		encoded[state] = jsonOuts
+	}
+
+	args, err := marshalTrieArgs(snap, encoded, newVersion)
+	if err != nil {
+		return 0, err
+	}
+	args[argTrieKey] = trieKey(name)
+	args[argOutputsKey] = outputsKey(name)
+
+	result, err := runV2Script(ctx, client, script, args)
+	if err != nil {
+		return 0, newRedisError("EVAL", trieKey(name), err)
+	}
+	if result == 0 {
+		return 0, ErrConcurrencyConflict
+	}
+	return newVersion, nil
+}
+
+// retryOnConflict runs attempt until it stops reporting a lost optimistic-lock
+// race, backing off linearly in between. Shared by both V2 write paths.
+func retryOnConflict(ctx context.Context, attempt func() (int, error)) (int, error) {
+	for i := 0; i < maxRetries; i++ {
+		n, err := attempt()
+		if !errors.Is(err, ErrConcurrencyConflict) {
+			return n, err
+		}
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case <-time.After(time.Duration(i+1) * retryBackoffBase):
+		}
+	}
+	return 0, ErrConcurrencyConflict
+}
+
+func (o *v2Operations) tryAddV2(ctx context.Context, keyword string) (int, error) {
 	snap, err := readTrieSnapshot(ctx, o.storage, o.name)
 	if err != nil {
 		return 0, err
 	}
 
-	keywordSet := make(map[string]struct{}, len(snap.Keywords))
-	for _, kw := range snap.Keywords {
-		keywordSet[kw] = struct{}{}
-	}
-	if _, exists := keywordSet[keyword]; exists {
+	outputs, changed := planAdd(snap, keyword)
+	if !changed {
 		return 0, nil
 	}
 
-	prefixSet := make(map[string]struct{}, len(snap.Prefixes))
-	for _, p := range snap.Prefixes {
-		prefixSet[p] = struct{}{}
-	}
-
-	keywordRunes := []rune(keyword)
-	var newPrefixes, newSuffixes []string
-
-	for i := 0; i < len(keywordRunes); i++ {
-		prefix := string(keywordRunes[:i+1])
-		if _, exists := prefixSet[prefix]; !exists {
-			newPrefixes = append(newPrefixes, prefix)
-			newSuffixes = append(newSuffixes, reverse(prefix))
-			prefixSet[prefix] = struct{}{}
-		}
-	}
-
-	newOutputs := make(map[string][]string)
-	keywordSet[keyword] = struct{}{}
-	for _, prefix := range newPrefixes {
-		prefixOutputs := o.computeOutputsV2(prefix, prefixSet, keywordSet)
-		if len(prefixOutputs) > 0 {
-			newOutputs[prefix] = prefixOutputs
-		}
-	}
-
-	for _, prefix := range snap.Prefixes {
-		if prefix == "" {
-			continue
-		}
-		updatedOutputs := o.computeOutputsV2(prefix, prefixSet, keywordSet)
-		if len(updatedOutputs) > 0 {
-			newOutputs[prefix] = updatedOutputs
-		}
-	}
-
-	// Build updated snapshot
-	snap.Keywords = append(snap.Keywords, keyword)
-	snap.Prefixes = append(snap.Prefixes, newPrefixes...)
-	snap.Suffixes = append(snap.Suffixes, newSuffixes...)
-
-	newVersion, genErr := generateVersion()
-	if genErr != nil {
-		return 0, genErr
-	}
-
-	outputsToUpdate := make(map[string]string)
-	for state, outs := range newOutputs {
-		jsonOuts, marshalErr := toJSON(outs)
-		if marshalErr != nil {
-			return 0, newOperationError("marshal", SchemaV2, marshalErr)
-		}
-		outputsToUpdate[state] = jsonOuts
-	}
-
-	args, err := marshalTrieArgs(snap, outputsToUpdate, newVersion)
-	if err != nil {
+	if _, err := commitV2Write(ctx, o.client, addV2Script, o.name, snap, outputs); err != nil {
 		return 0, err
-	}
-	args[argTrieKey] = trieKey(o.name)
-	args[argOutputsKey] = outputsKey(o.name)
-
-	cmd, err := o.runAddV2Script(ctx, o.client, args)
-	if err != nil {
-		return 0, newRedisError("EVAL", trieKey(o.name), err)
-	}
-	result, err := cmd.Int64()
-	if err != nil {
-		return 0, newRedisError("EVAL", trieKey(o.name), err)
-	}
-
-	if result == 0 {
-		return 0, ErrConcurrencyConflict
 	}
 
 	o.publishInvalidate(ctx)
-
 	return 1, nil
 }
 
-func (o *v2Operations) tryRemoveV2(ctx context.Context, keyword string) (int, error) { //nolint:gocyclo,funlen
+func (o *v2Operations) tryRemoveV2(ctx context.Context, keyword string) (int, error) {
 	snap, err := readTrieSnapshot(ctx, o.storage, o.name)
 	if err != nil {
 		return 0, err
 	}
 
-	keywordExists := false
-	newKeywords := make([]string, 0, len(snap.Keywords))
-	for _, kw := range snap.Keywords {
-		if kw == keyword {
-			keywordExists = true
-		} else {
-			newKeywords = append(newKeywords, kw)
-		}
-	}
-
-	if !keywordExists {
+	outputs, changed := planRemove(snap, keyword)
+	if !changed {
 		return 0, nil
 	}
 
-	keywordSet := make(map[string]struct{})
-	for _, kw := range newKeywords {
-		keywordSet[kw] = struct{}{}
-	}
-
-	newPrefixes := []string{""}
-	for _, prefix := range snap.Prefixes {
-		if prefix == "" {
-			continue
-		}
-		keep := false
-		for kw := range keywordSet {
-			if strings.HasPrefix(kw, prefix) {
-				keep = true
-				break
-			}
-		}
-		if keep {
-			newPrefixes = append(newPrefixes, prefix)
-		}
-	}
-
-	prefixSet := make(map[string]struct{})
-	for _, p := range newPrefixes {
-		prefixSet[p] = struct{}{}
-	}
-
-	newSuffixes := make([]string, len(newPrefixes))
-	for i, p := range newPrefixes {
-		newSuffixes[i] = reverse(p)
-	}
-
-	newOutputs := make(map[string][]string)
-	for _, prefix := range newPrefixes {
-		if prefix == "" {
-			continue
-		}
-		outs := o.computeOutputsV2(prefix, prefixSet, keywordSet)
-		if len(outs) > 0 {
-			newOutputs[prefix] = outs
-		}
-	}
-
-	newVersion, genErr := generateVersion()
-	if genErr != nil {
-		return 0, genErr
-	}
-
-	outputsToSet := make(map[string]string)
-	for state, outs := range newOutputs {
-		jsonOuts, marshalErr := toJSON(outs)
-		if marshalErr != nil {
-			return 0, newOperationError("marshal", SchemaV2, marshalErr)
-		}
-		outputsToSet[state] = jsonOuts
-	}
-
-	updatedSnap := &trieSnapshot{
-		Keywords: newKeywords,
-		Prefixes: newPrefixes,
-		Suffixes: newSuffixes,
-		Version:  snap.Version,
-	}
-
-	args, err := marshalTrieArgs(updatedSnap, outputsToSet, newVersion)
-	if err != nil {
+	if _, err := commitV2Write(ctx, o.client, removeV2Script, o.name, snap, outputs); err != nil {
 		return 0, err
-	}
-	args[argTrieKey] = trieKey(o.name)
-	args[argOutputsKey] = outputsKey(o.name)
-
-	cmd, err := o.runRemoveV2Script(ctx, o.client, args)
-	if err != nil {
-		return 0, newRedisError("EVAL", trieKey(o.name), err)
-	}
-	result, err := cmd.Int64()
-	if err != nil {
-		return 0, newRedisError("EVAL", trieKey(o.name), err)
-	}
-
-	if result == 0 {
-		return 0, ErrConcurrencyConflict
 	}
 
 	o.publishInvalidate(ctx)
-
 	return 1, nil
-}
-
-func (o *v2Operations) computeOutputsV2(state string, prefixSet, keywordSet map[string]struct{}) []string {
-	var outputs []string
-
-	if _, isKeyword := keywordSet[state]; isKeyword {
-		outputs = append(outputs, state)
-	}
-
-	stateRunes := []rune(state)
-	for i := 1; i < len(stateRunes); i++ {
-		failState := string(stateRunes[i:])
-		if _, isPrefix := prefixSet[failState]; isPrefix {
-			if _, isKeyword := keywordSet[failState]; isKeyword {
-				outputs = append(outputs, failState)
-			}
-		}
-	}
-
-	return outputs
 }

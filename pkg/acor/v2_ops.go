@@ -6,7 +6,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -99,53 +98,19 @@ func (o *v2Operations) findIndex(ctx context.Context, text string) (map[string][
 }
 
 func (o *v2Operations) add(ctx context.Context, keyword string) (int, error) {
-	keyword = strings.TrimSpace(keyword)
-	if !o.caseSensitive {
-		keyword = strings.ToLower(keyword)
-	}
+	keyword = normalizeKeyword(keyword, o.caseSensitive)
 	if keyword == "" {
 		return 0, nil
 	}
-
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		added, err := o.tryAddV2(ctx, keyword)
-		if errors.Is(err, ErrConcurrencyConflict) {
-			backoff := time.Duration(attempt+1) * retryBackoffBase
-			select {
-			case <-ctx.Done():
-				return 0, ctx.Err()
-			case <-time.After(backoff):
-			}
-			continue
-		}
-		return added, err
-	}
-	return 0, ErrConcurrencyConflict
+	return retryOnConflict(ctx, func() (int, error) { return o.tryAddV2(ctx, keyword) })
 }
 
 func (o *v2Operations) remove(ctx context.Context, keyword string) (int, error) {
-	keyword = strings.TrimSpace(keyword)
-	if !o.caseSensitive {
-		keyword = strings.ToLower(keyword)
-	}
+	keyword = normalizeKeyword(keyword, o.caseSensitive)
 	if keyword == "" {
 		return 0, nil
 	}
-
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		removed, err := o.tryRemoveV2(ctx, keyword)
-		if errors.Is(err, ErrConcurrencyConflict) {
-			backoff := time.Duration(attempt+1) * retryBackoffBase
-			select {
-			case <-ctx.Done():
-				return 0, ctx.Err()
-			case <-time.After(backoff):
-			}
-			continue
-		}
-		return removed, err
-	}
-	return 0, ErrConcurrencyConflict
+	return retryOnConflict(ctx, func() (int, error) { return o.tryRemoveV2(ctx, keyword) })
 }
 
 func (o *v2Operations) flush(ctx context.Context) error {
