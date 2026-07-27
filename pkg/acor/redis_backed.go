@@ -4,7 +4,6 @@ package acor
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
 	"strings"
 	"sync"
@@ -39,15 +38,14 @@ type redisBackedAC struct {
 	stale        bool
 	pollInterval time.Duration
 
-	selfSkip      sync.Map
-	selfSkipCount uint64
-	reloadGroup   singleflight.Group
-	pubsub        Subscription
-	stopCh        chan struct{}
-	ctx           context.Context
-	cancel        context.CancelFunc
-	closeOnce     sync.Once
-	closed        int32
+	selfSkip    selfSkipSet
+	reloadGroup singleflight.Group
+	pubsub      Subscription
+	stopCh      chan struct{}
+	ctx         context.Context
+	cancel      context.CancelFunc
+	closeOnce   sync.Once
+	closed      int32
 }
 
 // newRedisBacked creates a Redis-backed Aho-Corasick engine. It loads the
@@ -223,8 +221,6 @@ func (ac *redisBackedAC) ensureValid(ctx context.Context) error {
 
 // --- Pub/Sub ---
 
-const selfInvalTTL = 30 * time.Second
-
 // publishRetryAttempts / publishRetryBackoff give the fire-and-forget invalidation
 // PUBLISH a few tries before giving up, so a single transient blip does not drop a
 // whole batch's cross-node notification. The version poller (InvalidationPollInterval)
@@ -235,41 +231,20 @@ const (
 )
 
 func (ac *redisBackedAC) startListener() error {
-	channel := invalidateChannelPrefix + ac.name
-	pubsub := ac.storage.Subscribe(ac.ctx, channel)
-	if err := pubsub.Receive(ac.ctx); err != nil {
-		_ = pubsub.Close()
+	ac.stopCh = make(chan struct{})
+
+	pubsub, err := subscribeInvalidations(ac.ctx, ac.storage, ac.name, ac.stopCh, ac.handleInvalidation)
+	if err != nil {
 		return err
 	}
 
 	ac.pubsub = pubsub
-	ac.stopCh = make(chan struct{})
-
-	go func() {
-		msgCh := pubsub.Channel()
-		for {
-			select {
-			case msg, ok := <-msgCh:
-				if !ok {
-					return
-				}
-				ac.handleInvalidation(msg.Payload)
-			case <-ac.stopCh:
-				return
-			case <-ac.ctx.Done():
-				return
-			}
-		}
-	}()
-
 	return nil
 }
 
 func (ac *redisBackedAC) handleInvalidation(payload string) {
-	if parts := strings.SplitN(payload, ":", invalidatePayloadSplitMax); len(parts) == invalidatePayloadSplitMax && parts[0] == ac.name {
-		if ac.skipSelfCheck(parts[1]) {
-			return
-		}
+	if isSelfEcho(payload, ac.name, &ac.selfSkip) {
+		return
 	}
 	ac.markStale()
 }
@@ -310,35 +285,12 @@ func (ac *redisBackedAC) pollVersion() {
 	}
 }
 
-func (ac *redisBackedAC) skipSelfSet(id string) {
-	ac.selfSkip.Store(id, time.Now())
-}
-
-func (ac *redisBackedAC) skipSelfCheck(id string) bool {
-	val, loaded := ac.selfSkip.LoadAndDelete(id)
-	if !loaded {
-		return false
-	}
-	t, ok := val.(time.Time)
-	if !ok {
-		return false
-	}
-	return time.Since(t) < selfInvalTTL
-}
-
 func (ac *redisBackedAC) publishInvalidate(ctx context.Context) {
 	channel := invalidateChannelPrefix + ac.name
-	b := make([]byte, invalidateIDBytes)
-	if _, err := rand.Read(b); err != nil {
-		b = b[:0]
-	}
-	msgID := fmt.Sprintf("%d:%x", time.Now().UnixNano(), b)
+	msgID := newInvalidationID()
 	payload := ac.name + ":" + msgID
 
-	ac.skipSelfSet(msgID)
-	if atomic.AddUint64(&ac.selfSkipCount, 1)%defaultSelfInvalidationCleanupInterval == 0 {
-		ac.cleanupExpiredSelfSkips()
-	}
+	ac.selfSkip.add(msgID)
 
 	var err error
 	for attempt := 0; attempt < publishRetryAttempts; attempt++ {
@@ -351,23 +303,12 @@ func (ac *redisBackedAC) publishInvalidate(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			// Undelivered: drop the self-skip entry so it does not linger, then stop.
-			ac.selfSkip.Delete(msgID)
+			ac.selfSkip.forget(msgID)
 			return
 		case <-time.After(publishRetryBackoff):
 		}
 	}
 	if err != nil {
-		ac.selfSkip.Delete(msgID)
+		ac.selfSkip.forget(msgID)
 	}
-}
-
-func (ac *redisBackedAC) cleanupExpiredSelfSkips() {
-	cutoff := time.Now().Add(-selfInvalTTL)
-	ac.selfSkip.Range(func(key, value interface{}) bool {
-		t, ok := value.(time.Time)
-		if !ok || t.Before(cutoff) {
-			ac.selfSkip.Delete(key)
-		}
-		return true
-	})
 }

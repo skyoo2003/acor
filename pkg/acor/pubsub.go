@@ -2,10 +2,7 @@
 
 package acor
 
-import (
-	"fmt"
-	"strings"
-)
+import "fmt"
 
 const (
 	invalidateChannelPrefix   = "acor:invalidate:"
@@ -13,41 +10,22 @@ const (
 )
 
 func (ac *AhoCorasick) startCacheListener() error {
-	channel := invalidateChannelPrefix + ac.name
-	pubsub := ac.storage.Subscribe(ac.ctx, channel)
+	ac.stopCh = make(chan struct{})
 
-	if err := pubsub.Receive(ac.ctx); err != nil {
-		_ = pubsub.Close()
+	pubsub, err := subscribeInvalidations(ac.ctx, ac.storage, ac.name, ac.stopCh, func(payload string) {
+		if ac.cache == nil {
+			return
+		}
+		if isSelfEcho(payload, ac.name, &ac.cache.selfSkip) {
+			return
+		}
+		ac.cache.invalidate()
+	})
+	if err != nil {
 		return fmt.Errorf("pub/sub connection failed: %w", err)
 	}
 
 	ac.pubsub = pubsub
-	ac.stopCh = make(chan struct{})
-
-	go func() {
-		msgCh := pubsub.Channel()
-		for {
-			select {
-			case msg, ok := <-msgCh:
-				if !ok {
-					return
-				}
-				if ac.cache != nil {
-					if parts := strings.SplitN(msg.Payload, ":", invalidatePayloadSplitMax); len(parts) == invalidatePayloadSplitMax && parts[0] == ac.name {
-						if skipSelfCheck(ac.cache, parts[1]) {
-							continue
-						}
-						ac.cache.invalidate()
-					}
-				}
-			case <-ac.stopCh:
-				return
-			case <-ac.ctx.Done():
-				return
-			}
-		}
-	}()
-
 	return nil
 }
 
