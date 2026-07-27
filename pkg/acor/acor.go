@@ -412,7 +412,7 @@ func createPresetRedis(args *AhoCorasickArgs) (*AhoCorasick, error) {
 		name:          args.Name,
 		logger:        newLogger(args),
 		schemaVersion: SchemaV2,
-		ops:           newPresetRedisOps(rbAC),
+		ops:           rbAC,
 		mode:          modePresetRedis,
 		caseSensitive: args.CaseSensitive,
 		ctx:           context.Background(),
@@ -673,7 +673,7 @@ func (ac *AhoCorasick) debugV1() {
 
 	outputs := make([]string, 0)
 	for _, prefix := range pMembers {
-		oOutputs, err := ac.collectOutputs(prefix)
+		oOutputs, err := ac.outputWithContext(ac.ctx, prefix)
 		if err != nil {
 			ac.logger.Println("-", err)
 			return

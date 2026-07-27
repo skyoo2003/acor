@@ -2,6 +2,8 @@
 
 package engine
 
+import "slices"
+
 // doubleArrayTrie implements a Double-Array Trie using base[] and check[] arrays.
 // Provides O(1) state transitions with near hash-map memory efficiency.
 // Used by PresetBalanced and PresetUltimate.
@@ -78,7 +80,7 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 	for r := range runeSet {
 		dat.runes = append(dat.runes, r)
 	}
-	sortRunes(dat.runes)
+	slices.Sort(dat.runes)
 	dat.build(dat.runes)
 
 	tmpChildren := make(map[int]map[rune]int)

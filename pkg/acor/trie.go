@@ -10,26 +10,6 @@ import (
 	redis "github.com/redis/go-redis/v9"
 )
 
-func (ac *AhoCorasick) buildTrie(keyword string) error {
-	return ac.buildTrieWithContext(ac.ctx, keyword)
-}
-
-func (ac *AhoCorasick) gotoNode(inState string, input rune) (string, error) {
-	return ac.goWithContext(ac.ctx, inState, input)
-}
-
-func (ac *AhoCorasick) failNode(inState string) (string, error) {
-	return ac.failWithContext(ac.ctx, inState)
-}
-
-func (ac *AhoCorasick) collectOutputs(inState string) ([]string, error) {
-	return ac.outputWithContext(ac.ctx, inState)
-}
-
-func (ac *AhoCorasick) appendMatchedIndexes(matched map[string][]int, outputs []string, endIndex int) {
-	ac.appendMatchedIndexesWithContext(ac.ctx, matched, outputs, endIndex)
-}
-
 func (ac *AhoCorasick) goWithContext(ctx context.Context, inState string, input rune) (string, error) {
 	buffer := bytes.NewBufferString(inState)
 	buffer.WriteRune(input)

@@ -3,7 +3,8 @@
 package engine
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"unicode/utf8"
 )
 
@@ -51,7 +52,7 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 	for r := range runeSet {
 		e.alphabet = append(e.alphabet, r)
 	}
-	sortRunes(e.alphabet)
+	slices.Sort(e.alphabet)
 	e.build(e.alphabet)
 
 	nodes := []flatNode{
@@ -61,7 +62,7 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 	for kw := range keywords {
 		sortedKw = append(sortedKw, kw)
 	}
-	sortStrings(sortedKw)
+	slices.Sort(sortedKw)
 	for _, kw := range sortedKw {
 		state := 0
 		for _, ch := range kw {
@@ -97,7 +98,12 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 				child int
 			}{ch, child})
 		}
-		sortRunesFromPairs(pairs)
+		slices.SortFunc(pairs, func(a, b struct {
+			ch    rune
+			child int
+		}) int {
+			return cmp.Compare(a.ch, b.ch)
+		})
 		return pairs
 	}
 
@@ -280,19 +286,4 @@ func (e *speedEngine) countKeywords() int {
 		}
 	}
 	return len(seen)
-}
-
-func sortRunes(runes []rune) {
-	sort.Slice(runes, func(i, j int) bool { return runes[i] < runes[j] })
-}
-
-func sortRunesFromPairs(pairs []struct {
-	ch    rune
-	child int
-}) {
-	sort.Slice(pairs, func(i, j int) bool { return pairs[i].ch < pairs[j].ch })
-}
-
-func sortStrings(s []string) {
-	sort.Strings(s)
 }

@@ -189,7 +189,7 @@ func TestHTTPHandlerReturnsStructuredErrors(t *testing.T) {
 	defer server.Close()
 
 	resp := doRawRequest(t, http.MethodGet, server.URL+"/v1/add", nil)
-	defer closeReadCloser(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 	var methodBody ErrorResponse
 	decodeJSONResponse(t, resp, &methodBody)
 	if resp.StatusCode != http.StatusMethodNotAllowed {
@@ -200,7 +200,7 @@ func TestHTTPHandlerReturnsStructuredErrors(t *testing.T) {
 	}
 
 	resp = doRawRequest(t, http.MethodPost, server.URL+"/v1/add", mustJSONReader(t, KeywordRequest{Keyword: keywordHE}))
-	defer closeReadCloser(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 	var serviceBody ErrorResponse
 	decodeJSONResponse(t, resp, &serviceBody)
 	if resp.StatusCode != http.StatusInternalServerError {
@@ -211,7 +211,7 @@ func TestHTTPHandlerReturnsStructuredErrors(t *testing.T) {
 	}
 
 	resp = doRawRequest(t, http.MethodPost, server.URL+"/v1/find", bytes.NewBufferString("{"))
-	defer closeReadCloser(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", resp.StatusCode)
 	}
@@ -226,7 +226,7 @@ func doJSONRequest(t *testing.T, method, url string, payload, target interface{}
 	}
 
 	resp := doRawRequest(t, method, url, body)
-	defer closeReadCloser(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", resp.StatusCode)
@@ -315,7 +315,7 @@ func TestHTTPHandlerRemoveWrongMethod(t *testing.T) {
 	defer server.Close()
 
 	resp := doRawRequest(t, http.MethodGet, server.URL+"/v1/remove", nil)
-	defer closeReadCloser(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("expected status 405, got %d", resp.StatusCode)
 	}
@@ -327,7 +327,7 @@ func TestHTTPHandlerHealthWrongMethod(t *testing.T) {
 	defer server.Close()
 
 	resp := doRawRequest(t, http.MethodPost, server.URL+"/healthz", nil)
-	defer closeReadCloser(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("expected status 405, got %d", resp.StatusCode)
 	}
@@ -339,7 +339,7 @@ func TestHTTPHandlerInfoWrongMethod(t *testing.T) {
 	defer server.Close()
 
 	resp := doRawRequest(t, http.MethodPost, server.URL+"/v1/info", nil)
-	defer closeReadCloser(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("expected status 405, got %d", resp.StatusCode)
 	}
@@ -351,7 +351,7 @@ func TestHTTPHandlerFlushWrongMethod(t *testing.T) {
 	defer server.Close()
 
 	resp := doRawRequest(t, http.MethodGet, server.URL+"/v1/flush", nil)
-	defer closeReadCloser(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("expected status 405, got %d", resp.StatusCode)
 	}
@@ -363,7 +363,7 @@ func TestHTTPHandlerFlushError(t *testing.T) {
 	defer server.Close()
 
 	resp := doRawRequest(t, http.MethodPost, server.URL+"/v1/flush", mustJSONReader(t, EmptyRequest{}))
-	defer closeReadCloser(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d", resp.StatusCode)
 	}
@@ -375,7 +375,7 @@ func TestHTTPHandlerInfoError(t *testing.T) {
 	defer server.Close()
 
 	resp := doRawRequest(t, http.MethodGet, server.URL+"/v1/info", nil)
-	defer closeReadCloser(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d", resp.StatusCode)
 	}
@@ -502,21 +502,6 @@ func TestAPIServiceErrors(t *testing.T) {
 	}
 }
 
-func TestCloseReadCloser(t *testing.T) {
-	called := false
-	rc := &testCloser{closeFn: func() error { called = true; return nil }}
-	closeReadCloser(rc)
-	if !called {
-		t.Fatal("expected Close to be called")
-	}
-}
-
-type testCloser struct {
-	closeFn func() error
-}
-
-func (t *testCloser) Close() error { return t.closeFn() }
-
 func TestHTTPHandlerFindErrors(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -544,7 +529,7 @@ func TestHTTPHandlerFindErrors(t *testing.T) {
 			}
 
 			resp := doRawRequest(t, tt.method, server.URL+tt.path, body)
-			defer closeReadCloser(resp.Body)
+			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusInternalServerError {
 				t.Fatalf("expected status 500, got %d", resp.StatusCode)
 			}
@@ -570,7 +555,7 @@ func TestHTTPHandlerWrongMethods(t *testing.T) {
 			defer server.Close()
 
 			resp := doRawRequest(t, tt.method, server.URL+tt.path, nil)
-			defer closeReadCloser(resp.Body)
+			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusMethodNotAllowed {
 				t.Fatalf("expected status 405, got %d", resp.StatusCode)
 			}
