@@ -2,10 +2,7 @@
 
 package acor
 
-import (
-	"fmt"
-	"time"
-)
+import "time"
 
 // Key format constants define the Redis key patterns used by the V1 schema.
 // These constants use %s as a placeholder for the collection name.
@@ -41,40 +38,42 @@ const (
 	emptyStringArrayJSON = `[""]`
 )
 
+// keyPrefix wraps the collection name in a Redis hash tag so every key of a
+// collection lands on the same cluster slot.
 func keyPrefix(name string) string {
-	return fmt.Sprintf("{%s}", name)
+	return "{" + name + "}"
 }
 
 func keywordKey(name string) string {
-	return fmt.Sprintf("%s:keyword", keyPrefix(name))
+	return keyPrefix(name) + ":keyword"
 }
 
 func prefixKey(name string) string {
-	return fmt.Sprintf("%s:prefix", keyPrefix(name))
+	return keyPrefix(name) + ":prefix"
 }
 
 func suffixKey(name string) string {
-	return fmt.Sprintf("%s:suffix", keyPrefix(name))
+	return keyPrefix(name) + ":suffix"
 }
 
 func outputKey(name, state string) string {
-	return fmt.Sprintf("%s:output:%s", keyPrefix(name), state)
+	return keyPrefix(name) + ":output:" + state
 }
 
 func nodeKey(name, keyword string) string {
-	return fmt.Sprintf("%s:node:%s", keyPrefix(name), keyword)
+	return keyPrefix(name) + ":node:" + keyword
 }
 
 func trieKey(name string) string {
-	return fmt.Sprintf("%s:trie", keyPrefix(name))
+	return keyPrefix(name) + ":trie"
 }
 
 func outputsKey(name string) string {
-	return fmt.Sprintf("%s:outputs", keyPrefix(name))
+	return keyPrefix(name) + ":outputs"
 }
 
 func nodesKey(name string) string {
-	return fmt.Sprintf("%s:nodes", keyPrefix(name))
+	return keyPrefix(name) + ":nodes"
 }
 
 // emptyTrieFields returns the hash fields written to initialize an empty V2

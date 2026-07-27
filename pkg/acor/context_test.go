@@ -39,7 +39,7 @@ func TestGoWithContext(t *testing.T) {
 		t.Errorf("expected empty state for non-existent prefix, got %s", nextState)
 	}
 
-	if buildErr := ac.buildTrie("ab"); buildErr != nil {
+	if buildErr := ac.buildTrieWithContext(ctx, "ab"); buildErr != nil {
 		t.Fatal(buildErr)
 	}
 
@@ -333,59 +333,5 @@ func TestRemovePrefixAndSuffixWithContext(t *testing.T) {
 	}
 	if sExistedBefore && sErr != redis.Nil {
 		t.Error("expected suffix 't' to be removed after removePrefixAndSuffixWithContext")
-	}
-}
-
-func TestWrapperMethodsUseContext(t *testing.T) {
-	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer mr.Close()
-
-	ac, err := Create(&AhoCorasickArgs{
-		Addr:          mr.Addr(),
-		Name:          "test-wrappers",
-		SchemaVersion: SchemaV1,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = ac.Close() }()
-
-	if buildErr := ac.buildTrie("test"); buildErr != nil {
-		t.Errorf("buildTrie wrapper failed: %v", buildErr)
-	}
-
-	nextState, err := ac.gotoNode("", 't')
-	if err != nil {
-		t.Errorf("gotoNode wrapper failed: %v", err)
-	}
-	if nextState != "t" {
-		t.Errorf("expected state 't', got %s", nextState)
-	}
-
-	failState, err := ac.failNode("test")
-	if err != nil {
-		t.Errorf("failNode wrapper failed: %v", err)
-	}
-	// Verify failState is non-empty (actual value depends on trie structure)
-	if failState == "" {
-		t.Error("failNode() returned empty state, expected non-empty")
-	}
-
-	outputs, err := ac.collectOutputs("test")
-	if err != nil {
-		t.Errorf("collectOutputs wrapper failed: %v", err)
-	}
-	// Verify outputs is non-nil (can be empty if node has no outputs)
-	if outputs == nil {
-		t.Error("collectOutputs() returned nil, expected non-nil slice")
-	}
-
-	matched := make(map[string][]int)
-	ac.appendMatchedIndexes(matched, []string{"test"}, 4)
-	if len(matched) != 1 {
-		t.Errorf("expected 1 matched output, got %d", len(matched))
 	}
 }

@@ -294,7 +294,7 @@ func decodeRequest(w http.ResponseWriter, r *http.Request, v interface{}) bool {
 		return false
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
-	defer closeReadCloser(r.Body)
+	defer func() { _ = r.Body.Close() }()
 
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(v); err != nil {
@@ -343,8 +343,4 @@ func writeJSON(w http.ResponseWriter, statusCode int, value interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	_ = json.NewEncoder(w).Encode(value)
-}
-
-func closeReadCloser(closer io.Closer) {
-	_ = closer.Close()
 }

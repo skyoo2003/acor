@@ -7,17 +7,23 @@ import (
 	"errors"
 	"strings"
 	"time"
-
-	matchengine "github.com/skyoo2003/acor/internal/engine"
 )
 
 const redisBackedMaxRetries = 3
 const redisBackedRetryBackoff = 10 * time.Millisecond
 
-// Add inserts a keyword into the automaton. The keyword is written atomically
+// redisBackedAC implements the operations interface directly, so AhoCorasick
+// dispatches into it with no adapter in between. Suggest/SuggestIndex are the
+// only operations preset mode cannot serve (there is no prefix index locally).
+var (
+	_ operations  = (*redisBackedAC)(nil)
+	_ batchWriter = (*redisBackedAC)(nil)
+)
+
+// add inserts a keyword into the automaton. The keyword is written atomically
 // to Redis via a V2 Lua script (optimistic locking), then the local automaton
 // is rebuilt and an invalidation is published.
-func (ac *redisBackedAC) Add(ctx context.Context, keyword string) (int, error) {
+func (ac *redisBackedAC) add(ctx context.Context, keyword string) (int, error) {
 	return ac.addWith(ctx, keyword, true)
 }
 
@@ -182,8 +188,8 @@ func (ac *redisBackedAC) commitBatch(ctx context.Context) {
 	ac.publishInvalidate(ctx)
 }
 
-// Remove deletes a keyword from the automaton.
-func (ac *redisBackedAC) Remove(ctx context.Context, keyword string) (int, error) {
+// remove deletes a keyword from the automaton.
+func (ac *redisBackedAC) remove(ctx context.Context, keyword string) (int, error) {
 	return ac.removeWith(ctx, keyword, true)
 }
 
@@ -318,8 +324,8 @@ func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, v2 *redi
 	return 1, nil
 }
 
-// Find searches the text for all keywords using the local automaton.
-func (ac *redisBackedAC) Find(ctx context.Context, text string) ([]string, error) {
+// find searches the text for all keywords using the local automaton.
+func (ac *redisBackedAC) find(ctx context.Context, text string) ([]string, error) {
 	if text == "" {
 		return []string{}, nil
 	}
@@ -332,8 +338,8 @@ func (ac *redisBackedAC) Find(ctx context.Context, text string) ([]string, error
 	return e.Find(text), nil
 }
 
-// FindIndex searches the text for all keywords and returns their start indices.
-func (ac *redisBackedAC) FindIndex(ctx context.Context, text string) (map[string][]int, error) {
+// findIndex searches the text for all keywords and returns their start indices.
+func (ac *redisBackedAC) findIndex(ctx context.Context, text string) (map[string][]int, error) {
 	if text == "" {
 		return map[string][]int{}, nil
 	}
@@ -346,8 +352,8 @@ func (ac *redisBackedAC) FindIndex(ctx context.Context, text string) (map[string
 	return e.FindIndex(text), nil
 }
 
-// Flush removes all keywords from the automaton.
-func (ac *redisBackedAC) Flush(ctx context.Context) error {
+// flush removes all keywords from the automaton.
+func (ac *redisBackedAC) flush(ctx context.Context) error {
 	err := ac.storage.TxPipelined(ctx, func(pipe Pipeliner) error {
 		tKey := trieKey(ac.name)
 		oKey := outputsKey(ac.name)
@@ -374,11 +380,28 @@ func (ac *redisBackedAC) Flush(ctx context.Context) error {
 	return nil
 }
 
-// Info returns statistics about the local automaton state.
-func (ac *redisBackedAC) Info(ctx context.Context) (*matchengine.InMemoryInfo, error) {
+// info returns statistics about the local automaton state.
+func (ac *redisBackedAC) info(_ context.Context) (*AhoCorasickInfo, error) {
 	ac.mu.RLock()
-	defer ac.mu.RUnlock()
-	return ac.engine.Info(), nil
+	mi := ac.engine.Info()
+	ac.mu.RUnlock()
+	return &AhoCorasickInfo{
+		Keywords:    mi.Keywords,
+		Nodes:       mi.Nodes,
+		Preset:      mi.Preset,
+		MemoryBytes: mi.MemoryBytes,
+		TrieDepth:   mi.TrieDepth,
+	}, nil
+}
+
+// suggest is unsupported in preset mode: the local automaton holds no prefix
+// index, and preset mode deliberately keeps reads off Redis.
+func (ac *redisBackedAC) suggest(_ context.Context, _ string) ([]string, error) {
+	return nil, ErrSuggestRequiresRedis
+}
+
+func (ac *redisBackedAC) suggestIndex(_ context.Context, _ string) (map[string][]int, error) {
+	return nil, ErrSuggestRequiresRedis
 }
 
 // computeRBOutputs returns all keywords that are suffixes of the given state.
