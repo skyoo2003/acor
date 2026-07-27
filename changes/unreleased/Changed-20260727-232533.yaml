@@ -1,0 +1,6 @@
+kind: Changed
+body: |-
+    `Find` and `FindIndex` on a V1 collection no longer make one Redis round trip per character of input. They read the keyword set once and scan it with the same in-memory automaton every other mode uses, so a V1 search costs a single `SMEMBERS` instead of two to three commands per rune. Results are unchanged — the new path is pinned against the old trie walk in `v1_engine_parity_test.go`.
+time: 2026-07-27T23:25:33.000000+09:00
+custom:
+    Issue: "173"

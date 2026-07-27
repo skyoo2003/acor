@@ -3,7 +3,6 @@
 package acor
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -129,103 +128,50 @@ func (o *v1Operations) remove(_ context.Context, keyword string) (int, error) {
 	return 1, nil
 }
 
+// find scans text with an automaton built from the keyword set.
+//
+// V1 used to resolve goto/fail/output against Redis once per character, which
+// cost a round trip per rune of input. loadEngine reads the keyword set with a
+// single SMEMBERS and builds the same automaton the other modes scan, so the
+// matches are identical (v1_engine_parity_test.go pins that) for one round trip
+// instead of one per character.
 func (o *v1Operations) find(ctx context.Context, text string) ([]string, error) {
 	if text == "" {
 		return []string{}, nil
 	}
-	if !o.caseSensitive {
-		text = strings.ToLower(text)
-	}
-	state := ""
-	matched := make([]string, 0)
+	text = normalizeText(text, o.caseSensitive)
 
-	for _, char := range text {
-		nextState, err := o.ac.goWithContext(ctx, state, char)
-		if err != nil {
-			return nil, newOperationError("find", SchemaV1, err)
-		}
-		if nextState == "" {
-			nextState, err = o.ac.failWithContext(ctx, state)
-			if err != nil {
-				return nil, newOperationError("find", SchemaV1, err)
-			}
-			var afterNextState string
-			afterNextState, err = o.ac.goWithContext(ctx, nextState, char)
-			if err != nil {
-				return nil, newOperationError("find", SchemaV1, err)
-			}
-			if afterNextState == "" {
-				buffer := bytes.NewBufferString(nextState)
-				buffer.WriteRune(char)
-				afterNextState, err = o.ac.failWithContext(ctx, buffer.String())
-				if err != nil {
-					return nil, newOperationError("find", SchemaV1, err)
-				}
-			}
-			nextState = afterNextState
-		}
-
-		outputs, err := o.ac.outputWithContext(ctx, nextState)
-		if err != nil {
-			return nil, newOperationError("find", SchemaV1, err)
-		}
-		matched = append(matched, outputs...)
-		state = nextState
+	engine, err := o.loadEngine(ctx)
+	if err != nil {
+		return nil, newOperationError("find", SchemaV1, err)
 	}
 
+	matched := engine.Find(text)
+	if matched == nil {
+		matched = []string{}
+	}
 	o.logger.Println(fmt.Sprintf("Find(%s) > Matched(%v) : Count(%d)", text, matched, len(matched)))
-
 	return matched, nil
 }
 
+// findIndex is find with the start offset of every match. See find on why this
+// no longer walks the trie in Redis.
 func (o *v1Operations) findIndex(ctx context.Context, text string) (map[string][]int, error) {
 	if text == "" {
 		return map[string][]int{}, nil
 	}
-	if !o.caseSensitive {
-		text = strings.ToLower(text)
-	}
-	matched := make(map[string][]int)
-	state := ""
-	runeIndex := 0
+	text = normalizeText(text, o.caseSensitive)
 
-	for _, char := range text {
-		nextState, err := o.ac.goWithContext(ctx, state, char)
-		if err != nil {
-			return nil, newOperationError("findIndex", SchemaV1, err)
-		}
-		if nextState == "" {
-			nextState, err = o.ac.failWithContext(ctx, state)
-			if err != nil {
-				return nil, newOperationError("findIndex", SchemaV1, err)
-			}
-			var afterNextState string
-			afterNextState, err = o.ac.goWithContext(ctx, nextState, char)
-			if err != nil {
-				return nil, newOperationError("findIndex", SchemaV1, err)
-			}
-			if afterNextState == "" {
-				buffer := bytes.NewBufferString(nextState)
-				buffer.WriteRune(char)
-				afterNextState, err = o.ac.failWithContext(ctx, buffer.String())
-				if err != nil {
-					return nil, newOperationError("findIndex", SchemaV1, err)
-				}
-			}
-			nextState = afterNextState
-		}
-
-		outputs, err := o.ac.outputWithContext(ctx, nextState)
-		if err != nil {
-			return nil, newOperationError("findIndex", SchemaV1, err)
-		}
-		o.ac.appendMatchedIndexesWithContext(ctx, matched, outputs, runeIndex+1)
-		state = nextState
-		runeIndex++
+	engine, err := o.loadEngine(ctx)
+	if err != nil {
+		return nil, newOperationError("findIndex", SchemaV1, err)
 	}
 
+	matched := engine.FindIndex(text)
+	if matched == nil {
+		matched = map[string][]int{}
+	}
 	o.logger.Println(fmt.Sprintf("FindIndex(%s) > Matched(%v) : Count(%d)", text, matched, len(matched)))
-
 	return matched, nil
 }
 
