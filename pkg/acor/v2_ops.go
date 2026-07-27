@@ -13,7 +13,7 @@ import (
 	matchengine "github.com/skyoo2003/acor/internal/engine"
 )
 
-// defaultSelfInvalidationCleanupInterval controls how often cleanupExpiredSelfInvalidations
+// defaultSelfInvalidationCleanupInterval controls how often selfSkipSet.sweep
 // runs relative to publishInvalidate calls. Every N publishes triggers one O(n) sweep.
 const defaultSelfInvalidationCleanupInterval = 128
 
@@ -30,13 +30,12 @@ var _ operations = (*v2Operations)(nil)
 // It holds all dependencies needed for V2 Aho-Corasick operations without
 // depending directly on the AhoCorasick struct.
 type v2Operations struct {
-	storage                         KVStorage
-	client                          redis.UniversalClient
-	name                            string
-	cache                           *trieCache
-	logger                          Logger
-	selfInvalidationCleanupInterval uint64
-	caseSensitive                   bool
+	storage       KVStorage
+	client        redis.UniversalClient
+	name          string
+	cache         *trieCache
+	logger        Logger
+	caseSensitive bool
 }
 
 // --- operations interface methods ---
@@ -277,7 +276,6 @@ func (o *v2Operations) publishInvalidate(ctx context.Context) {
 	msgID := newInvalidationID()
 
 	if o.cache != nil {
-		o.cache.selfSkip.cleanupEvery = o.selfInvalidationCleanupInterval
 		o.cache.selfSkip.add(msgID)
 	}
 

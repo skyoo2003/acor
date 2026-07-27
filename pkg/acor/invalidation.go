@@ -33,7 +33,8 @@ type selfSkipSet struct {
 	ids          sync.Map // id -> time.Time of the publish
 	publishCount uint64
 	// cleanupEvery is the number of publishes between sweeps. Zero means
-	// defaultSelfInvalidationCleanupInterval.
+	// defaultSelfInvalidationCleanupInterval. Immutable: set it before the set
+	// is shared with the listener goroutine, since add reads it unsynchronized.
 	cleanupEvery uint64
 }
 

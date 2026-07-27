@@ -312,9 +312,8 @@ type AhoCorasick struct {
 	buildTrieHook func(string) error
 	schemaVersion int // kept for SchemaVersion() and migration.go
 
-	selfInvalidationCleanupInterval uint64
-	rollbackTimeout                 time.Duration
-	caseSensitive                   bool
+	rollbackTimeout time.Duration
+	caseSensitive   bool
 
 	cache     *trieCache
 	pubsub    Subscription
@@ -450,6 +449,9 @@ func createOriginal(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	var cache *trieCache
 	if args.EnableCache {
 		cache = &trieCache{}
+		// Set before the cache is shared with the listener goroutine; selfSkipSet
+		// reads it without synchronization. Zero means the default interval.
+		cache.selfSkip.cleanupEvery = args.SelfInvalidationCleanupInterval
 	}
 
 	ac := &AhoCorasick{
@@ -460,11 +462,6 @@ func createOriginal(args *AhoCorasickArgs) (*AhoCorasick, error) {
 		schemaVersion: schemaVersion,
 		cache:         cache,
 		mode:          modeOriginal,
-	}
-	if args.SelfInvalidationCleanupInterval > 0 {
-		ac.selfInvalidationCleanupInterval = args.SelfInvalidationCleanupInterval
-	} else {
-		ac.selfInvalidationCleanupInterval = defaultSelfInvalidationCleanupInterval
 	}
 	ac.rollbackTimeout = resolveRollbackTimeout(args.RollbackTimeout)
 	ac.caseSensitive = args.CaseSensitive
@@ -553,13 +550,12 @@ func (ac *AhoCorasick) Close() error {
 
 func (ac *AhoCorasick) newV2Ops(cache *trieCache) operations {
 	return &v2Operations{
-		storage:                         ac.storage,
-		client:                          ac.redisClient,
-		name:                            ac.name,
-		cache:                           cache,
-		logger:                          ac.logger,
-		selfInvalidationCleanupInterval: ac.selfInvalidationCleanupInterval,
-		caseSensitive:                   ac.caseSensitive,
+		storage:       ac.storage,
+		client:        ac.redisClient,
+		name:          ac.name,
+		cache:         cache,
+		logger:        ac.logger,
+		caseSensitive: ac.caseSensitive,
 	}
 }
 
