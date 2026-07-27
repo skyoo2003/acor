@@ -4,19 +4,26 @@ package acor
 
 import "time"
 
-// Key format constants define the Redis key patterns used by the V1 schema.
-// These constants use %s as a placeholder for the collection name.
-// For V2 schema, fewer keys are used (see trieKey, outputsKey, nodesKey).
+// Key format constants for the V1 schema, using %s as a placeholder for the
+// collection name.
+//
+// These do not produce the keys ACOR actually writes. A collection name is
+// wrapped in a Redis hash tag so all of a collection's keys hash to one cluster
+// slot, making the real key "{mycoll}:keyword" while
+// fmt.Sprintf(KeywordKey, "mycoll") yields "mycoll:keyword". Nothing in ACOR
+// reads these constants; the key builders hold the correct format. Treat them
+// as informational only — reading Redis directly with a key built from them
+// will not find anything.
 const (
-	// KeywordKey is the format for the keywords set key: "{name}:keyword"
+	// KeywordKey is the suffix pattern for the keywords set. Real key: "{name}:keyword".
 	KeywordKey = "%s:keyword"
-	// PrefixKey is the format for the prefixes sorted set key: "{name}:prefix"
+	// PrefixKey is the suffix pattern for the prefixes sorted set. Real key: "{name}:prefix".
 	PrefixKey = "%s:prefix"
-	// SuffixKey is the format for the suffixes sorted set key: "{name}:suffix"
+	// SuffixKey is the suffix pattern for the suffixes sorted set. Real key: "{name}:suffix".
 	SuffixKey = "%s:suffix"
-	// OutputKey is the format for output set keys: "{name}:output:{state}"
+	// OutputKey is the suffix pattern for output sets. Real key: "{name}:output:{state}".
 	OutputKey = "%s:output"
-	// NodeKey is the format for node set keys: "{name}:node:{keyword}"
+	// NodeKey is the suffix pattern for node sets. Real key: "{name}:node:{keyword}".
 	NodeKey = "%s:node"
 )
 
