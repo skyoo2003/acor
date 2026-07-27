@@ -19,7 +19,7 @@ var errInvalidRingAddrs = errors.New("ring-addrs must be comma-separated shard=a
 const (
 	exitCodeUsage = 2
 	keyValueParts = 2
-	usageText     = `Usage:
+	commandsText  = `Usage:
   acor [global options] <command> [argument]
 
 Commands:
@@ -35,31 +35,18 @@ Commands:
   migrate-rollback
   schema-version
 
-Global options:
-  -addr string
-        Redis server address for standalone mode
-  -addrs string
-        Comma-separated Redis addresses for Sentinel or Cluster mode
-  -master-name string
-        Redis Sentinel master name
-  -ring-addrs string
-        Comma-separated shard=addr pairs for Redis Ring mode
-  -password string
-        Redis password
-  -db int
-        Redis DB number
-  -name string
-        Pattern collection name (default "default")
-  -debug
-        Enable debug logging
-
-Migrate options:
-  -dry-run
-        Preview migration without making changes
-  -keep-old-keys
-        Keep V1 keys after migration (for rollback)
+Options:
 `
 )
+
+// writeUsage prints the command list followed by the flag set's own defaults,
+// so a flag's description lives only where the flag is registered.
+func writeUsage(w io.Writer) {
+	_, _ = fmt.Fprint(w, commandsText)
+	fs, _ := newFlagSet()
+	fs.SetOutput(w)
+	fs.PrintDefaults()
+}
 
 const (
 	commandAdd             = "add"
@@ -124,7 +111,7 @@ func run(args []string, stdout, stderr io.Writer, create func(*acor.AhoCorasickA
 	config, migrateOpts, remaining, err := parseArgs(args)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			_, _ = fmt.Fprint(stderr, usageText)
+			writeUsage(stderr)
 			return 0
 		}
 		_, _ = fmt.Fprintln(stderr, err.Error())
@@ -132,7 +119,7 @@ func run(args []string, stdout, stderr io.Writer, create func(*acor.AhoCorasickA
 	}
 
 	if len(remaining) == 0 {
-		_, _ = fmt.Fprint(stderr, usageText)
+		writeUsage(stderr)
 		return exitCodeUsage
 	}
 
@@ -140,7 +127,7 @@ func run(args []string, stdout, stderr io.Writer, create func(*acor.AhoCorasickA
 	runner, needsArg, err := commandHandler(command)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err.Error())
-		_, _ = fmt.Fprint(stderr, usageText)
+		writeUsage(stderr)
 		return exitCodeUsage
 	}
 
@@ -165,21 +152,28 @@ func run(args []string, stdout, stderr io.Writer, create func(*acor.AhoCorasickA
 	return 0
 }
 
-func parseArgs(args []string) (*acor.AhoCorasickArgs, *migrateOptions, []string, error) {
+// newFlagSet registers the global and migrate flags. It is also what writeUsage
+// renders, so the flag list cannot drift from the help text.
+func newFlagSet() (*flag.FlagSet, *commandConfig) {
 	config := &commandConfig{}
 	fs := flag.NewFlagSet("acor", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	fs.StringVar(&config.addr, "addr", "", "redis server address")
-	fs.StringVar(&config.addrs, "addrs", "", "comma-separated redis addresses")
-	fs.StringVar(&config.masterName, "master-name", "", "redis sentinel master name")
-	fs.StringVar(&config.ringAddrs, "ring-addrs", "", "comma-separated shard=addr pairs")
-	fs.StringVar(&config.password, "password", "", "redis password")
-	fs.IntVar(&config.db, "db", 0, "redis db number")
+	fs.StringVar(&config.addr, "addr", "", "Redis server address for standalone mode")
+	fs.StringVar(&config.addrs, "addrs", "", "comma-separated Redis addresses for Sentinel or Cluster mode")
+	fs.StringVar(&config.masterName, "master-name", "", "Redis Sentinel master name")
+	fs.StringVar(&config.ringAddrs, "ring-addrs", "", "comma-separated shard=addr pairs for Redis Ring mode")
+	fs.StringVar(&config.password, "password", "", "Redis password")
+	fs.IntVar(&config.db, "db", 0, "Redis DB number")
 	fs.StringVar(&config.name, "name", defaultCollectionName, "pattern collection name")
 	fs.BoolVar(&config.debug, "debug", false, "enable debug logging")
-	fs.BoolVar(&config.dryRun, "dry-run", false, "preview migration without making changes")
-	fs.BoolVar(&config.keepOldKeys, "keep-old-keys", false, "keep V1 keys after migration")
+	fs.BoolVar(&config.dryRun, "dry-run", false, "migrate: preview migration without making changes")
+	fs.BoolVar(&config.keepOldKeys, "keep-old-keys", false, "migrate: keep V1 keys after migration (for rollback)")
 	fs.Usage = func() {}
+	return fs, config
+}
+
+func parseArgs(args []string) (*acor.AhoCorasickArgs, *migrateOptions, []string, error) {
+	fs, config := newFlagSet()
 
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {

@@ -68,6 +68,28 @@ func validateRedisTopology(args *AhoCorasickArgs, addrs []string, ringAddrs map[
 	return nil
 }
 
+// universalOptions collects the connection knobs every topology shares. The
+// per-topology option structs are derived from it with go-redis's own
+// converters (Failover/Cluster/Simple), which is also what drops DB for
+// cluster mode. Topology selection stays in newRedisClient rather than using
+// redis.NewUniversalClient, whose "more than one address means cluster" rule
+// differs from the documented behavior of AhoCorasickArgs.
+func universalOptions(args *AhoCorasickArgs, addrs []string) *redis.UniversalOptions {
+	return &redis.UniversalOptions{
+		Addrs:        addrs,
+		MasterName:   strings.TrimSpace(args.MasterName),
+		Password:     args.Password,
+		DB:           args.DB,
+		DialTimeout:  args.DialTimeout,
+		ReadTimeout:  args.ReadTimeout,
+		WriteTimeout: args.WriteTimeout,
+		MaxRetries:   args.MaxRetries,
+		PoolSize:     args.PoolSize,
+	}
+}
+
+// newRingRedisClient is hand-built: Ring is the one topology UniversalOptions
+// has no converter for.
 func newRingRedisClient(args *AhoCorasickArgs, ringAddrs map[string]string) redis.UniversalClient {
 	return redis.NewRing(&redis.RingOptions{
 		Addrs:        ringAddrs,
@@ -82,29 +104,11 @@ func newRingRedisClient(args *AhoCorasickArgs, ringAddrs map[string]string) redi
 }
 
 func newSentinelRedisClient(args *AhoCorasickArgs, addrs []string) redis.UniversalClient {
-	return redis.NewFailoverClient(&redis.FailoverOptions{
-		SentinelAddrs: addrs,
-		MasterName:    strings.TrimSpace(args.MasterName),
-		Password:      args.Password,
-		DB:            args.DB,
-		DialTimeout:   args.DialTimeout,
-		ReadTimeout:   args.ReadTimeout,
-		WriteTimeout:  args.WriteTimeout,
-		MaxRetries:    args.MaxRetries,
-		PoolSize:      args.PoolSize,
-	})
+	return redis.NewFailoverClient(universalOptions(args, addrs).Failover())
 }
 
 func newClusterRedisClient(args *AhoCorasickArgs, addrs []string) (redis.UniversalClient, error) {
-	client := redis.NewClusterClient(&redis.ClusterOptions{
-		Addrs:        addrs,
-		Password:     args.Password,
-		DialTimeout:  args.DialTimeout,
-		ReadTimeout:  args.ReadTimeout,
-		WriteTimeout: args.WriteTimeout,
-		MaxRetries:   args.MaxRetries,
-		PoolSize:     args.PoolSize,
-	})
+	client := redis.NewClusterClient(universalOptions(args, addrs).Cluster())
 	ctx, cancel := context.WithTimeout(context.Background(), defaultRedisClusterPingTimeout)
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
@@ -119,16 +123,10 @@ func newStandaloneRedisClient(args *AhoCorasickArgs, addrs []string) redis.Unive
 	if addr == "" && len(addrs) > 0 {
 		addr = addrs[0]
 	}
-	return redis.NewClient(&redis.Options{
-		Addr:         addr,
-		Password:     args.Password,
-		DB:           args.DB,
-		DialTimeout:  args.DialTimeout,
-		ReadTimeout:  args.ReadTimeout,
-		WriteTimeout: args.WriteTimeout,
-		MaxRetries:   args.MaxRetries,
-		PoolSize:     args.PoolSize,
-	})
+	// A one-element slice, even when empty: Simple() only substitutes its own
+	// default for an empty slice, and go-redis then fills in localhost:6379 as
+	// AhoCorasickArgs.Addr documents.
+	return redis.NewClient(universalOptions(args, []string{addr}).Simple())
 }
 
 func normalizeAddrs(addr string, addrs []string) []string {
