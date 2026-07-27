@@ -33,7 +33,6 @@ func TestV2Find(t *testing.T) {
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
 		"keywords": `["he","she","his","hers"]`,
 		"prefixes": `["","h","he","s","sh","she","hi","his","her","hers"]`,
-		"suffixes": `["","e","eh","s","hs","ehs","i","ih","si","sih","r","reh","s","sreh"]`,
 		"version":  "1234567890",
 	})
 

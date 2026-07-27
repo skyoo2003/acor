@@ -26,14 +26,10 @@ const (
 const (
 	fieldKeywords = "keywords"
 	fieldPrefixes = "prefixes"
-	fieldSuffixes = "suffixes"
 	fieldVersion  = "version"
 
-	argTrieKey    = "trieKey"
-	argOutputsKey = "outputsKey"
-
 	// emptyKeywordsJSON and emptyStringArrayJSON are the default JSON values
-	// stored in an empty V2 trie hash.
+	// stored in an empty V2 trie hash: no keywords, and the root prefix only.
 	emptyKeywordsJSON    = "[]"
 	emptyStringArrayJSON = `[""]`
 )
@@ -82,7 +78,6 @@ func emptyTrieFields() map[string]interface{} {
 	return map[string]interface{}{
 		fieldKeywords: emptyKeywordsJSON,
 		fieldPrefixes: emptyStringArrayJSON,
-		fieldSuffixes: emptyStringArrayJSON,
 		fieldVersion:  time.Now().UnixNano(),
 	}
 }

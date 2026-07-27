@@ -407,7 +407,6 @@ func TestV2FlushWithNodes(t *testing.T) {
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
 		"keywords": `["he"]`,
 		"prefixes": `["","h","he"]`,
-		"suffixes": `["","e","eh"]`,
 		"version":  "100",
 	})
 	client.HSet(context.Background(), "{test}:outputs", map[string]interface{}{
@@ -635,7 +634,10 @@ func TestV2TryAddBadPrefixesJSON(t *testing.T) {
 	}
 }
 
-func TestV2TryAddBadSuffixesJSON(t *testing.T) {
+// TestV2LegacySuffixesFieldIgnored pins the compatibility contract for
+// collections written before the "suffixes" field was dropped: the leftover
+// value is never parsed, so even a corrupt one cannot fail a write.
+func TestV2LegacySuffixesFieldIgnored(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
@@ -652,9 +654,8 @@ func TestV2TryAddBadSuffixesJSON(t *testing.T) {
 	ops := newTestV2Ops(t, mr)
 	defer func() { _ = ops.client.Close() }()
 
-	_, err := ops.tryAddV2(context.Background(), "she")
-	if err == nil {
-		t.Fatal("expected error for bad JSON in suffixes")
+	if _, err := ops.tryAddV2(context.Background(), "she"); err != nil {
+		t.Fatalf("legacy suffixes field should be ignored, got: %v", err)
 	}
 }
 

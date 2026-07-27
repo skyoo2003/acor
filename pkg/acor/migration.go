@@ -155,13 +155,6 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 	}
 	result.Prefixes = len(prefixes)
 
-	suffixes, err := ac.redisClient.ZRange(ac.ctx, suffixKey(ac.name), 0, -1).Result()
-	if err != nil {
-		result.Status = migrationStatusError
-		result.ErrorMessage = err.Error()
-		return result, err
-	}
-
 	if opts.Progress != nil {
 		opts.Progress(stepCollectOutputs, migrationTotalSteps, "Collecting outputs")
 	}
@@ -242,11 +235,6 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 		return result, fmt.Errorf("migration: failed to marshal prefixes: %w", marshalErr)
 	} else {
 		trieFields[fieldPrefixes] = prefixesJSON
-	}
-	if suffixesJSON, marshalErr := toJSON(suffixes); marshalErr != nil {
-		return result, fmt.Errorf("migration: failed to marshal suffixes: %w", marshalErr)
-	} else {
-		trieFields[fieldSuffixes] = suffixesJSON
 	}
 	if hsetErr := ac.redisClient.HSet(ac.ctx, tempTrieKey, trieFields).Err(); hsetErr != nil {
 		cleanup()

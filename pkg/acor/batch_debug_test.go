@@ -162,7 +162,6 @@ func TestDebugV2WithData(t *testing.T) {
 	client.HSet(ctx, "{test}:trie", map[string]interface{}{
 		"keywords": `["he","she"]`,
 		"prefixes": `["","h","he","s","sh","she"]`,
-		"suffixes": `["","e","eh","s","hs","ehs"]`,
 		"version":  "100",
 	})
 	client.HSet(ctx, "{test}:outputs", map[string]interface{}{

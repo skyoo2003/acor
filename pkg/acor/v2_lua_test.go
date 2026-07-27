@@ -11,69 +11,6 @@ import (
 	redis "github.com/redis/go-redis/v9"
 )
 
-func TestValidateScriptArgs(t *testing.T) {
-	tests := []struct {
-		name    string
-		args    map[string]interface{}
-		wantErr bool
-	}{
-		{
-			name:    "valid args with both keys",
-			args:    map[string]interface{}{"trieKey": "key1", "outputsKey": "key2"},
-			wantErr: false,
-		},
-		{
-			name:    "nil args",
-			args:    nil,
-			wantErr: true,
-		},
-		{
-			name:    "empty args",
-			args:    map[string]interface{}{},
-			wantErr: true,
-		},
-		{
-			name:    "missing trieKey",
-			args:    map[string]interface{}{"outputsKey": "key2"},
-			wantErr: true,
-		},
-		{
-			name:    "missing outputsKey",
-			args:    map[string]interface{}{"trieKey": "key1"},
-			wantErr: true,
-		},
-		{
-			name:    "trieKey is wrong type (int)",
-			args:    map[string]interface{}{"trieKey": 123, "outputsKey": "key2"},
-			wantErr: true,
-		},
-		{
-			name:    "outputsKey is wrong type (int)",
-			args:    map[string]interface{}{"trieKey": "key1", "outputsKey": 456},
-			wantErr: true,
-		},
-		{
-			name:    "trieKey is wrong type (nil)",
-			args:    map[string]interface{}{"trieKey": nil, "outputsKey": "key2"},
-			wantErr: true,
-		},
-		{
-			name:    "outputsKey is wrong type (nil)",
-			args:    map[string]interface{}{"trieKey": "key1", "outputsKey": nil},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateScriptArgs(tt.args)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("validateScriptArgs() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
 // largeVersionAbove2to53 is a version value above 2^53 used by int64 safety tests.
 // 2^53 = 9007199254740992. We use 2^53+1 to prove no truncation occurs while
 // staying safely below math.MaxInt64 to avoid overflow when incrementing.
@@ -103,16 +40,14 @@ func TestLuaScriptInt64SafetyAdd(t *testing.T) {
 	}
 	snap.Version = largeVersionAbove2to53
 
-	args, err := marshalTrieArgs(snap, map[string]string{}, largeVersionAbove2to53+1)
+	args, err := marshalTrieArgs("test", snap, map[string]string{}, largeVersionAbove2to53+1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	args["trieKey"] = trieKey("test")
-	args["outputsKey"] = outputsKey("test")
 
-	val, err := runV2Script(ctx, ops.client, addV2Script, args)
+	val, err := runV2Script(ctx, ops.client, args)
 	if err != nil {
-		t.Fatalf("runAddV2Script failed: %v", err)
+		t.Fatalf("addV2Script failed: %v", err)
 	}
 	result := val
 	if result != 1 {
@@ -144,16 +79,16 @@ func TestLuaScriptInt64SafetyRemove(t *testing.T) {
 	}
 	snap.Version = largeVersionAbove2to53
 
-	args, err := marshalTrieArgs(snap, map[string]string{}, largeVersionAbove2to53+1)
+	args, err := marshalTrieArgs("test", snap, map[string]string{}, largeVersionAbove2to53+1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	args["trieKey"] = trieKey("test")
-	args["outputsKey"] = outputsKey("test")
 
-	val, err := runV2Script(ctx, ops.client, removeV2Script, args)
+	args.ClearOutputs = true
+
+	val, err := runV2Script(ctx, ops.client, args)
 	if err != nil {
-		t.Fatalf("runRemoveV2Script failed: %v", err)
+		t.Fatalf("removeV2Script failed: %v", err)
 	}
 	result := val
 	if result != 1 {

@@ -86,7 +86,6 @@ func TestV2TryAddVersionFallback(t *testing.T) {
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
 		"keywords": `[]`,
 		"prefixes": `[""]`,
-		"suffixes": `[""]`,
 		"version":  "not-a-number",
 	})
 

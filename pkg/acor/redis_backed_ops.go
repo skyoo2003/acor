@@ -54,7 +54,7 @@ func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, rebuild boo
 		return 0, nil
 	}
 
-	newVersion, err := commitV2Write(ctx, ac.redisClient, addV2Script, ac.name, snap, outputs)
+	newVersion, err := commitV2Write(ctx, ac.redisClient, ac.name, snap, outputs, false)
 	if err != nil {
 		return 0, err
 	}
@@ -136,7 +136,7 @@ func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, rebuild 
 		return 0, nil
 	}
 
-	newVersion, err := commitV2Write(ctx, ac.redisClient, removeV2Script, ac.name, snap, outputs)
+	newVersion, err := commitV2Write(ctx, ac.redisClient, ac.name, snap, outputs, true)
 	if err != nil {
 		return 0, err
 	}

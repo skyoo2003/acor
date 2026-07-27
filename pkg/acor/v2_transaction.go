@@ -41,10 +41,15 @@ func generateVersion() (int64, error) {
 }
 
 // trieSnapshot holds the deserialized trie data read from Redis.
+//
+// The V2 trie hash also carried a "suffixes" field until v0.11: every prefix
+// reversed, written on each update and read back, but never consulted by any
+// matcher (only the V1 schema's suffix ZSET is used, for its own rebuild walk).
+// It is no longer written; a leftover field on an existing collection is
+// ignored and disappears on the next Flush.
 type trieSnapshot struct {
 	Keywords []string
 	Prefixes []string
-	Suffixes []string
 	Version  int64
 }
 
@@ -67,11 +72,6 @@ func readTrieSnapshot(ctx context.Context, storage KVStorage, name string) (*tri
 			return nil, newOperationError("unmarshal", SchemaV2, err)
 		}
 	}
-	if data, ok := trieData[fieldSuffixes]; ok {
-		if err := json.Unmarshal([]byte(data), &snap.Suffixes); err != nil {
-			return nil, newOperationError("unmarshal", SchemaV2, err)
-		}
-	}
 	if v, ok := trieData[fieldVersion]; ok {
 		if err := json.Unmarshal([]byte(v), &snap.Version); err != nil {
 			snap.Version = 0
@@ -81,25 +81,23 @@ func readTrieSnapshot(ctx context.Context, storage KVStorage, name string) (*tri
 	return snap, nil
 }
 
-// marshalTrieArgs serializes trie data into the args map for Lua scripts.
-func marshalTrieArgs(snap *trieSnapshot, outputs map[string]string, newVersion int64) (map[string]interface{}, error) {
-	args := map[string]interface{}{
-		argTrieKey:    "", // caller must set
-		argOutputsKey: "", // caller must set
-		"newVersion":  newVersion,
-		"oldVersion":  snap.Version,
+// marshalTrieArgs serializes a snapshot and its output states into the script
+// arguments for collection name.
+func marshalTrieArgs(name string, snap *trieSnapshot, outputs map[string]string, newVersion int64) (*v2ScriptArgs, error) {
+	args := &v2ScriptArgs{
+		TrieKey:    trieKey(name),
+		OutputsKey: outputsKey(name),
+		OldVersion: snap.Version,
+		NewVersion: newVersion,
 	}
 	var err error
-	if args[fieldKeywords], err = toJSON(snap.Keywords); err != nil {
+	if args.Keywords, err = toJSON(snap.Keywords); err != nil {
 		return nil, newOperationError("marshal", SchemaV2, err)
 	}
-	if args[fieldPrefixes], err = toJSON(snap.Prefixes); err != nil {
+	if args.Prefixes, err = toJSON(snap.Prefixes); err != nil {
 		return nil, newOperationError("marshal", SchemaV2, err)
 	}
-	if args[fieldSuffixes], err = toJSON(snap.Suffixes); err != nil {
-		return nil, newOperationError("marshal", SchemaV2, err)
-	}
-	if args["outputs"], err = toJSON(outputs); err != nil {
+	if args.Outputs, err = toJSON(outputs); err != nil {
 		return nil, newOperationError("marshal", SchemaV2, err)
 	}
 	return args, nil
@@ -117,8 +115,8 @@ func toJSON(v any) (string, error) {
 // through script under optimistic locking. It returns the version it wrote, or
 // ErrConcurrencyConflict when another writer won the race and the caller should
 // re-read the snapshot and retry.
-func commitV2Write(ctx context.Context, client redis.UniversalClient, script *redis.Script,
-	name string, snap *trieSnapshot, outputs map[string][]string) (int64, error) {
+func commitV2Write(ctx context.Context, client redis.UniversalClient, name string,
+	snap *trieSnapshot, outputs map[string][]string, clearOutputs bool) (int64, error) {
 	newVersion, err := generateVersion()
 	if err != nil {
 		return 0, err
@@ -133,14 +131,13 @@ func commitV2Write(ctx context.Context, client redis.UniversalClient, script *re
 		encoded[state] = jsonOuts
 	}
 
-	args, err := marshalTrieArgs(snap, encoded, newVersion)
+	args, err := marshalTrieArgs(name, snap, encoded, newVersion)
 	if err != nil {
 		return 0, err
 	}
-	args[argTrieKey] = trieKey(name)
-	args[argOutputsKey] = outputsKey(name)
+	args.ClearOutputs = clearOutputs
 
-	result, err := runV2Script(ctx, client, script, args)
+	result, err := runV2Script(ctx, client, args)
 	if err != nil {
 		return 0, newRedisError("EVAL", trieKey(name), err)
 	}
@@ -198,7 +195,7 @@ func (o *v2Operations) tryAddV2(ctx context.Context, keyword string) (int, error
 		return 0, nil
 	}
 
-	if _, err := commitV2Write(ctx, o.client, addV2Script, o.name, snap, outputs); err != nil {
+	if _, err := commitV2Write(ctx, o.client, o.name, snap, outputs, false); err != nil {
 		return 0, err
 	}
 
@@ -217,7 +214,7 @@ func (o *v2Operations) tryRemoveV2(ctx context.Context, keyword string) (int, er
 		return 0, nil
 	}
 
-	if _, err := commitV2Write(ctx, o.client, removeV2Script, o.name, snap, outputs); err != nil {
+	if _, err := commitV2Write(ctx, o.client, o.name, snap, outputs, true); err != nil {
 		return 0, err
 	}
 

@@ -29,12 +29,11 @@ func planAdd(snap *trieSnapshot, keyword string) (outputs map[string][]string, c
 	}
 
 	keywordRunes := []rune(keyword)
-	var newPrefixes, newSuffixes []string
+	var newPrefixes []string
 	for i := range keywordRunes {
 		prefix := string(keywordRunes[:i+1])
 		if _, exists := prefixSet[prefix]; !exists {
 			newPrefixes = append(newPrefixes, prefix)
-			newSuffixes = append(newSuffixes, reverse(prefix))
 			prefixSet[prefix] = struct{}{}
 		}
 	}
@@ -59,7 +58,6 @@ func planAdd(snap *trieSnapshot, keyword string) (outputs map[string][]string, c
 
 	snap.Keywords = append(snap.Keywords, keyword)
 	snap.Prefixes = append(snap.Prefixes, newPrefixes...)
-	snap.Suffixes = append(snap.Suffixes, newSuffixes...)
 	return outputs, true
 }
 
@@ -105,11 +103,6 @@ func planRemove(snap *trieSnapshot, keyword string) (outputs map[string][]string
 		prefixSet[p] = struct{}{}
 	}
 
-	newSuffixes := make([]string, len(newPrefixes))
-	for i, p := range newPrefixes {
-		newSuffixes[i] = reverse(p)
-	}
-
 	outputs = make(map[string][]string)
 	for _, prefix := range newPrefixes {
 		if prefix == "" {
@@ -122,7 +115,6 @@ func planRemove(snap *trieSnapshot, keyword string) (outputs map[string][]string
 
 	snap.Keywords = newKeywords
 	snap.Prefixes = newPrefixes
-	snap.Suffixes = newSuffixes
 	return outputs, true
 }
 

@@ -70,14 +70,12 @@ func TestLuaVersionComparisonAbove2to53(t *testing.T) {
 
 	// Build args with the matching large oldVersion — should succeed
 	snap.Version = largeOldVersion
-	args, err := marshalTrieArgs(snap, map[string]string{}, largeNewVersion)
+	args, err := marshalTrieArgs("test", snap, map[string]string{}, largeNewVersion)
 	if err != nil {
 		t.Fatal(err)
 	}
-	args["trieKey"] = trieKey("test")
-	args["outputsKey"] = outputsKey("test")
 
-	val, err := runV2Script(ctx, ops.client, addV2Script, args)
+	val, err := runV2Script(ctx, ops.client, args)
 	if err != nil {
 		t.Fatalf("addV2Script with matching large version failed: %v", err)
 	}
@@ -88,14 +86,12 @@ func TestLuaVersionComparisonAbove2to53(t *testing.T) {
 
 	// Now try with oldVersion that no longer matches — should detect conflict
 	snap.Version = largeOldVersion // trie now has largeNewVersion
-	args2, err := marshalTrieArgs(snap, map[string]string{}, largeNewVersion+1)
+	args2, err := marshalTrieArgs("test", snap, map[string]string{}, largeNewVersion+1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	args2["trieKey"] = trieKey("test")
-	args2["outputsKey"] = outputsKey("test")
 
-	val2, err := runV2Script(ctx, ops.client, addV2Script, args2)
+	val2, err := runV2Script(ctx, ops.client, args2)
 	if err != nil {
 		t.Fatalf("addV2Script conflict check failed: %v", err)
 	}
@@ -181,14 +177,12 @@ func TestLuaVersionStringComparison(t *testing.T) {
 
 			newVersion := tt.oldVersion + 1
 
-			args, err := marshalTrieArgs(snap, map[string]string{}, newVersion)
+			args, err := marshalTrieArgs("test", snap, map[string]string{}, newVersion)
 			if err != nil {
 				t.Fatal(err)
 			}
-			args["trieKey"] = trieKey("test")
-			args["outputsKey"] = outputsKey("test")
 
-			val, err := runV2Script(ctx, ops.client, addV2Script, args)
+			val, err := runV2Script(ctx, ops.client, args)
 			if err != nil {
 				t.Fatalf("addV2Script error: %v", err)
 			}
@@ -235,14 +229,14 @@ func TestLuaVersionRemoveScriptPrecision(t *testing.T) {
 	snap.Version = largeVersion
 
 	newVersion := largeVersion + 1
-	args, err := marshalTrieArgs(snap, map[string]string{}, newVersion)
+	args, err := marshalTrieArgs("test", snap, map[string]string{}, newVersion)
 	if err != nil {
 		t.Fatal(err)
 	}
-	args["trieKey"] = trieKey("test")
-	args["outputsKey"] = outputsKey("test")
 
-	val, err := runV2Script(ctx, ops.client, removeV2Script, args)
+	args.ClearOutputs = true
+
+	val, err := runV2Script(ctx, ops.client, args)
 	if err != nil {
 		t.Fatalf("removeV2Script error: %v", err)
 	}
@@ -252,14 +246,14 @@ func TestLuaVersionRemoveScriptPrecision(t *testing.T) {
 	}
 
 	// Stale version should be rejected
-	args2, err := marshalTrieArgs(snap, map[string]string{}, newVersion+1)
+	args2, err := marshalTrieArgs("test", snap, map[string]string{}, newVersion+1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	args2["trieKey"] = trieKey("test")
-	args2["outputsKey"] = outputsKey("test")
 
-	val2, err := runV2Script(ctx, ops.client, removeV2Script, args2)
+	args2.ClearOutputs = true
+
+	val2, err := runV2Script(ctx, ops.client, args2)
 	if err != nil {
 		t.Fatalf("removeV2Script stale version error: %v", err)
 	}
