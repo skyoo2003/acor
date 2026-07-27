@@ -49,11 +49,10 @@ func TestV2WriteScriptClearOutputs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			args, err := marshalTrieArgs("test", snap, map[string]string{"42": `["he"]`}, snap.Version+1)
+			args, err := marshalTrieArgs("test", snap, map[string]string{"42": `["he"]`}, snap.Version+1, tc.clearOutputs)
 			if err != nil {
 				t.Fatal(err)
 			}
-			args.ClearOutputs = tc.clearOutputs
 
 			val, err := runV2Script(ctx, ops.client, args)
 			if err != nil {
@@ -108,18 +107,17 @@ func TestLuaScriptInt64SafetyAdd(t *testing.T) {
 	}
 	snap.Version = largeVersionAbove2to53
 
-	args, err := marshalTrieArgs("test", snap, map[string]string{}, largeVersionAbove2to53+1)
+	args, err := marshalTrieArgs("test", snap, map[string]string{}, largeVersionAbove2to53+1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	val, err := runV2Script(ctx, ops.client, args)
+	result, err := runV2Script(ctx, ops.client, args)
 	if err != nil {
-		t.Fatalf("addV2Script failed: %v", err)
+		t.Fatalf("runV2Script failed: %v", err)
 	}
-	result := val
 	if result != 1 {
-		t.Errorf("addV2Script Int64 result = %d, want 1", result)
+		t.Errorf("runV2Script Int64 result = %d, want 1", result)
 	}
 }
 
@@ -147,20 +145,17 @@ func TestLuaScriptInt64SafetyRemove(t *testing.T) {
 	}
 	snap.Version = largeVersionAbove2to53
 
-	args, err := marshalTrieArgs("test", snap, map[string]string{}, largeVersionAbove2to53+1)
+	args, err := marshalTrieArgs("test", snap, map[string]string{}, largeVersionAbove2to53+1, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	args.ClearOutputs = true
-
-	val, err := runV2Script(ctx, ops.client, args)
+	result, err := runV2Script(ctx, ops.client, args)
 	if err != nil {
-		t.Fatalf("removeV2Script failed: %v", err)
+		t.Fatalf("runV2Script failed: %v", err)
 	}
-	result := val
 	if result != 1 {
-		t.Errorf("removeV2Script Int64 result = %d, want 1", result)
+		t.Errorf("runV2Script Int64 result = %d, want 1", result)
 	}
 
 	// Verify the stored version in Redis is the exact int64 value

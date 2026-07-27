@@ -681,6 +681,40 @@ func TestV2LegacySuffixesFieldIgnored(t *testing.T) {
 	}
 }
 
+// TestPresetFlushDropsLegacySuffixes pins the same contract for preset mode,
+// which reaches the V2 trie hash through its own flush.
+func TestPresetFlushDropsLegacySuffixes(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	ctx := context.Background()
+
+	ac, createErr := Create(&AhoCorasickArgs{Addr: mr.Addr(), Name: "test", Preset: PresetBalanced})
+	if createErr != nil {
+		t.Fatalf("Create: %v", createErr)
+	}
+	defer func() { _ = ac.Close() }()
+
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() { _ = client.Close() }()
+
+	if hsetErr := client.HSet(ctx, "{test}:trie", "suffixes", "not-json").Err(); hsetErr != nil {
+		t.Fatal(hsetErr)
+	}
+
+	if flushErr := ac.Flush(); flushErr != nil {
+		t.Fatalf("flush failed: %v", flushErr)
+	}
+
+	exists, err := client.HExists(ctx, "{test}:trie", "suffixes").Result()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists {
+		t.Error("legacy suffixes field should be gone after a preset-mode flush")
+	}
+}
+
 func TestV2TryRemoveBadPrefixesJSON(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()

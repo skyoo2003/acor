@@ -70,34 +70,32 @@ func TestLuaVersionComparisonAbove2to53(t *testing.T) {
 
 	// Build args with the matching large oldVersion — should succeed
 	snap.Version = largeOldVersion
-	args, err := marshalTrieArgs("test", snap, map[string]string{}, largeNewVersion)
+	args, err := marshalTrieArgs("test", snap, map[string]string{}, largeNewVersion, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	val, err := runV2Script(ctx, ops.client, args)
+	result, err := runV2Script(ctx, ops.client, args)
 	if err != nil {
-		t.Fatalf("addV2Script with matching large version failed: %v", err)
+		t.Fatalf("runV2Script with matching large version failed: %v", err)
 	}
-	result := int(val)
 	if result != 1 {
-		t.Errorf("addV2Script = %d, want 1 (version should match for %d)", result, largeOldVersion)
+		t.Errorf("runV2Script = %d, want 1 (version should match for %d)", result, largeOldVersion)
 	}
 
 	// Now try with oldVersion that no longer matches — should detect conflict
 	snap.Version = largeOldVersion // trie now has largeNewVersion
-	args2, err := marshalTrieArgs("test", snap, map[string]string{}, largeNewVersion+1)
+	args2, err := marshalTrieArgs("test", snap, map[string]string{}, largeNewVersion+1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	val2, err := runV2Script(ctx, ops.client, args2)
+	result2, err := runV2Script(ctx, ops.client, args2)
 	if err != nil {
-		t.Fatalf("addV2Script conflict check failed: %v", err)
+		t.Fatalf("runV2Script conflict check failed: %v", err)
 	}
-	result2 := int(val2)
 	if result2 != 0 {
-		t.Errorf("addV2Script = %d, want 0 (conflict between %d and %d should be detected)",
+		t.Errorf("runV2Script = %d, want 0 (conflict between %d and %d should be detected)",
 			result2, largeOldVersion, largeNewVersion)
 	}
 }
@@ -177,25 +175,24 @@ func TestLuaVersionStringComparison(t *testing.T) {
 
 			newVersion := tt.oldVersion + 1
 
-			args, err := marshalTrieArgs("test", snap, map[string]string{}, newVersion)
+			args, err := marshalTrieArgs("test", snap, map[string]string{}, newVersion, false)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			val, err := runV2Script(ctx, ops.client, args)
+			result, err := runV2Script(ctx, ops.client, args)
 			if err != nil {
-				t.Fatalf("addV2Script error: %v", err)
+				t.Fatalf("runV2Script error: %v", err)
 			}
-			result := int(val)
 
 			if tt.wantConflict {
 				if result != 0 {
-					t.Errorf("addV2Script = %d, want 0 (conflict expected: stored=%d, sent=%d)",
+					t.Errorf("runV2Script = %d, want 0 (conflict expected: stored=%d, sent=%d)",
 						result, tt.storedVersion, tt.oldVersion)
 				}
 			} else {
 				if result != 1 {
-					t.Errorf("addV2Script = %d, want 1 (match expected for version=%d)",
+					t.Errorf("runV2Script = %d, want 1 (match expected for version=%d)",
 						result, tt.storedVersion)
 				}
 			}
@@ -229,37 +226,31 @@ func TestLuaVersionRemoveScriptPrecision(t *testing.T) {
 	snap.Version = largeVersion
 
 	newVersion := largeVersion + 1
-	args, err := marshalTrieArgs("test", snap, map[string]string{}, newVersion)
+	args, err := marshalTrieArgs("test", snap, map[string]string{}, newVersion, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	args.ClearOutputs = true
-
-	val, err := runV2Script(ctx, ops.client, args)
+	result, err := runV2Script(ctx, ops.client, args)
 	if err != nil {
-		t.Fatalf("removeV2Script error: %v", err)
+		t.Fatalf("runV2Script error: %v", err)
 	}
-	result := int(val)
 	if result != 1 {
-		t.Errorf("removeV2Script = %d, want 1 (version %d should match)", result, largeVersion)
+		t.Errorf("runV2Script = %d, want 1 (version %d should match)", result, largeVersion)
 	}
 
 	// Stale version should be rejected
-	args2, err := marshalTrieArgs("test", snap, map[string]string{}, newVersion+1)
+	args2, err := marshalTrieArgs("test", snap, map[string]string{}, newVersion+1, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	args2.ClearOutputs = true
-
-	val2, err := runV2Script(ctx, ops.client, args2)
+	result2, err := runV2Script(ctx, ops.client, args2)
 	if err != nil {
-		t.Fatalf("removeV2Script stale version error: %v", err)
+		t.Fatalf("runV2Script stale version error: %v", err)
 	}
-	result2 := int(val2)
 	if result2 != 0 {
-		t.Errorf("removeV2Script = %d, want 0 (stale version should conflict)", result2)
+		t.Errorf("runV2Script = %d, want 0 (stale version should conflict)", result2)
 	}
 
 	// Verify: the version in Redis should be the new one

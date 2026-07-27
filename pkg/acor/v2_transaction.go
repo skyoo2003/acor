@@ -81,14 +81,17 @@ func readTrieSnapshot(ctx context.Context, storage KVStorage, name string) (*tri
 	return snap, nil
 }
 
-// marshalTrieArgs serializes a snapshot and its output states into the script
-// arguments for collection name.
-func marshalTrieArgs(name string, snap *trieSnapshot, outputs map[string]string, newVersion int64) (*v2ScriptArgs, error) {
+// marshalTrieArgs serializes a snapshot and its output states into the complete
+// script arguments for collection name: nothing is left for the caller to patch
+// in afterwards.
+func marshalTrieArgs(name string, snap *trieSnapshot, outputs map[string]string,
+	newVersion int64, clearOutputs bool) (*v2ScriptArgs, error) {
 	args := &v2ScriptArgs{
-		TrieKey:    trieKey(name),
-		OutputsKey: outputsKey(name),
-		OldVersion: snap.Version,
-		NewVersion: newVersion,
+		TrieKey:      trieKey(name),
+		OutputsKey:   outputsKey(name),
+		OldVersion:   snap.Version,
+		NewVersion:   newVersion,
+		ClearOutputs: clearOutputs,
 	}
 	var err error
 	if args.Keywords, err = toJSON(snap.Keywords); err != nil {
@@ -131,11 +134,10 @@ func commitV2Write(ctx context.Context, client redis.UniversalClient, name strin
 		encoded[state] = jsonOuts
 	}
 
-	args, err := marshalTrieArgs(name, snap, encoded, newVersion)
+	args, err := marshalTrieArgs(name, snap, encoded, newVersion, clearOutputs)
 	if err != nil {
 		return 0, err
 	}
-	args.ClearOutputs = clearOutputs
 
 	result, err := runV2Script(ctx, client, args)
 	if err != nil {
@@ -145,6 +147,31 @@ func commitV2Write(ctx context.Context, client redis.UniversalClient, name strin
 		return 0, ErrConcurrencyConflict
 	}
 	return newVersion, nil
+}
+
+// flushV2Keys resets a collection's V2 keys to empty: the outputs and nodes
+// hashes are dropped and the trie hash is replaced with emptyTrieFields.
+//
+// The trie key is deleted rather than only overwritten, so fields no longer
+// written by this version (the pre-v0.11 "suffixes") don't survive a flush. The
+// one thing that costs is the key's TTL, which acor never sets itself; a caller
+// that expires collections externally has to re-apply it after Flush.
+//
+// Shared by both V2 write paths, which differ only in the local state they reset
+// afterwards.
+func flushV2Keys(ctx context.Context, storage KVStorage, name string) error {
+	tKey := trieKey(name)
+	err := storage.TxPipelined(ctx, func(pipe Pipeliner) error {
+		// nodesKey is only written during migration; including it here ensures a clean state.
+		if err := pipe.Del(ctx, outputsKey(name), nodesKey(name), tKey); err != nil {
+			return err
+		}
+		return pipe.HSet(ctx, tKey, emptyTrieFields())
+	})
+	if err != nil {
+		return newRedisError("TXPIPELINED", tKey, err)
+	}
+	return nil
 }
 
 // retryOnConflict runs attempt until it stops reporting a lost optimistic-lock

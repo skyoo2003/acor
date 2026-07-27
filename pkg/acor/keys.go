@@ -20,8 +20,7 @@ const (
 	NodeKey = "%s:node"
 )
 
-// V2 trie-hash field names and the internal arg-map keys passed to the Lua
-// transaction helpers. Kept as constants so a typo can't silently break a
+// V2 trie-hash field names. Kept as constants so a typo can't silently break a
 // Redis read or write.
 const (
 	fieldKeywords = "keywords"

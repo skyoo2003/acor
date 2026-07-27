@@ -68,7 +68,7 @@ func (ac *AhoCorasick) releaseMigrationLock() error {
 //
 // The migration process:
 //  1. Acquires a migration lock to prevent concurrent migrations
-//  2. Collects all V1 data (keywords, prefixes, suffixes, outputs, nodes)
+//  2. Collects the V1 data V2 needs (keywords, prefixes, outputs, nodes)
 //  3. Writes V2 structure to temporary keys
 //  4. Atomically swaps to V2 keys and optionally deletes V1 keys
 //  5. Releases the migration lock

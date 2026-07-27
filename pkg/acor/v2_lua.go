@@ -34,11 +34,14 @@ var v2WriteScript = redis.NewScript(`
 
 	redis.call('HSET', trieKey, 'keywords', keywords, 'prefixes', prefixes, 'version', newVersion)
 
+	-- Decode before the DEL: a cjson error aborts the script without rolling
+	-- back the commands already run, so nothing destructive may precede it.
+	local outputs = cjson.decode(outputsJson)
+
 	if clearOutputs then
 		redis.call('DEL', outputsKey)
 	end
 
-	local outputs = cjson.decode(outputsJson)
 	for state, jsonOuts in pairs(outputs) do
 		redis.call('HSET', outputsKey, state, jsonOuts)
 	end
@@ -46,9 +49,9 @@ var v2WriteScript = redis.NewScript(`
 	return 1
 `)
 
-// v2ScriptArgs is the argument set for v2WriteScript. The JSON fields are
-// pre-encoded by marshalTrieArgs; keeping them typed here means a missing or
-// mistyped argument is a compile error rather than a runtime assertion.
+// v2ScriptArgs is the complete argument set for v2WriteScript, built by
+// marshalTrieArgs. Keeping the arguments typed here means a missing or mistyped
+// one is a compile error rather than a runtime assertion.
 type v2ScriptArgs struct {
 	TrieKey    string
 	OutputsKey string
