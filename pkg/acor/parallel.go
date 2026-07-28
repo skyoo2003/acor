@@ -144,8 +144,9 @@ func scanChunks[T any](ctx context.Context, chunks []chunk, workers int, scan fu
 // The text is split into chunks processed by multiple goroutines, which can
 // significantly improve performance for very large texts.
 //
-// If opts is nil, DefaultParallelOptions() is used. For small texts that fit
-// within a single chunk, this method delegates to Find without parallelization.
+// If opts is nil, DefaultParallelOptions() is used. A text that fits within a
+// single chunk is scanned by a single worker, so it pays no parallelization cost
+// while still returning the same shape as a multi-chunk scan.
 //
 // Note: Due to chunk overlap for boundary handling, duplicate matches are
 // automatically deduplicated in the returned slice, so each keyword appears at

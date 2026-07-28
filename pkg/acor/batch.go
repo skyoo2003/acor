@@ -169,7 +169,9 @@ const rollbackBatchWorkers = 10
 // batchWriter modes, where each write already rebuilt and published).
 //
 // Errors are logged, not returned: this is the failure path already, and the
-// caller is about to return the original error.
+// caller is about to return the original error. ctx is not checked for
+// cancellation either: callers pass context.WithoutCancel so the undo still runs
+// when the batch failed because the caller's context went away.
 func (ac *AhoCorasick) rollbackBatch(ctx context.Context, keywords []string, op string,
 	undo func(context.Context, string) (int, error), commit func(context.Context)) {
 	if len(keywords) == 0 {
@@ -177,11 +179,8 @@ func (ac *AhoCorasick) rollbackBatch(ctx context.Context, keywords []string, op 
 	}
 
 	var g errgroup.Group
-	g.SetLimit(min(rollbackBatchWorkers, len(keywords)))
+	g.SetLimit(rollbackBatchWorkers)
 	for _, keyword := range keywords {
-		if ctx.Err() != nil {
-			break
-		}
 		g.Go(func() error {
 			if _, err := undo(ctx, keyword); err != nil && ac.logger != nil {
 				ac.logger.Printf("rollback: failed to %s %q: %v", op, keyword, err)
