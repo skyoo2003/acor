@@ -196,6 +196,9 @@ func (ac *AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (ma
 // mergeIndexResults folds per-chunk index maps into one, shifting each chunk's
 // offsets back into the original text and dropping the duplicates that chunk
 // overlap produces. Indices come back sorted.
+//
+// perChunk must be index-aligned with chunks; scanChunks guarantees this by
+// building its result slice from the same chunks it was handed.
 func mergeIndexResults(chunks []chunk, perChunk []map[string][]int) map[string][]int {
 	merged := make(map[string]map[int]struct{})
 	for i, matches := range perChunk {
