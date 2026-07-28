@@ -38,6 +38,23 @@ func TestIsSelfEcho(t *testing.T) {
 	}
 }
 
+// TestIsSelfEcho_RoundTripsGeneratedID guards the load-bearing detail that a real
+// invalidation ID itself contains a ':': only the limited SplitN in isSelfEcho
+// recovers it intact. A plain strings.Split here would silently turn every
+// self-echo into a redundant invalidation, and the literal IDs above would not
+// catch it.
+func TestIsSelfEcho_RoundTripsGeneratedID(t *testing.T) {
+	const name = "coll"
+
+	var skip selfSkipSet
+	id := newInvalidationID()
+	skip.add(id)
+
+	if !isSelfEcho(invalidationPayload(name, id), name, &skip) {
+		t.Errorf("isSelfEcho did not recognize its own payload for generated ID %q", id)
+	}
+}
+
 // stubSubscription is a Subscription whose message channel the test drives.
 type stubSubscription struct {
 	msgCh      chan PubSubMessage
@@ -65,12 +82,16 @@ func (s stubSubStorage) Subscribe(context.Context, ...string) Subscription { ret
 func TestSubscribeInvalidations_DeliversPayloads(t *testing.T) {
 	sub := newStubSubscription()
 	got := make(chan string, 1)
+	stopCh := make(chan struct{})
 
 	pubsub, err := subscribeInvalidations(context.Background(), stubSubStorage{sub: sub},
-		"coll", make(chan struct{}), func(payload string) { got <- payload })
+		"coll", stopCh, func(payload string) { got <- payload })
 	if err != nil {
 		t.Fatalf("subscribeInvalidations failed: %v", err)
 	}
+	// Closing the stub Subscription does not close its channel, so the listener
+	// goroutine only exits via stopCh.
+	t.Cleanup(func() { close(stopCh) })
 	defer func() { _ = pubsub.Close() }()
 
 	sub.msgCh <- PubSubMessage{Payload: "coll:msg-1"}

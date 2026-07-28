@@ -264,7 +264,7 @@ type AhoCorasickArgs struct {
 	// sweep runs relative to publishInvalidate calls. Every N publishes triggers one O(n)
 	// sweep of the pending self-invalidations map. Lower values reduce memory usage at the
 	// cost of more frequent cleanup; higher values trade memory for less CPU overhead.
-	// Defaults to 128 if unset or zero.
+	// Applies to both EnableCache and Preset mode. Defaults to 128 if unset or zero.
 	SelfInvalidationCleanupInterval uint64
 	// CaseSensitive controls whether keyword matching is case-sensitive.
 	// When false (default), keywords are lowercased on Add/Remove and search text

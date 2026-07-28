@@ -23,6 +23,13 @@ import (
 // Redis pub/sub delivery latency.
 const selfSkipTTL = 30 * time.Second
 
+// invalidateIDBytes is the length of the random suffix in an invalidation ID.
+const invalidateIDBytes = 8
+
+// defaultSelfInvalidationCleanupInterval controls how often selfSkipSet.sweep
+// runs relative to publishInvalidate calls. Every N publishes triggers one O(n) sweep.
+const defaultSelfInvalidationCleanupInterval = 128
+
 // selfSkipSet remembers the invalidation IDs this process published so the
 // listener can skip the invalidation it already applied locally.
 //
@@ -30,8 +37,11 @@ const selfSkipTTL = 30 * time.Second
 // entries are swept periodically rather than on a timer: every cleanupEvery
 // publishes triggers one O(n) pass.
 type selfSkipSet struct {
-	ids          sync.Map // id -> time.Time of the publish
-	publishCount uint64
+	ids sync.Map // id -> time.Time of the publish
+	// publishCount is atomic.Uint64 rather than a bare uint64 so it stays
+	// 8-byte aligned: this struct is embedded by value, and on 386/arm (both
+	// released by goreleaser) a misaligned atomic.AddUint64 panics.
+	publishCount atomic.Uint64
 	// cleanupEvery is the number of publishes between sweeps. Zero means
 	// defaultSelfInvalidationCleanupInterval. Immutable: set it before the set
 	// is shared with the listener goroutine, since add reads it unsynchronized.
@@ -46,7 +56,7 @@ func (s *selfSkipSet) add(id string) {
 	if every == 0 {
 		every = defaultSelfInvalidationCleanupInterval
 	}
-	if atomic.AddUint64(&s.publishCount, 1)%every == 0 {
+	if s.publishCount.Add(1)%every == 0 {
 		s.sweep()
 	}
 }
@@ -91,14 +101,24 @@ func (s *selfSkipSet) sweep() {
 
 // newInvalidationID returns an id unique to this publish. The timestamp keeps
 // ids ordered for debugging; the random suffix keeps two instances publishing in
-// the same nanosecond from colliding. A failed read degrades to the timestamp
-// alone, which at worst causes an unnecessary invalidation.
+// the same nanosecond from generating the same id — a collision is the dangerous
+// direction, since the loser would mistake the winner's message for its own echo
+// and skip a real invalidation.
+//
+// The id itself contains a ':', so it must always be recovered with the
+// invalidatePayloadSplitMax-limited split isSelfEcho uses, never a full split.
 func newInvalidationID() string {
 	b := make([]byte, invalidateIDBytes)
-	if _, err := rand.Read(b); err != nil {
-		b = b[:0]
-	}
+	// Since Go 1.24 crypto/rand.Read never reports an error; it crashes the
+	// process instead, so there is no degraded path to handle here.
+	_, _ = rand.Read(b)
 	return fmt.Sprintf("%d:%x", time.Now().UnixNano(), b)
+}
+
+// invalidationPayload formats the message published on a collection's channel.
+// isSelfEcho is the matching parser; the two must stay in sync.
+func invalidationPayload(name, id string) string {
+	return name + ":" + id
 }
 
 // isSelfEcho reports whether payload is this instance's own invalidation, which

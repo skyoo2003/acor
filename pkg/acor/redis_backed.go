@@ -81,6 +81,9 @@ func newRedisBacked(ctx context.Context, args *AhoCorasickArgs) (*redisBackedAC,
 		ctx:           acCtx,
 		cancel:        acCancel,
 	}
+	// Set before startListener shares the set with the listener goroutine;
+	// selfSkipSet reads it without synchronization. Zero means the default.
+	ac.selfSkip.cleanupEvery = args.SelfInvalidationCleanupInterval
 
 	if err := ac.initTrie(ctx); err != nil {
 		acCancel()
@@ -288,7 +291,7 @@ func (ac *redisBackedAC) pollVersion() {
 func (ac *redisBackedAC) publishInvalidate(ctx context.Context) {
 	channel := invalidateChannelPrefix + ac.name
 	msgID := newInvalidationID()
-	payload := ac.name + ":" + msgID
+	payload := invalidationPayload(ac.name, msgID)
 
 	ac.selfSkip.add(msgID)
 

@@ -13,15 +13,9 @@ import (
 	matchengine "github.com/skyoo2003/acor/internal/engine"
 )
 
-// defaultSelfInvalidationCleanupInterval controls how often selfSkipSet.sweep
-// runs relative to publishInvalidate calls. Every N publishes triggers one O(n) sweep.
-const defaultSelfInvalidationCleanupInterval = 128
-
 const maxRetries = 3
 
 const retryBackoffBase = 10 * time.Millisecond
-
-const invalidateIDBytes = 8
 
 // Compile-time check that v2Operations satisfies the operations interface.
 var _ operations = (*v2Operations)(nil)
@@ -279,7 +273,7 @@ func (o *v2Operations) publishInvalidate(ctx context.Context) {
 		o.cache.selfSkip.add(msgID)
 	}
 
-	err := o.storage.Publish(ctx, channel, o.name+":"+msgID)
+	err := o.storage.Publish(ctx, channel, invalidationPayload(o.name, msgID))
 	if err != nil {
 		if o.cache != nil {
 			o.cache.selfSkip.forget(msgID)
