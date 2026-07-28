@@ -4,71 +4,18 @@ package acor
 
 import (
 	"sync"
-	"time"
 
 	matchengine "github.com/skyoo2003/acor/internal/engine"
 )
-
-// pendingSelfInvalidationTTL limits how long a self-skip entry lives.
-// Lost pub/sub messages leave inert entries; this TTL prevents unbounded
-// growth in long-running processes. 30s is orders of magnitude beyond
-// typical Redis pub/sub delivery latency.
-const pendingSelfInvalidationTTL = 30 * time.Second
 
 type trieCache struct {
 	mu     sync.RWMutex
 	loadMu sync.Mutex
 	engine *matchengine.Engine
 	valid  bool
-	// pendingSelfInvalidations holds self-published message IDs so the listener
-	// can skip cache invalidation already performed by the local publisher.
-	// sync.Map is used for lock-free access by concurrent publisher/listener goroutines.
-	// Entries store time.Time values; expired entries are cleaned up lazily or via
-	// cleanupExpiredSelfInvalidations to prevent unbounded growth from lost messages.
-	pendingSelfInvalidations sync.Map
-}
-
-func skipSelfSet(c *trieCache, id string) {
-	c.pendingSelfInvalidations.Store(id, time.Now())
-}
-
-func skipSelfClear(c *trieCache, id string) {
-	c.pendingSelfInvalidations.Delete(id)
-}
-
-// skipSelfCheck atomically checks and removes a self-published message ID.
-// Returns true if the ID was found and not expired (self-message → skip invalidation).
-func skipSelfCheck(c *trieCache, id string) bool {
-	val, loaded := c.pendingSelfInvalidations.LoadAndDelete(id)
-	if !loaded {
-		return false
-	}
-	t, ok := val.(time.Time)
-	if !ok {
-		return false
-	}
-	age := time.Since(t)
-	if age < 0 {
-		return false
-	}
-	return age < pendingSelfInvalidationTTL
-}
-
-// cleanupExpiredSelfInvalidations removes stale entries to prevent unbounded map growth
-// when Redis pub/sub messages are lost. Safe for concurrent use.
-func cleanupExpiredSelfInvalidations(c *trieCache) {
-	cutoff := time.Now().Add(-pendingSelfInvalidationTTL)
-	c.pendingSelfInvalidations.Range(func(key, value interface{}) bool {
-		t, ok := value.(time.Time)
-		if !ok {
-			c.pendingSelfInvalidations.Delete(key)
-			return true
-		}
-		if t.Before(cutoff) {
-			c.pendingSelfInvalidations.Delete(key)
-		}
-		return true
-	})
+	// selfSkip holds the IDs this instance published, so the listener can skip
+	// the invalidation the publisher already applied. See selfSkipSet.
+	selfSkip selfSkipSet
 }
 
 // buildEngineFromOutputs builds a local Aho-Corasick match engine from the V2

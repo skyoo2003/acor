@@ -264,7 +264,7 @@ type AhoCorasickArgs struct {
 	// sweep runs relative to publishInvalidate calls. Every N publishes triggers one O(n)
 	// sweep of the pending self-invalidations map. Lower values reduce memory usage at the
 	// cost of more frequent cleanup; higher values trade memory for less CPU overhead.
-	// Defaults to 128 if unset or zero.
+	// Applies to both EnableCache and Preset mode. Defaults to 128 if unset or zero.
 	SelfInvalidationCleanupInterval uint64
 	// CaseSensitive controls whether keyword matching is case-sensitive.
 	// When false (default), keywords are lowercased on Add/Remove and search text
@@ -312,9 +312,8 @@ type AhoCorasick struct {
 	buildTrieHook func(string) error
 	schemaVersion int // kept for SchemaVersion() and migration.go
 
-	selfInvalidationCleanupInterval uint64
-	rollbackTimeout                 time.Duration
-	caseSensitive                   bool
+	rollbackTimeout time.Duration
+	caseSensitive   bool
 
 	cache     *trieCache
 	pubsub    Subscription
@@ -450,6 +449,9 @@ func createOriginal(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	var cache *trieCache
 	if args.EnableCache {
 		cache = &trieCache{}
+		// Set before the cache is shared with the listener goroutine; selfSkipSet
+		// reads it without synchronization. Zero means the default interval.
+		cache.selfSkip.cleanupEvery = args.SelfInvalidationCleanupInterval
 	}
 
 	ac := &AhoCorasick{
@@ -460,11 +462,6 @@ func createOriginal(args *AhoCorasickArgs) (*AhoCorasick, error) {
 		schemaVersion: schemaVersion,
 		cache:         cache,
 		mode:          modeOriginal,
-	}
-	if args.SelfInvalidationCleanupInterval > 0 {
-		ac.selfInvalidationCleanupInterval = args.SelfInvalidationCleanupInterval
-	} else {
-		ac.selfInvalidationCleanupInterval = defaultSelfInvalidationCleanupInterval
 	}
 	ac.rollbackTimeout = resolveRollbackTimeout(args.RollbackTimeout)
 	ac.caseSensitive = args.CaseSensitive
@@ -553,13 +550,12 @@ func (ac *AhoCorasick) Close() error {
 
 func (ac *AhoCorasick) newV2Ops(cache *trieCache) operations {
 	return &v2Operations{
-		storage:                         ac.storage,
-		client:                          ac.redisClient,
-		name:                            ac.name,
-		cache:                           cache,
-		logger:                          ac.logger,
-		selfInvalidationCleanupInterval: ac.selfInvalidationCleanupInterval,
-		caseSensitive:                   ac.caseSensitive,
+		storage:       ac.storage,
+		client:        ac.redisClient,
+		name:          ac.name,
+		cache:         cache,
+		logger:        ac.logger,
+		caseSensitive: ac.caseSensitive,
 	}
 }
 

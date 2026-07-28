@@ -96,89 +96,89 @@ func TestTrieCache_ConcurrentAccess(t *testing.T) {
 	wg.Wait()
 }
 
-func TestSkipSelfCheck_AcceptsKnownID(t *testing.T) {
+func TestSelfSkipClaim_AcceptsKnownID(t *testing.T) {
 	c := &trieCache{}
-	skipSelfSet(c, "msg-1")
+	c.selfSkip.add("msg-1")
 
-	if !skipSelfCheck(c, "msg-1") {
-		t.Error("expected skipSelfCheck to return true for known ID")
+	if !c.selfSkip.claim("msg-1") {
+		t.Error("expected claim to return true for known ID")
 	}
 }
 
-func TestSkipSelfCheck_RejectsUnknownID(t *testing.T) {
+func TestSelfSkipClaim_RejectsUnknownID(t *testing.T) {
 	c := &trieCache{}
 
-	if skipSelfCheck(c, "unknown") {
-		t.Error("expected skipSelfCheck to return false for unknown ID")
+	if c.selfSkip.claim("unknown") {
+		t.Error("expected claim to return false for unknown ID")
 	}
 }
 
-func TestSkipSelfCheck_RemovesOnMatch(t *testing.T) {
+func TestSelfSkipClaim_RemovesOnMatch(t *testing.T) {
 	c := &trieCache{}
-	skipSelfSet(c, "msg-1")
+	c.selfSkip.add("msg-1")
 
-	skipSelfCheck(c, "msg-1")
+	c.selfSkip.claim("msg-1")
 
-	if skipSelfCheck(c, "msg-1") {
-		t.Error("expected second skipSelfCheck to return false (ID was consumed)")
+	if c.selfSkip.claim("msg-1") {
+		t.Error("expected second claim to return false (ID was consumed)")
 	}
 }
 
-func TestSkipSelfCheck_DoesNotLeakAcrossIDs(t *testing.T) {
+func TestSelfSkipClaim_DoesNotLeakAcrossIDs(t *testing.T) {
 	c := &trieCache{}
-	skipSelfSet(c, "msg-1")
+	c.selfSkip.add("msg-1")
 
-	if skipSelfCheck(c, "msg-2") {
+	if c.selfSkip.claim("msg-2") {
 		t.Error("msg-2 should not match msg-1's pending entry")
 	}
-	if !skipSelfCheck(c, "msg-1") {
+	if !c.selfSkip.claim("msg-1") {
 		t.Error("msg-1 should still be available after msg-2 check failed")
 	}
 }
 
-func TestSkipSelfClear(t *testing.T) {
+func TestSelfSkipForget(t *testing.T) {
 	c := &trieCache{}
-	skipSelfSet(c, "msg-1")
-	skipSelfClear(c, "msg-1")
+	c.selfSkip.add("msg-1")
+	c.selfSkip.forget("msg-1")
 
-	if skipSelfCheck(c, "msg-1") {
-		t.Error("expected skipSelfCheck to return false after skipSelfClear")
+	if c.selfSkip.claim("msg-1") {
+		t.Error("expected claim to return false after forget")
 	}
 }
 
-func TestSkipSelfCheck_RejectsExpiredID(t *testing.T) {
+func TestSelfSkipClaim_RejectsExpiredID(t *testing.T) {
 	c := &trieCache{}
 	expiredID := "expired-msg" //nolint:goconst // test value
-	c.pendingSelfInvalidations.Store(expiredID, time.Now().Add(-2*pendingSelfInvalidationTTL))
+	c.selfSkip.ids.Store(expiredID, time.Now().Add(-2*selfSkipTTL))
 
-	if skipSelfCheck(c, expiredID) {
-		t.Error("expected skipSelfCheck to return false for expired ID")
+	if c.selfSkip.claim(expiredID) {
+		t.Error("expected claim to return false for expired ID")
 	}
 }
 
-func TestCleanupExpiredSelfInvalidations(t *testing.T) {
+func TestSelfSkipSweep(t *testing.T) {
 	c := &trieCache{}
 	now := time.Now()
 	freshID := "fresh-msg"
 	expiredID := "expired-msg" //nolint:goconst // test value
 
-	c.pendingSelfInvalidations.Store(freshID, now)
-	c.pendingSelfInvalidations.Store(expiredID, now.Add(-pendingSelfInvalidationTTL).Add(-time.Second))
+	c.selfSkip.ids.Store(freshID, now)
+	c.selfSkip.ids.Store(expiredID, now.Add(-selfSkipTTL).Add(-time.Second))
 
-	cleanupExpiredSelfInvalidations(c)
+	c.selfSkip.sweep()
 
-	if skipSelfCheck(c, expiredID) {
-		t.Errorf("expected expired self-invalidation %q to be pruned by cleanupExpiredSelfInvalidations", expiredID)
+	if c.selfSkip.claim(expiredID) {
+		t.Errorf("expected expired self-invalidation %q to be pruned by sweep", expiredID)
 	}
-	if !skipSelfCheck(c, freshID) {
-		t.Errorf("expected fresh self-invalidation %q to remain consumable after cleanupExpiredSelfInvalidations", freshID)
+	if !c.selfSkip.claim(freshID) {
+		t.Errorf("expected fresh self-invalidation %q to remain consumable after sweep", freshID)
 	}
-	if skipSelfCheck(c, freshID) {
+	if c.selfSkip.claim(freshID) {
 		t.Errorf("expected fresh self-invalidation %q to be single-consumption", freshID)
 	}
 }
 
-func TestSkipSelfCheck_ConcurrentAccess(t *testing.T) {
+func TestSelfSkipClaim_ConcurrentAccess(t *testing.T) {
 	c := &trieCache{}
 	var wg sync.WaitGroup
 
@@ -195,14 +195,14 @@ func TestSkipSelfCheck_ConcurrentAccess(t *testing.T) {
 		wg.Add(1)
 		go func(msgID string) {
 			defer wg.Done()
-			skipSelfSet(c, msgID)
+			c.selfSkip.add(msgID)
 		}(id)
 
 		for j := 0; j < checksPerID; j++ {
 			wg.Add(1)
 			go func(msgID string) {
 				defer wg.Done()
-				if skipSelfCheck(c, msgID) {
+				if c.selfSkip.claim(msgID) {
 					mu.Lock()
 					truePerID[msgID]++
 					totalTrue++

@@ -4,11 +4,8 @@ package acor
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
-	"fmt"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -16,15 +13,9 @@ import (
 	matchengine "github.com/skyoo2003/acor/internal/engine"
 )
 
-// defaultSelfInvalidationCleanupInterval controls how often cleanupExpiredSelfInvalidations
-// runs relative to publishInvalidate calls. Every N publishes triggers one O(n) sweep.
-const defaultSelfInvalidationCleanupInterval = 128
-
 const maxRetries = 3
 
 const retryBackoffBase = 10 * time.Millisecond
-
-const invalidateIDBytes = 8
 
 // Compile-time check that v2Operations satisfies the operations interface.
 var _ operations = (*v2Operations)(nil)
@@ -33,14 +24,12 @@ var _ operations = (*v2Operations)(nil)
 // It holds all dependencies needed for V2 Aho-Corasick operations without
 // depending directly on the AhoCorasick struct.
 type v2Operations struct {
-	storage                         KVStorage
-	client                          redis.UniversalClient
-	name                            string
-	cache                           *trieCache
-	logger                          Logger
-	selfInvalidationPublishCount    uint64
-	selfInvalidationCleanupInterval uint64
-	caseSensitive                   bool
+	storage       KVStorage
+	client        redis.UniversalClient
+	name          string
+	cache         *trieCache
+	logger        Logger
+	caseSensitive bool
 }
 
 // --- operations interface methods ---
@@ -278,29 +267,20 @@ func (o *v2Operations) loadEngine(ctx context.Context) (*matchengine.Engine, err
 // unique ID to avoid a leakable counter when skipping self-messages.
 func (o *v2Operations) publishInvalidate(ctx context.Context) {
 	channel := invalidateChannelPrefix + o.name
-	b := make([]byte, invalidateIDBytes)
-	if _, err := rand.Read(b); err != nil && o.logger != nil {
-		o.logger.Printf("failed to generate random invalidation ID, using zero bytes: %v", err)
-	}
-	msgID := fmt.Sprintf("%d:%x", time.Now().UnixNano(), b)
-	payload := o.name + ":" + msgID
+	msgID := newInvalidationID()
 
 	if o.cache != nil {
-		skipSelfSet(o.cache, msgID)
-		interval := o.selfInvalidationCleanupInterval
-		if interval == 0 {
-			interval = defaultSelfInvalidationCleanupInterval
-		}
-		if atomic.AddUint64(&o.selfInvalidationPublishCount, 1)%interval == 0 {
-			cleanupExpiredSelfInvalidations(o.cache)
-		}
+		o.cache.selfSkip.add(msgID)
 	}
-	err := o.storage.Publish(ctx, channel, payload)
-	if err != nil && o.cache != nil {
-		skipSelfClear(o.cache, msgID)
-	}
-	if err != nil && o.logger != nil {
-		o.logger.Printf("failed to publish cache invalidation: channel=%s error=%v", channel, err)
+
+	err := o.storage.Publish(ctx, channel, invalidationPayload(o.name, msgID))
+	if err != nil {
+		if o.cache != nil {
+			o.cache.selfSkip.forget(msgID)
+		}
+		if o.logger != nil {
+			o.logger.Printf("failed to publish cache invalidation: channel=%s error=%v", channel, err)
+		}
 	}
 	if o.cache != nil {
 		o.cache.invalidate()
