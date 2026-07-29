@@ -6,7 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/maphash"
 	"strings"
+	"sync"
 	"time"
 
 	redis "github.com/redis/go-redis/v9"
@@ -29,6 +31,53 @@ type v1Operations struct {
 	ac              *AhoCorasick // for trie.go helper access (temporary, cleaned up in T15)
 	caseSensitive   bool
 	rollbackTimeout time.Duration
+	engines         v1EngineMemo
+}
+
+// v1EngineMemo holds the automaton last built for a keyword set, so repeated
+// searches over an unchanged V1 collection skip the rebuild. Building is not
+// cheap — an O(keywords) double-array pack that runs ~14ms for 10k keywords and
+// ~800ms for 100k — and find, findIndex, FindMatches, Contains, FindStream and
+// every FindParallel chunk all go through loadEngine.
+//
+// This is not the V2 cache: the keyword set is still read from Redis on every
+// call, so a peer's write is picked up immediately. Only the rebuild is skipped,
+// and only while the set Redis returns is unchanged.
+type v1EngineMemo struct {
+	mu     sync.Mutex
+	engine *matchengine.Engine
+	digest uint64
+	count  int
+}
+
+// v1DigestSeed keys the keyword-set digest. It is per-process, which is all the
+// memo needs — digests are only ever compared against ones taken in the same
+// process, never persisted or sent over the wire.
+var v1DigestSeed = maphash.MakeSeed()
+
+// engineFor returns the automaton for kws, rebuilding only when the set changed.
+// The digest sums per-member hashes, so it does not depend on the order SMEMBERS
+// happened to return the members in.
+func (m *v1EngineMemo) engineFor(kws []string) *matchengine.Engine {
+	var digest uint64
+	for _, k := range kws {
+		digest += maphash.String(v1DigestSeed, k)
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.engine != nil && m.count == len(kws) && m.digest == digest {
+		return m.engine
+	}
+
+	set := make(map[string]struct{}, len(kws))
+	for _, k := range kws {
+		set[k] = struct{}{}
+	}
+	m.engine = buildEngine(PresetBalanced, set)
+	m.digest = digest
+	m.count = len(kws)
+	return m.engine
 }
 
 // --- operations interface methods ---
@@ -146,10 +195,13 @@ func (o *v1Operations) find(ctx context.Context, text string) ([]string, error) 
 		return nil, newOperationError("find", SchemaV1, err)
 	}
 
-	matched := engine.Find(text)
-	if matched == nil {
-		matched = []string{}
+	// Honor a canceled ctx at the match boundary; the in-memory scan itself isn't
+	// ctx-threaded. Mirrors v2Operations.find.
+	if err := ctx.Err(); err != nil {
+		return nil, newOperationError("find", SchemaV1, err)
 	}
+
+	matched := engine.Find(text)
 	o.logger.Println(fmt.Sprintf("Find(%s) > Matched(%v) : Count(%d)", text, matched, len(matched)))
 	return matched, nil
 }
@@ -167,35 +219,32 @@ func (o *v1Operations) findIndex(ctx context.Context, text string) (map[string][
 		return nil, newOperationError("findIndex", SchemaV1, err)
 	}
 
-	matched := engine.FindIndex(text)
-	if matched == nil {
-		matched = map[string][]int{}
+	// See find: honor an already-canceled/expired ctx before the in-memory match.
+	if err := ctx.Err(); err != nil {
+		return nil, newOperationError("findIndex", SchemaV1, err)
 	}
+
+	matched := engine.FindIndex(text)
 	o.logger.Println(fmt.Sprintf("FindIndex(%s) > Matched(%v) : Count(%d)", text, matched, len(matched)))
 	return matched, nil
 }
 
-// loadEngine builds a fresh in-memory automaton from the V1 keyword set. V1
-// stores keywords already normalized (lowercased when !caseSensitive), so no
-// re-normalization is needed here. Unlike V2 there is no cache, so this is an
-// O(keywords) build per call — acceptable for the legacy schema.
+// loadEngine returns an in-memory automaton for the V1 keyword set. V1 stores
+// keywords already normalized (lowercased when !caseSensitive), so no
+// re-normalization is needed here.
 //
-// Caching the engine here would need the pub/sub invalidation listener, which
-// only runs under EnableCache — and EnableCache with V1 is ErrCacheRequiresV2.
-// Without it a peer's write leaves this instance matching a stale keyword set,
-// so V1 rebuilds instead.
+// The keyword set is re-read on every call rather than cached: a real cache
+// would need the pub/sub invalidation listener, which only runs under
+// EnableCache — and EnableCache with V1 is ErrCacheRequiresV2 — so without the
+// re-read a peer's write would leave this instance matching a stale set. The
+// automaton built from that set is memoized (see v1EngineMemo), which keeps the
+// freshness while skipping the rebuild when nothing changed.
 func (o *v1Operations) loadEngine(ctx context.Context) (*matchengine.Engine, error) {
 	kws, err := o.storage.SMembers(ctx, keywordKey(o.name))
 	if err != nil {
 		return nil, newRedisError("SMEMBERS", keywordKey(o.name), err)
 	}
-	set := make(map[string]struct{}, len(kws))
-	for _, k := range kws {
-		set[k] = struct{}{}
-	}
-	e := matchengine.New(PresetBalanced)
-	e.Build(set)
-	return e, nil
+	return o.engines.engineFor(kws), nil
 }
 
 func (o *v1Operations) flush(_ context.Context) error {

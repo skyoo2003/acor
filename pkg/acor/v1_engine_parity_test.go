@@ -5,7 +5,7 @@ package acor
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"testing"
 
 	miniredis "github.com/alicebob/miniredis/v2"
@@ -16,92 +16,73 @@ import (
 // the two against each other so the swap cannot change what a V1 collection
 // reports.
 
-// v1TrieWalkFind is the pre-refactor V1 matcher, kept here as the reference
-// implementation: goto/fail/output resolved per character against Redis.
-func v1TrieWalkFind(ctx context.Context, ac *AhoCorasick, text string, caseSensitive bool) ([]string, error) {
-	if text == "" {
-		return []string{}, nil
-	}
+// v1TrieWalk is the pre-refactor V1 matcher, kept here as the reference
+// implementation: goto/fail/output resolved per character against Redis. It
+// reports every output with the 1-based rune position it ends at, which is what
+// both pre-refactor entry points were built from — find kept the keywords,
+// findIndex turned each end position into a start offset.
+func v1TrieWalk(ctx context.Context, ac *AhoCorasick, text string, caseSensitive bool) (outputs []string, endIndexes []int, err error) {
 	text = normalizeText(text, caseSensitive)
 
 	state := ""
-	matched := make([]string, 0)
-	for _, char := range text {
+	for runeIndex, char := range []rune(text) {
 		nextState, err := ac.goWithContext(ctx, state, char)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if nextState == "" {
 			nextState, err = ac.failWithContext(ctx, state)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			var afterNextState string
 			afterNextState, err = ac.goWithContext(ctx, nextState, char)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if afterNextState == "" {
 				afterNextState, err = ac.failWithContext(ctx, nextState+string(char))
 				if err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 			}
 			nextState = afterNextState
 		}
 
-		outputs, err := ac.outputWithContext(ctx, nextState)
+		stateOutputs, err := ac.outputWithContext(ctx, nextState)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		matched = append(matched, outputs...)
+		for _, output := range stateOutputs {
+			outputs = append(outputs, output)
+			endIndexes = append(endIndexes, runeIndex+1)
+		}
 		state = nextState
 	}
-	return matched, nil
+	return outputs, endIndexes, nil
 }
 
-// v1TrieWalkFindIndex is v1TrieWalkFind with start offsets, the pre-refactor
-// findIndex.
-func v1TrieWalkFindIndex(ctx context.Context, ac *AhoCorasick, text string, caseSensitive bool) (map[string][]int, error) {
-	if text == "" {
-		return map[string][]int{}, nil
+// v1TrieWalkFind is the pre-refactor V1 find.
+func v1TrieWalkFind(ctx context.Context, ac *AhoCorasick, text string, caseSensitive bool) ([]string, error) {
+	outputs, _, err := v1TrieWalk(ctx, ac, text, caseSensitive)
+	if err != nil {
+		return nil, err
 	}
-	text = normalizeText(text, caseSensitive)
+	if outputs == nil {
+		return []string{}, nil
+	}
+	return outputs, nil
+}
 
+// v1TrieWalkFindIndex is the pre-refactor V1 findIndex.
+func v1TrieWalkFindIndex(ctx context.Context, ac *AhoCorasick, text string, caseSensitive bool) (map[string][]int, error) {
+	outputs, endIndexes, err := v1TrieWalk(ctx, ac, text, caseSensitive)
+	if err != nil {
+		return nil, err
+	}
 	matched := make(map[string][]int)
-	state := ""
-	runeIndex := 0
-	for _, char := range text {
-		nextState, err := ac.goWithContext(ctx, state, char)
-		if err != nil {
-			return nil, err
-		}
-		if nextState == "" {
-			nextState, err = ac.failWithContext(ctx, state)
-			if err != nil {
-				return nil, err
-			}
-			var afterNextState string
-			afterNextState, err = ac.goWithContext(ctx, nextState, char)
-			if err != nil {
-				return nil, err
-			}
-			if afterNextState == "" {
-				afterNextState, err = ac.failWithContext(ctx, nextState+string(char))
-				if err != nil {
-					return nil, err
-				}
-			}
-			nextState = afterNextState
-		}
-
-		outputs, err := ac.outputWithContext(ctx, nextState)
-		if err != nil {
-			return nil, err
-		}
-		ac.appendMatchedIndexesWithContext(ctx, matched, outputs, runeIndex+1)
-		state = nextState
-		runeIndex++
+	for i, output := range outputs {
+		ac.appendMatchedIndexesWithContext(ctx, matched, []string{output}, endIndexes[i])
 	}
 	return matched, nil
 }
@@ -142,6 +123,13 @@ var parityCases = []struct {
 		name:     "mixed case",
 		keywords: []string{"GoLang", "HTTPServer"},
 		texts:    []string{"GoLang and HTTPServer", "golang and httpserver", "GOLANG", "a GoLang httpserver"},
+	},
+	{
+		// An empty collection is the one input where the engine has no states at
+		// all and reports nothing; both paths must still return empty, not nil.
+		name:     "no keywords",
+		keywords: nil,
+		texts:    []string{"anything at all", ""},
 	},
 }
 
@@ -189,7 +177,7 @@ func TestV1FindMatchesTrieWalk(t *testing.T) {
 						}
 						// The trie walk emits per end position, the engine per scan
 						// position; both report the same multiset of matches.
-						if !sameMultiset(got, want) {
+						if !equalStringSets(got, want) {
 							t.Errorf("find(%q) = %v, trie walk = %v", text, got, want)
 						}
 					}
@@ -217,7 +205,7 @@ func TestV1FindIndexMatchesTrieWalk(t *testing.T) {
 							t.Fatalf("findIndex(%q): %v", text, err)
 						}
 						if len(got) != len(want) {
-							t.Fatalf("findIndex(%q) = %v, trie walk = %v", text, got, want)
+							t.Errorf("findIndex(%q) = %v, trie walk = %v", text, got, want)
 						}
 						for kw, wantIdx := range want {
 							gotIdx, ok := got[kw]
@@ -236,34 +224,40 @@ func TestV1FindIndexMatchesTrieWalk(t *testing.T) {
 	}
 }
 
-func sameMultiset(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
+// TestV1EngineMemoReusesUnchangedSet pins both branches of the memo: an
+// unchanged keyword set must hand back the same automaton (the rebuild is the
+// expensive part of a V1 search), and a changed one must not.
+func TestV1EngineMemoReusesUnchangedSet(t *testing.T) {
+	ac := newV1Parity(t, []string{"he", "she"}, false)
+	ctx := context.Background()
+
+	first, err := ac.ops.loadEngine(ctx)
+	if err != nil {
+		t.Fatalf("loadEngine: %v", err)
 	}
-	as := append([]string(nil), a...)
-	bs := append([]string(nil), b...)
-	sort.Strings(as)
-	sort.Strings(bs)
-	for i := range as {
-		if as[i] != bs[i] {
-			return false
-		}
+	second, err := ac.ops.loadEngine(ctx)
+	if err != nil {
+		t.Fatalf("loadEngine (repeat): %v", err)
 	}
-	return true
+	if first != second {
+		t.Error("loadEngine rebuilt the automaton for an unchanged keyword set")
+	}
+
+	if _, addErr := ac.Add("hers"); addErr != nil {
+		t.Fatalf("Add: %v", addErr)
+	}
+	third, err := ac.ops.loadEngine(ctx)
+	if err != nil {
+		t.Fatalf("loadEngine (after add): %v", err)
+	}
+	if third == second {
+		t.Fatal("loadEngine reused the automaton after the keyword set changed")
+	}
+	if got := third.Find("hers"); !equalStringSets(got, []string{"he", "hers"}) {
+		t.Errorf("Find(%q) = %v, want [he hers]", "hers", got)
+	}
 }
 
 func sameIntSet(a, b []int) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	as := append([]int(nil), a...)
-	bs := append([]int(nil), b...)
-	sort.Ints(as)
-	sort.Ints(bs)
-	for i := range as {
-		if as[i] != bs[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(slices.Sorted(slices.Values(a)), slices.Sorted(slices.Values(b)))
 }
