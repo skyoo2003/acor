@@ -4,8 +4,8 @@ package acor
 
 import (
 	"context"
+	"fmt"
 	"sort"
-	"strings"
 	"testing"
 
 	miniredis "github.com/alicebob/miniredis/v2"
@@ -22,9 +22,7 @@ func v1TrieWalkFind(ctx context.Context, ac *AhoCorasick, text string, caseSensi
 	if text == "" {
 		return []string{}, nil
 	}
-	if !caseSensitive {
-		text = strings.ToLower(text)
-	}
+	text = normalizeText(text, caseSensitive)
 
 	state := ""
 	matched := make([]string, 0)
@@ -68,9 +66,7 @@ func v1TrieWalkFindIndex(ctx context.Context, ac *AhoCorasick, text string, case
 	if text == "" {
 		return map[string][]int{}, nil
 	}
-	if !caseSensitive {
-		text = strings.ToLower(text)
-	}
+	text = normalizeText(text, caseSensitive)
 
 	matched := make(map[string][]int)
 	state := ""
@@ -140,15 +136,26 @@ var parityCases = []struct {
 		keywords: []string{"x", "y"},
 		texts:    []string{"xyxy", "zzz"},
 	},
+	{
+		// Case-sensitive mode stores these verbatim, so only the exact-case text
+		// matches; case-insensitive mode matches all four.
+		name:     "mixed case",
+		keywords: []string{"GoLang", "HTTPServer"},
+		texts:    []string{"GoLang and HTTPServer", "golang and httpserver", "GOLANG", "a GoLang httpserver"},
+	},
 }
 
-func newV1Parity(t *testing.T, keywords []string) *AhoCorasick {
+// caseModes are the two normalization modes every parity case runs under.
+var caseModes = []bool{false, true}
+
+func newV1Parity(t *testing.T, keywords []string, caseSensitive bool) *AhoCorasick {
 	t.Helper()
 	mr := miniredis.RunT(t)
 	ac, err := Create(&AhoCorasickArgs{
 		Addr:          mr.Addr(),
 		Name:          "parity",
 		SchemaVersion: SchemaV1,
+		CaseSensitive: caseSensitive,
 	})
 	if err != nil {
 		t.Fatalf("Create V1: %v", err)
@@ -164,58 +171,66 @@ func newV1Parity(t *testing.T, keywords []string) *AhoCorasick {
 }
 
 func TestV1FindMatchesTrieWalk(t *testing.T) {
-	for _, tc := range parityCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ac := newV1Parity(t, tc.keywords)
-			ctx := context.Background()
+	for _, caseSensitive := range caseModes {
+		t.Run(fmt.Sprintf("caseSensitive=%t", caseSensitive), func(t *testing.T) {
+			for _, tc := range parityCases {
+				t.Run(tc.name, func(t *testing.T) {
+					ac := newV1Parity(t, tc.keywords, caseSensitive)
+					ctx := context.Background()
 
-			for _, text := range tc.texts {
-				want, err := v1TrieWalkFind(ctx, ac, text, false)
-				if err != nil {
-					t.Fatalf("trie walk find(%q): %v", text, err)
-				}
-				got, err := ac.ops.find(ctx, text)
-				if err != nil {
-					t.Fatalf("find(%q): %v", text, err)
-				}
-				// The trie walk emits per end position, the engine per scan
-				// position; both report the same multiset of matches.
-				if !sameMultiset(got, want) {
-					t.Errorf("find(%q) = %v, trie walk = %v", text, got, want)
-				}
+					for _, text := range tc.texts {
+						want, err := v1TrieWalkFind(ctx, ac, text, caseSensitive)
+						if err != nil {
+							t.Fatalf("trie walk find(%q): %v", text, err)
+						}
+						got, err := ac.ops.find(ctx, text)
+						if err != nil {
+							t.Fatalf("find(%q): %v", text, err)
+						}
+						// The trie walk emits per end position, the engine per scan
+						// position; both report the same multiset of matches.
+						if !sameMultiset(got, want) {
+							t.Errorf("find(%q) = %v, trie walk = %v", text, got, want)
+						}
+					}
+				})
 			}
 		})
 	}
 }
 
 func TestV1FindIndexMatchesTrieWalk(t *testing.T) {
-	for _, tc := range parityCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ac := newV1Parity(t, tc.keywords)
-			ctx := context.Background()
+	for _, caseSensitive := range caseModes {
+		t.Run(fmt.Sprintf("caseSensitive=%t", caseSensitive), func(t *testing.T) {
+			for _, tc := range parityCases {
+				t.Run(tc.name, func(t *testing.T) {
+					ac := newV1Parity(t, tc.keywords, caseSensitive)
+					ctx := context.Background()
 
-			for _, text := range tc.texts {
-				want, err := v1TrieWalkFindIndex(ctx, ac, text, false)
-				if err != nil {
-					t.Fatalf("trie walk findIndex(%q): %v", text, err)
-				}
-				got, err := ac.ops.findIndex(ctx, text)
-				if err != nil {
-					t.Fatalf("findIndex(%q): %v", text, err)
-				}
-				if len(got) != len(want) {
-					t.Fatalf("findIndex(%q) = %v, trie walk = %v", text, got, want)
-				}
-				for kw, wantIdx := range want {
-					gotIdx, ok := got[kw]
-					if !ok {
-						t.Errorf("findIndex(%q) missing keyword %q (trie walk found it at %v)", text, kw, wantIdx)
-						continue
+					for _, text := range tc.texts {
+						want, err := v1TrieWalkFindIndex(ctx, ac, text, caseSensitive)
+						if err != nil {
+							t.Fatalf("trie walk findIndex(%q): %v", text, err)
+						}
+						got, err := ac.ops.findIndex(ctx, text)
+						if err != nil {
+							t.Fatalf("findIndex(%q): %v", text, err)
+						}
+						if len(got) != len(want) {
+							t.Fatalf("findIndex(%q) = %v, trie walk = %v", text, got, want)
+						}
+						for kw, wantIdx := range want {
+							gotIdx, ok := got[kw]
+							if !ok {
+								t.Errorf("findIndex(%q) missing keyword %q (trie walk found it at %v)", text, kw, wantIdx)
+								continue
+							}
+							if !sameIntSet(gotIdx, wantIdx) {
+								t.Errorf("findIndex(%q)[%q] = %v, trie walk = %v", text, kw, gotIdx, wantIdx)
+							}
+						}
 					}
-					if !sameIntSet(gotIdx, wantIdx) {
-						t.Errorf("findIndex(%q)[%q] = %v, trie walk = %v", text, kw, gotIdx, wantIdx)
-					}
-				}
+				})
 			}
 		})
 	}

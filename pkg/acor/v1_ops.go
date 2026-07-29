@@ -179,6 +179,11 @@ func (o *v1Operations) findIndex(ctx context.Context, text string) (map[string][
 // stores keywords already normalized (lowercased when !caseSensitive), so no
 // re-normalization is needed here. Unlike V2 there is no cache, so this is an
 // O(keywords) build per call — acceptable for the legacy schema.
+//
+// Caching the engine here would need the pub/sub invalidation listener, which
+// only runs under EnableCache — and EnableCache with V1 is ErrCacheRequiresV2.
+// Without it a peer's write leaves this instance matching a stale keyword set,
+// so V1 rebuilds instead.
 func (o *v1Operations) loadEngine(ctx context.Context) (*matchengine.Engine, error) {
 	kws, err := o.storage.SMembers(ctx, keywordKey(o.name))
 	if err != nil {
