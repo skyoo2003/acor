@@ -6,8 +6,9 @@ import (
 	"context"
 	"runtime"
 	"sort"
-	"sync"
 	"unicode"
+
+	"golang.org/x/sync/errgroup"
 )
 
 type chunk struct {
@@ -115,97 +116,37 @@ func dedupPreservingOrder(in []string) []string {
 	return out
 }
 
-//nolint:gocritic // Returns channels for concurrent result collection
-func runStringWorkers(ac *AhoCorasick, chunks []chunk, workers int) (<-chan indexedStringResult, <-chan error) {
-	return runStringWorkersCtx(ac.ctx, ac, chunks, workers)
-}
+// scanChunks runs scan over every chunk with at most workers running at once,
+// writing each result into its own slot so the output keeps chunk order without
+// a sort. It returns the first error any chunk reported.
+func scanChunks[T any](ctx context.Context, chunks []chunk, workers int, scan func(context.Context, chunk) (T, error)) ([]T, error) {
+	results := make([]T, len(chunks))
 
-//nolint:gocritic // Returns channels for concurrent result collection
-func runStringWorkersCtx(ctx context.Context, ac *AhoCorasick, chunks []chunk, workers int) (<-chan indexedStringResult, <-chan error) {
-	results := make(chan indexedStringResult, len(chunks))
-	errors := make(chan error, len(chunks))
-
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, workers)
-
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(workers)
 	for i, c := range chunks {
-		select {
-		case <-ctx.Done():
-			wg.Wait()
-			close(results)
-			close(errors)
-			return results, errors
-		default:
-		}
-		wg.Add(1)
-		sem <- struct{}{}
-		go func(i int, c chunk) {
-			defer func() { <-sem }()
-			defer wg.Done()
-			matches, err := ac.ops.find(ctx, c.text)
+		g.Go(func() error {
+			res, err := scan(gctx, c)
 			if err != nil {
-				errors <- err
-				return
+				return err
 			}
-			results <- indexedStringResult{matches: matches, chunkIndex: i}
-		}(i, c)
+			results[i] = res
+			return nil
+		})
 	}
-
-	go func() {
-		wg.Wait()
-		close(results)
-		close(errors)
-	}()
-
-	return results, errors
-}
-
-// collectOrderedStringResults collects matches preserving chunk order and
-// deduplicating across chunks (a keyword appears at most once), matching the
-// FindParallel contract.
-func collectOrderedStringResults(results <-chan indexedStringResult, errors <-chan error) ([]string, error) {
-	var allChunkResults []indexedStringResult
-	var firstErr error
-
-	resultsOpen, errorsOpen := true, true
-
-	for resultsOpen || errorsOpen {
-		select {
-		case err, ok := <-errors:
-			if !ok {
-				errorsOpen = false
-				continue
-			}
-			if firstErr == nil {
-				firstErr = err
-			}
-		case res, ok := <-results:
-			if !ok {
-				resultsOpen = false
-				continue
-			}
-			allChunkResults = append(allChunkResults, res)
-		}
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
-
-	sort.Slice(allChunkResults, func(i, j int) bool {
-		return allChunkResults[i].chunkIndex < allChunkResults[j].chunkIndex
-	})
-
-	var allMatches []string
-	for _, r := range allChunkResults {
-		allMatches = append(allMatches, r.matches...)
-	}
-
-	return dedupPreservingOrder(allMatches), firstErr
+	return results, nil
 }
 
 // FindParallel searches for keywords in text using parallel processing.
 // The text is split into chunks processed by multiple goroutines, which can
 // significantly improve performance for very large texts.
 //
-// If opts is nil, DefaultParallelOptions() is used. For small texts that fit
-// within a single chunk, this method delegates to Find without parallelization.
+// If opts is nil, DefaultParallelOptions() is used. A text that fits within a
+// single chunk is scanned by a single worker, so it pays no parallelization cost
+// while still returning the same shape as a multi-chunk scan.
 //
 // Note: Due to chunk overlap for boundary handling, duplicate matches are
 // automatically deduplicated in the returned slice, so each keyword appears at
@@ -226,122 +167,7 @@ func collectOrderedStringResults(results <-chan indexedStringResult, errors <-ch
 //	}
 //	matches, err := ac.FindParallel(largeLogFile, opts)
 func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]string, error) {
-	opts = normalizeParallelOptions(opts)
-	if opts.ChunkSize <= 0 {
-		return nil, ErrInvalidChunkSize
-	}
-
-	chunks := splitChunks(text, opts)
-	if len(chunks) == 0 {
-		return []string{}, nil
-	}
-	if len(chunks) == 1 {
-		// Match the multi-chunk contract: dedup so the result set doesn't depend
-		// on whether the text fit in one chunk.
-		matches, err := ac.Find(text)
-		if err != nil {
-			return nil, err
-		}
-		return dedupPreservingOrder(matches), nil
-	}
-
-	results, errors := runStringWorkers(ac, chunks, opts.Workers)
-	allMatches, err := collectOrderedStringResults(results, errors)
-	if err != nil {
-		return nil, err
-	}
-	return allMatches, nil
-}
-
-type indexedResult struct {
-	matches map[string][]int
-	offset  int
-}
-
-type indexedStringResult struct {
-	matches    []string
-	chunkIndex int
-}
-
-//nolint:gocritic // Returns channels for concurrent result collection
-func runIndexWorkers(ac *AhoCorasick, chunks []chunk, workers int) (<-chan indexedResult, <-chan error) {
-	return runIndexWorkersCtx(ac.ctx, ac, chunks, workers)
-}
-
-//nolint:gocritic // Returns channels for concurrent result collection
-func runIndexWorkersCtx(ctx context.Context, ac *AhoCorasick, chunks []chunk, workers int) (<-chan indexedResult, <-chan error) {
-	results := make(chan indexedResult, len(chunks))
-	errors := make(chan error, len(chunks))
-
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, workers)
-
-	for _, c := range chunks {
-		select {
-		case <-ctx.Done():
-			wg.Wait()
-			close(results)
-			close(errors)
-			return results, errors
-		default:
-		}
-		wg.Add(1)
-		sem <- struct{}{}
-		go func(c chunk) {
-			defer func() { <-sem }()
-			defer wg.Done()
-			matches, err := ac.ops.findIndex(ctx, c.text)
-			if err != nil {
-				errors <- err
-				return
-			}
-			results <- indexedResult{matches: matches, offset: c.textOffset}
-		}(c)
-	}
-
-	go func() {
-		wg.Wait()
-		close(results)
-		close(errors)
-	}()
-
-	return results, errors
-}
-
-func collectIndexResults(results <-chan indexedResult, errors <-chan error) (map[string]map[int]struct{}, error) {
-	allMatches := make(map[string]map[int]struct{})
-	var firstErr error
-
-	resultsOpen, errorsOpen := true, true
-
-	for resultsOpen || errorsOpen {
-		select {
-		case err, ok := <-errors:
-			if !ok {
-				errorsOpen = false
-				continue
-			}
-			if firstErr == nil {
-				firstErr = err
-			}
-		case res, ok := <-results:
-			if !ok {
-				resultsOpen = false
-				continue
-			}
-			for keyword, indices := range res.matches {
-				if allMatches[keyword] == nil {
-					allMatches[keyword] = make(map[int]struct{})
-				}
-				for _, idx := range indices {
-					adjustedIdx := idx + res.offset
-					allMatches[keyword][adjustedIdx] = struct{}{}
-				}
-			}
-		}
-	}
-
-	return allMatches, firstErr
+	return ac.FindParallelContext(ac.ctx, text, opts)
 }
 
 // FindIndexParallel searches for keywords with indices using parallel processing.
@@ -365,33 +191,36 @@ func collectIndexResults(results <-chan indexedResult, errors <-chan error) (map
 //	    fmt.Printf("%s found at: %v\n", keyword, indices)
 //	}
 func (ac *AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (map[string][]int, error) {
-	opts = normalizeParallelOptions(opts)
-	if opts.ChunkSize <= 0 {
-		return nil, ErrInvalidChunkSize
-	}
+	return ac.FindIndexParallelContext(ac.ctx, text, opts)
+}
 
-	chunks := splitChunks(text, opts)
-	if len(chunks) == 0 {
-		return map[string][]int{}, nil
-	}
-	if len(chunks) == 1 {
-		return ac.FindIndex(text)
-	}
-
-	results, errors := runIndexWorkers(ac, chunks, opts.Workers)
-	allMatches, err := collectIndexResults(results, errors)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make(map[string][]int)
-	for keyword, indices := range allMatches {
-		sortedIndices := make([]int, 0, len(indices))
-		for idx := range indices {
-			sortedIndices = append(sortedIndices, idx)
+// mergeIndexResults folds per-chunk index maps into one, shifting each chunk's
+// offsets back into the original text and dropping the duplicates that chunk
+// overlap produces. Indices come back sorted.
+//
+// perChunk must be index-aligned with chunks; scanChunks guarantees this by
+// building its result slice from the same chunks it was handed.
+func mergeIndexResults(chunks []chunk, perChunk []map[string][]int) map[string][]int {
+	merged := make(map[string]map[int]struct{})
+	for i, matches := range perChunk {
+		for keyword, indices := range matches {
+			if merged[keyword] == nil {
+				merged[keyword] = make(map[int]struct{})
+			}
+			for _, idx := range indices {
+				merged[keyword][idx+chunks[i].textOffset] = struct{}{}
+			}
 		}
-		sort.Ints(sortedIndices)
-		result[keyword] = sortedIndices
 	}
-	return result, nil
+
+	result := make(map[string][]int, len(merged))
+	for keyword, indices := range merged {
+		sorted := make([]int, 0, len(indices))
+		for idx := range indices {
+			sorted = append(sorted, idx)
+		}
+		sort.Ints(sorted)
+		result[keyword] = sorted
+	}
+	return result
 }

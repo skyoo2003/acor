@@ -156,6 +156,13 @@ func (ac *redisBackedAC) find(ctx context.Context, text string) ([]string, error
 	if err != nil {
 		return nil, err
 	}
+
+	// Honor a canceled ctx at the match boundary; the in-memory scan itself isn't
+	// ctx-threaded, and loadEngine returns without touching Redis on a warm engine.
+	// Mirrors v2Operations.find.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return e.Find(text), nil
 }
 
@@ -168,6 +175,11 @@ func (ac *redisBackedAC) findIndex(ctx context.Context, text string) (map[string
 
 	e, err := ac.loadEngine(ctx)
 	if err != nil {
+		return nil, err
+	}
+
+	// See find: honor an already-canceled/expired ctx before the in-memory match.
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	return e.FindIndex(text), nil

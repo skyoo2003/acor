@@ -312,6 +312,9 @@ func TestFindParallelEdgeCases(t *testing.T) {
 		{"sentence boundaries", "test hello world.", &ParallelOptions{Workers: 2, ChunkSize: 10, Boundary: ChunkBoundarySentence}},
 		{"nil options uses defaults", "test hello world", nil},
 		{"single worker", "test hello world", &ParallelOptions{Workers: 1, ChunkSize: 100}},
+		// Repeats inside one chunk: Find reports every occurrence, FindParallel a set.
+		{"repeated keyword single chunk", "test test hello test", &ParallelOptions{Workers: 2, ChunkSize: 100}},
+		{"repeated keyword multi chunk", "test hello world test hello world", &ParallelOptions{Workers: 2, ChunkSize: 10, Overlap: 5}},
 	}
 
 	for _, tt := range tests {
@@ -321,13 +324,16 @@ func TestFindParallelEdgeCases(t *testing.T) {
 				t.Errorf("FindParallel() error: %v", err)
 			}
 
-			// Compare against sequential Find to ensure parallel results match.
+			// FindParallel returns a set (first-seen order); Find returns every
+			// occurrence. Dedup the sequential result before comparing, otherwise this
+			// only passes for texts that happen not to repeat a keyword.
 			sequential, seqErr := ac.Find(tt.text)
 			if seqErr != nil {
 				t.Fatalf("sequential Find() error: %v", seqErr)
 			}
-			if !reflect.DeepEqual(results, sequential) {
-				t.Errorf("FindParallel() = %v, want sequential Find() = %v", results, sequential)
+			want := dedupPreservingOrder(sequential)
+			if !reflect.DeepEqual(results, want) {
+				t.Errorf("FindParallel() = %v, want dedup(sequential Find()) = %v", results, want)
 			}
 		})
 	}

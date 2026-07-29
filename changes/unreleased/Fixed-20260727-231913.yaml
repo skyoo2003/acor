@@ -1,0 +1,6 @@
+kind: Fixed
+body: |-
+    `FindParallelContext` now deduplicates its results for short texts, matching `FindParallel` and the documented contract that each keyword appears at most once. Previously a text that fit in a single chunk took a shortcut that returned every occurrence, so the result shape depended on the input length.
+time: 2026-07-27T23:19:13.000000+09:00
+custom:
+    Issue: "172"
