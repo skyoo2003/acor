@@ -27,7 +27,7 @@ func toJSONOrFatal(tb testing.TB, v interface{}) string {
 func BenchmarkFindV1(b *testing.B) {
 	mr := miniredis.RunT(b)
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	_ = client.ZAdd(context.Background(), "{bench}:prefix", redis.Z{Score: 0, Member: ""}).Err()
 	_ = client.Close()
 
@@ -58,7 +58,7 @@ func BenchmarkFindV1(b *testing.B) {
 
 func BenchmarkFindV2(b *testing.B) {
 	mr := miniredis.RunT(b)
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	keywords := []string{"he", "she", "his", "hers", "hello", "world", "benchmark"}
@@ -106,7 +106,7 @@ func BenchmarkFindV2(b *testing.B) {
 func BenchmarkAddV1(b *testing.B) {
 	mr := miniredis.RunT(b)
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	_ = client.ZAdd(context.Background(), "{bench}:prefix", redis.Z{Score: 0, Member: ""}).Err()
 	_ = client.Close()
 
@@ -142,7 +142,7 @@ func BenchmarkAddV2(b *testing.B) {
 	}
 	defer func() { _ = ac.Close() }()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	_ = client.HSet(context.Background(), "{bench}:trie", map[string]interface{}{
 		"keywords": "[]",
 		"prefixes": `[""]`,

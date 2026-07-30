@@ -7,13 +7,11 @@ import (
 	"io"
 	"log"
 	"testing"
-
-	redis "github.com/redis/go-redis/v9"
 )
 
 func TestV2Find(t *testing.T) {
 	mr := createTestRedisServer(t)
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	storage := newRedisStorage(client)

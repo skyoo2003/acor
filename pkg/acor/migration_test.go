@@ -13,7 +13,7 @@ import (
 
 func TestMigrateV1ToV2(t *testing.T) {
 	s := miniredis.RunT(t)
-	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
+	client := newTestRedisClient(s.Addr())
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
@@ -90,7 +90,7 @@ func TestMigrateV1ToV2(t *testing.T) {
 
 func TestMigrateAlreadyV2(t *testing.T) {
 	s := miniredis.RunT(t)
-	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
+	client := newTestRedisClient(s.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", "version", "123")
@@ -109,7 +109,7 @@ func TestMigrateAlreadyV2(t *testing.T) {
 
 func TestMigrateNoData(t *testing.T) {
 	s := miniredis.RunT(t)
-	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
+	client := newTestRedisClient(s.Addr())
 	defer func() { _ = client.Close() }()
 
 	ac := &AhoCorasick{
@@ -126,7 +126,7 @@ func TestMigrateNoData(t *testing.T) {
 
 func TestMigrationProgress(t *testing.T) {
 	s := miniredis.RunT(t)
-	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
+	client := newTestRedisClient(s.Addr())
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
@@ -163,7 +163,7 @@ func TestMigrationProgress(t *testing.T) {
 
 func TestRollbackToV1(t *testing.T) {
 	s := miniredis.RunT(t)
-	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
+	client := newTestRedisClient(s.Addr())
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
@@ -206,7 +206,7 @@ func TestRollbackToV1(t *testing.T) {
 
 func TestRollbackToV1NoV1Keys(t *testing.T) {
 	s := miniredis.RunT(t)
-	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
+	client := newTestRedisClient(s.Addr())
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()

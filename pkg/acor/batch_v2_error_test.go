@@ -7,14 +7,13 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	redis "github.com/redis/go-redis/v9"
 )
 
 func TestV2TryAddBadKeywordsJSON(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
@@ -36,7 +35,7 @@ func TestV2TryRemoveBadKeywordsJSON(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
@@ -58,7 +57,7 @@ func TestV2TryRemoveVersionFallback(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
@@ -80,7 +79,7 @@ func TestV2TryAddVersionFallback(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
@@ -103,8 +102,8 @@ func TestV2FindIndexError(t *testing.T) {
 	mr.Close()
 
 	ops := &v2Operations{
-		storage: newRedisStorage(redis.NewClient(&redis.Options{Addr: "localhost:1"})),
-		client:  redis.NewClient(&redis.Options{Addr: "localhost:1"}),
+		storage: newRedisStorage(newTestRedisClient("localhost:1")),
+		client:  newTestRedisClient("localhost:1"),
 		name:    "test",
 		cache:   nil,
 		logger:  &testLogger{},
@@ -123,8 +122,8 @@ func TestV2GetOrLoadEngineError(t *testing.T) {
 
 	cache := &trieCache{}
 	ops := &v2Operations{
-		storage: newRedisStorage(redis.NewClient(&redis.Options{Addr: "localhost:1"})),
-		client:  redis.NewClient(&redis.Options{Addr: "localhost:1"}),
+		storage: newRedisStorage(newTestRedisClient("localhost:1")),
+		client:  newTestRedisClient("localhost:1"),
 		name:    "test",
 		cache:   cache,
 		logger:  &testLogger{},
@@ -142,8 +141,8 @@ func TestV2FlushError(t *testing.T) {
 	mr.Close()
 
 	ops := &v2Operations{
-		storage: newRedisStorage(redis.NewClient(&redis.Options{Addr: "localhost:1"})),
-		client:  redis.NewClient(&redis.Options{Addr: "localhost:1"}),
+		storage: newRedisStorage(newTestRedisClient("localhost:1")),
+		client:  newTestRedisClient("localhost:1"),
 		name:    "test",
 		cache:   &trieCache{},
 		logger:  &testLogger{},
@@ -160,7 +159,7 @@ func TestV2InfoBadPrefixesJSON(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
@@ -183,8 +182,8 @@ func TestV2SuggestError(t *testing.T) {
 	mr.Close()
 
 	ops := &v2Operations{
-		storage: newRedisStorage(redis.NewClient(&redis.Options{Addr: addr})),
-		client:  redis.NewClient(&redis.Options{Addr: addr}),
+		storage: newRedisStorage(newTestRedisClient(addr)),
+		client:  newTestRedisClient(addr),
 		name:    "test",
 		logger:  &testLogger{},
 	}
@@ -202,8 +201,8 @@ func TestV2SuggestIndexError(t *testing.T) {
 	mr.Close()
 
 	ops := &v2Operations{
-		storage: newRedisStorage(redis.NewClient(&redis.Options{Addr: addr})),
-		client:  redis.NewClient(&redis.Options{Addr: addr}),
+		storage: newRedisStorage(newTestRedisClient(addr)),
+		client:  newTestRedisClient(addr),
 		name:    "test",
 		logger:  &testLogger{},
 	}

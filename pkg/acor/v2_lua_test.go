@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	redis "github.com/redis/go-redis/v9"
 )
 
 // largeVersionAbove2to53 is a version value above 2^53 used by int64 safety tests.
@@ -95,7 +94,7 @@ func TestLuaScriptInt64SafetyAdd(t *testing.T) {
 	ctx := context.Background()
 	seedV2Trie(t, mr, []string{"he", "she"})
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 	if err := client.HSet(ctx, trieKey("test"), "version", largeVersionAbove2to53).Err(); err != nil {
 		t.Fatal(err)
@@ -133,7 +132,7 @@ func TestLuaScriptInt64SafetyRemove(t *testing.T) {
 	ctx := context.Background()
 	seedV2Trie(t, mr, []string{"he", "she"})
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 	if err := client.HSet(ctx, trieKey("test"), "version", largeVersionAbove2to53).Err(); err != nil {
 		t.Fatal(err)

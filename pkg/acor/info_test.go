@@ -126,7 +126,7 @@ func TestV1V2Compatibility(t *testing.T) {
 		"ushers",
 	}
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	if err := client.ZAdd(context.Background(), "{v1test}:prefix", redis.Z{Score: 0, Member: ""}).Err(); err != nil {
 		t.Fatalf("failed to seed V1 prefix: %v", err)
 	}

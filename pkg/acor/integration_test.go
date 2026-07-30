@@ -173,7 +173,7 @@ func TestIntegrationMigration(t *testing.T) {
 	addr := integrationAddr(t)
 	const name = "acor-it-migrate"
 
-	client := redis.NewClient(&redis.Options{Addr: addr})
+	client := newTestRedisClient(addr)
 	defer func() { _ = client.Close() }()
 	ctx := context.Background()
 

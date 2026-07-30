@@ -7,13 +7,12 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	redis "github.com/redis/go-redis/v9"
 )
 
 func newTestV2Ops(t *testing.T, mr *miniredis.Miniredis) *v2Operations {
 	t.Helper()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	store := newRedisStorage(client)
 
 	return &v2Operations{
@@ -28,7 +27,7 @@ func newTestV2Ops(t *testing.T, mr *miniredis.Miniredis) *v2Operations {
 func seedV2Trie(t *testing.T, mr *miniredis.Miniredis, keywords []string) {
 	t.Helper()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	ops := newTestV2Ops(t, mr)
@@ -401,7 +400,7 @@ func TestV2FlushWithNodes(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
@@ -562,7 +561,7 @@ func TestV2FetchTrieDataBadJSON(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
@@ -587,7 +586,7 @@ func TestV2FetchTrieDataBadOutputsJSON(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
@@ -616,7 +615,7 @@ func TestV2TryAddBadPrefixesJSON(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
@@ -644,7 +643,7 @@ func TestV2LegacySuffixesFieldIgnored(t *testing.T) {
 
 	ctx := context.Background()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(ctx, "{test}:trie", map[string]interface{}{
@@ -695,7 +694,7 @@ func TestPresetFlushDropsLegacySuffixes(t *testing.T) {
 	}
 	defer func() { _ = ac.Close() }()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	if hsetErr := client.HSet(ctx, "{test}:trie", "suffixes", "not-json").Err(); hsetErr != nil {
@@ -719,7 +718,7 @@ func TestV2TryRemoveBadPrefixesJSON(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
@@ -741,7 +740,7 @@ func TestV2InfoBadJSON(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
@@ -762,7 +761,7 @@ func TestV2SuggestBadJSON(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{

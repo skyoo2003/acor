@@ -7,14 +7,13 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	redis "github.com/redis/go-redis/v9"
 )
 
 func TestRollbackRemovedWithLogger(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	log := &testLogger{}
@@ -43,7 +42,7 @@ func TestRollbackAddedWithLogger(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	log := &testLogger{}

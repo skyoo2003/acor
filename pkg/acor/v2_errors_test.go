@@ -8,15 +8,13 @@ import (
 	"io"
 	"log"
 	"testing"
-
-	redis "github.com/redis/go-redis/v9"
 )
 
 func setupV2WithError(t *testing.T) *AhoCorasick {
 	t.Helper()
 
 	mr := createTestRedisServer(t)
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 
 	if err := client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
 		"keywords": `["he","she"]`,

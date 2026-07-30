@@ -179,7 +179,7 @@ func TestStorageAdapterMethods(t *testing.T) {
 	}
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	storage := newRedisStorage(client)
@@ -291,7 +291,7 @@ func TestStorageDel(t *testing.T) {
 	}
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	storage := newRedisStorage(client)
