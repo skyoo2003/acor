@@ -4,7 +4,6 @@ package logging
 
 import (
 	"io"
-	"strings"
 
 	"github.com/rs/zerolog"
 )
@@ -20,7 +19,7 @@ type Logger struct {
 func NewLogger(w io.Writer, level string) *Logger {
 	zl := zerolog.New(w).With().Timestamp().Logger()
 
-	parsed, err := zerolog.ParseLevel(strings.ToLower(level))
+	parsed, err := zerolog.ParseLevel(level)
 	if err != nil || parsed == zerolog.NoLevel {
 		parsed = zerolog.InfoLevel
 	}
