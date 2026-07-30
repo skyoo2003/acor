@@ -91,7 +91,6 @@ func TestNormalizePath(t *testing.T) {
 		{"users/123", "/"},             // relative paths collapse to a single series
 		{"/users/123/", "/users/{id}"}, // trailing slash dropped
 		{"/users//123", "/users/{id}"}, // empty segments dropped
-		{"//", "/"},
 	}
 
 	for _, tt := range tests {

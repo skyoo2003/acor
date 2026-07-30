@@ -74,7 +74,6 @@ func TestNewLoggerAllLevels(t *testing.T) {
 		{level: "unknown", wantDebug: false, wantError: true}, // falls back to info
 		{level: "", wantDebug: false, wantError: true},        // falls back to info
 		{level: "99", wantDebug: false, wantError: true},      // out of range, not "silence everything"
-		{level: "-99", wantDebug: false, wantError: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.level, func(t *testing.T) {

@@ -12,12 +12,10 @@ type Logger struct {
 	zerolog.Logger
 }
 
-// NewLogger returns a JSON logger writing to w at the named level, accepting
-// any level zerolog.ParseLevel knows ("trace", "debug", "info", "warn",
-// "error", "fatal", "panic", "disabled"). An unrecognized, empty or
-// out-of-range level falls back to info. ParseLevel also accepts numeric
-// strings, so the result is range-checked: "99" would otherwise silence every
-// event instead of falling back.
+// NewLogger returns a JSON logger writing to w at any level
+// zerolog.ParseLevel accepts. ParseLevel also parses numeric strings, so the
+// result is range-checked: "99" would otherwise silence every event rather
+// than fall back to info like any other unrecognized value.
 func NewLogger(w io.Writer, level string) *Logger {
 	zl := zerolog.New(w).With().Timestamp().Logger()
 

@@ -40,33 +40,19 @@ func selectsCluster(args *AhoCorasickArgs, ringAddrs map[string]string) bool {
 	return len(ringAddrs) == 0 && strings.TrimSpace(args.MasterName) == "" && len(args.Addrs) > 0
 }
 
-// countSelectedTopologies counts how many Redis topologies the args ask for.
-// More than one is a conflict.
-func countSelectedTopologies(args *AhoCorasickArgs, addrs []string, ringAddrs map[string]string) int {
+func validateRedisTopology(args *AhoCorasickArgs, addrs []string, ringAddrs map[string]string) error {
 	hasSentinel := strings.TrimSpace(args.MasterName) != ""
 
-	count := 0
-	if hasSentinel {
-		count++
-	}
-	if len(ringAddrs) > 0 {
-		count++
-	}
-	if !hasSentinel && len(addrs) > 1 {
-		count++
-	}
-	return count
-}
-
-func validateRedisTopology(args *AhoCorasickArgs, addrs []string, ringAddrs map[string]string) error {
 	if strings.TrimSpace(args.Addr) != "" && len(args.Addrs) > 0 {
 		return ErrRedisConflictingTopology
 	}
 
-	if countSelectedTopologies(args, addrs, ringAddrs) > 1 {
+	// Only ring can conflict: cluster is selected for more than one address but
+	// never alongside sentinel, so sentinel and cluster cannot both be asked for.
+	if len(ringAddrs) > 0 && (hasSentinel || len(addrs) > 1) {
 		return ErrRedisConflictingTopology
 	}
-	if strings.TrimSpace(args.MasterName) != "" && len(args.Addrs) == 0 {
+	if hasSentinel && len(args.Addrs) == 0 {
 		return ErrRedisSentinelAddrs
 	}
 	// Reject an Addrs list that normalizes to nothing: go-redis's Cluster() and
