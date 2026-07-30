@@ -35,10 +35,10 @@ builds:
 
 archives:
 - id: acor
-  format: tar.gz
+  formats: [ tar.gz ]
   format_overrides:
   - goos: windows
-    format: zip
+    formats: [ zip ]
   files:
     - LICENSE
     - README.md
@@ -51,6 +51,26 @@ changelog:
 checksum:
   algorithm: sha256
   name_template: 'CHECKSUMS'
+
+# Publishes Formula/acor.rb to skyoo2003/homebrew-tap. The token comes from a
+# GitHub App installed only on that repository: the job's own GITHUB_TOKEN
+# cannot write to another repo.
+brews:
+- ids:
+  - acor
+  repository:
+    owner: skyoo2003
+    name: homebrew-tap
+    token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+  homepage: "https://github.com/skyoo2003/acor"
+  description: "Aho-Corasick multi-pattern string matching on Redis or Valkey"
+  license: "Apache-2.0"
+  install: |
+    bin.install "acor"
+  # acor has no version command, and every real command needs a Redis/Valkey
+  # server, so the usage text on exit code 2 is all that can be asserted here.
+  test: |
+    assert_match "Usage:", shell_output("#{bin}/acor 2>&1", 2)
 
 dockers_v2:
 - images:
