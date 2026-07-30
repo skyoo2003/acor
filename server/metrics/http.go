@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -17,49 +18,23 @@ var (
 	numberPattern = regexp.MustCompile(`^\d+$`)
 )
 
+// normalizePath collapses identifier-shaped path segments into placeholders so
+// metric labels stay bounded: /v1/users/42 and /v1/users/43 share one series.
 func normalizePath(path string) string {
-	if path == "" || path == "/" {
+	if path == "" || path[0] != '/' {
 		return "/"
 	}
 
-	segments := splitPath(path)
+	segments := strings.FieldsFunc(path, func(r rune) bool { return r == '/' })
 	for i, seg := range segments {
-		if uuidPattern.MatchString(seg) {
+		switch {
+		case uuidPattern.MatchString(seg):
 			segments[i] = "{uuid}"
-		} else if numberPattern.MatchString(seg) {
+		case numberPattern.MatchString(seg):
 			segments[i] = "{id}"
 		}
 	}
-
-	result := "/"
-	for i, seg := range segments {
-		if i > 0 {
-			result += "/"
-		}
-		result += seg
-	}
-	return result
-}
-
-func splitPath(path string) []string {
-	if path == "" || path[0] != '/' {
-		return nil
-	}
-
-	result := []string{}
-	start := 1
-	for i := 1; i < len(path); i++ {
-		if path[i] == '/' {
-			if i > start {
-				result = append(result, path[start:i])
-			}
-			start = i + 1
-		}
-	}
-	if start < len(path) {
-		result = append(result, path[start:])
-	}
-	return result
+	return "/" + strings.Join(segments, "/")
 }
 
 func HTTPMiddleware(reg *Registry) func(http.Handler) http.Handler {

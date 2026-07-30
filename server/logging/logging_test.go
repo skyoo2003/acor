@@ -58,19 +58,37 @@ func TestWithTraceID(t *testing.T) {
 func TestNewLoggerAllLevels(t *testing.T) {
 	tests := []struct {
 		level string
+		// wantDebug and wantError record whether an event at that level is
+		// emitted, which pins the resolved level instead of just non-nilness.
+		wantDebug bool
+		wantError bool
 	}{
-		{"debug"},
-		{"info"},
-		{"warn"},
-		{"error"},
-		{"unknown"},
+		{level: "trace", wantDebug: true, wantError: true},
+		{level: "debug", wantDebug: true, wantError: true},
+		{level: "DEBUG", wantDebug: true, wantError: true}, // ParseLevel is case-insensitive
+		{level: "info", wantDebug: false, wantError: true},
+		{level: "warn", wantDebug: false, wantError: true},
+		{level: "error", wantDebug: false, wantError: true},
+		{level: "panic", wantDebug: false, wantError: false},
+		{level: "disabled", wantDebug: false, wantError: false},
+		{level: "unknown", wantDebug: false, wantError: true}, // falls back to info
+		{level: "", wantDebug: false, wantError: true},        // falls back to info
+		{level: "99", wantDebug: false, wantError: true},      // out of range, not "silence everything"
 	}
 	for _, tt := range tests {
 		t.Run(tt.level, func(t *testing.T) {
 			buf := &bytes.Buffer{}
 			l := NewLogger(buf, tt.level)
-			if l == nil {
-				t.Errorf("expected non-nil logger for level %q", tt.level)
+
+			l.Debug().Msg("dbg")
+			if got := buf.Len() > 0; got != tt.wantDebug {
+				t.Errorf("level %q: debug emitted = %v, want %v", tt.level, got, tt.wantDebug)
+			}
+
+			buf.Reset()
+			l.Error().Msg("err")
+			if got := buf.Len() > 0; got != tt.wantError {
+				t.Errorf("level %q: error emitted = %v, want %v", tt.level, got, tt.wantError)
 			}
 		})
 	}

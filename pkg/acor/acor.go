@@ -170,6 +170,9 @@ var (
 	// ErrRedisConflictingTopology is returned when conflicting Redis topology settings are provided
 	// (e.g., specifying both sentinel and cluster addresses).
 	ErrRedisConflictingTopology = errors.New("redis topology settings are conflicting")
+	// ErrRedisAddrs is returned when the Addrs field is set but holds no usable
+	// address (every entry is empty or whitespace).
+	ErrRedisAddrs = errors.New("redis addrs must contain at least one address")
 	// ErrRedisSentinelAddrs is returned when sentinel mode is specified without at least one
 	// sentinel address in the Addrs field.
 	ErrRedisSentinelAddrs = errors.New("redis sentinel requires at least one address")

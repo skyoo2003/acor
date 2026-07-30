@@ -4,7 +4,6 @@ package logging
 
 import (
 	"io"
-	"strings"
 
 	"github.com/rs/zerolog"
 )
@@ -13,23 +12,20 @@ type Logger struct {
 	zerolog.Logger
 }
 
+// NewLogger returns a JSON logger writing to w at any level
+// zerolog.ParseLevel accepts. ParseLevel also parses numeric strings, so the
+// result is range-checked: "99" would otherwise silence every event rather
+// than fall back to info like any other unrecognized value.
 func NewLogger(w io.Writer, level string) *Logger {
 	zl := zerolog.New(w).With().Timestamp().Logger()
 
-	switch strings.ToLower(level) {
-	case "debug":
-		zl = zl.Level(zerolog.DebugLevel)
-	case "info":
-		zl = zl.Level(zerolog.InfoLevel)
-	case "warn":
-		zl = zl.Level(zerolog.WarnLevel)
-	case "error":
-		zl = zl.Level(zerolog.ErrorLevel)
-	default:
-		zl = zl.Level(zerolog.InfoLevel)
+	parsed, err := zerolog.ParseLevel(level)
+	if err != nil || parsed == zerolog.NoLevel ||
+		parsed < zerolog.TraceLevel || parsed > zerolog.Disabled {
+		parsed = zerolog.InfoLevel
 	}
 
-	return &Logger{zl}
+	return &Logger{zl.Level(parsed)}
 }
 
 func (l *Logger) WithTraceID(traceID, spanID string) *Logger {
