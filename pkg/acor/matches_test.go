@@ -209,6 +209,41 @@ func TestFindStream_NoBoundaryLoss(t *testing.T) {
 	}
 }
 
+// TestFindStream_CaseFoldParity pins the claim in FindStreamContext: the
+// per-rune fold used while streaming is the same fold strings.ToLower applies to
+// an in-memory string, including for non-ASCII runes whose lowercase form is a
+// different byte length (U+212A KELVIN SIGN, U+0130 LATIN CAPITAL I WITH DOT).
+// Swapping either side for a different folding scheme breaks this.
+func TestFindStream_CaseFoldParity(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer ac.Close()
+
+	addAll(t, ac, "café", "kelvin", "istanbul")
+	// Escaped, not literal: \u212a and \u0130 both fold to a shorter ASCII rune
+	// and are indistinguishable from "K" and "I" in an editor.
+	text := "le CAF\u00c9, \u212aELVIN and \u0130STANBUL"
+
+	want, err := ac.FindMatches(text, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(want) != 3 {
+		t.Fatalf("FindMatches = %v, want 3 matches (test text no longer exercises the fold)", want)
+	}
+
+	got := []Match{}
+	if err := ac.FindStream(strings.NewReader(text), func(m Match) bool {
+		got = append(got, m)
+		return true
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("FindStream = %v, want in-memory parity %v", got, want)
+	}
+}
+
 func TestFindStream_EarlyStop(t *testing.T) {
 	ac, mr := createAhoCorasick(t)
 	defer mr.Close()

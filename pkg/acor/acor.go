@@ -273,6 +273,11 @@ type AhoCorasickArgs struct {
 	// When false (default), keywords are lowercased on Add/Remove and search text
 	// is lowercased in Find/FindIndex/Suggest, providing case-insensitive matching.
 	// When true, keywords and search text are matched as-is for full case-sensitive matching.
+	//
+	// Case-insensitive matching uses Go's simple, locale-independent lowercasing
+	// (strings.ToLower), not full Unicode case folding: "ß" does not match "SS",
+	// and Turkish dotted/dotless i follow the default mapping. Pre-fold the
+	// keywords and text yourself if you need either.
 	CaseSensitive bool
 	// RollbackTimeout controls the timeout for V1 rollback operations when buildTrie
 	// fails after a keyword has been added. Defaults to 10 seconds if unset or zero.
