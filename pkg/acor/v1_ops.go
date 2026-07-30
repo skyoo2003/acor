@@ -35,24 +35,15 @@ type v1Operations struct {
 }
 
 // v1EngineMemo holds the automaton last built for a keyword set, so repeated
-// searches over an unchanged V1 collection skip the rebuild. Building is not
-// cheap — an O(keywords) double-array pack that runs ~14ms for 10k keywords and
-// ~800ms for 100k — and find, findIndex, FindMatches, Contains, FindStream and
-// every FindParallel chunk all go through loadEngine.
-//
-// This is not the V2 cache: the keyword set is still read from Redis on every
-// call, so a peer's write is picked up immediately. Only the rebuild is skipped,
-// and only while the set Redis returns is unchanged.
+// searches over an unchanged V1 collection skip the O(keywords) rebuild.
 type v1EngineMemo struct {
 	mu     sync.Mutex
 	engine *matchengine.Engine
 	digest uint64
-	count  int
 }
 
-// v1DigestSeed keys the keyword-set digest. It is per-process, which is all the
-// memo needs — digests are only ever compared against ones taken in the same
-// process, never persisted or sent over the wire.
+// v1DigestSeed keys the keyword-set digest, which is only ever compared against
+// digests taken in the same process.
 var v1DigestSeed = maphash.MakeSeed()
 
 // engineFor returns the automaton for kws, rebuilding only when the set changed.
@@ -66,7 +57,7 @@ func (m *v1EngineMemo) engineFor(kws []string) *matchengine.Engine {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.engine != nil && m.count == len(kws) && m.digest == digest {
+	if m.engine != nil && m.digest == digest {
 		return m.engine
 	}
 
@@ -76,7 +67,6 @@ func (m *v1EngineMemo) engineFor(kws []string) *matchengine.Engine {
 	}
 	m.engine = buildEngine(PresetBalanced, set)
 	m.digest = digest
-	m.count = len(kws)
 	return m.engine
 }
 
@@ -177,13 +167,9 @@ func (o *v1Operations) remove(_ context.Context, keyword string) (int, error) {
 	return 1, nil
 }
 
-// find scans text with an automaton built from the keyword set.
-//
-// V1 used to resolve goto/fail/output against Redis once per character, which
-// cost a round trip per rune of input. loadEngine reads the keyword set with a
-// single SMEMBERS and builds the same automaton the other modes scan, so the
-// matches are identical (v1_engine_parity_test.go pins that) for one round trip
-// instead of one per character.
+// find scans text with the automaton loadEngine builds from the keyword set,
+// which reports the same matches the per-character trie walk in Redis used to
+// (pinned by v1_engine_parity_test.go) for one round trip instead of one per rune.
 func (o *v1Operations) find(ctx context.Context, text string) ([]string, error) {
 	if text == "" {
 		return []string{}, nil
@@ -195,19 +181,12 @@ func (o *v1Operations) find(ctx context.Context, text string) ([]string, error) 
 		return nil, newOperationError("find", SchemaV1, err)
 	}
 
-	// Honor a canceled ctx at the match boundary; the in-memory scan itself isn't
-	// ctx-threaded. Mirrors v2Operations.find.
-	if err := ctx.Err(); err != nil {
-		return nil, newOperationError("find", SchemaV1, err)
-	}
-
 	matched := engine.Find(text)
 	o.logger.Println(fmt.Sprintf("Find(%s) > Matched(%v) : Count(%d)", text, matched, len(matched)))
 	return matched, nil
 }
 
-// findIndex is find with the start offset of every match. See find on why this
-// no longer walks the trie in Redis.
+// findIndex is find with the start offset of every match.
 func (o *v1Operations) findIndex(ctx context.Context, text string) (map[string][]int, error) {
 	if text == "" {
 		return map[string][]int{}, nil
@@ -216,11 +195,6 @@ func (o *v1Operations) findIndex(ctx context.Context, text string) (map[string][
 
 	engine, err := o.loadEngine(ctx)
 	if err != nil {
-		return nil, newOperationError("findIndex", SchemaV1, err)
-	}
-
-	// See find: honor an already-canceled/expired ctx before the in-memory match.
-	if err := ctx.Err(); err != nil {
 		return nil, newOperationError("findIndex", SchemaV1, err)
 	}
 
@@ -233,12 +207,9 @@ func (o *v1Operations) findIndex(ctx context.Context, text string) (map[string][
 // keywords already normalized (lowercased when !caseSensitive), so no
 // re-normalization is needed here.
 //
-// The keyword set is re-read on every call rather than cached: a real cache
-// would need the pub/sub invalidation listener, which only runs under
-// EnableCache — and EnableCache with V1 is ErrCacheRequiresV2 — so without the
-// re-read a peer's write would leave this instance matching a stale set. The
-// automaton built from that set is memoized (see v1EngineMemo), which keeps the
-// freshness while skipping the rebuild when nothing changed.
+// The set itself is re-read every call — V1 has no invalidation listener
+// (EnableCache with V1 is ErrCacheRequiresV2), so a peer's write would otherwise
+// go unnoticed. Only the rebuild is memoized (see v1EngineMemo).
 func (o *v1Operations) loadEngine(ctx context.Context) (*matchengine.Engine, error) {
 	kws, err := o.storage.SMembers(ctx, keywordKey(o.name))
 	if err != nil {

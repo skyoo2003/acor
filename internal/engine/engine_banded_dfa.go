@@ -83,7 +83,7 @@ func (bd *bandedDFA) buildDFABand() {
 func (e *balancedEngine) find(text string) []string {
 	dat := e.banded.dat
 	if dat.size <= datRootPos+1 {
-		return nil
+		return []string{}
 	}
 	band := e.banded.dfaBand
 	bloom := e.bloom
@@ -126,7 +126,7 @@ func (e *balancedEngine) find(text string) []string {
 func (e *balancedEngine) findIndex(text string) map[string][]int {
 	dat := e.banded.dat
 	if dat.size <= datRootPos+1 {
-		return nil
+		return map[string][]int{}
 	}
 	band := e.banded.dfaBand
 	bloom := e.bloom

@@ -178,7 +178,7 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 
 func (e *speedEngine) find(text string) []string {
 	if e.dfa == nil {
-		return nil
+		return []string{}
 	}
 
 	matched := make([]string, 0)
@@ -201,7 +201,7 @@ func (e *speedEngine) find(text string) []string {
 
 func (e *speedEngine) findIndex(text string) map[string][]int {
 	if e.dfa == nil {
-		return nil
+		return map[string][]int{}
 	}
 
 	matched := make(map[string][]int)

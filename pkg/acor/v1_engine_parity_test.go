@@ -5,7 +5,6 @@ package acor
 import (
 	"context"
 	"fmt"
-	"slices"
 	"testing"
 
 	miniredis "github.com/alicebob/miniredis/v2"
@@ -62,29 +61,14 @@ func v1TrieWalk(ctx context.Context, ac *AhoCorasick, text string, caseSensitive
 	return outputs, endIndexes, nil
 }
 
-// v1TrieWalkFind is the pre-refactor V1 find.
-func v1TrieWalkFind(ctx context.Context, ac *AhoCorasick, text string, caseSensitive bool) ([]string, error) {
-	outputs, _, err := v1TrieWalk(ctx, ac, text, caseSensitive)
-	if err != nil {
-		return nil, err
-	}
-	if outputs == nil {
-		return []string{}, nil
-	}
-	return outputs, nil
-}
-
-// v1TrieWalkFindIndex is the pre-refactor V1 findIndex.
-func v1TrieWalkFindIndex(ctx context.Context, ac *AhoCorasick, text string, caseSensitive bool) (map[string][]int, error) {
-	outputs, endIndexes, err := v1TrieWalk(ctx, ac, text, caseSensitive)
-	if err != nil {
-		return nil, err
-	}
+// v1TrieWalkIndexes is what the pre-refactor V1 findIndex did with a walk's
+// outputs: turn each end position into a start offset.
+func v1TrieWalkIndexes(ctx context.Context, ac *AhoCorasick, outputs []string, endIndexes []int) map[string][]int {
 	matched := make(map[string][]int)
 	for i, output := range outputs {
 		ac.appendMatchedIndexesWithContext(ctx, matched, []string{output}, endIndexes[i])
 	}
-	return matched, nil
+	return matched
 }
 
 var parityCases = []struct {
@@ -133,9 +117,6 @@ var parityCases = []struct {
 	},
 }
 
-// caseModes are the two normalization modes every parity case runs under.
-var caseModes = []bool{false, true}
-
 func newV1Parity(t *testing.T, keywords []string, caseSensitive bool) *AhoCorasick {
 	t.Helper()
 	mr := miniredis.RunT(t)
@@ -158,8 +139,8 @@ func newV1Parity(t *testing.T, keywords []string, caseSensitive bool) *AhoCorasi
 	return ac
 }
 
-func TestV1FindMatchesTrieWalk(t *testing.T) {
-	for _, caseSensitive := range caseModes {
+func TestV1EngineMatchesTrieWalk(t *testing.T) {
+	for _, caseSensitive := range []bool{false, true} {
 		t.Run(fmt.Sprintf("caseSensitive=%t", caseSensitive), func(t *testing.T) {
 			for _, tc := range parityCases {
 				t.Run(tc.name, func(t *testing.T) {
@@ -167,56 +148,26 @@ func TestV1FindMatchesTrieWalk(t *testing.T) {
 					ctx := context.Background()
 
 					for _, text := range tc.texts {
-						want, err := v1TrieWalkFind(ctx, ac, text, caseSensitive)
+						outputs, endIndexes, err := v1TrieWalk(ctx, ac, text, caseSensitive)
 						if err != nil {
-							t.Fatalf("trie walk find(%q): %v", text, err)
+							t.Fatalf("trie walk(%q): %v", text, err)
 						}
+
 						got, err := ac.ops.find(ctx, text)
 						if err != nil {
 							t.Fatalf("find(%q): %v", text, err)
 						}
 						// The trie walk emits per end position, the engine per scan
 						// position; both report the same multiset of matches.
-						if !equalStringSets(got, want) {
-							t.Errorf("find(%q) = %v, trie walk = %v", text, got, want)
+						if !equalStringSets(got, outputs) {
+							t.Errorf("find(%q) = %v, trie walk = %v", text, got, outputs)
 						}
-					}
-				})
-			}
-		})
-	}
-}
 
-func TestV1FindIndexMatchesTrieWalk(t *testing.T) {
-	for _, caseSensitive := range caseModes {
-		t.Run(fmt.Sprintf("caseSensitive=%t", caseSensitive), func(t *testing.T) {
-			for _, tc := range parityCases {
-				t.Run(tc.name, func(t *testing.T) {
-					ac := newV1Parity(t, tc.keywords, caseSensitive)
-					ctx := context.Background()
-
-					for _, text := range tc.texts {
-						want, err := v1TrieWalkFindIndex(ctx, ac, text, caseSensitive)
-						if err != nil {
-							t.Fatalf("trie walk findIndex(%q): %v", text, err)
-						}
-						got, err := ac.ops.findIndex(ctx, text)
+						gotIndexes, err := ac.ops.findIndex(ctx, text)
 						if err != nil {
 							t.Fatalf("findIndex(%q): %v", text, err)
 						}
-						if len(got) != len(want) {
-							t.Errorf("findIndex(%q) = %v, trie walk = %v", text, got, want)
-						}
-						for kw, wantIdx := range want {
-							gotIdx, ok := got[kw]
-							if !ok {
-								t.Errorf("findIndex(%q) missing keyword %q (trie walk found it at %v)", text, kw, wantIdx)
-								continue
-							}
-							if !sameIntSet(gotIdx, wantIdx) {
-								t.Errorf("findIndex(%q)[%q] = %v, trie walk = %v", text, kw, gotIdx, wantIdx)
-							}
-						}
+						assertIndexResults(t, gotIndexes, v1TrieWalkIndexes(ctx, ac, outputs, endIndexes))
 					}
 				})
 			}
@@ -256,8 +207,4 @@ func TestV1EngineMemoReusesUnchangedSet(t *testing.T) {
 	if got := third.Find("hers"); !equalStringSets(got, []string{"he", "hers"}) {
 		t.Errorf("Find(%q) = %v, want [he hers]", "hers", got)
 	}
-}
-
-func sameIntSet(a, b []int) bool {
-	return slices.Equal(slices.Sorted(slices.Values(a)), slices.Sorted(slices.Values(b)))
 }
