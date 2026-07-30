@@ -1,4 +1,3 @@
-exclude: "helm/*"
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -16,15 +15,35 @@ repos:
       - id: mixed-line-ending
       - id: end-of-file-fixer
       - id: trailing-whitespace
-  - repo: https://github.com/dnephin/pre-commit-golang
-    rev: v0.5.1
-    hooks:
-      - id: golangci-lint
-      - id: go-unit-tests
-      - id: go-build
-      - id: go-mod-tidy
+  # Go checks run through the Makefile so the hooks, `make all`, and CI stay on
+  # one definition — notably the pinned golangci-lint version and the server/
+  # submodule, which the previous upstream hooks silently skipped.
   - repo: local
     hooks:
+      - id: golangci-lint
+        name: golangci-lint
+        entry: make lint
+        language: system
+        files: '(\.go|go\.mod|go\.sum)$'
+        pass_filenames: false
+      - id: go-test
+        name: go test
+        entry: make test
+        language: system
+        files: '(\.go|go\.mod|go\.sum)$'
+        pass_filenames: false
+      - id: go-build
+        name: go build
+        entry: make build
+        language: system
+        files: '(\.go|go\.mod|go\.sum)$'
+        pass_filenames: false
+      - id: go-mod-tidy
+        name: go mod tidy
+        entry: make tidy-check
+        language: system
+        files: '(\.go|go\.mod|go\.sum)$'
+        pass_filenames: false
       - id: add-spdx-header
         name: Add SPDX license header
         entry: python3 scripts/add-spdx-header.py
