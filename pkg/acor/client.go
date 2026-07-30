@@ -26,11 +26,36 @@ func newRedisClient(args *AhoCorasickArgs) (redis.UniversalClient, error) {
 		return newRingRedisClient(args, ringAddrs), nil
 	case strings.TrimSpace(args.MasterName) != "":
 		return newSentinelRedisClient(args, addrs), nil
-	case len(args.Addrs) > 0:
+	case selectsCluster(args, ringAddrs):
 		return newClusterRedisClient(args, addrs)
 	default:
 		return newStandaloneRedisClient(args, addrs), nil
 	}
+}
+
+// selectsCluster reports whether newRedisClient builds a cluster client for
+// these args. validateRedisTopology shares the predicate so the DB-selection
+// check cannot disagree with the topology actually chosen.
+func selectsCluster(args *AhoCorasickArgs, ringAddrs map[string]string) bool {
+	return len(ringAddrs) == 0 && strings.TrimSpace(args.MasterName) == "" && len(args.Addrs) > 0
+}
+
+// countSelectedTopologies counts how many Redis topologies the args ask for.
+// More than one is a conflict.
+func countSelectedTopologies(args *AhoCorasickArgs, addrs []string, ringAddrs map[string]string) int {
+	hasSentinel := strings.TrimSpace(args.MasterName) != ""
+
+	count := 0
+	if hasSentinel {
+		count++
+	}
+	if len(ringAddrs) > 0 {
+		count++
+	}
+	if !hasSentinel && len(addrs) > 1 {
+		count++
+	}
+	return count
 }
 
 func validateRedisTopology(args *AhoCorasickArgs, addrs []string, ringAddrs map[string]string) error {
@@ -38,30 +63,22 @@ func validateRedisTopology(args *AhoCorasickArgs, addrs []string, ringAddrs map[
 		return ErrRedisConflictingTopology
 	}
 
-	hasSentinel := strings.TrimSpace(args.MasterName) != ""
-	hasRing := len(ringAddrs) > 0
-	hasCluster := !hasSentinel && len(addrs) > 1
-
-	selectedTopologies := 0
-	if hasSentinel {
-		selectedTopologies++
-	}
-	if hasRing {
-		selectedTopologies++
-	}
-	if hasCluster {
-		selectedTopologies++
-	}
-	if selectedTopologies > 1 {
+	if countSelectedTopologies(args, addrs, ringAddrs) > 1 {
 		return ErrRedisConflictingTopology
 	}
-	if hasSentinel && len(args.Addrs) == 0 {
+	if strings.TrimSpace(args.MasterName) != "" && len(args.Addrs) == 0 {
 		return ErrRedisSentinelAddrs
+	}
+	// Reject an Addrs list that normalizes to nothing: go-redis's Cluster() and
+	// Failover() converters substitute their own localhost defaults for an empty
+	// address list, which would silently retarget the client.
+	if len(args.Addrs) > 0 && len(addrs) == 0 {
+		return ErrRedisAddrs
 	}
 	if len(args.RingAddrs) > 0 && len(ringAddrs) == 0 {
 		return ErrRedisRingAddrs
 	}
-	if hasCluster && args.DB != 0 {
+	if selectsCluster(args, ringAddrs) && args.DB != 0 {
 		return ErrRedisClusterDB
 	}
 

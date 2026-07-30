@@ -139,6 +139,29 @@ func TestNewRedisClientRejectsInvalidTopologyConfigurations(t *testing.T) {
 			err: ErrRedisClusterDB,
 		},
 		{
+			name: "single cluster address does not support db selection",
+			args: &AhoCorasickArgs{
+				Addrs: []string{"127.0.0.1:7000"},
+				DB:    1,
+			},
+			err: ErrRedisClusterDB,
+		},
+		{
+			name: "cluster addrs must hold a usable address",
+			args: &AhoCorasickArgs{
+				Addrs: []string{"   "},
+			},
+			err: ErrRedisAddrs,
+		},
+		{
+			name: "sentinel addrs must hold a usable address",
+			args: &AhoCorasickArgs{
+				Addrs:      []string{"   "},
+				MasterName: "mymaster",
+			},
+			err: ErrRedisAddrs,
+		},
+		{
 			name: "ring requires non-empty shard address",
 			args: &AhoCorasickArgs{
 				RingAddrs: map[string]string{

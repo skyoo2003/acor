@@ -131,6 +131,13 @@ func run(args []string, stdout, stderr io.Writer, create func(*acor.AhoCorasickA
 		return exitCodeUsage
 	}
 
+	// Both flags live on the single global flag set, so reject them rather than
+	// ignore them: a silently dropped -dry-run turns a preview into a real run.
+	if command != commandMigrate && (migrateOpts.dryRun || migrateOpts.keepOldKeys) {
+		_, _ = fmt.Fprintf(stderr, "-dry-run and -keep-old-keys only apply to the %q command\n", commandMigrate)
+		return exitCodeUsage
+	}
+
 	commandArg, err := commandArgument(command, remaining[1:], needsArg)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err.Error())
@@ -159,13 +166,13 @@ func newFlagSet() (*flag.FlagSet, *commandConfig) {
 	fs := flag.NewFlagSet("acor", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.StringVar(&config.addr, "addr", "", "Redis server address for standalone mode")
-	fs.StringVar(&config.addrs, "addrs", "", "comma-separated Redis addresses for Sentinel or Cluster mode")
+	fs.StringVar(&config.addrs, "addrs", "", "Comma-separated Redis addresses for Sentinel or Cluster mode")
 	fs.StringVar(&config.masterName, "master-name", "", "Redis Sentinel master name")
-	fs.StringVar(&config.ringAddrs, "ring-addrs", "", "comma-separated shard=addr pairs for Redis Ring mode")
+	fs.StringVar(&config.ringAddrs, "ring-addrs", "", "Comma-separated shard=addr pairs for Redis Ring mode")
 	fs.StringVar(&config.password, "password", "", "Redis password")
 	fs.IntVar(&config.db, "db", 0, "Redis DB number")
-	fs.StringVar(&config.name, "name", defaultCollectionName, "pattern collection name")
-	fs.BoolVar(&config.debug, "debug", false, "enable debug logging")
+	fs.StringVar(&config.name, "name", defaultCollectionName, "Pattern collection name")
+	fs.BoolVar(&config.debug, "debug", false, "Enable debug logging")
 	fs.BoolVar(&config.dryRun, "dry-run", false, "migrate: preview migration without making changes")
 	fs.BoolVar(&config.keepOldKeys, "keep-old-keys", false, "migrate: keep V1 keys after migration (for rollback)")
 	fs.Usage = func() {}

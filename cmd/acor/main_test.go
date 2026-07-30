@@ -397,6 +397,33 @@ func TestRunMigrateCommandWithDryRun(t *testing.T) {
 	}
 }
 
+func TestRunRejectsMigrateFlagsOnOtherCommands(t *testing.T) {
+	for _, args := range [][]string{
+		{"-dry-run", "flush"},
+		{"-keep-old-keys", "info"},
+	} {
+		t.Run(args[0], func(t *testing.T) {
+			fake := &fakeService{}
+			stdout := &bytes.Buffer{}
+			stderr := &bytes.Buffer{}
+
+			exitCode := run(args, stdout, stderr, func(*acor.AhoCorasickArgs) (service, error) {
+				return fake, nil
+			})
+
+			if exitCode != exitCodeUsage {
+				t.Fatalf("expected exit code %d, got %d", exitCodeUsage, exitCode)
+			}
+			if fake.flushCalls != 0 {
+				t.Fatal("expected the command not to run")
+			}
+			if !strings.Contains(stderr.String(), "only apply to") {
+				t.Fatalf("expected an explanatory error, got %q", stderr.String())
+			}
+		})
+	}
+}
+
 func TestRunMigrateRollbackCommand(t *testing.T) {
 	fake := &fakeService{}
 	stdout := &bytes.Buffer{}

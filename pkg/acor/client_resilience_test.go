@@ -43,6 +43,41 @@ func TestRedisResilienceKnobsPassThrough(t *testing.T) {
 	}
 }
 
+// TestRedisResilienceKnobsReachSentinel covers the sentinel path, which derives
+// its options through go-redis's UniversalOptions.Failover() converter.
+func TestRedisResilienceKnobsReachSentinel(t *testing.T) {
+	client, err := newRedisClient(&AhoCorasickArgs{
+		Addrs:       []string{"127.0.0.1:26379"},
+		MasterName:  "mymaster",
+		Password:    "secret",
+		DB:          3,
+		DialTimeout: 7 * time.Second,
+		MaxRetries:  7,
+		PoolSize:    42,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = client.Close() }()
+
+	opt := client.(*redis.Client).Options()
+	if opt.DB != 3 {
+		t.Errorf("DB = %d, want 3", opt.DB)
+	}
+	if opt.Password != "secret" {
+		t.Errorf("Password = %q, want secret", opt.Password)
+	}
+	if opt.DialTimeout != 7*time.Second {
+		t.Errorf("DialTimeout = %v, want 7s", opt.DialTimeout)
+	}
+	if opt.MaxRetries != 7 {
+		t.Errorf("MaxRetries = %d, want 7", opt.MaxRetries)
+	}
+	if opt.PoolSize != 42 {
+		t.Errorf("PoolSize = %d, want 42", opt.PoolSize)
+	}
+}
+
 // TestRedisResilienceZeroFallsBackToDefaults verifies that leaving the knobs
 // unset yields go-redis's built-in defaults rather than zero timeouts.
 func TestRedisResilienceZeroFallsBackToDefaults(t *testing.T) {
