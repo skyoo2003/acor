@@ -24,19 +24,19 @@ repos:
         name: golangci-lint
         entry: make lint
         language: system
-        types: [go]
+        files: '(\.go|go\.mod|go\.sum)$'
         pass_filenames: false
       - id: go-test
         name: go test
         entry: make test
         language: system
-        types: [go]
+        files: '(\.go|go\.mod|go\.sum)$'
         pass_filenames: false
       - id: go-build
         name: go build
         entry: make build
         language: system
-        types: [go]
+        files: '(\.go|go\.mod|go\.sum)$'
         pass_filenames: false
       - id: go-mod-tidy
         name: go mod tidy
