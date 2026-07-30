@@ -1,8 +1,0 @@
-kind: Changed
-body: |-
-    `logging.NewLogger` now accepts every level `zerolog.ParseLevel` understands — `trace`, `fatal`, `panic` and `disabled` in addition to `debug`/`info`/`warn`/`error`. Those extra names previously fell through to `info`. Unrecognized and empty values still default to `info`.
-
-    The `acor` CLI help now renders its option list from the flag definitions instead of a hand-maintained copy, so the two can no longer disagree. The `-dry-run` and `-keep-old-keys` entries are labelled `migrate:` rather than sitting under a separate heading.
-time: 2026-07-27T23:31:09.000000+09:00
-custom:
-    Issue: "174"
