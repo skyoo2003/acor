@@ -1,4 +1,4 @@
-.PHONY: all setup clean build test lint lint-fix coverage vet fuzz race docs-verify proto
+.PHONY: all setup clean build test lint lint-fix coverage vet fuzz race docs-verify proto tidy-check
 
 # Pin golangci-lint so local `make lint` matches CI (see .github/workflows/ci.yaml).
 # Run via `go run` so the installed binary's version can't drift from CI.
@@ -18,8 +18,15 @@ build:
 	@go build -o dist/acor ./cmd/acor
 
 test:
-	@go test -v ./...
-	@cd server && go test -v ./...
+	@go test ./...
+	@cd server && go test ./...
+
+# Verify go.mod/go.sum are tidy in both modules. `go mod tidy` rewrites in
+# place, so the diff is what fails the check.
+tidy-check:
+	@go mod tidy
+	@cd server && go mod tidy
+	@git diff --exit-code go.mod go.sum server/go.mod server/go.sum
 
 docs-verify:
 	@go run ./tools/doccheck README.md $$(find docs/content -name '*.md')
