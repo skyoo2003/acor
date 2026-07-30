@@ -209,6 +209,113 @@ func TestFindStream_NoBoundaryLoss(t *testing.T) {
 	}
 }
 
+// TestFindStream_CaseFoldParity pins the claim in FindStreamContext: the
+// per-rune fold used while streaming is the same fold strings.ToLower applies to
+// an in-memory string, including for non-ASCII runes whose lowercase form is a
+// different byte length (U+212A KELVIN SIGN, U+0130 LATIN CAPITAL I WITH DOT).
+// Swapping either side for a different folding scheme breaks this.
+func TestFindStream_CaseFoldParity(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer ac.Close()
+
+	addAll(t, ac, "café", "kelvin", "istanbul")
+	// Escaped, not literal: \u212a and \u0130 both fold to a shorter ASCII rune
+	// and are indistinguishable from "K" and "I" in an editor.
+	text := "le CAF\u00c9, \u212aELVIN and \u0130STANBUL"
+
+	want, err := ac.FindMatches(text, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(want) != 3 {
+		t.Fatalf("FindMatches = %v, want 3 matches (test text no longer exercises the fold)", want)
+	}
+
+	got := []Match{}
+	if err := ac.FindStream(strings.NewReader(text), func(m Match) bool {
+		got = append(got, m)
+		return true
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("FindStream = %v, want in-memory parity %v", got, want)
+	}
+}
+
+// TestCaseFold_DocumentedLimits pins the two limitations the CaseSensitive godoc
+// promises: matching folds with Go's simple, locale-independent lowercasing, so
+// "ß" does not match "SS" and Turkish dotted/dotless i follow the default
+// mapping rather than tr locale rules. Every row is asserted against both the
+// in-memory and the streaming path, so a future switch to full folding or to a
+// locale-aware fold fails here and the godoc cannot drift.
+//
+// Non-ASCII is written as escapes throughout: ß/ẞ and i/ı/İ are near
+// indistinguishable in an editor, and a silent substitution would quietly gut
+// the test.
+func TestCaseFold_DocumentedLimits(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer ac.Close()
+
+	// \u00df is U+00DF SMALL SHARP S, \u0131 is U+0131 SMALL DOTLESS I;
+	// \u1e9e below is U+1E9E CAPITAL SHARP S.
+	addAll(t, ac, "stra\u00dfe", "strasse", "i", "\u0131")
+
+	tests := []struct {
+		name string
+		text string
+		want []string
+	}{
+		// The documented "ß" vs "SS" limitation, from both directions: simple
+		// mapping never expands one rune into two, so neither spelling reaches the
+		// other. Full case folding would match "straße" here.
+		{"SS does not fold to sharp s", "STRASSE", []string{"strasse"}},
+		{"sharp s does not fold to SS", "STRA\u00dfE", []string{"stra\u00dfe"}},
+		// Control for the two rows above: capital sharp s does fold, so their
+		// misses are about the SS expansion, not about ß going unhandled.
+		{"capital sharp s folds to sharp s", "STRA\u1e9eE", []string{"stra\u00dfe"}},
+		// Turkish dotted/dotless i under the default mapping. tr rules would fold
+		// U+0130 to "i̇" and ASCII "I" to dotless "ı"; Go sends both to plain "i",
+		// leaving "ı" reachable only from itself.
+		{"dotted capital I folds to ASCII i", "\u0130", []string{"i"}},
+		{"ASCII I folds to ASCII i, not dotless", "I", []string{"i"}},
+		{"dotless i stays dotless", "\u0131", []string{"\u0131"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inMemory, err := ac.FindMatches(tt.text, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := matchKeywords(inMemory); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("FindMatches(%+q) = %q, want %q", tt.text, got, tt.want)
+			}
+
+			streamed := []Match{}
+			if err := ac.FindStream(strings.NewReader(tt.text), func(m Match) bool {
+				streamed = append(streamed, m)
+				return true
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(streamed, inMemory) {
+				t.Errorf("FindStream(%+q) = %v, want in-memory parity %v", tt.text, streamed, inMemory)
+			}
+		})
+	}
+}
+
+func matchKeywords(ms []Match) []string {
+	out := []string{}
+	for _, m := range ms {
+		out = append(out, m.Keyword)
+	}
+	return out
+}
+
 func TestFindStream_EarlyStop(t *testing.T) {
 	ac, mr := createAhoCorasick(t)
 	defer mr.Close()

@@ -180,9 +180,10 @@ func (ac *AhoCorasick) FindStreamContext(ctx context.Context, r io.Reader, onMat
 			return 0, false
 		}
 		if caseInsensitive {
-			// Per-rune lowering is the streaming equivalent of strings.ToLower;
-			// they agree on ASCII (the common case). ponytail: per-rune fold, use
-			// x/text/cases if locale-correct multi-rune folding is ever needed.
+			// Exactly the fold the in-memory path applies: strings.ToLower is
+			// strings.Map(unicode.ToLower, s), so this agrees rune for rune over the
+			// whole Unicode range, not just ASCII. TestFindStream_CaseFoldParity
+			// guards the agreement.
 			ru = unicode.ToLower(ru)
 		}
 		return ru, true
