@@ -63,7 +63,7 @@ brews:
     name: homebrew-tap
     token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
   homepage: "https://github.com/skyoo2003/acor"
-  description: "Aho-Corasick automaton working On Redis/Valkey"
+  description: "Aho-Corasick multi-pattern string matching on Redis or Valkey"
   license: "Apache-2.0"
   install: |
     bin.install "acor"
