@@ -1,6 +1,0 @@
-kind: Fixed
-body: |-
-    The `Preset` modes now honor a canceled or expired context in `FindContext`, `FindIndexContext` and their parallel variants. They match against a local in-memory engine, so once the engine was warm no Redis call was made and the context was never consulted: a call with an already-canceled context ran the full scan and returned complete results with a nil error. They now return the context error, matching the V2 schema mode.
-time: 2026-07-28T10:15:00.000000+09:00
-custom:
-    Issue: "172"

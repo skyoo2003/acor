@@ -1,6 +1,29 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v0.10.1](https://github.com/skyoo2003/acor/releases/tag/v0.10.1) - 2026-07-30
+
+### Changed
+
+* The V2 trie hash no longer stores a `suffixes` field. It held every prefix reversed, was rewritten on each add and remove, and was never read by any matcher — only the V1 schema's suffix sorted set is used, for its own rebuild walk. Existing collections are unaffected: a leftover `suffixes` field is ignored on read and disappears on the next `Flush`, so old and new binaries can run against the same collection during a rolling upgrade.
+
+The two V2 Lua scripts were also merged into one, differing only by a flag for whether the outputs hash is cleared first. ([#170](https://github.com/skyoo2003/acor/issues/170))
+* V1 `Find` and `FindIndex` now scan the keyword set with the same in-memory automaton the other modes use instead of walking the trie in Redis one character at a time: a single `SMEMBERS` per call rather than two to three commands per rune, with identical results (pinned in `v1_engine_parity_test.go`). The automaton is reused while the set is unchanged, but the set is re-read on every call, so another instance's write is still picked up immediately. ([#173](https://github.com/skyoo2003/acor/issues/173))
+* `logging.NewLogger` now accepts every level `zerolog.ParseLevel` understands — `trace`, `fatal`, `panic` and `disabled` in addition to `debug`/`info`/`warn`/`error`. Those extra names previously fell through to `info`. Unrecognized and empty values still default to `info`.
+
+The `acor` CLI help now renders its option list from the flag definitions instead of a hand-maintained copy, so the two can no longer disagree. The `-dry-run` and `-keep-old-keys` entries are labelled `migrate:` rather than sitting under a separate heading. ([#174](https://github.com/skyoo2003/acor/issues/174))
+
+### Fixed
+
+* `FindParallelContext` now deduplicates its results for short texts, matching `FindParallel` and the documented contract that each keyword appears at most once. Previously a text that fit in a single chunk took a shortcut that returned every occurrence, so the result shape depended on the input length. ([#172](https://github.com/skyoo2003/acor/issues/172))
+* The `Preset` modes now honor a canceled or expired context in `FindContext`, `FindIndexContext` and their parallel variants. They match against a local in-memory engine, so once the engine was warm no Redis call was made and the context was never consulted: a call with an already-canceled context ran the full scan and returned complete results with a nil error. They now return the context error, matching the V2 schema mode. ([#172](https://github.com/skyoo2003/acor/issues/172))
+* An `Addrs` list of only blank entries no longer connects to localhost. go-redis substitutes `127.0.0.1:6379` / `127.0.0.1:26379` for an empty address list; this now returns the new `ErrRedisAddrs`.
+
+`ErrRedisClusterDB` is now returned whenever cluster mode is selected. The check required more than one address, so a single-entry `Addrs` with `DB` set had its `DB` silently dropped to 0.
+
+`logging.NewLogger` range-checks the level from `zerolog.ParseLevel`, which also parses numbers: `"99"` produced a logger that emitted nothing, and now falls back to `info`.
+
+The `acor` CLI rejects `-dry-run` and `-keep-old-keys` outside `migrate` instead of ignoring them, so `acor -dry-run flush` can no longer look like a preview while deleting. ([#174](https://github.com/skyoo2003/acor/issues/174))
 ## [v0.10.0](https://github.com/skyoo2003/acor/releases/tag/v0.10.0) - 2026-07-25
 
 ### Added
@@ -28,6 +51,7 @@ All notable changes to this project will be documented in this file.
 ### Documentation
 
 * Documented on FindParallel and FindIndexParallel that a keyword longer than opts.Overlap straddling a chunk boundary can be missed, and to set Overlap to at least the longest expected keyword length. ([#159](https://github.com/skyoo2003/acor/issues/159))
+
 ## [v0.9.0](https://github.com/skyoo2003/acor/releases/tag/v0.9.0) - 2026-07-20
 
 ### Added
