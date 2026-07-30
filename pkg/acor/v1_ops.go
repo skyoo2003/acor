@@ -3,11 +3,12 @@
 package acor
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"hash/maphash"
 	"strings"
+	"sync"
 	"time"
 
 	redis "github.com/redis/go-redis/v9"
@@ -30,6 +31,43 @@ type v1Operations struct {
 	ac              *AhoCorasick // for trie.go helper access (temporary, cleaned up in T15)
 	caseSensitive   bool
 	rollbackTimeout time.Duration
+	engines         v1EngineMemo
+}
+
+// v1EngineMemo holds the automaton last built for a keyword set, so repeated
+// searches over an unchanged V1 collection skip the O(keywords) rebuild.
+type v1EngineMemo struct {
+	mu     sync.Mutex
+	engine *matchengine.Engine
+	digest uint64
+}
+
+// v1DigestSeed keys the keyword-set digest, which is only ever compared against
+// digests taken in the same process.
+var v1DigestSeed = maphash.MakeSeed()
+
+// engineFor returns the automaton for kws, rebuilding only when the set changed.
+// The digest sums per-member hashes, so it does not depend on the order SMEMBERS
+// happened to return the members in.
+func (m *v1EngineMemo) engineFor(kws []string) *matchengine.Engine {
+	var digest uint64
+	for _, k := range kws {
+		digest += maphash.String(v1DigestSeed, k)
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.engine != nil && m.digest == digest {
+		return m.engine
+	}
+
+	set := make(map[string]struct{}, len(kws))
+	for _, k := range kws {
+		set[k] = struct{}{}
+	}
+	m.engine = buildEngine(PresetBalanced, set)
+	m.digest = digest
+	return m.engine
 }
 
 // --- operations interface methods ---
@@ -129,122 +167,55 @@ func (o *v1Operations) remove(_ context.Context, keyword string) (int, error) {
 	return 1, nil
 }
 
+// find scans text with the automaton loadEngine builds from the keyword set,
+// which reports the same matches the per-character trie walk in Redis used to
+// (pinned by v1_engine_parity_test.go) for one round trip instead of one per rune.
 func (o *v1Operations) find(ctx context.Context, text string) ([]string, error) {
 	if text == "" {
 		return []string{}, nil
 	}
-	if !o.caseSensitive {
-		text = strings.ToLower(text)
-	}
-	state := ""
-	matched := make([]string, 0)
+	text = normalizeText(text, o.caseSensitive)
 
-	for _, char := range text {
-		nextState, err := o.ac.goWithContext(ctx, state, char)
-		if err != nil {
-			return nil, newOperationError("find", SchemaV1, err)
-		}
-		if nextState == "" {
-			nextState, err = o.ac.failWithContext(ctx, state)
-			if err != nil {
-				return nil, newOperationError("find", SchemaV1, err)
-			}
-			var afterNextState string
-			afterNextState, err = o.ac.goWithContext(ctx, nextState, char)
-			if err != nil {
-				return nil, newOperationError("find", SchemaV1, err)
-			}
-			if afterNextState == "" {
-				buffer := bytes.NewBufferString(nextState)
-				buffer.WriteRune(char)
-				afterNextState, err = o.ac.failWithContext(ctx, buffer.String())
-				if err != nil {
-					return nil, newOperationError("find", SchemaV1, err)
-				}
-			}
-			nextState = afterNextState
-		}
-
-		outputs, err := o.ac.outputWithContext(ctx, nextState)
-		if err != nil {
-			return nil, newOperationError("find", SchemaV1, err)
-		}
-		matched = append(matched, outputs...)
-		state = nextState
+	engine, err := o.loadEngine(ctx)
+	if err != nil {
+		return nil, newOperationError("find", SchemaV1, err)
 	}
 
+	matched := engine.Find(text)
 	o.logger.Println(fmt.Sprintf("Find(%s) > Matched(%v) : Count(%d)", text, matched, len(matched)))
-
 	return matched, nil
 }
 
+// findIndex is find with the start offset of every match.
 func (o *v1Operations) findIndex(ctx context.Context, text string) (map[string][]int, error) {
 	if text == "" {
 		return map[string][]int{}, nil
 	}
-	if !o.caseSensitive {
-		text = strings.ToLower(text)
-	}
-	matched := make(map[string][]int)
-	state := ""
-	runeIndex := 0
+	text = normalizeText(text, o.caseSensitive)
 
-	for _, char := range text {
-		nextState, err := o.ac.goWithContext(ctx, state, char)
-		if err != nil {
-			return nil, newOperationError("findIndex", SchemaV1, err)
-		}
-		if nextState == "" {
-			nextState, err = o.ac.failWithContext(ctx, state)
-			if err != nil {
-				return nil, newOperationError("findIndex", SchemaV1, err)
-			}
-			var afterNextState string
-			afterNextState, err = o.ac.goWithContext(ctx, nextState, char)
-			if err != nil {
-				return nil, newOperationError("findIndex", SchemaV1, err)
-			}
-			if afterNextState == "" {
-				buffer := bytes.NewBufferString(nextState)
-				buffer.WriteRune(char)
-				afterNextState, err = o.ac.failWithContext(ctx, buffer.String())
-				if err != nil {
-					return nil, newOperationError("findIndex", SchemaV1, err)
-				}
-			}
-			nextState = afterNextState
-		}
-
-		outputs, err := o.ac.outputWithContext(ctx, nextState)
-		if err != nil {
-			return nil, newOperationError("findIndex", SchemaV1, err)
-		}
-		o.ac.appendMatchedIndexesWithContext(ctx, matched, outputs, runeIndex+1)
-		state = nextState
-		runeIndex++
+	engine, err := o.loadEngine(ctx)
+	if err != nil {
+		return nil, newOperationError("findIndex", SchemaV1, err)
 	}
 
+	matched := engine.FindIndex(text)
 	o.logger.Println(fmt.Sprintf("FindIndex(%s) > Matched(%v) : Count(%d)", text, matched, len(matched)))
-
 	return matched, nil
 }
 
-// loadEngine builds a fresh in-memory automaton from the V1 keyword set. V1
-// stores keywords already normalized (lowercased when !caseSensitive), so no
-// re-normalization is needed here. Unlike V2 there is no cache, so this is an
-// O(keywords) build per call — acceptable for the legacy schema.
+// loadEngine returns an in-memory automaton for the V1 keyword set. V1 stores
+// keywords already normalized (lowercased when !caseSensitive), so no
+// re-normalization is needed here.
+//
+// The set itself is re-read every call — V1 has no invalidation listener
+// (EnableCache with V1 is ErrCacheRequiresV2), so a peer's write would otherwise
+// go unnoticed. Only the rebuild is memoized (see v1EngineMemo).
 func (o *v1Operations) loadEngine(ctx context.Context) (*matchengine.Engine, error) {
 	kws, err := o.storage.SMembers(ctx, keywordKey(o.name))
 	if err != nil {
 		return nil, newRedisError("SMEMBERS", keywordKey(o.name), err)
 	}
-	set := make(map[string]struct{}, len(kws))
-	for _, k := range kws {
-		set[k] = struct{}{}
-	}
-	e := matchengine.New(PresetBalanced)
-	e.Build(set)
-	return e, nil
+	return o.engines.engineFor(kws), nil
 }
 
 func (o *v1Operations) flush(_ context.Context) error {

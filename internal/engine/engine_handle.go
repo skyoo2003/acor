@@ -22,12 +22,15 @@ func (e *Engine) Build(keywords map[string]struct{}) {
 	e.impl.buildFromKeywords(keywords)
 }
 
-// Find returns the keywords found in text.
+// Find returns the keywords found in text. Like FindMatches it is never nil — an
+// automaton with no keywords yields an empty slice — so callers can hand it
+// straight to a JSON encoder or compare it without a nil special case.
 func (e *Engine) Find(text string) []string {
 	return e.impl.find(text)
 }
 
 // FindIndex returns matched keywords mapped to their start offsets in text.
+// Like Find, it is never nil.
 func (e *Engine) FindIndex(text string) map[string][]int {
 	return e.impl.findIndex(text)
 }

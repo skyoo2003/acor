@@ -39,9 +39,7 @@ func (o *v2Operations) find(ctx context.Context, text string) ([]string, error) 
 		return []string{}, nil
 	}
 
-	if !o.caseSensitive {
-		text = strings.ToLower(text)
-	}
+	text = normalizeText(text, o.caseSensitive)
 
 	engine, err := o.loadEngine(ctx)
 	if err != nil {
@@ -53,11 +51,7 @@ func (o *v2Operations) find(ctx context.Context, text string) ([]string, error) 
 		return nil, err
 	}
 
-	matched := engine.Find(text)
-	if matched == nil {
-		matched = []string{}
-	}
-	return matched, nil
+	return engine.Find(text), nil
 }
 
 func (o *v2Operations) findIndex(ctx context.Context, text string) (map[string][]int, error) {
@@ -65,9 +59,7 @@ func (o *v2Operations) findIndex(ctx context.Context, text string) (map[string][
 		return map[string][]int{}, nil
 	}
 
-	if !o.caseSensitive {
-		text = strings.ToLower(text)
-	}
+	text = normalizeText(text, o.caseSensitive)
 
 	engine, err := o.loadEngine(ctx)
 	if err != nil {
@@ -79,11 +71,7 @@ func (o *v2Operations) findIndex(ctx context.Context, text string) (map[string][
 		return nil, err
 	}
 
-	matched := engine.FindIndex(text)
-	if matched == nil {
-		matched = map[string][]int{}
-	}
-	return matched, nil
+	return engine.FindIndex(text), nil
 }
 
 func (o *v2Operations) add(ctx context.Context, keyword string) (int, error) {

@@ -101,7 +101,7 @@ func (e *memEfficientEngine) buildFromKeywords(keywords map[string]struct{}) {
 
 func (e *memEfficientEngine) find(text string) []string {
 	if len(e.trie.nodes) <= 1 {
-		return nil
+		return []string{}
 	}
 
 	matched := make([]string, 0)
@@ -133,7 +133,7 @@ func (e *memEfficientEngine) find(text string) []string {
 
 func (e *memEfficientEngine) findIndex(text string) map[string][]int {
 	if len(e.trie.nodes) <= 1 {
-		return nil
+		return map[string][]int{}
 	}
 
 	matched := make(map[string][]int)
