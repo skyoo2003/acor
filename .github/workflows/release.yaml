@@ -37,6 +37,16 @@ jobs:
           echo "::error::Run 'changie batch ${{ github.ref_name }}' and 'changie merge' before pushing the tag."
           exit 1
         fi
+    # Short-lived token scoped to skyoo2003/homebrew-tap only, for the brews
+    # section. Expires with the job, so nothing long-lived is stored anywhere.
+    - name: Mint a Homebrew tap token
+      id: tap_token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # create-github-app-token v3.2.0
+      with:
+        app-id: ${{ secrets.TAP_APP_ID }}
+        private-key: ${{ secrets.TAP_APP_PRIVATE_KEY }}
+        owner: skyoo2003
+        repositories: homebrew-tap
     - name: Execute GoReleaser
       uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94  # goreleaser-action v7
       with:
@@ -45,3 +55,4 @@ jobs:
         args: release --clean --release-notes changes/${{ github.ref_name }}.md
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        HOMEBREW_TAP_TOKEN: ${{ steps.tap_token.outputs.token }}
