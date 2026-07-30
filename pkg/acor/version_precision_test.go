@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	redis "github.com/redis/go-redis/v9"
 )
 
 func TestGenerateVersionBasic(t *testing.T) {
@@ -62,7 +61,7 @@ func TestLuaVersionComparisonAbove2to53(t *testing.T) {
 	largeNewVersion := int64(9007199254740994) // 2^53 + 2
 
 	// Set the trie version to largeOldVersion in Redis directly
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 	if hErr := client.HSet(ctx, trieKey("test"), "version", largeOldVersion).Err(); hErr != nil {
 		t.Fatal(hErr)
@@ -157,7 +156,7 @@ func TestLuaVersionStringComparison(t *testing.T) {
 			seedV2Trie(t, mr, []string{"he"})
 
 			// Set version in Redis
-			client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+			client := newTestRedisClient(mr.Addr())
 			defer func() { _ = client.Close() }()
 			if err := client.HSet(ctx, trieKey("test"), "version", tt.storedVersion).Err(); err != nil {
 				t.Fatal(err)
@@ -211,7 +210,7 @@ func TestLuaVersionRemoveScriptPrecision(t *testing.T) {
 	ctx := context.Background()
 	seedV2Trie(t, mr, []string{"he", "she"})
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	largeVersion := int64(9007199254740993)

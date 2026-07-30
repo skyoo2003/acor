@@ -16,7 +16,7 @@ func setupV1WithError(t *testing.T) *AhoCorasick {
 	t.Helper()
 
 	mr := createTestRedisServer(t)
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 
 	// Seed some V1 data so operations can start before the server closes
 	if err := client.SAdd(context.Background(), keywordKey("test"), "he", "she").Err(); err != nil {

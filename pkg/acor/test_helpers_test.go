@@ -20,6 +20,13 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// newTestRedisClient builds a Redis client with command retries disabled and a
+// single pooled connection. Against a closed miniredis the go-redis defaults
+// (MaxRetries 3, pool-sized dial retries) cost ~1.6s per failing command.
+func newTestRedisClient(addr string) *redis.Client {
+	return redis.NewClient(&redis.Options{Addr: addr, MaxRetries: -1, PoolSize: 1, DialerRetries: 1})
+}
+
 // testLogger is a no-op Logger implementation for tests.
 type testLogger struct{}
 
@@ -51,11 +58,13 @@ func createAhoCorasick(t *testing.T) (*AhoCorasick, *miniredis.Miniredis) {
 
 	mr := createTestRedisServer(t)
 	ac, err := Create(&AhoCorasickArgs{
-		Addr:     mr.Addr(),
-		Password: "",
-		DB:       0,
-		Name:     "test",
-		Debug:    false,
+		Addr:       mr.Addr(),
+		Password:   "",
+		DB:         0,
+		Name:       "test",
+		Debug:      false,
+		MaxRetries: -1,
+		PoolSize:   1,
 	})
 	if err != nil {
 		mr.Close()
@@ -69,7 +78,7 @@ func createAhoCorasickV1(t *testing.T) (*AhoCorasick, *miniredis.Miniredis) {
 	t.Helper()
 
 	mr := createTestRedisServer(t)
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	if err := client.ZAdd(context.Background(), "{test}:prefix", redis.Z{Score: 0, Member: ""}).Err(); err != nil {
 		mr.Close()
 		t.Fatalf("failed to seed V1 prefix data: %v", err)
@@ -86,6 +95,8 @@ func createAhoCorasickV1(t *testing.T) (*AhoCorasick, *miniredis.Miniredis) {
 		Name:          "test",
 		Debug:         false,
 		SchemaVersion: SchemaV1,
+		MaxRetries:    -1,
+		PoolSize:      1,
 	})
 	if err != nil {
 		mr.Close()

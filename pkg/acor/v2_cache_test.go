@@ -7,14 +7,13 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	redis "github.com/redis/go-redis/v9"
 )
 
 func TestV2GetOrLoadEngineNoCache(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	ops := &v2Operations{
@@ -50,7 +49,7 @@ func TestV2PublishInvalidate(t *testing.T) {
 	cache := &trieCache{}
 	cache.set(map[string][]string{"a": {"a"}})
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	ops := &v2Operations{
@@ -73,7 +72,7 @@ func TestV2FetchTrieData(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
@@ -109,7 +108,7 @@ func TestV2LoadCache(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
@@ -155,7 +154,7 @@ func TestV2GetOrLoadEngineDoubleCheck(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	client.HSet(context.Background(), "{test}:trie", map[string]interface{}{
@@ -202,8 +201,8 @@ func TestV2PublishInvalidateWithPublishError(t *testing.T) {
 	cache.set(map[string][]string{"a": {"a"}})
 
 	ops := &v2Operations{
-		storage: newRedisStorage(redis.NewClient(&redis.Options{Addr: "localhost:1"})),
-		client:  redis.NewClient(&redis.Options{Addr: "localhost:1"}),
+		storage: newRedisStorage(newTestRedisClient("localhost:1")),
+		client:  newTestRedisClient("localhost:1"),
 		name:    "test",
 		cache:   cache,
 		logger:  &testLogger{},
@@ -221,7 +220,7 @@ func TestV2PublishInvalidateWithPublishError(t *testing.T) {
 func TestV2LoadCacheError(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	cache := &trieCache{}
 	ops := &v2Operations{
 		storage: newRedisStorage(client),

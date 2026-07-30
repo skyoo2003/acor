@@ -93,7 +93,7 @@ func TestMigrationLockAlreadyHeld(t *testing.T) {
 
 func TestMigrationInProgress(t *testing.T) {
 	s := miniredis.RunT(t)
-	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
+	client := newTestRedisClient(s.Addr())
 	defer func() { _ = client.Close() }()
 
 	// Seed V1 data so migration doesn't fail for other reasons

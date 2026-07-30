@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	redis "github.com/redis/go-redis/v9"
 )
 
 func TestV2Debug(t *testing.T) {
@@ -106,7 +105,7 @@ func TestDebugV1WithNoData(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	ac := &AhoCorasick{
@@ -129,7 +128,7 @@ func TestDebugV1WithNoData(t *testing.T) {
 func TestDebugV1WithClosedRedis(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	ac := &AhoCorasick{
@@ -155,7 +154,7 @@ func TestDebugV2WithData(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
@@ -192,7 +191,7 @@ func TestDebugV2WithData(t *testing.T) {
 func TestDebugV2WithClosedRedis(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	ac := &AhoCorasick{
@@ -217,7 +216,7 @@ func TestDebugV2WithClosedRedis(t *testing.T) {
 func TestInitV2HSetError(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	mr.Close()
@@ -238,7 +237,7 @@ func TestInitV2HSetError(t *testing.T) {
 
 func TestInitV1ZAddError(t *testing.T) {
 	mr := miniredis.RunT(t)
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer func() { _ = client.Close() }()
 
 	mr.Close()

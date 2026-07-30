@@ -32,7 +32,7 @@ func createPresetAC(t *testing.T) (*AhoCorasick, *miniredis.Miniredis) {
 func countInvalidations(t *testing.T, mr *miniredis.Miniredis, during func()) int {
 	t.Helper()
 	ctx := context.Background()
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newTestRedisClient(mr.Addr())
 	defer client.Close()
 
 	sub := client.Subscribe(ctx, invalidateChannelPrefix+"test")
@@ -197,7 +197,7 @@ func TestInvalidationPoll_DetectsMissedWrite(t *testing.T) {
 
 	// Simulate a write on another node whose invalidation never arrived: write a
 	// valid trie state directly to Redis with a distinct version and DO NOT publish.
-	raw := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	raw := newTestRedisClient(mr.Addr())
 	defer raw.Close()
 	ctx := context.Background()
 	if err := raw.HSet(ctx, trieKey("test"), map[string]interface{}{
