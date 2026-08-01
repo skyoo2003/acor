@@ -30,6 +30,7 @@ type v2Operations struct {
 	cache         *trieCache
 	logger        Logger
 	caseSensitive bool
+	engines       engineMemo
 }
 
 // --- operations interface methods ---
@@ -188,17 +189,39 @@ func (o *v2Operations) fetchTrieData(ctx context.Context) (prefixes []string, ou
 		}
 	}
 
-	outputsRaw := outputsResult.Val()
-	outputs = make(map[string][]string)
-	for state, jsonArr := range outputsRaw {
+	parsed, parseErr := parseOutputs(outputsResult.Val())
+	if parseErr != nil {
+		return nil, nil, parseErr
+	}
+	outputs = parsed
+
+	return prefixes, outputs, nil
+}
+
+// parseOutputs unmarshals the per-state JSON arrays of the V2 outputs hash.
+func parseOutputs(raw map[string]string) (map[string][]string, error) {
+	outputs := make(map[string][]string, len(raw))
+	for state, jsonArr := range raw {
 		var arr []string
-		if unmarshalErr := json.Unmarshal([]byte(jsonArr), &arr); unmarshalErr != nil {
-			return nil, nil, newOperationError("unmarshal", SchemaV2, unmarshalErr)
+		if err := json.Unmarshal([]byte(jsonArr), &arr); err != nil {
+			return nil, newOperationError("unmarshal", SchemaV2, err)
 		}
 		outputs[state] = arr
 	}
+	return outputs, nil
+}
 
-	return prefixes, outputs, nil
+// fetchRawOutputs reads just the outputs hash, unparsed.
+//
+// The engine is built from the union of the outputs values alone, so the trie
+// hash that fetchTrieData also pipelines is dead weight on the read path. This
+// stays one round trip while transferring and parsing less.
+func (o *v2Operations) fetchRawOutputs(ctx context.Context) (map[string]string, error) {
+	raw, err := o.storage.HGetAll(ctx, outputsKey(o.name))
+	if err != nil {
+		return nil, newRedisError("HGETALL", outputsKey(o.name), err)
+	}
+	return raw, nil
 }
 
 // loadCache fetches trie data and populates the cache.
@@ -215,17 +238,31 @@ func (o *v2Operations) loadCache(ctx context.Context) error {
 // from storage on a cache miss. The engine is built once per cache load (see
 // trieCache.set) and reused across Find calls with no Redis I/O.
 //
-// When caching is disabled (cache == nil) it fetches the trie from Redis and
-// builds a throwaway engine per call. Redis I/O dominates that path, so the
-// extra automaton build is negligible; enabling the cache is the way to avoid
-// both, not per-call engine caching.
+// When caching is disabled (cache == nil) it still reads Redis on every call,
+// because nothing else would notice a peer's write, but memoizes the parse and
+// build behind that read. The assumption that Redis I/O dominated so heavily
+// that the rebuild did not matter turned out to be wrong: rebuilding per call
+// made uncached Find slower than V1, which had memoized its engine all along.
+// EnableCache is still the way to avoid the read itself.
 func (o *v2Operations) loadEngine(ctx context.Context) (*matchengine.Engine, error) {
 	if o.cache == nil {
-		_, outputs, err := o.fetchTrieData(ctx)
+		// Without EnableCache there is no invalidation listener, so the read
+		// still happens on every call to stay fresh — a peer's write must not
+		// go unnoticed. Everything after the read is memoized on the raw
+		// payload: repeating the unmarshal and automaton build over identical
+		// bytes is what made uncached V2 Find slower than V1, which memoizes
+		// its own engine the same way.
+		raw, err := o.fetchRawOutputs(ctx)
 		if err != nil {
 			return nil, err
 		}
-		return buildEngineFromOutputs(outputs), nil
+		return o.engines.engineFor(digestRawOutputs(raw), func() (*matchengine.Engine, error) {
+			outputs, parseErr := parseOutputs(raw)
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			return buildEngineFromOutputs(outputs), nil
+		})
 	}
 
 	if engine, valid := o.cache.getEngine(); valid {
