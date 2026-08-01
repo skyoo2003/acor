@@ -131,14 +131,27 @@ ACOR supports two Redis schema versions:
 | V1 (Legacy)    | Multiple keys per collection | ~500K                  |
 | V2 (Optimized) | Fixed 3 keys per collection  | 3                      |
 
-**V2 is recommended** for new collections and provides 50-60x faster `Find()` operations.
+**V2 is recommended** for new collections: `Add()` is ~13x faster, and V2 is the
+only schema that supports local caching or preset engines.
 
 ### Performance Comparison
 
-| Operation | V1 (Legacy)   | V2 (Optimized) |
-| --------- | ------------- | -------------- |
-| Find()    | O(N×3-5) RTT  | 3 RTT (fixed)  |
-| Add()     | O(M×3-10) RTT | 2-3 RTT        |
+Round trips are exact and enforced by tests. Timings are from Apple M4 with Redis
+8 on loopback at 1000 keywords — reproduce them and see the full tables on the
+[benchmarks page](docs/content/reference/benchmarks.md).
+
+| Operation | V1 (Legacy) | V2 (Optimized) |
+| --------- | ----------- | -------------- |
+| Find() round trips | 1 | 1 |
+| Add() round trips | grows with keyword length (53 at 5 chars, 507 at 26) | 2 |
+| Add() time | baseline | **~12x faster** |
+| Find() time, no cache | baseline | ~9x **slower** |
+| Find() time, `EnableCache` | n/a | ~15x faster |
+| Find() time, `PresetBalanced` | n/a | ~60x faster |
+
+Uncached V2 `Find()` rebuilds its match engine on every call, so it is slower
+than V1 on reads. The large read speedups come from `EnableCache` or a `Preset`,
+not from the schema alone. For read-heavy workloads, enable one of them.
 
 ### Migration
 
@@ -237,7 +250,7 @@ ac, _ := acor.Create(&acor.AhoCorasickArgs{
     EnableCache: true,
 })
 
-// First Find() loads from Redis (3 RTT)
+// First Find() loads from Redis (1 RTT)
 ac.Find("hello world")
 
 // Subsequent Find() uses local cache (0 RTT)

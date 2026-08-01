@@ -159,7 +159,7 @@ err := ac.Close()
 
 | Feature | `AhoCorasick` (no Preset) | `AhoCorasick` (with Preset) |
 |---------|--------------|-----------------|
-| Read latency | 3 RTT (V2) or cached | 0 RTT (local engine) |
+| Read latency | 1 RTT (V2) or cached | 0 RTT (local engine) |
 | Write latency | Lua script | Lua script + optimistic lock |
 | Cross-instance sync | Pub/Sub cache invalidation | Pub/Sub engine rebuild |
 | Schema | V1 or V2 | V2 only |
