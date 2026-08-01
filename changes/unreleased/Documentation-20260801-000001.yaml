@@ -1,0 +1,5 @@
+kind: Documentation
+body: Corrected the published performance claims to measured values and added a reproducible benchmarks reference page. V2 `Find()` costs 1 round trip (documented as 3), V1 `Find()` also costs 1 (documented as growing with the dictionary), and the "50-60x faster Find()" claim belonged to `EnableCache`/`Preset` rather than the V2 schema. Round-trip counts are now enforced by tests on every CI run
+time: 2026-08-01T10:00:00.000000+09:00
+custom:
+    Issue: "182"
