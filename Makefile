@@ -1,4 +1,4 @@
-.PHONY: all setup clean build test lint lint-fix coverage vet fuzz race docs-verify proto tidy-check
+.PHONY: all setup clean build test lint lint-fix coverage vet fuzz bench race docs-verify proto tidy-check
 
 # Pin golangci-lint so local `make lint` matches CI (see .github/workflows/ci.yaml).
 # Run via `go run` so the installed binary's version can't drift from CI.
@@ -58,6 +58,13 @@ lint-fix:
 fuzz:
 	@go test -fuzz=FuzzFind -fuzztime=30s ./pkg/acor
 	@go test -fuzz=FuzzAdd -fuzztime=30s ./pkg/acor
+
+# Timing evidence for docs/content/reference/benchmarks.md. Set
+# ACOR_INTEGRATION_ADDR to also run the real-server benchmarks; without it only
+# the miniredis ones run, and those must never be published as timings (an
+# in-process emulator has no round-trip cost, which is where V1 loses).
+bench:
+	@go test -bench . -benchmem -run '^$$' ./pkg/acor ./internal/engine
 
 race:
 	@go test -race ./...

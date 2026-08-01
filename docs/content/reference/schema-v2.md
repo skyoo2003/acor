@@ -21,8 +21,8 @@ V2 consolidates storage into 3 keys:
 
 | Operation | Complexity |
 |-----------|------------|
-| Find() | 3 RTT (fixed), 0 RTT with EnableCache |
-| Add() | 2-3 RTT |
+| Find() | 1 RTT (fixed), 0 RTT with EnableCache |
+| Add() | 2 RTT (flat, independent of keyword length) |
 
 ## Comparison with V1
 

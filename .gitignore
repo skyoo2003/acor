@@ -3,6 +3,7 @@
 /.idea/
 /.serena/
 /.sisyphus/
+/.claude/
 
 # Build
 /bin/

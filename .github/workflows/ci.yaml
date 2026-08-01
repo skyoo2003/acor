@@ -135,3 +135,16 @@ jobs:
         env:
           ACOR_INTEGRATION_ADDR: localhost:6379
         run: go test -race -run Integration -count=1 -v ./pkg/acor
+      - name: Verify published round-trip counts against ${{ matrix.server }}
+        env:
+          ACOR_INTEGRATION_ADDR: localhost:6379
+        run: go test -run RTT -count=1 -v ./pkg/acor
+      # One iteration only: proves the benchmarks behind the published numbers
+      # still run. Container timings are too noisy to gate on, so this must
+      # never assert a duration. Scoped to RealServer because the miniredis
+      # benchmarks take minutes to sweep and their compilation is already
+      # covered by `go test ./...`.
+      - name: Smoke-run published benchmarks against ${{ matrix.server }}
+        env:
+          ACOR_INTEGRATION_ADDR: localhost:6379
+        run: go test -bench RealServer -benchtime=1x -run '^$' ./pkg/acor

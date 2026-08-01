@@ -20,11 +20,13 @@ import (
 //
 //	ACOR_INTEGRATION_ADDR=localhost:6379 go test -run Integration ./pkg/acor
 
-func integrationAddr(t *testing.T) string {
-	t.Helper()
+// integrationAddr takes testing.TB so benchmarks can share the same gate as
+// tests; published timing numbers must come from a real server, not miniredis.
+func integrationAddr(tb testing.TB) string {
+	tb.Helper()
 	addr := os.Getenv("ACOR_INTEGRATION_ADDR")
 	if addr == "" {
-		t.Skip("ACOR_INTEGRATION_ADDR not set; skipping real-server integration test")
+		tb.Skip("ACOR_INTEGRATION_ADDR not set; skipping real-server integration test")
 	}
 	return addr
 }
