@@ -1,11 +1,9 @@
 kind: Fixed
 body: >-
-  Uncached V2 `Find()` no longer re-parses and rebuilds the match engine on every
-  call, and reads only the outputs hash instead of also pipelining the unused trie
-  hash. At 1000 keywords this is 1,163,098 -> 221,253 ns/op and 11,704 -> 2,063
-  allocs/op, taking uncached V2 from ~9x slower than V1 to ~1.7x. Freshness is
-  unchanged, because the read still happens on every call so a peer's write is
-  never missed
+  Uncached V2 `Find()` no longer rebuilds the match engine on every call and
+  reads only the outputs hash. At 1000 keywords: 1,163,098 -> 221,253 ns/op and
+  11,704 -> 2,063 allocs/op, taking uncached V2 from ~9x slower than V1 to ~1.7x.
+  Freshness is unchanged - the read still happens on every call
 time: 2026-08-01T10:00:02.000000+09:00
 custom:
     Issue: "183"
