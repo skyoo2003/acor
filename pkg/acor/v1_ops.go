@@ -6,9 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hash/maphash"
 	"strings"
-	"sync"
 	"time"
 
 	redis "github.com/redis/go-redis/v9"
@@ -31,43 +29,21 @@ type v1Operations struct {
 	ac              *AhoCorasick // for trie.go helper access (temporary, cleaned up in T15)
 	caseSensitive   bool
 	rollbackTimeout time.Duration
-	engines         v1EngineMemo
+	engines         engineMemo
 }
 
-// v1EngineMemo holds the automaton last built for a keyword set, so repeated
-// searches over an unchanged V1 collection skip the O(keywords) rebuild.
-type v1EngineMemo struct {
-	mu     sync.Mutex
-	engine *matchengine.Engine
-	digest uint64
-}
-
-// v1DigestSeed keys the keyword-set digest, which is only ever compared against
-// digests taken in the same process.
-var v1DigestSeed = maphash.MakeSeed()
-
-// engineFor returns the automaton for kws, rebuilding only when the set changed.
-// The digest sums per-member hashes, so it does not depend on the order SMEMBERS
-// happened to return the members in.
-func (m *v1EngineMemo) engineFor(kws []string) *matchengine.Engine {
-	var digest uint64
-	for _, k := range kws {
-		digest += maphash.String(v1DigestSeed, k)
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.engine != nil && m.digest == digest {
-		return m.engine
-	}
-
-	set := make(map[string]struct{}, len(kws))
-	for _, k := range kws {
-		set[k] = struct{}{}
-	}
-	m.engine = buildEngine(PresetBalanced, set)
-	m.digest = digest
-	return m.engine
+// engineForKeywords returns the automaton for kws, rebuilding only when the set
+// changed. See engineMemo in engine_memo.go, shared with V2.
+func (m *engineMemo) engineForKeywords(kws []string) *matchengine.Engine {
+	// Building from a keyword set cannot fail, so the error is always nil.
+	engine, _ := m.engineFor(digestKeywords(kws), func() (*matchengine.Engine, error) {
+		set := make(map[string]struct{}, len(kws))
+		for _, k := range kws {
+			set[k] = struct{}{}
+		}
+		return buildEngine(PresetBalanced, set), nil
+	})
+	return engine
 }
 
 // --- operations interface methods ---
@@ -209,13 +185,13 @@ func (o *v1Operations) findIndex(ctx context.Context, text string) (map[string][
 //
 // The set itself is re-read every call — V1 has no invalidation listener
 // (EnableCache with V1 is ErrCacheRequiresV2), so a peer's write would otherwise
-// go unnoticed. Only the rebuild is memoized (see v1EngineMemo).
+// go unnoticed. Only the rebuild is memoized (see engineMemo).
 func (o *v1Operations) loadEngine(ctx context.Context) (*matchengine.Engine, error) {
 	kws, err := o.storage.SMembers(ctx, keywordKey(o.name))
 	if err != nil {
 		return nil, newRedisError("SMEMBERS", keywordKey(o.name), err)
 	}
-	return o.engines.engineFor(kws), nil
+	return o.engines.engineForKeywords(kws), nil
 }
 
 func (o *v1Operations) flush(_ context.Context) error {

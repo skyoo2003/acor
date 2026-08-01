@@ -145,13 +145,14 @@ Round trips are exact and enforced by tests. Timings are from Apple M4 with Redi
 | Find() round trips | 1 | 1 |
 | Add() round trips | grows with keyword length (53 at 5 chars, 507 at 26) | 2 |
 | Add() time | baseline | **~12x faster** |
-| Find() time, no cache | baseline | ~9x **slower** |
+| Find() time, no cache | baseline | ~1.7x **slower** |
 | Find() time, `EnableCache` | n/a | ~15x faster |
-| Find() time, `PresetBalanced` | n/a | ~60x faster |
+| Find() time, `PresetBalanced` | n/a | ~58x faster |
 
-Uncached V2 `Find()` rebuilds its match engine on every call, so it is slower
-than V1 on reads. The large read speedups come from `EnableCache` or a `Preset`,
-not from the schema alone. For read-heavy workloads, enable one of them.
+Uncached V2 `Find()` reads an outputs hash with one entry per trie state, where
+V1 reads only the keyword set, so it stays slightly slower on reads at one round
+trip each. The large read speedups come from `EnableCache` or a `Preset`, not
+from the schema alone. For read-heavy workloads, enable one of them.
 
 ### Migration
 

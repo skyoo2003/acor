@@ -60,47 +60,48 @@ several minutes and its timings are not published — see the caveats below.
 
 | Configuration | ns/op | B/op | allocs/op | vs V1 |
 |---|---|---|---|---|
-| V1 | 135,067 | 39,631 | 1,073 | baseline |
-| V2, no cache | 1,163,098 | 1,264,718 | 11,704 | **~9x slower** |
-| V2 + `EnableCache`, warm | 8,281 | 8,472 | 65 | ~15x faster |
-| `PresetBalanced` | 2,076 | 2,160 | 7 | **~60x faster** |
+| V1 | 128,828 | 39,651 | 1,073 | baseline |
+| V2, no cache | 221,253 | 121,255 | 2,063 | ~1.7x slower |
+| V2 + `EnableCache`, warm | 8,561 | 8,010 | 65 | ~15x faster |
+| `PresetBalanced` | 2,224 | 2,160 | 7 | **~58x faster** |
 
 ### Find, 100 keywords
 
 | Configuration | ns/op | B/op | allocs/op | vs V1 |
 |---|---|---|---|---|
-| V1 | 71,497 | 8,258 | 161 | baseline |
-| V2, no cache | 177,541 | 169,224 | 1,302 | ~2.5x slower |
-| V2 + `EnableCache`, warm | 2,942 | 2,995 | 13 | ~24x faster |
-| `PresetBalanced` | 1,927 | 2,160 | 7 | ~37x faster |
+| V1 | 71,928 | 8,238 | 161 | baseline |
+| V2, no cache | 79,853 | 11,256 | 222 | ~1.1x slower |
+| V2 + `EnableCache`, warm | 2,772 | 2,969 | 13 | ~26x faster |
+| `PresetBalanced` | 2,135 | 2,160 | 7 | ~34x faster |
 
 ### Add
 
 | Configuration | ns/op | vs V1 |
 |---|---|---|
-| V1 | 4,979,354 | baseline |
-| V2 | 385,242 | **~12x faster** |
+| V1 | 4,951,188 | baseline |
+| V2 | 391,556 | **~12x faster** |
 
 ### Run-to-run variance
 
-The `ns/op` columns above are one run. A second run on the same idle-ish laptop
-produced 167,907 / 1,567,861 / 11,207 / 2,924 ns/op for the 1000-keyword Find
-cases — every absolute number about 20-25% higher, while the ratios moved by
-under 15% (9.3x slower, 15.0x faster, 57x faster).
+The `ns/op` columns are one run. Repeat runs on the same idle-ish laptop moved
+every absolute number by 20-25% while the ratios held to within about 15%.
 
-This is the reason the ratios are stated approximately and the raw numbers are
-labelled as a sample. If your absolute figures differ from ours, that is
-expected. If your *ratios* differ substantially, that is worth reporting as an
-issue.
+This is why the ratios are stated approximately and the raw numbers are labelled
+as a sample. If your absolute figures differ from ours, that is expected. If your
+*ratios* differ substantially, that is worth reporting as an issue.
 
 ## What these numbers mean
 
-**V2 without caching is slower than V1 on reads.** Uncached V2 `Find()` fetches
-the full trie and outputs hashes and rebuilds the match engine on every call —
-1.26 MB and 11,704 allocations per operation at 1000 keywords. V1 fetches only
-the keyword set and memoizes the engine it builds from it, which amounts to a
-local cache V2 does not get by default. Both cost one round trip; the difference
-is payload and rebuild work, which round-trip counting cannot see.
+**V2 without caching is still somewhat slower than V1 on reads**, and the reason
+is payload rather than round trips. Both cost one trip, but V1's `SMEMBERS`
+returns just the keyword set while V2 must read an outputs hash carrying one
+entry per trie state. That gap widens with the dictionary: roughly parity at 100
+keywords, ~1.7x at 1000.
+
+Both schemas memoize the automaton, so an unchanged collection is not re-parsed
+or rebuilt between reads. Uncached V2 was ~9x slower than V1 before that
+memoization landed; the remainder is inherent to reading the whole outputs hash,
+and `EnableCache` is the fix for it.
 
 **The large read speedups come from caching, not from the schema.** 16x to 65x
 belongs to `EnableCache` and the `Preset` engines. Attributing it to V2 alone
