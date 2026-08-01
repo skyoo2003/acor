@@ -3,8 +3,11 @@
 package acor //nolint:errcheck // memoization tests focus on engine identity
 
 import (
+	"errors"
 	"fmt"
 	"testing"
+
+	matchengine "github.com/skyoo2003/acor/internal/engine"
 )
 
 // The memo skips rebuilding the automaton when the fetched data is unchanged.
@@ -163,6 +166,96 @@ func TestDigestRawOutputsDetectsChanges(t *testing.T) {
 				t.Fatalf("digestRawOutputs(%v) == digestRawOutputs(base) is %v, want %v", tc.raw, got == want, tc.same)
 			}
 		})
+	}
+}
+
+// TestEngineMemoPropagatesBuildError pins the failure behavior of engineFor.
+//
+// The build callback can fail for real: the V2 uncached path parses JSON inside
+// it. Two things must hold, and neither is visible through the public API —
+// the error has to reach the caller rather than being swallowed into a nil
+// engine, and a failed build must not be memoized, or one corrupt read would
+// poison every later read of the same data.
+func TestEngineMemoPropagatesBuildError(t *testing.T) {
+	buildErr := errors.New("synthetic build failure")
+	engineFor := func(m *engineMemo, digest uint64, e *matchengine.Engine, err error) (*matchengine.Engine, error) {
+		return m.engineFor(digest, func() (*matchengine.Engine, error) { return e, err })
+	}
+
+	t.Run("error reaches the caller", func(t *testing.T) {
+		var m engineMemo
+		engine, err := engineFor(&m, 1, nil, buildErr)
+		if !errors.Is(err, buildErr) {
+			t.Fatalf("engineFor() error = %v, want %v", err, buildErr)
+		}
+		if engine != nil {
+			t.Fatalf("engineFor() = %v, want nil engine alongside the error", engine)
+		}
+	})
+
+	t.Run("failure is not memoized", func(t *testing.T) {
+		var m engineMemo
+		if _, err := engineFor(&m, 1, nil, buildErr); err == nil {
+			t.Fatal("expected the first build to fail")
+		}
+
+		want := buildEngine(PresetBalanced, map[string]struct{}{"hello": {}})
+		got, err := engineFor(&m, 1, want, nil)
+		if err != nil {
+			t.Fatalf("engineFor() after a failed build = %v, want the retry to succeed", err)
+		}
+		if got != want {
+			t.Fatal("engineFor() did not memoize the successful retry for a digest that previously failed")
+		}
+	})
+
+	t.Run("a failed build leaves the previous engine intact", func(t *testing.T) {
+		var m engineMemo
+		first := buildEngine(PresetBalanced, map[string]struct{}{"hello": {}})
+		if _, err := engineFor(&m, 1, first, nil); err != nil {
+			t.Fatalf("engineFor() error: %v", err)
+		}
+
+		// A different digest fails to build.
+		if _, err := engineFor(&m, 2, nil, buildErr); !errors.Is(err, buildErr) {
+			t.Fatalf("engineFor() error = %v, want %v", err, buildErr)
+		}
+
+		// The original digest must still be served from the memo, without
+		// rebuilding — the callback below would fail the test if it ran.
+		got, err := m.engineFor(1, func() (*matchengine.Engine, error) {
+			t.Error("engineFor rebuilt digest 1; the failed build for digest 2 evicted a good engine")
+			return nil, nil
+		})
+		if err != nil {
+			t.Fatalf("engineFor() error: %v", err)
+		}
+		if got != first {
+			t.Fatal("engineFor() no longer returns the engine memoized before the failed build")
+		}
+	})
+}
+
+// TestV2UncachedFindSurfacesParseError is the production shape of the same
+// concern: unparseable data in Redis must surface as an error from Find, not as
+// an empty match list that a caller would read as "no keywords present".
+func TestV2UncachedFindSurfacesParseError(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer ac.Close()
+
+	if _, err := ac.Add("hello"); err != nil {
+		t.Fatalf("Add() error: %v", err)
+	}
+	if _, err := ac.Find("hello world"); err != nil {
+		t.Fatalf("Find() before corruption error: %v", err)
+	}
+
+	// Corrupt one state's output list behind ACOR's back.
+	mr.HSet(outputsKey("test"), "1", "{not-json")
+
+	if _, err := ac.Find("hello world"); err == nil {
+		t.Fatal("Find() returned no error over unparseable outputs; a corrupt read must not look like an empty dictionary")
 	}
 }
 
