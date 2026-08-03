@@ -12,7 +12,7 @@ import (
 )
 
 func allPresets() []Preset {
-	return []Preset{PresetSpeed, PresetBalanced, PresetMemoryEfficient, PresetUltimate}
+	return []Preset{PresetSpeed, PresetBalanced, PresetMemoryEfficient}
 }
 
 func createTestPreset(t testing.TB, preset Preset) *AhoCorasick {
@@ -381,19 +381,6 @@ func BenchmarkPresetFindBalanced(b *testing.B) {
 
 func BenchmarkPresetFindMemoryEfficient(b *testing.B) {
 	ac := createTestPreset(b, PresetMemoryEfficient)
-	b.Cleanup(func() { _ = ac.Close() })
-	for _, kw := range []string{"he", "she", "his", "hers", "hello", "world", "benchmark"} {
-		ac.Add(kw)
-	}
-	text := benchmarkInputText
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ac.Find(text)
-	}
-}
-
-func BenchmarkPresetFindUltimate(b *testing.B) {
-	ac := createTestPreset(b, PresetUltimate)
 	b.Cleanup(func() { _ = ac.Close() })
 	for _, kw := range []string{"he", "she", "his", "hers", "hello", "world", "benchmark"} {
 		ac.Add(kw)

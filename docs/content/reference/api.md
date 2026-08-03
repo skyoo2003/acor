@@ -259,7 +259,7 @@ const (
     PresetSpeed                         // Full DFA + flat array — max speed, higher memory
     PresetBalanced                      // Double-Array Trie + Banded DFA — best speed-to-memory ratio
     PresetMemoryEfficient               // Map-based + Bloom filter — min memory, slower search
-    PresetUltimate                      // Balanced engine + first-rune Bloom pre-filter — high throughput
+    // PresetUltimate is a deprecated alias for PresetBalanced.
 )
 ```
 
@@ -284,7 +284,7 @@ The `AhoCorasickArgs` struct includes a `Preset` field for the engine mode:
 ```go
 type AhoCorasickArgs struct {
     // ... standard Redis connection fields ...
-    Preset         Preset // Architecture preset: PresetSpeed, PresetBalanced, PresetMemoryEfficient, PresetUltimate
+    Preset         Preset // Architecture preset: PresetSpeed, PresetBalanced, PresetMemoryEfficient
     // ... other fields ...
 }
 ```

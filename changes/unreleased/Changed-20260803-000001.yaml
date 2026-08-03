@@ -1,0 +1,16 @@
+kind: Changed
+body: >-
+  `PresetUltimate` is now a deprecated alias for `PresetBalanced` and its Bloom
+  pre-filter is gone. The filter was meant to skip characters that cannot start
+  any keyword, but the per-character check cost more than the trie work it saved:
+  across every benchmark in the repository it ran 1.7-1.8x slower than
+  `PresetBalanced` on both ASCII and multibyte text. It also forced
+  the scan onto the rune path, blocking the byte-scan fast path an ASCII
+  dictionary can take. Code selecting it keeps compiling and now gets the faster
+  engine. Dropping the filter's nil check from the shared scan loop also sped up
+  `PresetBalanced` itself: `FindIndex` over 1000 ASCII keywords went 8,734 to
+  7,340 ns/op. `PresetMemoryEfficient` keeps its own Bloom pre-filter, which is
+  used differently
+time: 2026-08-03T10:00:00.000000+09:00
+custom:
+    Issue: "186"

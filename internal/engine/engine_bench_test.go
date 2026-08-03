@@ -31,7 +31,6 @@ var benchPresets = []struct {
 	{"Speed", PresetSpeed},
 	{"Balanced", PresetBalanced},
 	{"MemoryEfficient", PresetMemoryEfficient},
-	{"Ultimate", PresetUltimate},
 }
 
 func benchmarkEngine(b *testing.B, findIndex bool) {

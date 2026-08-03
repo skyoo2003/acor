@@ -123,7 +123,6 @@ The same [architecture presets](../preset-engine/#architecture-presets) are avai
 | `PresetSpeed` | Latency-critical, memory available |
 | `PresetBalanced` | Default — best speed-to-memory ratio |
 | `PresetMemoryEfficient` | Millions of patterns, memory constrained |
-| `PresetUltimate` | Maximum throughput production systems |
 
 If the `Preset` field is left unset, it defaults to `PresetNone`, which runs the
 original `AhoCorasick` mode (not the preset-optimized engine). You must set
@@ -163,7 +162,7 @@ err := ac.Close()
 | Write latency | Lua script | Lua script + optimistic lock |
 | Cross-instance sync | Pub/Sub cache invalidation | Pub/Sub engine rebuild |
 | Schema | V1 or V2 | V2 only |
-| Presets | N/A | Speed, Balanced, MemoryEfficient, Ultimate |
+| Presets | N/A | Speed, Balanced, MemoryEfficient |
 | Suggest/SuggestIndex | Yes | No (`ErrSuggestRequiresRedis`) |
 | Batch operations | Yes | Yes |
 | Parallel matching | Yes | Yes |
