@@ -446,6 +446,41 @@ func TestRemoveManyTransactionalDuplicate(t *testing.T) {
 	}
 }
 
+// TestBatchCaseDuplicateCountsOnce pins duplicate detection to the normalized
+// keyword. On a case-insensitive collection "Foo" and "foo" are one keyword, so one
+// write happens and exactly one entry may be reported as Added/Removed. Screening
+// the caller's raw spelling let both through, and the batched write path — which
+// reports normalized keywords — then matched both against that single applied
+// keyword and reported two additions for one write.
+func TestBatchCaseDuplicateCountsOnce(t *testing.T) {
+	for _, schema := range []int{SchemaV1, SchemaV2} {
+		for _, mode := range []BatchMode{BatchModeBestEffort, BatchModeTransactional} {
+			ac, mr := createAhoCorasickWithSchema(t, schema)
+
+			added, err := ac.AddMany([]string{"Foo", "foo"}, &BatchOptions{Mode: mode})
+			if err != nil {
+				t.Fatalf("schema=%d mode=%v: AddMany error: %v", schema, mode, err)
+			}
+			if len(added.Added) != 1 || len(added.Skipped) != 1 {
+				t.Errorf("schema=%d mode=%v: AddMany added=%v skipped=%v, want one of each",
+					schema, mode, added.Added, added.Skipped)
+			}
+
+			removed, err := ac.RemoveManyWithOptions([]string{"Foo", "foo"}, &BatchOptions{Mode: mode})
+			if err != nil {
+				t.Fatalf("schema=%d mode=%v: RemoveMany error: %v", schema, mode, err)
+			}
+			if len(removed.Removed) != 1 || len(removed.Skipped) != 1 {
+				t.Errorf("schema=%d mode=%v: RemoveMany removed=%v skipped=%v, want one of each",
+					schema, mode, removed.Removed, removed.Skipped)
+			}
+
+			_ = ac.Close()
+			mr.Close()
+		}
+	}
+}
+
 func TestRemoveManyTransactionalError(t *testing.T) {
 	ac, _ := createAhoCorasick(t)
 	defer func() { _ = ac.Close() }()

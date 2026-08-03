@@ -62,9 +62,23 @@ func (ac *AhoCorasick) AddMany(keywords []string, opts *BatchOptions) (*BatchRes
 	return ac.AddManyContext(ac.ctx, keywords, opts)
 }
 
-func (ac *AhoCorasick) addManyBestEffort(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
-	seen := make(map[string]bool)
-	add, commit := ac.batchAddFns()
+// screenBatch applies the checks that need no Redis access: blank keywords go to
+// result.Failed, repeats within the same call are skipped, and the survivors are
+// returned in input order. Every batch path shares it, so blanks and duplicates
+// behave the same whichever write path runs.
+//
+// Duplicates are detected on the normalized form, not the caller's spelling: on a
+// case-insensitive collection "Foo" and "foo" are one keyword, so only one of them
+// can be added. Screening on the raw spelling let both through, and partitionApplied
+// then matched both against the single applied keyword and reported two additions
+// for one write.
+//
+// ErrEmptyKeyword is the only error it records, so a transactional caller — which
+// must abort the batch on a blank rather than record it — tests
+// len(result.Failed) > 0 and discards result.
+func (ac *AhoCorasick) screenBatch(keywords []string, result *BatchResult) []string {
+	seen := make(map[string]bool, len(keywords))
+	candidates := make([]string, 0, len(keywords))
 
 	for _, keyword := range keywords {
 		keyword = strings.TrimSpace(keyword)
@@ -75,13 +89,66 @@ func (ac *AhoCorasick) addManyBestEffort(ctx context.Context, keywords []string,
 			})
 			continue
 		}
-
-		if seen[keyword] {
+		normalized := normalizeKeyword(keyword, ac.caseSensitive)
+		if seen[normalized] {
 			result.Skipped = append(result.Skipped, keyword)
 			continue
 		}
-		seen[keyword] = true
+		seen[normalized] = true
+		candidates = append(candidates, keyword)
+	}
 
+	return candidates
+}
+
+// partitionApplied splits screened candidates by what the write actually
+// changed. applied is what the write path reports as having taken effect;
+// everything else was already in the desired state.
+//
+// The write path reports normalized keywords (lowercased unless the collection is
+// case-sensitive) while candidates keep the caller's spelling, so membership is
+// tested on the normalized form. Comparing raw against normalized reported every
+// keyword with an uppercase rune as Skipped on a case-insensitive collection, even
+// though it had just been written.
+func (ac *AhoCorasick) partitionApplied(candidates, applied []string) (changed, unchanged []string) {
+	appliedSet := make(map[string]struct{}, len(applied))
+	for _, kw := range applied {
+		appliedSet[kw] = struct{}{}
+	}
+	for _, kw := range candidates {
+		if _, ok := appliedSet[normalizeKeyword(kw, ac.caseSensitive)]; ok {
+			changed = append(changed, kw)
+		} else {
+			unchanged = append(unchanged, kw)
+		}
+	}
+	return changed, unchanged
+}
+
+func (ac *AhoCorasick) addManyBestEffort(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
+	candidates := ac.screenBatch(keywords, result)
+
+	if bp, ok := ac.ops.(batchPlanner); ok {
+		if len(candidates) == 0 {
+			return result, nil
+		}
+		added, err := bp.addManyAtomic(ctx, candidates)
+		if err != nil {
+			// One transaction means one outcome: nothing was written, so every
+			// candidate failed. A partial success cannot happen here.
+			for _, keyword := range candidates {
+				result.Failed = append(result.Failed, KeywordError{Keyword: keyword, Error: err})
+			}
+			return result, nil
+		}
+		changed, unchanged := ac.partitionApplied(candidates, added)
+		result.Added = append(result.Added, changed...)
+		result.Skipped = append(result.Skipped, unchanged...)
+		return result, nil
+	}
+
+	add, commit := ac.batchAddFns()
+	for _, keyword := range candidates {
 		count, err := add(ctx, keyword)
 		if err != nil {
 			result.Failed = append(result.Failed, KeywordError{
@@ -106,6 +173,29 @@ func (ac *AhoCorasick) addManyBestEffort(ctx context.Context, keywords []string,
 }
 
 func (ac *AhoCorasick) addManyTransactional(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
+	if bp, ok := ac.ops.(batchPlanner); ok {
+		candidates := ac.screenBatch(keywords, result)
+		if len(result.Failed) > 0 {
+			// Transactional means all-or-nothing, so a blank keyword aborts the
+			// batch instead of being recorded alongside successful writes.
+			return nil, ErrEmptyKeyword
+		}
+		if len(candidates) == 0 {
+			result.Added = []string{}
+			return result, nil
+		}
+		// A single CAS write is already all-or-nothing, so there is nothing to
+		// roll back: either the whole batch committed or none of it did.
+		applied, err := bp.addManyAtomic(ctx, candidates)
+		if err != nil {
+			return nil, fmt.Errorf("batch add failed: %w", err)
+		}
+		changed, unchanged := ac.partitionApplied(candidates, applied)
+		result.Added = append(result.Added, changed...)
+		result.Skipped = append(result.Skipped, unchanged...)
+		return result, nil
+	}
+
 	added := make([]string, 0)
 	seen := make(map[string]bool)
 	add, commit := ac.batchAddFns()
@@ -213,25 +303,27 @@ func (ac *AhoCorasick) RemoveManyWithOptions(keywords []string, opts *BatchOptio
 }
 
 func (ac *AhoCorasick) removeManyBestEffort(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
-	seen := make(map[string]bool)
+	candidates := ac.screenBatch(keywords, result)
+
+	if bp, ok := ac.ops.(batchPlanner); ok {
+		if len(candidates) == 0 {
+			return result, nil
+		}
+		removed, err := bp.removeManyAtomic(ctx, candidates)
+		if err != nil {
+			for _, keyword := range candidates {
+				result.Failed = append(result.Failed, KeywordError{Keyword: keyword, Error: err})
+			}
+			return result, nil
+		}
+		changed, unchanged := ac.partitionApplied(candidates, removed)
+		result.Removed = append(result.Removed, changed...)
+		result.Skipped = append(result.Skipped, unchanged...)
+		return result, nil
+	}
+
 	remove, commit := ac.batchRemoveFns()
-
-	for _, keyword := range keywords {
-		keyword = strings.TrimSpace(keyword)
-		if keyword == "" {
-			result.Failed = append(result.Failed, KeywordError{
-				Keyword: keyword,
-				Error:   ErrEmptyKeyword,
-			})
-			continue
-		}
-
-		if seen[keyword] {
-			result.Skipped = append(result.Skipped, keyword)
-			continue
-		}
-		seen[keyword] = true
-
+	for _, keyword := range candidates {
 		count, err := remove(ctx, keyword)
 		if err != nil {
 			result.Failed = append(result.Failed, KeywordError{
@@ -259,6 +351,27 @@ func (ac *AhoCorasick) removeManyBestEffort(ctx context.Context, keywords []stri
 }
 
 func (ac *AhoCorasick) removeManyTransactional(ctx context.Context, keywords []string, result *BatchResult) (*BatchResult, error) {
+	if bp, ok := ac.ops.(batchPlanner); ok {
+		candidates := ac.screenBatch(keywords, result)
+		if len(result.Failed) > 0 {
+			// See addManyTransactional: a blank aborts rather than being recorded.
+			return nil, ErrEmptyKeyword
+		}
+		if len(candidates) == 0 {
+			result.Removed = []string{}
+			return result, nil
+		}
+		// As in addManyTransactional: one CAS write is already atomic.
+		applied, err := bp.removeManyAtomic(ctx, candidates)
+		if err != nil {
+			return nil, fmt.Errorf("batch remove failed: %w", err)
+		}
+		changed, unchanged := ac.partitionApplied(candidates, applied)
+		result.Removed = append(result.Removed, changed...)
+		result.Skipped = append(result.Skipped, unchanged...)
+		return result, nil
+	}
+
 	removed := make([]string, 0)
 	seen := make(map[string]bool)
 	remove, commit := ac.batchRemoveFns()

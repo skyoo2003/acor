@@ -1,0 +1,15 @@
+kind: Fixed
+body: >-
+  `AddMany` and `RemoveMany` now plan the whole batch in one pass and commit it in
+  a single transaction instead of reading, replanning and rewriting the entire
+  trie once per keyword. That per-keyword loop made a batch quadratic: adding 1000
+  keywords against a real server took 1,049ms, 427MB and 8.5M allocations, and now
+  takes 2.6ms, 1.7MB and 8.8K allocations - about 400x faster with 970x fewer
+  allocations, at two round trips regardless of batch size. `computeOutputs` also
+  slices suffixes out of the state string rather than rebuilding each from runes,
+  which allocated once per suffix on every write. Applies to V2 and preset modes;
+  V1 keeps its per-keyword path. Transactional batches no longer need rollback,
+  since one compare-and-set write is already all-or-nothing
+time: 2026-08-02T10:00:00.000000+09:00
+custom:
+    Issue: "185"
