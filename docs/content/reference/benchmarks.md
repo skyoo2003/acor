@@ -30,14 +30,14 @@ CI fails.
 | `Add()`, 26-character keyword | 507 | 2 |
 
 Both schemas read in a single round trip: V1 issues one `SMEMBERS`, V2 pipelines
-two `HGETALL` calls into one trip. V1's round-trip cost is on **writes**, where
-it walks the trie node by node — cost grows with the length of the keyword being
-added, not with the size of the dictionary.
+two `HGETALL` calls into one trip. V1's round-trip cost is on **writes**, where it
+walks the trie node by node, so the cost grows with the length of the keyword being
+added rather than with the size of the dictionary.
 
 ```sh
 go test -run RTT ./pkg/acor
 
-# Same counts against a real server — that is what makes them structural
+# The same counts against a real server, which is what makes them structural
 ACOR_INTEGRATION_ADDR=localhost:6379 go test -run RTT ./pkg/acor
 ```
 
@@ -54,61 +54,78 @@ ACOR_INTEGRATION_ADDR=localhost:6379 \
 ```
 
 `make bench` runs the full sweep including the miniredis benchmarks. That takes
-several minutes and its timings are not published — see the caveats below.
+several minutes, and its timings are not published; see the caveats below.
 
 ### Find, 1000 keywords
 
 | Configuration | ns/op | B/op | allocs/op | vs V1 |
 |---|---|---|---|---|
-| V1 | 128,828 | 39,651 | 1,073 | baseline |
-| V2, no cache | 221,253 | 121,255 | 2,063 | ~1.7x slower |
-| V2 + `EnableCache`, warm | 8,561 | 8,010 | 65 | ~15x faster |
-| `PresetBalanced` | 2,224 | 2,160 | 7 | **~58x faster** |
+| V1 | 129,062 | 39,519 | 1,070 | baseline |
+| V2, no cache | 224,738 | 121,142 | 2,060 | ~1.7x slower |
+| V2 + `EnableCache`, warm | 8,631 | 7,898 | 62 | ~15x faster |
+| `PresetBalanced` | 2,204 | 2,048 | 4 | **~59x faster** |
 
 ### Find, 100 keywords
 
 | Configuration | ns/op | B/op | allocs/op | vs V1 |
 |---|---|---|---|---|
-| V1 | 71,928 | 8,238 | 161 | baseline |
-| V2, no cache | 79,853 | 11,256 | 222 | ~1.1x slower |
-| V2 + `EnableCache`, warm | 2,772 | 2,969 | 13 | ~26x faster |
-| `PresetBalanced` | 2,135 | 2,160 | 7 | ~34x faster |
+| V1 | 91,724 | 8,136 | 158 | baseline |
+| V2, no cache | 79,885 | 11,144 | 219 | ~1.1x faster |
+| V2 + `EnableCache`, warm | 3,120 | 2,857 | 10 | ~29x faster |
+| `PresetBalanced` | 2,214 | 2,048 | 4 | ~41x faster |
+
+At 100 keywords V1 and V2 are close enough that the winner changes between runs;
+only the 1000-keyword gap is stable.
 
 ### Add
 
 | Configuration | ns/op | vs V1 |
 |---|---|---|
-| V1 | 4,951,188 | baseline |
-| V2 | 391,556 | **~12x faster** |
+| V1 | 4,956,892 | baseline |
+| V2 | 353,149 | **~14x faster** |
+
+### Bulk load, `AddMany`
+
+`AddMany` plans the whole batch in one pass and commits it in a single
+transaction, so it costs two round trips regardless of batch size.
+
+| Keywords | ns/op | B/op | allocs/op |
+|---|---|---|---|
+| 100 | 422,665 | 199,850 | 1,079 |
+| 1,000 | 2,958,026 | 1,668,568 | 8,816 |
+
+Reproduce with `ACOR_INTEGRATION_ADDR=localhost:6379 make bench-module`.
 
 ### Run-to-run variance
 
-The `ns/op` columns are one run. Repeat runs on the same idle-ish laptop moved
-every absolute number by 20-25% while the ratios held to within about 15%.
+The `ns/op` columns are one run. Repeat runs on the same idle laptop moved every
+absolute number by 20-25% while the ratios held to within about 15%.
 
-This is why the ratios are stated approximately and the raw numbers are labelled
-as a sample. If your absolute figures differ from ours, that is expected. If your
-*ratios* differ substantially, that is worth reporting as an issue.
+That is why the ratios are stated approximately and the raw numbers are labelled a
+sample. Absolute figures differing from ours is expected; *ratios* differing
+substantially is worth reporting as an issue.
 
 ## What these numbers mean
 
-**V2 without caching is still somewhat slower than V1 on reads**, and the reason
-is payload rather than round trips. Both cost one trip, but V1's `SMEMBERS`
-returns just the keyword set while V2 must read an outputs hash carrying one
-entry per trie state. That gap widens with the dictionary: roughly parity at 100
-keywords, ~1.7x at 1000.
+**V2 without caching is still somewhat slower than V1 on reads**, because of
+payload rather than round trips. Both cost one trip, but V1's `SMEMBERS` returns
+just the keyword set while V2 must read an outputs hash carrying one entry per
+trie state. The gap widens with the dictionary: roughly parity at 100 keywords,
+~1.7x at 1000.
 
-Both schemas memoize the automaton, so an unchanged collection is not re-parsed
-or rebuilt between reads. Uncached V2 was ~9x slower than V1 before that
-memoization landed; the remainder is inherent to reading the whole outputs hash,
-and `EnableCache` is the fix for it.
+Both schemas memoize the automaton, so an unchanged collection is not re-parsed or
+rebuilt between reads. Uncached V2 was ~9x slower than V1 before that memoization
+landed; what remains is inherent to reading the whole outputs hash, and
+`EnableCache` is the fix for it.
 
-**The large read speedups come from caching, not from the schema.** 16x to 65x
-belongs to `EnableCache` and the `Preset` engines. Attributing it to V2 alone
-would misdescribe what a user gets by choosing V2 and nothing else.
+**The large read speedups come from caching, not from the schema.** 15x to 59x
+belongs to `EnableCache` and the `Preset` engines. Choosing V2 and nothing else
+does not deliver them.
 
-**V2's unambiguous win is writes.** 12.9x on `Add()`, and it is the only schema
-that supports caching or preset engines at all.
+**V2's unambiguous win is writes.** ~14x on `Add()`, and it is the only schema
+that supports caching or preset engines at all. Use `AddMany` rather than a loop
+over `Add`: it commits in a single transaction, so 1000 keywords cost 3.0 ms
+instead of the ~350 ms the same writes cost one at a time.
 
 Practical reading: choose V2, and enable `EnableCache` or a `Preset` if your
 workload is read-heavy. V2 with neither is the one configuration these numbers
@@ -117,11 +134,12 @@ do not recommend.
 ## Caveats
 
 - Loopback Redis has almost no network latency. Over a real network both schemas
-  still pay one round trip on `Find()`, so V2's larger payload matters more, not
-  less; V1's per-node `Add()` cost also grows with real latency.
-- These figures compare ACOR configurations against each other. They are not a
-  comparison against in-memory Aho-Corasick libraries, which answer a different
-  question — a single process with a static dictionary should use one of those.
+  still pay one round trip on `Find()`, so V2's larger payload matters more rather
+  than less, and V1's per-node `Add()` cost grows with the added latency.
+- These figures compare ACOR configurations against each other, not against other
+  Aho-Corasick implementations. A single process with a static dictionary is better
+  served by an in-memory library. ACOR earns its cost when several instances share
+  one dictionary that changes at runtime.
 - Every other benchmark in the repository runs on miniredis, an in-process
   emulator with no round-trip cost. Those exist for regression detection and are
   deliberately not published here.
