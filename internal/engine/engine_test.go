@@ -3,6 +3,7 @@
 package engine
 
 import (
+	"fmt"
 	"reflect"
 	"sort"
 	"testing"
@@ -77,6 +78,10 @@ func TestEngineResultInvariance(t *testing.T) {
 		{"mixed-alphabet", []string{"café", "안녕", "ab"}, "un café 안녕 abc"},
 		{"out-of-alphabet", []string{"cat"}, "a cat zzz ☃ cat"},
 		{"prefix-chain", []string{"a", "aa", "aaa"}, "aaaa"},
+		// A suffix chain (each keyword a suffix of the next) is what walks the
+		// output-link chain to full depth: landing on "aaaw" must report "aaw",
+		// "aw" and "w" too. A prefix chain never exercises more than one link.
+		{"suffix-chain", []string{"w", "aw", "aaw", "aaaw"}, "aaaw aw baaaw"},
 	}
 
 	for _, tc := range cases {
@@ -105,6 +110,63 @@ func TestEngineResultInvariance(t *testing.T) {
 			})
 		}
 	}
+}
+
+// TestOutputStorageStaysLinear pins the bound that output links exist for. Eager
+// suffix merging copied each state's whole output list into every state that
+// failed to it, so a suffix-nested dictionary stored O(n^2) keyword entries —
+// 500 keywords produced 125,250. Each keyword now occupies exactly one state's
+// own slot, so the total is n regardless of nesting.
+//
+// The assertion is on storage rather than time because that is what regressed:
+// a reintroduced merge would still return the right matches.
+func TestOutputStorageStaysLinear(t *testing.T) {
+	for _, n := range []int{10, 100, 500} {
+		// w, aw, aaw, aaaw, ...: every keyword is a suffix of the next.
+		kws := make(map[string]struct{}, n)
+		kw := "w"
+		for i := 0; i < n; i++ {
+			kws[kw] = struct{}{}
+			kw = "a" + kw
+		}
+
+		t.Run(fmt.Sprintf("%dkw", n), func(t *testing.T) {
+			se := newSpeedEngine()
+			se.buildFromKeywords(kws)
+			if got := countNonEmpty(se.own); got != n {
+				t.Errorf("speedEngine stored %d keyword entries, want %d", got, n)
+			}
+
+			be := newBalancedEngine(defaultBandDepth)
+			be.buildFromKeywords(kws)
+			if got := countNonEmpty(be.banded.dat.own); got != n {
+				t.Errorf("balancedEngine stored %d keyword entries, want %d", got, n)
+			}
+
+			// Deepest keyword present means the whole chain must be reported.
+			deepest := kw[1:]
+			for _, p := range allPresets {
+				e := New(p)
+				e.Build(kws)
+				if got := len(e.Find(deepest)); got != n {
+					t.Errorf("preset %v: Find(deepest) reported %d matches, want %d", p, got, n)
+				}
+				if got := e.Info().Keywords; got != n {
+					t.Errorf("preset %v: Info().Keywords = %d, want %d", p, got, n)
+				}
+			}
+		})
+	}
+}
+
+func countNonEmpty(own []string) int {
+	n := 0
+	for _, kw := range own {
+		if kw != "" {
+			n++
+		}
+	}
+	return n
 }
 
 // TestEngineEmptyKeywords guards the degenerate build (no keywords): every

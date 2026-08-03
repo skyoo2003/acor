@@ -83,9 +83,13 @@ type matchEngine interface {
 	findIndex(text string) map[string][]int
 	// matchStream pulls runes from next until it returns ok=false, emitting every
 	// match (overlaps included) to emit in scan order. It stops early if emit
-	// returns false. This is the shared traversal behind FindMatches, Contains,
-	// and streaming; find/findIndex keep their own tight loops to avoid the
-	// per-rune closure overhead on those hot paths.
+	// returns false. This is the traversal behind streaming, where input arrives
+	// from an io.Reader and there is no string to range over.
 	matchStream(next func() (rune, bool), emit func(Match) bool)
+	// matchString is matchStream over a string already in memory. The pull closure
+	// costs an indirect call per rune, which made FindMatches ~2.9x slower than
+	// find over the same text while it routed through matchStream. Semantics are
+	// identical; only the rune source differs.
+	matchString(text string, emit func(Match) bool)
 	info() *InMemoryInfo
 }

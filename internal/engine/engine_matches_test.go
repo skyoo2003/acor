@@ -3,6 +3,7 @@
 package engine
 
 import (
+	"fmt"
 	"reflect"
 	"sort"
 	"testing"
@@ -70,6 +71,110 @@ func TestContains(t *testing.T) {
 		if e.Contains("") {
 			t.Errorf("preset %v: Contains(\"\") should be false", p)
 		}
+	}
+}
+
+// uniqueInOrder is FindSet's contract stated independently of it: Find's
+// occurrences with later duplicates dropped.
+func uniqueInOrder(all []string) []string {
+	seen := make(map[string]struct{}, len(all))
+	out := make([]string, 0, len(all))
+	for _, s := range all {
+		if _, dup := seen[s]; dup {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	return out
+}
+
+// TestFindSetAcrossDedupThreshold pins FindSet against Find on both sides of
+// dedupLinearMax, so the handoff from linear scanning to hash maps cannot change
+// the answer or its order. A text matching well over the threshold is the case
+// the linear path is not meant to serve.
+func TestFindSetAcrossDedupThreshold(t *testing.T) {
+	for _, n := range []int{1, dedupLinearMax - 1, dedupLinearMax, dedupLinearMax + 1, 4 * dedupLinearMax} {
+		kws := make(map[string]struct{}, n)
+		var text string
+		for i := 0; i < n; i++ {
+			kw := fmt.Sprintf("kw%d", i)
+			kws[kw] = struct{}{}
+			// Each keyword appears twice, so dedup has something to do.
+			text += kw + " " + kw + " "
+		}
+		for _, p := range allPresets {
+			t.Run(fmt.Sprintf("%dkw/%v", n, p), func(t *testing.T) {
+				e := New(p)
+				e.Build(kws)
+				want := uniqueInOrder(e.Find(text))
+				got := e.FindSet(text)
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("FindSet = %v, want %v (unique Find order)", got, want)
+				}
+				if len(got) != n {
+					t.Errorf("FindSet returned %d keywords, want %d", len(got), n)
+				}
+			})
+		}
+	}
+}
+
+// TestContainsAgreesWithFind pins the Contains specialization against Find on the
+// paths that differ between them: the ASCII byte scan, the multibyte rune scan,
+// and runes outside the alphabet.
+func TestContainsAgreesWithFind(t *testing.T) {
+	cases := []struct {
+		keywords []string
+		texts    []string
+	}{
+		{[]string{"he", "she", "his"}, []string{"this is here", "no match at all", "", "h", "☃ she ☃"}},
+		{[]string{"한국", "안녕"}, []string{"안녕 한국", "hello", "", "한 국", "🦊안녕🦊"}},
+		{[]string{"a", "aa", "aaa"}, []string{"aaaa", "bbbb", ""}},
+		{[]string{"café"}, []string{"un café", "un cafe", ""}},
+	}
+	for _, tc := range cases {
+		kws := keywordSet(tc.keywords...)
+		for _, p := range allPresets {
+			e := New(p)
+			e.Build(kws)
+			for _, txt := range tc.texts {
+				want := len(e.Find(txt)) > 0
+				if got := e.Contains(txt); got != want {
+					t.Errorf("preset %v: Contains(%q) = %v, want %v", p, txt, got, want)
+				}
+			}
+		}
+	}
+}
+
+// TestRebuildResetsInfo guards the state that survives a rebuild. Build is
+// documented as reconstructing the automaton, and TrieDepth is now recorded during
+// the build rather than derived from a retained array — so a rebuild from shorter
+// keywords must report the shorter depth, not the old maximum.
+func TestRebuildResetsInfo(t *testing.T) {
+	for _, p := range allPresets {
+		t.Run(p.String(), func(t *testing.T) {
+			e := New(p)
+
+			e.Build(keywordSet("abcdefgh"))
+			if got := e.Info().Keywords; got != 1 {
+				t.Errorf("after first build: Keywords = %d, want 1", got)
+			}
+			deep := e.Info().TrieDepth
+
+			e.Build(keywordSet("ab"))
+			info := e.Info()
+			if info.Keywords != 1 {
+				t.Errorf("after rebuild: Keywords = %d, want 1", info.Keywords)
+			}
+			if info.TrieDepth >= deep {
+				t.Errorf("after rebuild on shorter keywords: TrieDepth = %d, want < %d", info.TrieDepth, deep)
+			}
+			if got := e.Find("abcdefgh"); len(got) != 1 || got[0] != "ab" {
+				t.Errorf("after rebuild: Find = %v, want [ab] only", got)
+			}
+		})
 	}
 }
 

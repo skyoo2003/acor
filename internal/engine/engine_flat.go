@@ -5,14 +5,17 @@ package engine
 import (
 	"cmp"
 	"slices"
-	"unicode/utf8"
 )
 
 // flatNode is a trie node using a map for goto transitions (flat array pool).
+//
+// own is the single keyword ending at this node, or "" for none: a trie node is
+// reached by exactly one string, so at most one keyword can end there.
 type flatNode struct {
 	gotoMap map[rune]int
-	output  []string
+	own     string
 	fail    int
+	outLink int32
 	depth   int
 }
 
@@ -22,11 +25,27 @@ var _ matchEngine = (*speedEngine)(nil)
 // speedEngine implements matchEngine using a flat array trie with Full DFA
 // transitions and compact alphabet mapping. Used by PresetSpeed.
 type speedEngine struct {
-	dfa       [][]int    // [state][alphabetIndex] -> nextState
-	outputMap [][]string // [state] -> matched keywords
-	alphabet  []rune     // sorted unique runes from all keywords
+	// dfa is the transition table flattened to state*alphaSize+alphabetIndex. A
+	// [][]int cost the scan a slice-header load and two bounds checks per
+	// character, where one flat []int32 costs a single indexed load. Each entry
+	// carries hasOutputBit so the scan skips the output lookup on a miss.
+	dfa       []int32
+	alphaSize int
+	// own[state] is the keyword ending at state, or "" for none, and outLink[state]
+	// chains to the next state with a keyword along the failure path (outNone at the
+	// end). They replace an eagerly merged [][]string, which copied each state's
+	// whole suffix output list into every state failing to it: O(n^2) on a
+	// suffix-nested dictionary, where 500 keywords built 125,250 entries (2 MB of
+	// string headers) against the chain's 500.
+	own      []string
+	outLink  []int32
+	alphabet []rune // sorted unique runes from all keywords
 	alphabetCoder
 	numStates int
+	// trieDepth is the deepest trie level, recorded during the build. Info reported
+	// zero for this preset before, because the depths lived on flatNode and were
+	// dropped with it.
+	trieDepth int
 	preset    Preset
 }
 
@@ -37,8 +56,8 @@ func newSpeedEngine() *speedEngine {
 func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint:gocyclo,funlen
 	if len(keywords) == 0 {
 		e.dfa = nil
-		e.outputMap = nil
-		e.numStates = 0
+		e.own, e.outLink = nil, nil
+		e.numStates, e.trieDepth = 0, 0
 		return
 	}
 
@@ -56,7 +75,7 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 	e.build(e.alphabet)
 
 	nodes := []flatNode{
-		{gotoMap: make(map[rune]int), depth: 0},
+		{gotoMap: make(map[rune]int), depth: 0, outLink: outNone},
 	}
 	sortedKw := make([]string, 0, len(keywords))
 	for kw := range keywords {
@@ -64,17 +83,27 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 	}
 	slices.Sort(sortedKw)
 	for _, kw := range sortedKw {
+		// An empty keyword would end at the root, where own == "" already means "no
+		// keyword". The public API rejects empty keywords; skipping keeps this engine
+		// correct on its own.
+		if kw == "" {
+			continue
+		}
 		state := 0
 		for _, ch := range kw {
 			child, ok := nodes[state].gotoMap[ch]
 			if !ok {
 				child = len(nodes)
 				nodes[state].gotoMap[ch] = child
-				nodes = append(nodes, flatNode{gotoMap: make(map[rune]int), depth: nodes[state].depth + 1})
+				nodes = append(nodes, flatNode{
+					gotoMap: make(map[rune]int),
+					depth:   nodes[state].depth + 1,
+					outLink: outNone,
+				})
 			}
 			state = child
 		}
-		nodes[state].output = append(nodes[state].output, kw)
+		nodes[state].own = kw
 	}
 
 	numStates := len(nodes)
@@ -137,52 +166,131 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 				fail = next
 			}
 			nodes[child].fail = fail
-			if len(nodes[fail].output) > 0 {
-				nodes[child].output = append(nodes[child].output, nodes[fail].output...)
+			// Link to the nearest keyword-carrying state on the failure path instead
+			// of copying its outputs in. fail is strictly shallower and BFS visits by
+			// depth, so nodes[fail].outLink is already final here.
+			if nodes[fail].own != "" {
+				nodes[child].outLink = int32(fail) //nolint:gosec // G115: state ids are bounded by the DFA allocation below.
+			} else {
+				nodes[child].outLink = nodes[fail].outLink
 			}
 		}
 	}
 
-	e.dfa = make([][]int, numStates)
-	e.outputMap = make([][]string, numStates)
-	for i := range e.dfa {
-		e.dfa[i] = make([]int, alphaSize)
-		e.outputMap[i] = nodes[i].output
+	e.alphaSize = alphaSize
+	e.dfa = make([]int32, numStates*alphaSize)
+	e.own = make([]string, numStates)
+	e.outLink = make([]int32, numStates)
+	for i := range nodes {
+		e.own[i] = nodes[i].own
+		e.outLink[i] = nodes[i].outLink
+	}
+
+	// enc packs a target state with the flag saying whether it carries outputs, so
+	// the scan loop learns both from one load. Copying a fail row copies the flag
+	// with it, which is correct: the flag describes the target state. A state
+	// carries keywords when it terminates one or its output chain reaches one.
+	//
+	// State ids share an int32 with hasOutputBit and so must stay below 1<<30.
+	// There is no guard, unlike bandedDFA.buildDFABand: a full DFA needs the
+	// packing and has nothing to degrade to. Reaching the bound takes a billion
+	// trie states, which the three allocations above already size at 24 GiB or more,
+	// so no dictionary this library accepts comes close. Past it a state id would
+	// alias the bit, read back as the root, and drop matches silently.
+	enc := func(state int) int32 {
+		v := int32(state) //nolint:gosec // G115: see the bound above.
+		if e.own[state] != "" || e.outLink[state] != outNone {
+			v |= hasOutputBit
+		}
+		return v
 	}
 
 	for ai, r := range e.alphabet {
 		if child, ok := nodes[0].gotoMap[r]; ok {
-			e.dfa[0][ai] = child
+			e.dfa[ai] = enc(child)
 		} else {
-			e.dfa[0][ai] = 0
+			e.dfa[ai] = enc(0)
 		}
 	}
 
-	// Fill non-root rows in BFS (non-decreasing depth) order. A fail link always
-	// points to a strictly shallower state, so e.dfa[fail] is already filled when
-	// we copy from it. Iterating by state id is wrong: ids come from trie-insertion
-	// order, so a fail link can point to a higher-id (not-yet-filled) state, leaving
-	// the copied row all zeros and silently dropping matches.
+	// Fill non-root rows in BFS (non-decreasing depth) order. A fail link points to
+	// a strictly shallower state, so the fail row is already filled when we copy
+	// from it. Iterating by state id is wrong: ids come from trie-insertion order,
+	// so a fail link can point to a higher-id row that is still all zeros, which
+	// silently drops matches.
 	for _, s := range bfsOrder {
+		row := s * alphaSize
+		failRow := nodes[s].fail * alphaSize
 		for ai, r := range e.alphabet {
 			if child, ok := nodes[s].gotoMap[r]; ok {
-				e.dfa[s][ai] = child
+				e.dfa[row+ai] = enc(child)
 			} else {
-				e.dfa[s][ai] = e.dfa[nodes[s].fail][ai]
+				e.dfa[row+ai] = e.dfa[failRow+ai]
 			}
 		}
 	}
 
 	e.numStates = numStates
+	// Reset-and-recompute, not max-with-previous: Build reconstructs the automaton,
+	// so a rebuild from shorter keywords must report the shorter depth.
+	e.trieDepth = 0
+	for i := range nodes {
+		if nodes[i].depth > e.trieDepth {
+			e.trieDepth = nodes[i].depth
+		}
+	}
 }
 
-func (e *speedEngine) find(text string) []string {
+// find and findSet write out both the ASCII and rune loops instead of sharing a
+// scan(text, onOutput) helper the way balancedEngine does. That refactor was
+// measured: capturing the result slice in a closure boxes it on the heap, so every
+// match writes through a pointer, and PresetSpeed's ASCII match path lost 12-17%
+// (2,979 -> 3,483 ns at 1000 keywords). It won on multibyte and no-match text,
+// but not by enough to pay for the primary case.
+
+// The two loops make this function look branch-heavy to gocyclo; see the note
+// above for why they are not shared.
+func (e *speedEngine) find(text string) []string { //nolint:gocyclo
 	if e.dfa == nil {
 		return []string{}
 	}
 
-	matched := make([]string, 0)
+	// Left nil until something matches: text matching nothing is the common case
+	// for a filter and should not allocate for a hit that never happened.
+	var matched []string
 	state := 0
+	alpha := e.alphaSize
+
+	// Byte scan when the dictionary is pure ASCII. Every byte of a multibyte rune
+	// is >= utf8.RuneSelf and so cannot be in the alphabet, so it resets to root
+	// just as the rune scan does. Find reports no offsets, so the rune/byte index
+	// distinction never surfaces.
+	if e.asciiOnly {
+		for i := 0; i < len(text); i++ {
+			ai, ok := e.codeByte(text[i])
+			if !ok {
+				state = 0
+				continue
+			}
+			v := e.dfa[state*alpha+ai]
+			state = int(v &^ hasOutputBit)
+			if v&hasOutputBit == 0 {
+				continue
+			}
+			if matched == nil {
+				matched = make([]string, 0, findResultHint)
+			}
+			for s := state; s != outNone; s = int(e.outLink[s]) {
+				if kw := e.own[s]; kw != "" {
+					matched = append(matched, kw)
+				}
+			}
+		}
+		if matched == nil {
+			return []string{}
+		}
+		return matched
+	}
 
 	for _, ch := range text {
 		ai, ok := e.code(ch)
@@ -190,13 +298,123 @@ func (e *speedEngine) find(text string) []string {
 			state = 0
 			continue
 		}
-		state = e.dfa[state][ai]
-		if len(e.outputMap[state]) > 0 {
-			matched = append(matched, e.outputMap[state]...)
+		v := e.dfa[state*alpha+ai]
+		state = int(v &^ hasOutputBit)
+		if v&hasOutputBit == 0 {
+			continue
+		}
+		if matched == nil {
+			matched = make([]string, 0, findResultHint)
+		}
+		for s := state; s != outNone; s = int(e.outLink[s]) {
+			if kw := e.own[s]; kw != "" {
+				matched = append(matched, kw)
+			}
 		}
 	}
 
+	if matched == nil {
+		return []string{}
+	}
 	return matched
+}
+
+// findSet reports which keywords appear, without one entry per occurrence. The
+// dedup bookkeeping lives in setCollector, shared with balancedEngine; see it for
+// why the small case scans instead of hashing.
+func (e *speedEngine) findSet(text string) []string {
+	if e.dfa == nil {
+		return []string{}
+	}
+
+	var c setCollector
+	state := 0
+	alpha := e.alphaSize
+
+	if e.asciiOnly {
+		for i := 0; i < len(text); i++ {
+			ai, ok := e.codeByte(text[i])
+			if !ok {
+				state = 0
+				continue
+			}
+			v := e.dfa[state*alpha+ai]
+			state = int(v &^ hasOutputBit)
+			if v&hasOutputBit != 0 {
+				if c.addState(state) {
+					for s := state; s != outNone; s = int(e.outLink[s]) {
+						if kw := e.own[s]; kw != "" {
+							c.addKeyword(kw)
+						}
+					}
+				}
+			}
+		}
+	} else {
+		for _, ch := range text {
+			ai, ok := e.code(ch)
+			if !ok {
+				state = 0
+				continue
+			}
+			v := e.dfa[state*alpha+ai]
+			state = int(v &^ hasOutputBit)
+			if v&hasOutputBit != 0 {
+				if c.addState(state) {
+					for s := state; s != outNone; s = int(e.outLink[s]) {
+						if kw := e.own[s]; kw != "" {
+							c.addKeyword(kw)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return c.result()
+}
+
+// contains reports presence and stops at the first hit. It is the byte/rune scan
+// with the output lookup dropped, since hasOutputBit already says whether the
+// state carries keywords.
+func (e *speedEngine) contains(text string) bool {
+	if e.dfa == nil {
+		return false
+	}
+
+	state := 0
+	alpha := e.alphaSize
+
+	if e.asciiOnly {
+		for i := 0; i < len(text); i++ {
+			ai, ok := e.codeByte(text[i])
+			if !ok {
+				state = 0
+				continue
+			}
+			v := e.dfa[state*alpha+ai]
+			if v&hasOutputBit != 0 {
+				return true
+			}
+			// Reached only when the bit is clear, so v needs no masking.
+			state = int(v)
+		}
+		return false
+	}
+
+	for _, ch := range text {
+		ai, ok := e.code(ch)
+		if !ok {
+			state = 0
+			continue
+		}
+		v := e.dfa[state*alpha+ai]
+		if v&hasOutputBit != 0 {
+			return true
+		}
+		state = int(v)
+	}
+	return false
 }
 
 func (e *speedEngine) findIndex(text string) map[string][]int {
@@ -207,6 +425,7 @@ func (e *speedEngine) findIndex(text string) map[string][]int {
 	matched := make(map[string][]int)
 	state := 0
 	runeIndex := 0
+	alpha := e.alphaSize
 
 	for _, ch := range text {
 		ai, ok := e.code(ch)
@@ -215,15 +434,60 @@ func (e *speedEngine) findIndex(text string) map[string][]int {
 			runeIndex++
 			continue
 		}
-		state = e.dfa[state][ai]
+		v := e.dfa[state*alpha+ai]
+		state = int(v &^ hasOutputBit)
 		runeIndex++
-		for _, out := range e.outputMap[state] {
-			startIdx := runeIndex - utf8.RuneCountInString(out)
+		if v&hasOutputBit == 0 {
+			continue
+		}
+		for s := state; s != outNone; s = int(e.outLink[s]) {
+			out := e.own[s]
+			if out == "" {
+				continue
+			}
+			startIdx := runeIndex - runeLen(out, e.asciiOnly)
 			matched[out] = append(matched[out], startIdx)
 		}
 	}
 
 	return matched
+}
+
+// matchString is matchStream over an in-memory string; see the matchEngine
+// interface for why the loop is duplicated rather than shared through a closure.
+func (e *speedEngine) matchString(text string, emit func(Match) bool) {
+	if e.dfa == nil {
+		return
+	}
+
+	state := 0
+	runeIndex := 0
+	alpha := e.alphaSize
+
+	for _, ch := range text {
+		ai, ok := e.code(ch)
+		if !ok {
+			state = 0
+			runeIndex++
+			continue
+		}
+		v := e.dfa[state*alpha+ai]
+		state = int(v &^ hasOutputBit)
+		runeIndex++
+		if v&hasOutputBit == 0 {
+			continue
+		}
+		for s := state; s != outNone; s = int(e.outLink[s]) {
+			out := e.own[s]
+			if out == "" {
+				continue
+			}
+			start := runeIndex - runeLen(out, e.asciiOnly)
+			if !emit(Match{Keyword: out, Start: start, End: runeIndex}) {
+				return
+			}
+		}
+	}
 }
 
 func (e *speedEngine) matchStream(next func() (rune, bool), emit func(Match) bool) {
@@ -233,6 +497,7 @@ func (e *speedEngine) matchStream(next func() (rune, bool), emit func(Match) boo
 
 	state := 0
 	runeIndex := 0
+	alpha := e.alphaSize
 
 	for {
 		ch, ok := next()
@@ -245,10 +510,18 @@ func (e *speedEngine) matchStream(next func() (rune, bool), emit func(Match) boo
 			runeIndex++
 			continue
 		}
-		state = e.dfa[state][ai]
+		v := e.dfa[state*alpha+ai]
+		state = int(v &^ hasOutputBit)
 		runeIndex++
-		for _, out := range e.outputMap[state] {
-			start := runeIndex - utf8.RuneCountInString(out)
+		if v&hasOutputBit == 0 {
+			continue
+		}
+		for s := state; s != outNone; s = int(e.outLink[s]) {
+			out := e.own[s]
+			if out == "" {
+				continue
+			}
+			start := runeIndex - runeLen(out, e.asciiOnly)
 			if !emit(Match{Keyword: out, Start: start, End: runeIndex}) {
 				return
 			}
@@ -260,13 +533,9 @@ func (e *speedEngine) info() *InMemoryInfo {
 	if e.dfa == nil {
 		return &InMemoryInfo{Preset: e.preset}
 	}
-	var mem int64
-	for _, row := range e.dfa {
-		mem += int64(len(row)) * 8
-	}
-	for _, outs := range e.outputMap {
-		mem += int64(16 + len(outs)*16)
-	}
+	mem := int64(len(e.dfa)) * 4
+	mem += int64(len(e.own)) * 16    // string header per state
+	mem += int64(len(e.outLink)) * 4 // output-chain link per state
 	mem += int64(len(e.alphabet)) * 16
 	mem += int64(len(e.index)) * 24
 
@@ -275,15 +544,19 @@ func (e *speedEngine) info() *InMemoryInfo {
 		Nodes:       e.numStates,
 		Preset:      e.preset,
 		MemoryBytes: mem,
+		TrieDepth:   e.trieDepth,
 	}
 }
 
+// countKeywords counts the states that terminate a keyword. Each keyword is
+// reached by exactly one path and so fills exactly one own slot, and the build
+// input is a set, so nothing needs deduplication.
 func (e *speedEngine) countKeywords() int {
-	seen := make(map[string]struct{})
-	for _, outs := range e.outputMap {
-		for _, out := range outs {
-			seen[out] = struct{}{}
+	n := 0
+	for _, kw := range e.own {
+		if kw != "" {
+			n++
 		}
 	}
-	return len(seen)
+	return n
 }
