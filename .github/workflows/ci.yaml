@@ -10,6 +10,13 @@ on:
       - "docs/**"
       - "go.mod"
       - "go.sum"
+      # Every module's manifests, not just the root's: a Dependabot bump scoped
+      # to server/ or benchmarks/ touches no root file and no .go file, so
+      # without these it would merge without CI ever running.
+      - "server/go.mod"
+      - "server/go.sum"
+      - "benchmarks/go.mod"
+      - "benchmarks/go.sum"
       - ".github/workflows/*.yaml"
       - ".golangci.yaml"
   pull_request:
@@ -21,6 +28,13 @@ on:
       - "docs/**"
       - "go.mod"
       - "go.sum"
+      # Every module's manifests, not just the root's: a Dependabot bump scoped
+      # to server/ or benchmarks/ touches no root file and no .go file, so
+      # without these it would merge without CI ever running.
+      - "server/go.mod"
+      - "server/go.sum"
+      - "benchmarks/go.mod"
+      - "benchmarks/go.sum"
       - ".github/workflows/*.yaml"
       - ".golangci.yaml"
 
@@ -49,6 +63,7 @@ jobs:
           cache-dependency-path: |
             go.sum
             server/go.sum
+            benchmarks/go.sum
       - name: Execute golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # golangci-lint-action v9.3.0
         with:
@@ -63,6 +78,11 @@ jobs:
       - name: Run go vet (server module)
         run: go vet ./...
         working-directory: server
+      # The benchmarks module has no test step of its own here, so vet is what
+      # keeps it compiling as the core API it measures through changes.
+      - name: Run go vet (benchmarks module)
+        run: go vet ./...
+        working-directory: benchmarks
       - name: Check SPDX headers
         if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
         run: |
@@ -130,7 +150,9 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # setup-go v7.0.0
         with:
           go-version: "1.26"
-          cache-dependency-path: go.sum
+          cache-dependency-path: |
+            go.sum
+            benchmarks/go.sum
       - name: Run integration tests against ${{ matrix.server }}
         env:
           ACOR_INTEGRATION_ADDR: localhost:6379
@@ -148,3 +170,15 @@ jobs:
         env:
           ACOR_INTEGRATION_ADDR: localhost:6379
         run: go test -bench RealServer -benchtime=1x -run '^$' ./pkg/acor
+      # Same rule as above: one iteration, never gated on a duration. This keeps the
+      # benchmarks module behind docs/content/reference/benchmarks.md compiling and
+      # running. The propagation test does assert behavior (invalidation arrives, and
+      # the staleness window returns stale answers rather than errors), so it runs for
+      # real rather than as a smoke.
+      - name: Smoke-run the benchmarks module against ${{ matrix.server }}
+        working-directory: benchmarks
+        env:
+          ACOR_INTEGRATION_ADDR: localhost:6379
+        run: |
+          go test -bench . -benchtime=1x -run '^$' ./...
+          go test -run 'MemoryFootprint|Propagation' ./...

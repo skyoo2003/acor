@@ -1,4 +1,4 @@
-.PHONY: all setup clean build test lint lint-fix coverage vet fuzz bench race docs-verify proto tidy-check
+.PHONY: all setup clean build test lint lint-fix coverage vet fuzz bench bench-module race docs-verify proto tidy-check
 
 # Pin golangci-lint so local `make lint` matches CI (see .github/workflows/ci.yaml).
 # Run via `go run` so the installed binary's version can't drift from CI.
@@ -21,12 +21,15 @@ test:
 	@go test ./...
 	@cd server && go test ./...
 
-# Verify go.mod/go.sum are tidy in both modules. `go mod tidy` rewrites in
-# place, so the diff is what fails the check.
+# Verify go.mod/go.sum are tidy in all three modules. `go mod tidy` rewrites in
+# place, so the diff is what fails the check. benchmarks/ is included because an
+# un-tidied go.sum there is how the pinned competitor versions silently drift
+# from the ones the comparison page claims to have measured.
 tidy-check:
 	@go mod tidy
 	@cd server && go mod tidy
-	@git diff --exit-code go.mod go.sum server/go.mod server/go.sum
+	@cd benchmarks && go mod tidy
+	@git diff --exit-code go.mod go.sum server/go.mod server/go.sum benchmarks/go.mod benchmarks/go.sum
 
 docs-verify:
 	@go run ./tools/doccheck README.md $$(find docs/content -name '*.md')
@@ -50,6 +53,7 @@ coverage:
 vet:
 	@go vet ./...
 	@cd server && go vet ./...
+	@cd benchmarks && go vet ./...
 
 lint-fix:
 	@$(GOLANGCI_LINT) run --fix ./...
@@ -65,6 +69,15 @@ fuzz:
 # in-process emulator has no round-trip cost, which is where V1 loses).
 bench:
 	@go test -bench . -benchmem -run '^$$' ./pkg/acor ./internal/engine
+
+# Timing, memory, and propagation evidence measured through the public API. Lives
+# in its own module because it needs a server and a dictionary loaded the way a
+# caller would load it. Requires ACOR_INTEGRATION_ADDR — the cold-start, bulk-load,
+# and propagation figures are meaningless against miniredis, which makes the Redis
+# path nearly free.
+bench-module:
+	@cd benchmarks && go test -bench . -benchmem -benchtime=200x -run '^$$' ./...
+	@cd benchmarks && go test -run 'MemoryFootprint|Propagation' -v ./...
 
 race:
 	@go test -race ./...
