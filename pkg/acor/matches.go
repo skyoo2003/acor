@@ -4,10 +4,11 @@ package acor
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"errors"
 	"io"
-	"sort"
+	"slices"
 	"unicode"
 
 	matchengine "github.com/skyoo2003/acor/internal/engine"
@@ -69,10 +70,32 @@ func (ac *AhoCorasick) FindMatches(text string, opts *MatchOptions) ([]Match, er
 	return ac.FindMatchesContext(ac.ctx, text, opts)
 }
 
+// FindMatchesAppend is FindMatches writing into dst and returning the extended
+// slice, so a caller scanning many texts can reuse one buffer instead of
+// allocating a result per call. Pass dst[:0] to reuse the backing array; a nil dst
+// behaves exactly like FindMatches.
+//
+// opts applies only to this call's matches: matches already in dst came from
+// another text, so they are neither re-filtered nor reordered, and an empty text
+// returns dst unchanged.
+func (ac *AhoCorasick) FindMatchesAppend(dst []Match, text string, opts *MatchOptions) ([]Match, error) {
+	return ac.findMatches(ac.ctx, dst, text, opts)
+}
+
 // FindMatchesContext is FindMatches with an explicit context for cancellation.
 func (ac *AhoCorasick) FindMatchesContext(ctx context.Context, text string, opts *MatchOptions) ([]Match, error) {
+	return ac.findMatches(ctx, nil, text, opts)
+}
+
+func (ac *AhoCorasick) findMatches(ctx context.Context, dst []Match, text string, opts *MatchOptions) ([]Match, error) {
 	if text == "" {
-		return []Match{}, nil
+		// dst is returned untouched rather than truncated: the contract is append, so
+		// a caller accumulating across texts must not lose what it already has. A nil
+		// dst still yields a non-nil empty slice, as FindMatches always has.
+		if dst == nil {
+			return []Match{}, nil
+		}
+		return dst, nil
 	}
 	norm := normalizeText(text, ac.caseSensitive)
 
@@ -86,23 +109,63 @@ func (ac *AhoCorasick) FindMatchesContext(ctx context.Context, text string, opts
 		return nil, err
 	}
 
-	matches := eng.FindMatches(norm)
+	// Filtering applies to this call's matches only. Anything already in dst was
+	// found in a different text, so its offsets do not index norm: filterWholeWord
+	// would read out of range, and leftmostLongest could drop the caller's earlier
+	// results.
+	base := len(dst)
+	matches := eng.FindMatchesAppend(dst, norm)
 	if opts != nil {
+		found := matches[base:]
 		// Guard the []rune conversion: on the common zero-match path (a clean doc
 		// through a WholeWord gate) there is nothing to filter and the rune slice
 		// would be a wasted large allocation.
-		if opts.WholeWord && len(matches) > 0 {
+		if opts.WholeWord && len(found) > 0 {
 			isWord := isWordRune
 			if opts.WordRune != nil {
 				isWord = opts.WordRune
 			}
-			matches = filterWholeWord(matches, []rune(norm), isWord)
+			found = filterWholeWord(found, []rune(norm), isWord)
 		}
 		if opts.Kind == MatchKindLeftmostLongest {
-			matches = leftmostLongest(matches)
+			found = leftmostLongest(found)
 		}
+		// Both filters only shrink, so this writes back into dst's own array; when
+		// found still aliases it, source and destination coincide and it is a no-op.
+		matches = append(matches[:base], found...)
 	}
 	return matches, nil
+}
+
+// FindSet returns each matched keyword once, in first-match order.
+//
+// Find reports one entry per occurrence, which is rarely what a content filter
+// wants: "which banned words does this text use" is a question about the set.
+// FindSet answers it directly, folding duplicates out during the scan instead of
+// building the per-occurrence slice first.
+//
+// Use Find when occurrence counts matter, FindIndex or FindMatches when
+// positions do, and Contains when only presence does.
+func (ac *AhoCorasick) FindSet(text string) ([]string, error) {
+	return ac.FindSetContext(ac.ctx, text)
+}
+
+// FindSetContext is FindSet with an explicit context for cancellation.
+func (ac *AhoCorasick) FindSetContext(ctx context.Context, text string) ([]string, error) {
+	if text == "" {
+		return []string{}, nil
+	}
+	norm := normalizeText(text, ac.caseSensitive)
+
+	eng, err := ac.ops.loadEngine(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// See FindMatchesContext: honor an already-canceled ctx at the match boundary.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return eng.FindSet(norm), nil
 }
 
 // Contains reports whether text contains any keyword. It stops at the first
@@ -193,6 +256,15 @@ func (ac *AhoCorasick) FindStreamContext(ctx context.Context, r io.Reader, onMat
 	return scanErr
 }
 
+// cmpLeftmostLongest orders matches by start ascending, and among matches at the
+// same start by end descending, so a greedy pass keeps the longest.
+func cmpLeftmostLongest(a, b Match) int {
+	if a.Start != b.Start {
+		return cmp.Compare(a.Start, b.Start)
+	}
+	return cmp.Compare(b.End, a.End)
+}
+
 // leftmostLongest reduces overlapping matches to the non-overlapping
 // leftmost-longest set: sort by start ascending then end descending, then greedily
 // keep a match whenever its start is at or past the previous kept match's end.
@@ -200,13 +272,18 @@ func leftmostLongest(ms []Match) []Match {
 	if len(ms) <= 1 {
 		return ms
 	}
-	sort.Slice(ms, func(i, j int) bool {
-		if ms[i].Start != ms[j].Start {
-			return ms[i].Start < ms[j].Start
-		}
-		return ms[i].End > ms[j].End
-	})
-	out := make([]Match, 0, len(ms))
+	// The scan emits in end order, which for a dictionary with no nested keywords is
+	// start order too, so the sort is often pure overhead. Checking costs one linear
+	// pass against the O(n log n) it can skip.
+	//
+	// slices.SortFunc, not sort.Slice: the latter swaps through reflection, which
+	// measured as ~30% of a leftmost-longest FindMatches call.
+	if !slices.IsSortedFunc(ms, cmpLeftmostLongest) {
+		slices.SortFunc(ms, cmpLeftmostLongest)
+	}
+	// Selection is in place: the kept set is a subsequence of the sorted input and
+	// the write cursor never passes the read cursor, so no second slice is needed.
+	out := ms[:0]
 	lastEnd := 0
 	for _, m := range ms {
 		if m.Start >= lastEnd {

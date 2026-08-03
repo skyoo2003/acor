@@ -1,0 +1,17 @@
+kind: Changed
+body: >-
+  `Contains` and `FindSet` no longer pay for work they discard. `Contains` routed
+  through the offset-reporting scan, so on ASCII text it lost the byte-scan fast
+  path `Find` takes and built a match record per hit only to throw it away, and its
+  callback boxed a bool on the heap — a no-match `Contains` cost more than a
+  no-match `FindSet`. It now scans directly and stops at the first hit: at 1000
+  keywords over a 640 B text, 1,147 to 666 ns/op with no match, 77 to 25 ns/op with
+  one, and two allocations to zero. `FindSet` deduplicated through two hash maps,
+  which cost two allocations up front and a string hash per hit before saving
+  anything; it now scans a small match set directly and switches to maps past 32
+  unique matches, so match-dense text keeps the old behaviour. `FindSet` at 1000
+  keywords went 915 to 791 ns/op (`PresetSpeed`), 1,122 to 937 (`PresetBalanced`)
+  and 3,350 to 2,658 (`PresetMemoryEfficient`), each from 5 allocations to 3
+time: 2026-08-04T10:00:01.000000+09:00
+custom:
+    Issue: "188"

@@ -1,0 +1,12 @@
+kind: Changed
+body: >-
+  `FindMatches` and `Contains` scan the input string directly instead of pulling
+  runes through a closure, which cost an indirect call per character and made
+  `FindMatches` ~2.9x slower than `Find` over the same text. At 1000 keywords it
+  goes from 4,729 to 3,496 ns/op, narrowing the gap against
+  `petar-dambovaliev/aho-corasick` from ~2x to ~1.5x. `FindStream` keeps the pull
+  source, which is what streaming from an `io.Reader` requires. Match results also
+  start with a small capacity rather than growing from empty
+time: 2026-08-02T10:10:00.000000+09:00
+custom:
+    Issue: "188"

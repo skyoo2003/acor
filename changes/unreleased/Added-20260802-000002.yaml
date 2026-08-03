@@ -1,0 +1,10 @@
+kind: Added
+body: >-
+  `FindSet`/`FindSetContext` return each matched keyword once in first-match
+  order. `Find` reports one entry per occurrence, so callers asking "which of my
+  patterns appear" had to fold that into a set themselves; doing it during the scan
+  drops the result from 3,993 to 434 B/op and 10 to 5 allocations at 1000 keywords.
+  `Find` is unchanged and still reports every occurrence
+time: 2026-08-02T10:05:00.000000+09:00
+custom:
+    Issue: "188"

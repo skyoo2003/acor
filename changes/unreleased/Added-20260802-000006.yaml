@@ -1,0 +1,8 @@
+kind: Added
+body: >-
+  `FindMatchesAppend` writes matches into a caller-supplied buffer and returns the
+  extended slice, so a service scanning many texts can reuse one allocation
+  instead of taking a fresh result slice per call
+time: 2026-08-02T12:05:00.000000+09:00
+custom:
+    Issue: "188"
