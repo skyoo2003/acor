@@ -1,17 +1,8 @@
 kind: Changed
 body: >-
-  Flattened the match engines' transition tables. PresetSpeed's full DFA and
-  PresetBalanced/PresetUltimate's banded DFA were slices of slices, costing the
-  scan a slice-header load and two bounds checks per character; they are now one
-  flat `[]int32` indexed by state and alphabet code, with a bit per entry saying
-  whether the target state carries keywords so the scan skips the output lookup
-  on a miss. Scans over a pure-ASCII dictionary also walk raw bytes instead of
-  decoding UTF-8 for the queries that report no offsets (`Find`, `FindSet`,
-  `Contains`). At 1000 keywords, PresetSpeed `FindSet` goes 1,681 to 1,030 ns/op
-  and PresetBalanced 2,225 to 1,083; positioned `FindMatches` on PresetSpeed goes
-  2,663 to 1,852 ns/op, which is now faster than
-  `petar-dambovaliev/aho-corasick`. A dictionary too large for the packing keeps
-  working on the unpacked path
+  Flattened and packed the DFA transition tables to reduce per-character lookup
+  overhead across presets. `Find`, `FindSet`, and `Contains` also scan raw bytes
+  for ASCII-only dictionaries, improving common matching paths
 time: 2026-08-02T12:00:00.000000+09:00
 custom:
     Issue: "187"

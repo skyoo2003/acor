@@ -1,16 +1,8 @@
 kind: Changed
 body: >-
-  Every preset now stores each keyword once and links suffix matches instead of
-  merging them. The build used to copy a state's whole output list into every state
-  that failed to it, which is O(n^2) on a suffix-nested dictionary: 500 keywords
-  where each is a suffix of the next produced 125,250 stored entries (about 2 MB of
-  string headers) where 500 suffice. Each state now holds only the keyword ending
-  there plus a link to the next keyword-carrying state on its failure path, so
-  storage is linear in the dictionary regardless of nesting. `PresetBalanced`'s
-  documented "output link compression" now describes what the code does. Match
-  results are unchanged, including the order overlapping matches are reported in.
-  Measured at 1000 keywords over a 640 B text, `FindMatches` went 2,184 to 1,678
-  ns/op on `PresetSpeed` and 2,580 to 2,126 on `PresetBalanced`
+  Every preset now stores each keyword once and follows output links for suffix
+  matches. This keeps output storage linear for suffix-nested dictionaries while
+  preserving match results and order
 time: 2026-08-04T10:00:00.000000+09:00
 custom:
     Issue: "187"

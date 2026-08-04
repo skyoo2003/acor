@@ -1,11 +1,7 @@
 kind: Fixed
 body: >-
-  `Info().TrieDepth` reported 0 on `PresetSpeed`. That engine computed each node's
-  depth while building the trie and then dropped it instead of recording the
-  maximum, so the field was silently zero for the whole preset while the other two
-  reported it correctly. It is now populated, and recomputed from scratch on every
-  rebuild so a smaller dictionary reports a smaller depth rather than keeping the
-  previous maximum
+  `Info().TrieDepth` now reports the correct value for `PresetSpeed` and is
+  recomputed on every rebuild
 time: 2026-08-04T10:00:02.000000+09:00
 custom:
     Issue: "187"
