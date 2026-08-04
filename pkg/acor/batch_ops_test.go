@@ -455,10 +455,10 @@ func TestBatchCaseNormalization(t *testing.T) {
 			for _, mode := range []BatchMode{BatchModeBestEffort, BatchModeTransactional} {
 				ac, mr := createAhoCorasickWithOpts(t, schema, caseSensitive)
 				wantChanged := []string{"Foo"}
-				wantSkipped := 1
+				wantSkipped := []string{"foo"}
 				if caseSensitive {
 					wantChanged = []string{"Foo", "foo"}
-					wantSkipped = 0
+					wantSkipped = nil
 				}
 
 				added, err := ac.AddMany([]string{"Foo", "foo"}, &BatchOptions{Mode: mode})
@@ -466,7 +466,7 @@ func TestBatchCaseNormalization(t *testing.T) {
 					t.Fatalf("schema=%d caseSensitive=%t mode=%v: AddMany error: %v",
 						schema, caseSensitive, mode, err)
 				}
-				if !slices.Equal(added.Added, wantChanged) || len(added.Skipped) != wantSkipped {
+				if !slices.Equal(added.Added, wantChanged) || !slices.Equal(added.Skipped, wantSkipped) {
 					t.Errorf("schema=%d caseSensitive=%t mode=%v: AddMany added=%v skipped=%v",
 						schema, caseSensitive, mode, added.Added, added.Skipped)
 				}
@@ -476,7 +476,7 @@ func TestBatchCaseNormalization(t *testing.T) {
 					t.Fatalf("schema=%d caseSensitive=%t mode=%v: RemoveMany error: %v",
 						schema, caseSensitive, mode, err)
 				}
-				if !slices.Equal(removed.Removed, wantChanged) || len(removed.Skipped) != wantSkipped {
+				if !slices.Equal(removed.Removed, wantChanged) || !slices.Equal(removed.Skipped, wantSkipped) {
 					t.Errorf("schema=%d caseSensitive=%t mode=%v: RemoveMany removed=%v skipped=%v",
 						schema, caseSensitive, mode, removed.Removed, removed.Skipped)
 				}

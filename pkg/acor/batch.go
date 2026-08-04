@@ -64,8 +64,10 @@ func (ac *AhoCorasick) AddMany(keywords []string, opts *BatchOptions) (*BatchRes
 
 // screenBatch applies the checks that need no Redis access: blank keywords go to
 // result.Failed, repeats within the same call are skipped, and the survivors are
-// returned in input order alongside their normalized forms. Every batch path
-// shares it, so blanks and duplicates behave the same whichever write path runs.
+// returned in input order alongside their normalized forms. The returned slices
+// are index-aligned: candidates[i] is the caller spelling of normalizedKeywords[i].
+// Every batch path shares it, so blanks and duplicates behave the same whichever
+// write path runs.
 //
 // Duplicates are detected on the normalized form, not the caller's spelling: on a
 // case-insensitive collection "Foo" and "foo" are one keyword, so only one of them
@@ -80,7 +82,9 @@ func (ac *AhoCorasick) screenBatch(keywords []string, result *BatchResult) (
 	candidates, normalizedKeywords []string) {
 	seen := make(map[string]bool, len(keywords))
 	candidates = make([]string, 0, len(keywords))
-	if !ac.caseSensitive {
+	if ac.caseSensitive {
+		normalizedKeywords = candidates
+	} else {
 		normalizedKeywords = make([]string, 0, len(keywords))
 	}
 
@@ -100,14 +104,13 @@ func (ac *AhoCorasick) screenBatch(keywords []string, result *BatchResult) (
 		}
 		seen[normalizedKeyword] = true
 		candidates = append(candidates, keyword)
-		if !ac.caseSensitive {
+		if ac.caseSensitive {
+			normalizedKeywords = candidates
+		} else {
 			normalizedKeywords = append(normalizedKeywords, normalizedKeyword)
 		}
 	}
 
-	if ac.caseSensitive {
-		normalizedKeywords = candidates
-	}
 	return candidates, normalizedKeywords
 }
 
@@ -119,7 +122,7 @@ func (ac *AhoCorasick) screenBatch(keywords []string, result *BatchResult) (
 // spelling, so membership is tested against the normalized slice computed during
 // screening. Comparing raw against normalized reported every keyword with an
 // uppercase rune as Skipped on a case-insensitive collection, even though it had
-// just been written.
+// just been written. candidates and normalized must have matching indexes.
 func partitionApplied(candidates, normalized, applied []string) (changed, unchanged []string) {
 	appliedSet := make(map[string]struct{}, len(applied))
 	for _, kw := range applied {
