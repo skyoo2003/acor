@@ -1,0 +1,7 @@
+kind: Added
+body: >-
+  Expose batch operations, parallel matching, Redis-backed engine presets, and
+  local caching through the `acor` CLI
+time: 2026-08-04T23:51:40.000000+09:00
+custom:
+    Issue: "195"

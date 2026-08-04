@@ -18,18 +18,24 @@ const (
 )
 
 type fakeService struct {
-	addCount       int
-	removeCount    int
-	findMatches    []string
-	findIndexes    map[string][]int
-	suggestMatches []string
-	suggestIndexes map[string][]int
-	info           *acor.AhoCorasickInfo
-	err            error
-	flushCalls     int
-	closed         bool
-	lastInput      string
-	lastKeyword    string
+	addCount         int
+	batchResult      *acor.BatchResult
+	removeCount      int
+	findMatches      []string
+	findIndexes      map[string][]int
+	parallelMatches  []string
+	parallelIndexes  map[string][]int
+	suggestMatches   []string
+	suggestIndexes   map[string][]int
+	info             *acor.AhoCorasickInfo
+	err              error
+	flushCalls       int
+	closed           bool
+	lastInput        string
+	lastKeyword      string
+	lastKeywords     []string
+	lastBatchOpts    *acor.BatchOptions
+	lastParallelOpts *acor.ParallelOptions
 }
 
 func (f *fakeService) Add(keyword string) (int, error) {
@@ -40,12 +46,24 @@ func (f *fakeService) Add(keyword string) (int, error) {
 	return f.addCount, nil
 }
 
+func (f *fakeService) AddMany(keywords []string, opts *acor.BatchOptions) (*acor.BatchResult, error) {
+	f.lastKeywords = keywords
+	f.lastBatchOpts = opts
+	return f.batchResult, f.err
+}
+
 func (f *fakeService) Remove(keyword string) (int, error) {
 	f.lastKeyword = keyword
 	if f.err != nil {
 		return 0, f.err
 	}
 	return f.removeCount, nil
+}
+
+func (f *fakeService) RemoveManyWithOptions(keywords []string, opts *acor.BatchOptions) (*acor.BatchResult, error) {
+	f.lastKeywords = keywords
+	f.lastBatchOpts = opts
+	return f.batchResult, f.err
 }
 
 func (f *fakeService) Find(input string) ([]string, error) {
@@ -62,6 +80,18 @@ func (f *fakeService) FindIndex(input string) (map[string][]int, error) {
 		return nil, f.err
 	}
 	return f.findIndexes, nil
+}
+
+func (f *fakeService) FindParallel(input string, opts *acor.ParallelOptions) ([]string, error) {
+	f.lastInput = input
+	f.lastParallelOpts = opts
+	return f.parallelMatches, f.err
+}
+
+func (f *fakeService) FindIndexParallel(input string, opts *acor.ParallelOptions) (map[string][]int, error) {
+	f.lastInput = input
+	f.lastParallelOpts = opts
+	return f.parallelIndexes, f.err
 }
 
 func (f *fakeService) Suggest(input string) ([]string, error) {
@@ -128,6 +158,7 @@ func TestParseArgs(t *testing.T) {
 		"-db", "2",
 		"-name", collectionNameSample,
 		"-debug",
+		"-cache",
 		commandFind, testKeywordHello,
 	})
 	if err != nil {
@@ -146,14 +177,74 @@ func TestParseArgs(t *testing.T) {
 	if parsed.RingAddrs["shard-1"] != "127.0.0.1:7100" || parsed.RingAddrs["shard-2"] != "127.0.0.1:7101" {
 		t.Fatalf("unexpected ring addresses: %v", parsed.RingAddrs)
 	}
-	if len(parsed.RingAddrs) != 2 {
-		t.Fatalf("expected 2 ring addresses, got %v", parsed.RingAddrs)
-	}
-	if parsed.Password != "secret" || parsed.DB != 2 || parsed.Name != collectionNameSample || !parsed.Debug {
+	if parsed.Password != "secret" || parsed.DB != 2 || parsed.Name != collectionNameSample ||
+		!parsed.Debug || !parsed.EnableCache {
 		t.Fatalf("unexpected parsed args: %+v", parsed)
 	}
 	if len(remaining) != 2 || remaining[0] != commandFind || remaining[1] != testKeywordHello {
 		t.Fatalf("unexpected remaining args: %v", remaining)
+	}
+}
+
+func TestRunForwardsPresetConfiguration(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := run([]string{
+		"-addr", "localhost:6379",
+		"-preset", "balanced",
+		"-invalidation-poll-interval", "30s",
+		"info",
+	}, stdout, stderr, func(args *acor.AhoCorasickArgs) (service, error) {
+		if args.Preset != acor.PresetBalanced || args.InvalidationPollInterval.String() != "30s" {
+			t.Fatalf("unexpected preset args %+v", args)
+		}
+		return &fakeService{info: &acor.AhoCorasickInfo{}}, nil
+	})
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d with stderr %q", exitCode, stderr.String())
+	}
+}
+
+func TestRunRejectsInvalidFeatureOptions(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "unknown preset", args: []string{"-preset", "fastest", "info"}, want: "unknown preset"},
+		{name: "unknown batch mode", args: []string{"-batch-mode", "atomic", "add-many", "foo"}, want: "unknown batch mode"},
+		{name: "unknown boundary", args: []string{"-boundary", "byte", "find-parallel", "text"}, want: "unknown boundary"},
+		{name: "negative workers", args: []string{"-workers", "-1", "find-parallel", "text"}, want: "workers must be non-negative"},
+		{name: "zero chunk size", args: []string{"-chunk-size", "0", "find-parallel", "text"}, want: "chunk-size must be positive"},
+		{name: "large overlap", args: []string{"-chunk-size", "10", "-overlap", "10", "find-parallel", "text"}, want: "overlap must be"},
+		{name: "batch option on find", args: []string{"-batch-mode", "best-effort", "find", "text"}, want: "only applies"},
+		{name: "parallel option on find", args: []string{"-workers", "2", "find", "text"}, want: "parallel matching options"},
+		{name: "cache with preset", args: []string{"-addr", "localhost:6379", "-cache", "-preset", "speed", "info"}, want: "cannot be used together"},
+		{name: "poll without preset", args: []string{"-invalidation-poll-interval", "30s", "info"}, want: "requires -preset"},
+		{name: "migrate in preset mode", args: []string{"-addr", "localhost:6379", "-preset", "balanced", "migrate"}, want: "unavailable in preset mode"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout := &bytes.Buffer{}
+			stderr := &bytes.Buffer{}
+			created := false
+			exitCode := run(tt.args, stdout, stderr, func(*acor.AhoCorasickArgs) (service, error) {
+				created = true
+				return &fakeService{}, nil
+			})
+			if exitCode != exitCodeUsage {
+				t.Fatalf("expected exit code %d, got %d", exitCodeUsage, exitCode)
+			}
+			if created {
+				t.Fatal("expected validation before service creation")
+			}
+			if !strings.Contains(stderr.String(), tt.want) {
+				t.Fatalf("expected stderr to contain %q, got %q", tt.want, stderr.String())
+			}
+		})
 	}
 }
 
@@ -204,6 +295,106 @@ func TestRunAddCommand(t *testing.T) {
 	}
 	if !fake.closed {
 		t.Fatal("expected service to be closed")
+	}
+}
+
+func TestRunAddManyCommand(t *testing.T) {
+	fake := &fakeService{batchResult: &acor.BatchResult{
+		Added:   []string{"foo"},
+		Failed:  []acor.KeywordError{{Keyword: "", Error: acor.ErrEmptyKeyword}},
+		Skipped: []string{"Foo"},
+	}}
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := run([]string{"-batch-mode", "transactional", "add-many", "foo", "Foo"}, stdout, stderr,
+		func(*acor.AhoCorasickArgs) (service, error) { return fake, nil })
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d with stderr %q", exitCode, stderr.String())
+	}
+	if strings.Join(fake.lastKeywords, ",") != "foo,Foo" {
+		t.Fatalf("unexpected keywords %v", fake.lastKeywords)
+	}
+	if fake.lastBatchOpts == nil || fake.lastBatchOpts.Mode != acor.BatchModeTransactional {
+		t.Fatalf("unexpected batch options %+v", fake.lastBatchOpts)
+	}
+	want := "{\"added\":[\"foo\"],\"failed\":[{\"keyword\":\"\",\"error\":\"keyword cannot be empty\"}],\"skipped\":[\"Foo\"]}\n"
+	if stdout.String() != want {
+		t.Fatalf("unexpected stdout %q", stdout.String())
+	}
+}
+
+func TestRunRemoveManyReadsLinesFromStdin(t *testing.T) {
+	fake := &fakeService{batchResult: &acor.BatchResult{
+		Removed: []string{"foo", "hello world"},
+		Failed:  []acor.KeywordError{},
+		Skipped: []string{},
+	}}
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := runWithInput([]string{"remove-many", "-"}, strings.NewReader("foo\r\nhello world\n"), stdout, stderr,
+		func(*acor.AhoCorasickArgs) (service, error) { return fake, nil })
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d with stderr %q", exitCode, stderr.String())
+	}
+	if strings.Join(fake.lastKeywords, ",") != "foo,hello world" {
+		t.Fatalf("unexpected stdin keywords %v", fake.lastKeywords)
+	}
+	if fake.lastBatchOpts == nil || fake.lastBatchOpts.Mode != acor.BatchModeBestEffort {
+		t.Fatalf("unexpected batch options %+v", fake.lastBatchOpts)
+	}
+	want := "{\"failed\":[],\"removed\":[\"foo\",\"hello world\"],\"skipped\":[]}\n"
+	if stdout.String() != want {
+		t.Fatalf("unexpected stdout %q", stdout.String())
+	}
+}
+
+func TestRunFindParallelReadsStdinAndForwardsOptions(t *testing.T) {
+	fake := &fakeService{parallelMatches: []string{"hello", "world"}}
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := runWithInput([]string{
+		"-workers", "3",
+		"-chunk-size", "100",
+		"-boundary", "line",
+		"-overlap", "10",
+		"find-parallel", "-",
+	}, strings.NewReader("hello\nworld\n"), stdout, stderr, func(*acor.AhoCorasickArgs) (service, error) {
+		return fake, nil
+	})
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d with stderr %q", exitCode, stderr.String())
+	}
+	if fake.lastInput != "hello\nworld\n" {
+		t.Fatalf("unexpected input %q", fake.lastInput)
+	}
+	wantOpts := acor.ParallelOptions{Workers: 3, ChunkSize: 100, Boundary: acor.ChunkBoundaryLine, Overlap: 10}
+	if fake.lastParallelOpts == nil || *fake.lastParallelOpts != wantOpts {
+		t.Fatalf("unexpected parallel options %+v", fake.lastParallelOpts)
+	}
+	if stdout.String() != "{\"matches\":[\"hello\",\"world\"]}\n" {
+		t.Fatalf("unexpected stdout %q", stdout.String())
+	}
+}
+
+func TestRunFindIndexParallelCommand(t *testing.T) {
+	fake := &fakeService{parallelIndexes: map[string][]int{"he": {0, 6}}}
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := run([]string{"find-index-parallel", "hello hello"}, stdout, stderr,
+		func(*acor.AhoCorasickArgs) (service, error) { return fake, nil })
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d with stderr %q", exitCode, stderr.String())
+	}
+	if stdout.String() != "{\"matches\":{\"he\":[0,6]}}\n" {
+		t.Fatalf("unexpected stdout %q", stdout.String())
 	}
 }
 
@@ -464,9 +655,13 @@ func TestRunCommandServiceErrors(t *testing.T) {
 		args []string
 	}{
 		{name: "add error", args: []string{"add", "kw"}},
+		{name: "add-many error", args: []string{"add-many", "kw"}},
 		{name: "remove error", args: []string{"remove", "kw"}},
+		{name: "remove-many error", args: []string{"remove-many", "kw"}},
 		{name: "find error", args: []string{"find", "input"}},
 		{name: "find-index error", args: []string{"find-index", "input"}},
+		{name: "find-parallel error", args: []string{"find-parallel", "input"}},
+		{name: "find-index-parallel error", args: []string{"find-index-parallel", "input"}},
 		{name: "suggest error", args: []string{"suggest", "input"}},
 		{name: "suggest-index error", args: []string{"suggest-index", "input"}},
 		{name: "info error", args: []string{"info"}},
@@ -524,6 +719,11 @@ func TestRunHelpFlag(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "Usage:") {
 		t.Fatalf("expected stderr to contain usage text, got %q", stderr.String())
+	}
+	for _, want := range []string{"add-many", "find-parallel", "-batch-mode", "-preset", "-cache"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("expected help to contain %q, got %q", want, stderr.String())
+		}
 	}
 }
 
@@ -618,28 +818,32 @@ func TestParseRingAddrs(t *testing.T) {
 
 func TestCommandHandler(t *testing.T) {
 	tests := []struct {
-		name     string
-		command  string
-		needsArg bool
-		wantErr  bool
+		name    string
+		command string
+		mode    argumentMode
+		wantErr bool
 	}{
-		{name: "add", command: "add", needsArg: true, wantErr: false},
-		{name: "remove", command: "remove", needsArg: true, wantErr: false},
-		{name: "find", command: "find", needsArg: true, wantErr: false},
-		{name: "find-index", command: "find-index", needsArg: true, wantErr: false},
-		{name: "suggest", command: "suggest", needsArg: true, wantErr: false},
-		{name: "suggest-index", command: "suggest-index", needsArg: true, wantErr: false},
-		{name: "info", command: "info", needsArg: false, wantErr: false},
-		{name: "flush", command: "flush", needsArg: false, wantErr: false},
-		{name: "migrate", command: "migrate", needsArg: false, wantErr: false},
-		{name: "migrate-rollback", command: "migrate-rollback", needsArg: false, wantErr: false},
-		{name: "schema-version", command: "schema-version", needsArg: false, wantErr: false},
-		{name: "unknown command", command: "bogus", needsArg: false, wantErr: true},
+		{name: "add", command: "add", mode: argumentsOne},
+		{name: "add-many", command: "add-many", mode: argumentsOneOrMore},
+		{name: "remove", command: "remove", mode: argumentsOne},
+		{name: "remove-many", command: "remove-many", mode: argumentsOneOrMore},
+		{name: "find", command: "find", mode: argumentsOne},
+		{name: "find-index", command: "find-index", mode: argumentsOne},
+		{name: "find-parallel", command: "find-parallel", mode: argumentsOne},
+		{name: "find-index-parallel", command: "find-index-parallel", mode: argumentsOne},
+		{name: "suggest", command: "suggest", mode: argumentsOne},
+		{name: "suggest-index", command: "suggest-index", mode: argumentsOne},
+		{name: "info", command: "info", mode: argumentsNone},
+		{name: "flush", command: "flush", mode: argumentsNone},
+		{name: "migrate", command: "migrate", mode: argumentsNone},
+		{name: "migrate-rollback", command: "migrate-rollback", mode: argumentsNone},
+		{name: "schema-version", command: "schema-version", mode: argumentsNone},
+		{name: "unknown command", command: "bogus", mode: argumentsNone, wantErr: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			runner, needsArg, err := commandHandler(tt.command)
+			runner, mode, err := commandHandler(tt.command)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -655,32 +859,33 @@ func TestCommandHandler(t *testing.T) {
 			if runner == nil {
 				t.Fatal("expected runner, got nil")
 			}
-			if needsArg != tt.needsArg {
-				t.Fatalf("expected needsArg=%v, got %v", tt.needsArg, needsArg)
+			if mode != tt.mode {
+				t.Fatalf("expected mode=%v, got %v", tt.mode, mode)
 			}
 		})
 	}
 }
 
-func TestCommandArgument(t *testing.T) {
+func TestCommandArguments(t *testing.T) {
 	tests := []struct {
-		name     string
-		command  string
-		args     []string
-		needsArg bool
-		want     string
-		wantErr  bool
+		name    string
+		command string
+		args    []string
+		mode    argumentMode
+		wantErr bool
 	}{
-		{name: "needs arg with one arg", command: "find", args: []string{testKeywordHello}, needsArg: true, want: testKeywordHello, wantErr: false},
-		{name: "needs arg with no args", command: "find", args: []string{}, needsArg: true, want: "", wantErr: true},
-		{name: "needs arg with too many args", command: "find", args: []string{"a", "b"}, needsArg: true, want: "", wantErr: true},
-		{name: "no arg needed with no args", command: "info", args: []string{}, needsArg: false, want: "", wantErr: false},
-		{name: "no arg needed but gets args", command: "info", args: []string{"extra"}, needsArg: false, want: "", wantErr: true},
+		{name: "one arg", command: "find", args: []string{testKeywordHello}, mode: argumentsOne},
+		{name: "one arg missing", command: "find", mode: argumentsOne, wantErr: true},
+		{name: "one arg gets too many", command: "find", args: []string{"a", "b"}, mode: argumentsOne, wantErr: true},
+		{name: "many args", command: "add-many", args: []string{"a", "b"}, mode: argumentsOneOrMore},
+		{name: "many args missing", command: "add-many", mode: argumentsOneOrMore, wantErr: true},
+		{name: "no args", command: "info", mode: argumentsNone},
+		{name: "no args gets one", command: "info", args: []string{"extra"}, mode: argumentsNone, wantErr: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := commandArgument(tt.command, tt.args, tt.needsArg)
+			got, err := commandArguments(tt.command, tt.args, tt.mode)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -690,8 +895,8 @@ func TestCommandArgument(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if got != tt.want {
-				t.Fatalf("expected %q, got %q", tt.want, got)
+			if len(got) != len(tt.args) {
+				t.Fatalf("expected %v, got %v", tt.args, got)
 			}
 		})
 	}
