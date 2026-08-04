@@ -274,7 +274,7 @@ func (dat *doubleArrayTrie) computeFailLinks() {
 			// of copying its outputs in. The fail target is strictly shallower and
 			// this BFS visits by depth, so its outLink is already final.
 			if f := int(dat.fail[next]); dat.own[f] != "" {
-				dat.outLink[next] = int32(f) //nolint:gosec // G115: dat.size is bounded by hasOutputBit at band build.
+				dat.outLink[next] = int32(f) //nolint:gosec // G115: DAT state ids use int32 throughout.
 			} else {
 				dat.outLink[next] = dat.outLink[f]
 			}

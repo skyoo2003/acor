@@ -89,6 +89,30 @@ func uniqueInOrder(all []string) []string {
 	return out
 }
 
+func TestFindSetNoMatches(t *testing.T) {
+	cases := []struct {
+		name     string
+		keywords map[string]struct{}
+		text     string
+	}{
+		{"empty_keywords", map[string]struct{}{}, "non-empty text"},
+		{"no_matching_text", keywordSet("keyword1", "keyword2", "another-keyword"), "nothing here matches"},
+	}
+
+	for _, p := range allPresets {
+		for _, tc := range cases {
+			t.Run(fmt.Sprintf("%s/%v", tc.name, p), func(t *testing.T) {
+				e := New(p)
+				e.Build(tc.keywords)
+				got := e.FindSet(tc.text)
+				if got == nil || len(got) != 0 {
+					t.Fatalf("FindSet = %#v, want non-nil empty slice", got)
+				}
+			})
+		}
+	}
+}
+
 // TestFindSetAcrossDedupThreshold pins FindSet against Find on both sides of
 // dedupLinearMax, so the handoff from linear scanning to hash maps cannot change
 // the answer or its order. A text matching well over the threshold is the case

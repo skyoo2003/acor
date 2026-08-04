@@ -27,10 +27,6 @@ type bandedDFA struct {
 }
 
 const (
-	// hasOutputBit is packed into a band entry alongside the target state. States
-	// are double-array positions, which stay far below 1<<30 for any realistic
-	// dictionary.
-	hasOutputBit int32 = 1 << 30
 	// bandNotBanded marks a state with no precomputed DFA row.
 	bandNotBanded int32 = -1
 )
@@ -97,11 +93,7 @@ func (bd *bandedDFA) buildDFABand() {
 		bd.bandOff[s] = off
 		for ai := range dat.runes {
 			next := dat.followFailByCode(s, ai)
-			entry := int32(next) //nolint:gosec // G115: dat.size < hasOutputBit per the guard.
-			if next < len(dat.hasOutput) && dat.hasOutput[next] {
-				entry |= hasOutputBit
-			}
-			bd.band[off+int32(ai)] = entry //nolint:gosec // G115: ai < alphaSize, bounded above.
+			bd.band[off+int32(ai)] = packState(next, next < len(dat.hasOutput) && dat.hasOutput[next]) //nolint:gosec // G115: ai < alphaSize, bounded above.
 		}
 		off += int32(alphaSize) //nolint:gosec // G115: rows*alphaSize fits int32 per the guard.
 	}
@@ -162,17 +154,7 @@ func (e *balancedEngine) find(text string) []string {
 	// for a filter, and preallocating made that path allocate for nothing.
 	var matched []string
 	collect := func(state int) bool {
-		if matched == nil {
-			// Take the whole starting capacity at the first hit instead of letting
-			// append regrow 1,2,4,8. Lazy allocation is for the no-match path and
-			// should not cost the matching one.
-			matched = make([]string, 0, findResultHint)
-		}
-		for s := state; s != outNone; s = int(dat.outLink[s]) {
-			if kw := dat.own[s]; kw != "" {
-				matched = append(matched, kw)
-			}
-		}
+		matched = appendOutputChain(matched, state, dat.own, dat.outLink)
 		return true
 	}
 
@@ -200,13 +182,7 @@ func (e *balancedEngine) findSet(text string) []string {
 
 	var c setCollector
 	e.scan(text, func(state int) bool {
-		if c.addState(state) {
-			for s := state; s != outNone; s = int(dat.outLink[s]) {
-				if kw := dat.own[s]; kw != "" {
-					c.addKeyword(kw)
-				}
-			}
-		}
+		collectOutputChain(&c, state, dat.own, dat.outLink)
 		return true
 	})
 	return c.result()
@@ -292,14 +268,7 @@ func (e *balancedEngine) findIndex(text string) map[string][]int {
 		if !out {
 			continue
 		}
-		for s := state; s != outNone; s = int(dat.outLink[s]) {
-			kw := dat.own[s]
-			if kw == "" {
-				continue
-			}
-			startIdx := runeIndex - runeLen(kw, dat.asciiOnly)
-			matched[kw] = append(matched[kw], startIdx)
-		}
+		indexOutputChain(matched, state, runeIndex, dat.own, dat.outLink, dat.asciiOnly)
 	}
 
 	return matched
@@ -328,17 +297,8 @@ func (e *balancedEngine) matchString(text string, emit func(Match) bool) {
 		next, hasOut := bd.step(state, code)
 		state = next
 		runeIndex++
-		if hasOut {
-			for s := state; s != outNone; s = int(dat.outLink[s]) {
-				out := dat.own[s]
-				if out == "" {
-					continue
-				}
-				start := runeIndex - runeLen(out, dat.asciiOnly)
-				if !emit(Match{Keyword: out, Start: start, End: runeIndex}) {
-					return
-				}
-			}
+		if hasOut && !emitOutputChain(state, runeIndex, dat.own, dat.outLink, dat.asciiOnly, emit) {
+			return
 		}
 	}
 }
@@ -371,15 +331,8 @@ func (e *balancedEngine) matchStream(next func() (rune, bool), emit func(Match) 
 		if !hasOut {
 			continue
 		}
-		for s := state; s != outNone; s = int(dat.outLink[s]) {
-			out := dat.own[s]
-			if out == "" {
-				continue
-			}
-			start := runeIndex - runeLen(out, dat.asciiOnly)
-			if !emit(Match{Keyword: out, Start: start, End: runeIndex}) {
-				return
-			}
+		if !emitOutputChain(state, runeIndex, dat.own, dat.outLink, dat.asciiOnly, emit) {
+			return
 		}
 	}
 }

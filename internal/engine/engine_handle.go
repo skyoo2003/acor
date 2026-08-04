@@ -41,22 +41,6 @@ const findResultHint = 8
 // outputs would remove the trade-off by making dedup an integer index test.
 const dedupLinearMax = 32
 
-// outNone marks the end of an output-link chain.
-//
-// A state's output chain is its failure chain restricted to states carrying a
-// keyword, so walking it enumerates the keywords ending at the current position,
-// longest first:
-//
-//	for s := state; s != outNone; s = int(outLink[s]) {
-//		if kw := own[s]; kw != "" { ... }
-//	}
-//
-// The cursor is an int and widens on read, so no narrowing conversion is needed.
-// Each scan writes the loop out rather than sharing a callback helper: find and
-// findSet run it per match, where an indirect call costs what engine_flat.go's
-// header note measured.
-const outNone = -1
-
 // setCollector folds matched states into the unique keyword set behind FindSet,
 // preserving first-match order.
 //
@@ -79,7 +63,7 @@ type setCollector struct {
 // skip walking its output chain.
 func (c *setCollector) addState(state int) bool {
 	if c.seenState != nil {
-		if _, done := c.seenState[int32(state)]; done { //nolint:gosec // G115: state ids are bounded by hasOutputBit.
+		if _, done := c.seenState[int32(state)]; done { //nolint:gosec // G115: speed is packing-bounded; DAT state ids are int32.
 			return false
 		}
 		c.seenState[int32(state)] = struct{}{} //nolint:gosec // G115: as above.

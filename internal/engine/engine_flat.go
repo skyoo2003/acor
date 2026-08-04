@@ -107,6 +107,7 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 	}
 
 	numStates := len(nodes)
+	requirePackableStateCount(numStates)
 	alphaSize := len(e.alphabet)
 
 	queue := make([]int, 0)
@@ -170,7 +171,7 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 			// of copying its outputs in. fail is strictly shallower and BFS visits by
 			// depth, so nodes[fail].outLink is already final here.
 			if nodes[fail].own != "" {
-				nodes[child].outLink = int32(fail) //nolint:gosec // G115: state ids are bounded by the DFA allocation below.
+				nodes[child].outLink = int32(fail) //nolint:gosec // G115: state ids pass requirePackableStateCount above.
 			} else {
 				nodes[child].outLink = nodes[fail].outLink
 			}
@@ -191,18 +192,8 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 	// with it, which is correct: the flag describes the target state. A state
 	// carries keywords when it terminates one or its output chain reaches one.
 	//
-	// State ids share an int32 with hasOutputBit and so must stay below 1<<30.
-	// There is no guard, unlike bandedDFA.buildDFABand: a full DFA needs the
-	// packing and has nothing to degrade to. Reaching the bound takes a billion
-	// trie states, which the three allocations above already size at 24 GiB or more,
-	// so no dictionary this library accepts comes close. Past it a state id would
-	// alias the bit, read back as the root, and drop matches silently.
 	enc := func(state int) int32 {
-		v := int32(state) //nolint:gosec // G115: see the bound above.
-		if e.own[state] != "" || e.outLink[state] != outNone {
-			v |= hasOutputBit
-		}
-		return v
+		return packState(state, e.own[state] != "" || e.outLink[state] != outNone)
 	}
 
 	for ai, r := range e.alphabet {
@@ -277,14 +268,7 @@ func (e *speedEngine) find(text string) []string { //nolint:gocyclo
 			if v&hasOutputBit == 0 {
 				continue
 			}
-			if matched == nil {
-				matched = make([]string, 0, findResultHint)
-			}
-			for s := state; s != outNone; s = int(e.outLink[s]) {
-				if kw := e.own[s]; kw != "" {
-					matched = append(matched, kw)
-				}
-			}
+			matched = appendOutputChain(matched, state, e.own, e.outLink)
 		}
 		if matched == nil {
 			return []string{}
@@ -303,14 +287,7 @@ func (e *speedEngine) find(text string) []string { //nolint:gocyclo
 		if v&hasOutputBit == 0 {
 			continue
 		}
-		if matched == nil {
-			matched = make([]string, 0, findResultHint)
-		}
-		for s := state; s != outNone; s = int(e.outLink[s]) {
-			if kw := e.own[s]; kw != "" {
-				matched = append(matched, kw)
-			}
-		}
+		matched = appendOutputChain(matched, state, e.own, e.outLink)
 	}
 
 	if matched == nil {
@@ -341,13 +318,7 @@ func (e *speedEngine) findSet(text string) []string {
 			v := e.dfa[state*alpha+ai]
 			state = int(v &^ hasOutputBit)
 			if v&hasOutputBit != 0 {
-				if c.addState(state) {
-					for s := state; s != outNone; s = int(e.outLink[s]) {
-						if kw := e.own[s]; kw != "" {
-							c.addKeyword(kw)
-						}
-					}
-				}
+				collectOutputChain(&c, state, e.own, e.outLink)
 			}
 		}
 	} else {
@@ -360,13 +331,7 @@ func (e *speedEngine) findSet(text string) []string {
 			v := e.dfa[state*alpha+ai]
 			state = int(v &^ hasOutputBit)
 			if v&hasOutputBit != 0 {
-				if c.addState(state) {
-					for s := state; s != outNone; s = int(e.outLink[s]) {
-						if kw := e.own[s]; kw != "" {
-							c.addKeyword(kw)
-						}
-					}
-				}
+				collectOutputChain(&c, state, e.own, e.outLink)
 			}
 		}
 	}
@@ -440,14 +405,7 @@ func (e *speedEngine) findIndex(text string) map[string][]int {
 		if v&hasOutputBit == 0 {
 			continue
 		}
-		for s := state; s != outNone; s = int(e.outLink[s]) {
-			out := e.own[s]
-			if out == "" {
-				continue
-			}
-			startIdx := runeIndex - runeLen(out, e.asciiOnly)
-			matched[out] = append(matched[out], startIdx)
-		}
+		indexOutputChain(matched, state, runeIndex, e.own, e.outLink, e.asciiOnly)
 	}
 
 	return matched
@@ -477,15 +435,8 @@ func (e *speedEngine) matchString(text string, emit func(Match) bool) {
 		if v&hasOutputBit == 0 {
 			continue
 		}
-		for s := state; s != outNone; s = int(e.outLink[s]) {
-			out := e.own[s]
-			if out == "" {
-				continue
-			}
-			start := runeIndex - runeLen(out, e.asciiOnly)
-			if !emit(Match{Keyword: out, Start: start, End: runeIndex}) {
-				return
-			}
+		if !emitOutputChain(state, runeIndex, e.own, e.outLink, e.asciiOnly, emit) {
+			return
 		}
 	}
 }
@@ -516,15 +467,8 @@ func (e *speedEngine) matchStream(next func() (rune, bool), emit func(Match) boo
 		if v&hasOutputBit == 0 {
 			continue
 		}
-		for s := state; s != outNone; s = int(e.outLink[s]) {
-			out := e.own[s]
-			if out == "" {
-				continue
-			}
-			start := runeIndex - runeLen(out, e.asciiOnly)
-			if !emit(Match{Keyword: out, Start: start, End: runeIndex}) {
-				return
-			}
+		if !emitOutputChain(state, runeIndex, e.own, e.outLink, e.asciiOnly, emit) {
+			return
 		}
 	}
 }
