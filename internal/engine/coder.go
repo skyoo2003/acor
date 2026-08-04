@@ -5,7 +5,7 @@ package engine
 import "unicode/utf8"
 
 // alphabetCoder maps runes to compact alphabet indices with an ASCII fast path.
-// It is embedded by both the Speed (flat) and Balanced/Ultimate (DAT) engines,
+// It is embedded by both the Speed (flat) and Balanced (DAT) engines,
 // which resolve nearly every input character to an index and must agree on the
 // encoding.
 type alphabetCoder struct {

@@ -58,18 +58,23 @@ Each preset optimizes for a different trade-off between speed, memory, and featu
 | `PresetSpeed` | Full DFA + flat array trie + compact alphabet mapping | Real-time packet inspection, high-speed log scanning, latency-critical paths | Higher memory proportional to states x alphabet size |
 | `PresetBalanced` | Double-Array Trie + Banded DFA + output link compression | General-purpose backend keyword filtering, search engines | Balanced speed and memory |
 | `PresetMemoryEfficient` | Map-based sparse trie + Bloom filter pre-filtering + standard NFA | Large-scale domain blocking, malware signature matching, millions of patterns | Slower search due to failure link traversal and map lookups |
-| `PresetUltimate` | Balanced architecture (Double-Array Trie + Banded DFA) + root-state first-rune Bloom pre-filter | Production systems needing highest throughput | Highest speed at Balanced-level memory |
 
-> Since v0.8.0 `PresetUltimate` shares the `PresetBalanced` engine, adding only a
-> first-rune Bloom pre-filter that skips characters which cannot start any
-> keyword. Match results are identical to `PresetBalanced`.
+> `PresetUltimate` is a deprecated alias for `PresetBalanced`. It used to add a
+> root-state first-rune Bloom pre-filter, which measured 1.7-1.8x slower than
+> `PresetBalanced` on every benchmark in the repository, on ASCII and multibyte text
+> alike: the per-character check cost more than the trie work it skipped. Code using
+> it keeps compiling and now gets the faster engine.
 
 ### Choosing a Preset
 
 - **Start with `PresetBalanced`** — it provides the best speed-to-memory ratio for most workloads.
 - Use `PresetSpeed` when latency is critical and memory is available.
 - Use `PresetMemoryEfficient` when you have millions of patterns and memory is constrained.
-- Use `PresetUltimate` for production systems that need maximum throughput.
+
+`PresetSpeed` measured fastest on every query shape on the
+[benchmarks page](../../reference/benchmarks/), while `PresetBalanced` trades some of
+that for a much smaller transition table. Measure your own corpus rather than
+choosing by name.
 
 ## Case Sensitivity
 

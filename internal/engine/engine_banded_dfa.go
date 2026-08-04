@@ -16,11 +16,9 @@ type bandedDFA struct {
 var _ matchEngine = (*balancedEngine)(nil)
 
 // balancedEngine implements matchEngine using a DAT with Banded DFA and output
-// link compression. Used by PresetBalanced. PresetUltimate uses the same engine
-// with an added root-state pre-filter (see newUltimateEngine).
+// link compression. Used by PresetBalanced.
 type balancedEngine struct {
 	banded *bandedDFA
-	bloom  *bloomFilter // root-state first-rune pre-filter; nil disables it (Balanced)
 	preset Preset
 }
 
@@ -34,23 +32,9 @@ func newBalancedEngine(bandDepth int) *balancedEngine {
 	}
 }
 
-// newUltimateEngine returns a balancedEngine with a root-state first-rune
-// pre-filter (a Bloom filter) that skips trie work for characters which cannot
-// start any keyword. The filter never yields false negatives, so match results
-// are identical to PresetBalanced.
-func newUltimateEngine(bandDepth int) *balancedEngine {
-	e := newBalancedEngine(bandDepth)
-	e.preset = PresetUltimate
-	return e
-}
-
 func (e *balancedEngine) buildFromKeywords(keywords map[string]struct{}) {
 	e.banded.dat.buildFromKeywords(keywords)
 	e.banded.buildDFABand()
-
-	if e.preset == PresetUltimate {
-		e.bloom = buildFirstRuneBloom(keywords)
-	}
 }
 
 func (bd *bandedDFA) buildDFABand() {
@@ -86,16 +70,11 @@ func (e *balancedEngine) find(text string) []string {
 		return []string{}
 	}
 	band := e.banded.dfaBand
-	bloom := e.bloom
 
 	matched := make([]string, 0)
 	state := datRootPos
 
 	for _, ch := range text {
-		if bloom != nil && bloom.skipAtRoot(state == datRootPos, ch) {
-			continue
-		}
-
 		code, ok := dat.code(ch)
 		if !ok {
 			state = datRootPos
@@ -129,18 +108,12 @@ func (e *balancedEngine) findIndex(text string) map[string][]int {
 		return map[string][]int{}
 	}
 	band := e.banded.dfaBand
-	bloom := e.bloom
 
 	matched := make(map[string][]int)
 	state := datRootPos
 	runeIndex := 0
 
 	for _, ch := range text {
-		if bloom != nil && bloom.skipAtRoot(state == datRootPos, ch) {
-			runeIndex++
-			continue
-		}
-
 		code, ok := dat.code(ch)
 		if !ok {
 			state = datRootPos
@@ -179,7 +152,6 @@ func (e *balancedEngine) matchStream(next func() (rune, bool), emit func(Match) 
 		return
 	}
 	band := e.banded.dfaBand
-	bloom := e.bloom
 
 	state := datRootPos
 	runeIndex := 0
@@ -188,10 +160,6 @@ func (e *balancedEngine) matchStream(next func() (rune, bool), emit func(Match) 
 		ch, ok := next()
 		if !ok {
 			return
-		}
-		if bloom != nil && bloom.skipAtRoot(state == datRootPos, ch) {
-			runeIndex++
-			continue
 		}
 
 		code, ok := dat.code(ch)
@@ -236,9 +204,6 @@ func (e *balancedEngine) info() *InMemoryInfo {
 		if row != nil {
 			mem += int64(len(row)) * 8
 		}
-	}
-	if e.bloom != nil {
-		mem += e.bloom.memoryBytes()
 	}
 	return &InMemoryInfo{
 		Keywords:    dat.keywordCount(),

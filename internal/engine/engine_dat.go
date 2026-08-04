@@ -6,7 +6,7 @@ import "slices"
 
 // doubleArrayTrie implements a Double-Array Trie using base[] and check[] arrays.
 // Provides O(1) state transitions with near hash-map memory efficiency.
-// Used by PresetBalanced and PresetUltimate.
+// Used by PresetBalanced.
 //
 // Position 0 is unused (sentinel); root is at position 1. This avoids the
 // ambiguity where check[pos]=0 could mean either "empty" or "parent is state 0".

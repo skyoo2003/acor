@@ -26,8 +26,15 @@ const (
 	PresetBalanced = engine.PresetBalanced
 	// PresetMemoryEfficient minimizes memory usage (map-based sparse trie + Bloom).
 	PresetMemoryEfficient = engine.PresetMemoryEfficient
-	// PresetUltimate is Balanced plus a root-state first-rune pre-filter.
-	PresetUltimate = engine.PresetUltimate
+	// PresetUltimate is an alias for PresetBalanced. It used to add a root-state
+	// first-rune Bloom pre-filter, which measured 1.7-1.8x slower than Balanced on
+	// every benchmark in the repository, on ASCII and multibyte text alike: the
+	// per-character filter check cost more than the trie work it skipped, and it
+	// blocked the byte-scan fast path an ASCII dictionary can take. Existing code
+	// keeps compiling and now gets the faster engine.
+	//
+	// Deprecated: use PresetBalanced.
+	PresetUltimate = engine.PresetBalanced
 )
 
 // presetDefault is an internal sentinel (-1) meaning "unset"; it behaves

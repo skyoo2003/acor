@@ -80,7 +80,9 @@ func TestPresetAddFind(t *testing.T) {
 			want:     []string{"한글", "일본어"},
 		},
 		{
-			name:     "ultimate preset",
+			// Guards the deprecated PresetUltimate alias: it must keep resolving to a
+			// working engine, or code that still names it breaks silently.
+			name:     "deprecated ultimate alias",
 			preset:   PresetUltimate,
 			keywords: []string{"abc", "bc", "c"},
 			text:     "abc",
@@ -144,7 +146,7 @@ func TestPresetEmptyText(t *testing.T) {
 }
 
 func TestPresetAllPresets(t *testing.T) {
-	presets := []Preset{PresetSpeed, PresetBalanced, PresetMemoryEfficient, PresetUltimate}
+	presets := []Preset{PresetSpeed, PresetBalanced, PresetMemoryEfficient}
 	for _, preset := range presets {
 		t.Run(preset.String(), func(t *testing.T) {
 			ac := newTestPresetRedis(t, preset)

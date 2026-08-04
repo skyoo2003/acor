@@ -9,8 +9,8 @@ import (
 )
 
 // allPresets is every user-selectable preset. Optimizations must never change
-// match results, so every case below is asserted against all four.
-var allPresets = []Preset{PresetSpeed, PresetBalanced, PresetMemoryEfficient, PresetUltimate}
+// match results, so every case below is asserted against all three.
+var allPresets = []Preset{PresetSpeed, PresetBalanced, PresetMemoryEfficient}
 
 func keywordSet(kws ...string) map[string]struct{} {
 	m := make(map[string]struct{}, len(kws))
