@@ -19,11 +19,3 @@
 "enhancement":
   - changed-files:
       - any-glob-to-any-file: ["pkg/**/*.go"]
-
-# Public API surface: any change to the core package. Broad on purpose so new
-# files can't silently escape the label; a maintainer removes it when a change
-# in here isn't actually breaking (e.g. a test-only or comment change).
-"breaking_changes":
-  - changed-files:
-      - any-glob-to-any-file:
-          - "pkg/acor/*.go"
