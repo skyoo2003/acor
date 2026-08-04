@@ -89,6 +89,8 @@ only the 1000-keyword gap is stable.
 `AddMany` plans the whole batch in one pass and commits it in a single
 transaction, so it costs two round trips regardless of batch size.
 
+On the Apple M4 with Redis 8 on loopback setup above, one sample measured:
+
 | Keywords | ns/op | B/op | allocs/op |
 |---|---|---|---|
 | 100 | 422,665 | 199,850 | 1,079 |
@@ -124,8 +126,9 @@ does not deliver them.
 
 **V2's unambiguous win is writes.** ~14x on `Add()`, and it is the only schema
 that supports caching or preset engines at all. Use `AddMany` rather than a loop
-over `Add`: it commits in a single transaction, so 1000 keywords cost 3.0 ms
-instead of the ~350 ms the same writes cost one at a time.
+over `Add`: it commits in a single transaction. In the Apple M4/Redis 8 loopback
+sample, 1,000 keywords cost 3.0 ms instead of the ~350 ms the same writes cost one
+at a time.
 
 Practical reading: choose V2, and enable `EnableCache` or a `Preset` if your
 workload is read-heavy. V2 with neither is the one configuration these numbers

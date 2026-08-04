@@ -17,9 +17,9 @@ or [`petar-dambovaliev/aho-corasick`](https://github.com/petar-dambovaliev/aho-c
 is lighter and needs no infrastructure.
 
 **Use ACOR when several instances share one dictionary that changes at runtime.**
-A keyword added on one instance reaches the others in a measured p50 of 211 µs
-(p99 2.3 ms). An in-memory automaton has no equivalent number, because its answer
-is a redeploy.
+On an Apple M4 with Redis 8 on loopback, one sample measured a keyword added on
+one instance reaching the others at a p50 of 211 µs (p99 2.3 ms). An in-memory
+automaton has no equivalent number, because its answer is a redeploy.
 
 Matching runs in-process once the automaton is warm, with no Redis round trip.
 Over 1,000 keywords and a 640 B text on an Apple M4, `PresetSpeed` measures:
@@ -31,10 +31,10 @@ Over 1,000 keywords and a 640 B text on an Apple M4, `PresetSpeed` measures:
 | `FindMatches` — occurrences with positions | 1,678 | 4,264 | 6 |
 
 `PresetBalanced` holds that dictionary in 314 KiB of retained heap. Absolute times
-are hardware-bound and moved 20-25% between runs on the same machine, so read them
+are hardware-bound and move 20-25% between runs on the same machine, so read them
 as an order of magnitude; the
-[benchmarks page](docs/content/reference/benchmarks.md) has the method and the full
-tables.
+[benchmarks page](https://skyoo2003.github.io/acor/reference/benchmarks/) has the
+method and the full tables.
 
 ## Overview
 
@@ -167,7 +167,7 @@ only schema that supports local caching or preset engines.
 
 Round trips are exact and enforced by tests. Timings are from Apple M4 with Redis
 8 on loopback at 1000 keywords — reproduce them and see the full tables on the
-[benchmarks page](docs/content/reference/benchmarks.md).
+[benchmarks page](https://skyoo2003.github.io/acor/reference/benchmarks/).
 
 | Operation | V1 (Legacy) | V2 (Optimized) |
 | --------- | ----------- | -------------- |
@@ -217,8 +217,9 @@ matches, err := ac.FindMany([]string{"he is him", "this is hers"})
 ```
 
 `AddMany`/`RemoveMany` plan the whole batch in one pass and commit it in a single
-transaction, so a batch costs two round trips regardless of size: 1000 keywords
-load in ~3 ms. Prefer them over a loop of `Add`.
+transaction, so a batch costs two round trips regardless of size. In the Apple
+M4/Redis 8 loopback sample, 1,000 keywords loaded in ~3 ms. Prefer them over a
+loop of `Add`.
 
 **Batch Modes:**
 
