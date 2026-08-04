@@ -160,7 +160,7 @@ func BenchmarkFindUniqueSet(b *testing.B) {
 				}
 				b.ReportAllocs()
 				b.ResetTimer()
-				for range b.N {
+				for i := 0; i < b.N; i++ {
 					if _, err := ac.FindSet(text); err != nil {
 						b.Fatalf("FindSet error: %v", err)
 					}
@@ -176,7 +176,7 @@ func BenchmarkFindUniqueSet(b *testing.B) {
 				}
 				b.ReportAllocs()
 				b.ResetTimer()
-				for range b.N {
+				for i := 0; i < b.N; i++ {
 					found, err := ac.Find(text)
 					if err != nil {
 						b.Fatalf("Find error: %v", err)
@@ -204,7 +204,7 @@ func BenchmarkFindOccurrences(b *testing.B) {
 				}
 				b.ReportAllocs()
 				b.ResetTimer()
-				for range b.N {
+				for i := 0; i < b.N; i++ {
 					if _, err := ac.Find(text); err != nil {
 						b.Fatalf("Find error: %v", err)
 					}
@@ -234,7 +234,7 @@ func BenchmarkFindMatches(b *testing.B) {
 				}
 				b.ReportAllocs()
 				b.ResetTimer()
-				for range b.N {
+				for i := 0; i < b.N; i++ {
 					if _, err := ac.FindMatches(text, opts); err != nil {
 						b.Fatalf("FindMatches error: %v", err)
 					}
@@ -284,7 +284,7 @@ func BenchmarkBuild(b *testing.B) {
 
 			b.ReportAllocs()
 			b.ResetTimer()
-			for range b.N {
+			for i := 0; i < b.N; i++ {
 				ac, err := acor.Create(args())
 				if err != nil {
 					b.Fatalf("Create error: %v", err)
@@ -314,7 +314,7 @@ func BenchmarkBulkLoad(b *testing.B) {
 		kws := keywords(n)
 		b.Run(fmt.Sprintf("ACOR-PresetBalanced/%dkw", n), func(b *testing.B) {
 			b.ReportAllocs()
-			for i := range b.N {
+			for i := 0; i < b.N; i++ {
 				b.StopTimer()
 				ac, err := acor.Create(&acor.AhoCorasickArgs{
 					Addr:          addr,

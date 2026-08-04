@@ -132,3 +132,10 @@ func percentile(sorted []time.Duration, p int) time.Duration {
 	}
 	return sorted[min((p*len(sorted)+99)/100, len(sorted))-1]
 }
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
