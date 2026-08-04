@@ -8,13 +8,16 @@ import "unicode/utf8"
 type mapNode struct {
 	children map[rune]int
 	fail     int
-	output   []string
 	depth    int
 }
 
 // mapTrie is a trie backed by a slice of mapNodes.
 type mapTrie struct {
 	nodes []mapNode
+	// own and outLink use the same output-chain representation as the flat and
+	// double-array tries, so all engines share the matching helpers.
+	own     []string
+	outLink []int32
 }
 
 // Compile-time check that memEfficientEngine satisfies matchEngine.
@@ -25,6 +28,10 @@ var _ matchEngine = (*memEfficientEngine)(nil)
 type memEfficientEngine struct {
 	trie  mapTrie
 	bloom *bloomFilter
+	// asciiOnly reports whether every keyword is pure ASCII, which lets runeLen take
+	// a keyword's byte length instead of rescanning it. This engine has no
+	// alphabetCoder to carry the flag, so it derives it at build time.
+	asciiOnly bool
 }
 
 func newMemEfficientEngine() *memEfficientEngine {
@@ -36,9 +43,17 @@ func (e *memEfficientEngine) buildFromKeywords(keywords map[string]struct{}) {
 		nodes: []mapNode{
 			{children: make(map[rune]int), depth: 0},
 		},
+		own:     []string{""},
+		outLink: []int32{outNone},
 	}
 
 	for kw := range keywords {
+		// An empty keyword would end at the root, where own == "" already means "no
+		// keyword". The public API rejects empty keywords; skipping keeps this engine
+		// correct on its own.
+		if kw == "" {
+			continue
+		}
 		state := 0
 		for _, ch := range kw {
 			child, ok := trie.nodes[state].children[ch]
@@ -49,10 +64,12 @@ func (e *memEfficientEngine) buildFromKeywords(keywords map[string]struct{}) {
 					children: make(map[rune]int),
 					depth:    trie.nodes[state].depth + 1,
 				})
+				trie.own = append(trie.own, "")
+				trie.outLink = append(trie.outLink, outNone)
 			}
 			state = child
 		}
-		trie.nodes[state].output = append(trie.nodes[state].output, kw)
+		trie.own[state] = kw
 	}
 
 	type queueEntry struct {
@@ -89,14 +106,28 @@ func (e *memEfficientEngine) buildFromKeywords(keywords map[string]struct{}) {
 			}
 
 			trie.nodes[child].fail = fail
-			if len(trie.nodes[fail].output) > 0 {
-				trie.nodes[child].output = append(trie.nodes[child].output, trie.nodes[fail].output...)
+			// Link to the nearest keyword-carrying state on the failure path instead
+			// of copying its outputs in. fail is strictly shallower and this BFS
+			// visits by depth, so its outLink is already final.
+			if trie.own[fail] != "" {
+				trie.outLink[child] = int32(fail) //nolint:gosec // G115: node ids index a slice built above.
+			} else {
+				trie.outLink[child] = trie.outLink[fail]
 			}
 		}
 	}
 
 	e.trie = trie
 	e.bloom = buildFirstRuneBloom(keywords)
+
+	e.asciiOnly = true
+	for kw := range keywords {
+		// A keyword is pure ASCII exactly when its byte length equals its rune count.
+		if len(kw) != utf8.RuneCountInString(kw) {
+			e.asciiOnly = false
+			break
+		}
+	}
 }
 
 func (e *memEfficientEngine) find(text string) []string {
@@ -123,9 +154,7 @@ func (e *memEfficientEngine) find(text string) []string {
 			state = e.trie.nodes[state].fail
 		}
 
-		if len(e.trie.nodes[state].output) > 0 {
-			matched = append(matched, e.trie.nodes[state].output...)
-		}
+		matched = appendOutputChain(matched, state, e.trie.own, e.trie.outLink)
 	}
 
 	return matched
@@ -158,13 +187,44 @@ func (e *memEfficientEngine) findIndex(text string) map[string][]int {
 		}
 
 		runeIndex++
-		for _, out := range e.trie.nodes[state].output {
-			startIdx := runeIndex - utf8.RuneCountInString(out)
-			matched[out] = append(matched[out], startIdx)
-		}
+		indexOutputChain(matched, state, runeIndex, e.trie.own, e.trie.outLink, e.asciiOnly)
 	}
 
 	return matched
+}
+
+// matchString is matchStream over an in-memory string; see the matchEngine
+// interface for why the loop is duplicated rather than shared through a closure.
+func (e *memEfficientEngine) matchString(text string, emit func(Match) bool) {
+	if len(e.trie.nodes) <= 1 {
+		return
+	}
+
+	state := 0
+	runeIndex := 0
+
+	for _, ch := range text {
+		if e.bloom.skipAtRoot(state == 0, ch) {
+			runeIndex++
+			continue
+		}
+
+		for {
+			if nx, ok := e.trie.nodes[state].children[ch]; ok {
+				state = nx
+				break
+			}
+			if state == 0 {
+				break
+			}
+			state = e.trie.nodes[state].fail
+		}
+
+		runeIndex++
+		if !emitOutputChain(state, runeIndex, e.trie.own, e.trie.outLink, e.asciiOnly, emit) {
+			return
+		}
+	}
 }
 
 func (e *memEfficientEngine) matchStream(next func() (rune, bool), emit func(Match) bool) {
@@ -197,18 +257,15 @@ func (e *memEfficientEngine) matchStream(next func() (rune, bool), emit func(Mat
 		}
 
 		runeIndex++
-		for _, out := range e.trie.nodes[state].output {
-			start := runeIndex - utf8.RuneCountInString(out)
-			if !emit(Match{Keyword: out, Start: start, End: runeIndex}) {
-				return
-			}
+		if !emitOutputChain(state, runeIndex, e.trie.own, e.trie.outLink, e.asciiOnly, emit) {
+			return
 		}
 	}
 }
 
 func (e *memEfficientEngine) info() *InMemoryInfo {
 	return &InMemoryInfo{
-		Keywords:    countUniqueOutputs(e.trie.nodes),
+		Keywords:    countUniqueOutputs(e.trie.own),
 		Nodes:       len(e.trie.nodes),
 		Preset:      PresetMemoryEfficient,
 		MemoryBytes: e.estimateMemory(),
@@ -216,14 +273,17 @@ func (e *memEfficientEngine) info() *InMemoryInfo {
 	}
 }
 
-func countUniqueOutputs(nodes []mapNode) int {
-	seen := make(map[string]struct{})
-	for _, n := range nodes {
-		for _, out := range n.output {
-			seen[out] = struct{}{}
+// countUniqueOutputs counts the nodes that terminate a keyword. Each keyword is
+// reached by exactly one path and so fills exactly one own slot, and the build
+// input is a set, so nothing needs deduplication.
+func countUniqueOutputs(own []string) int {
+	n := 0
+	for _, kw := range own {
+		if kw != "" {
+			n++
 		}
 	}
-	return len(seen)
+	return n
 }
 
 func trieMaxDepth(nodes []mapNode) int {
@@ -239,11 +299,12 @@ func trieMaxDepth(nodes []mapNode) int {
 func (e *memEfficientEngine) estimateMemory() int64 {
 	var size int64
 	for _, n := range e.trie.nodes {
-		size += int64(24 + 16 + 16 + len(n.output)*16)
+		size += int64(24 + 16 + 16) // children hdr, fail, depth
 		for range n.children {
 			size += 24
 		}
 	}
+	size += int64(len(e.trie.own))*16 + int64(len(e.trie.outLink))*4
 	if e.bloom != nil {
 		size += e.bloom.memoryBytes()
 	}

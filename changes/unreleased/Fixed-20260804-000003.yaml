@@ -1,0 +1,7 @@
+kind: Fixed
+body: >-
+  `Info().TrieDepth` now reports the correct value for `PresetSpeed` and is
+  recomputed on every rebuild
+time: 2026-08-04T10:00:02.000000+09:00
+custom:
+    Issue: "187"

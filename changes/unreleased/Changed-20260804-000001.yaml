@@ -1,0 +1,8 @@
+kind: Changed
+body: >-
+  Every preset now stores each keyword once and follows output links for suffix
+  matches. This keeps output storage linear for suffix-nested dictionaries while
+  preserving match results and order
+time: 2026-08-04T10:00:00.000000+09:00
+custom:
+    Issue: "187"

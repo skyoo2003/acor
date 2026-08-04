@@ -11,14 +11,33 @@ import "slices"
 // Position 0 is unused (sentinel); root is at position 1. This avoids the
 // ambiguity where check[pos]=0 could mean either "empty" or "parent is state 0".
 type doubleArrayTrie struct {
-	base   []int
-	check  []int
-	fail   []int
-	output [][]string
-	depth  []int
-	size   int
-	cap    int
-	runes  []rune
+	// base, check and fail are int32 rather than int: three arrays cost 12 bytes per
+	// state instead of 24. Overflowing int32 would need over 8 GiB of double-array,
+	// so the allocation fails first.
+	base  []int32
+	check []int32
+	fail  []int32
+	// own[s] is the keyword ending at s, or "" for none, and outLink[s] chains to
+	// the next keyword-carrying state along the failure path (outNone at the end).
+	// They replace an eagerly merged [][]string, which copied each state's whole
+	// suffix output list into every state failing to it: O(n^2) on a suffix-nested
+	// dictionary, where 500 keywords produced 125,250 entries against the chain's
+	// 500.
+	own     []string
+	outLink []int32
+	// hasOutput[s] reports whether s or its output chain carries a keyword. Banded
+	// states pack the same fact into their transition entry, so this array serves
+	// the states below the band — the majority once keywords run longer than
+	// bandDepth (3) — where one []bool load replaces walking the chain.
+	hasOutput []bool
+	// depth drives band selection at build time and nothing after it, so
+	// balancedEngine.buildFromKeywords releases it once the band is chosen.
+	// trieDepth keeps the one value Info still needs.
+	depth     []int32
+	trieDepth int
+	size      int
+	cap       int
+	runes     []rune
 	alphabetCoder
 }
 
@@ -29,10 +48,10 @@ const (
 
 func newDoubleArrayTrie() *doubleArrayTrie {
 	return &doubleArrayTrie{
-		base:  make([]int, datInitialCap),
-		check: make([]int, datInitialCap),
-		fail:  make([]int, datInitialCap),
-		depth: make([]int, datInitialCap),
+		base:  make([]int32, datInitialCap),
+		check: make([]int32, datInitialCap),
+		fail:  make([]int32, datInitialCap),
+		depth: make([]int32, datInitialCap),
 		cap:   datInitialCap,
 		size:  datRootPos + 1,
 	}
@@ -40,10 +59,10 @@ func newDoubleArrayTrie() *doubleArrayTrie {
 
 func (dat *doubleArrayTrie) expand() {
 	newCap := dat.cap * 2
-	newBase := make([]int, newCap)
-	newCheck := make([]int, newCap)
-	newFail := make([]int, newCap)
-	newDepth := make([]int, newCap)
+	newBase := make([]int32, newCap)
+	newCheck := make([]int32, newCap)
+	newFail := make([]int32, newCap)
+	newDepth := make([]int32, newCap)
 	copy(newBase, dat.base)
 	copy(newCheck, dat.check)
 	copy(newFail, dat.fail)
@@ -62,13 +81,16 @@ func (dat *doubleArrayTrie) ensureCapacity(needed int) {
 }
 
 func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //nolint:gocyclo,funlen
-	dat.base = make([]int, datInitialCap)
-	dat.check = make([]int, datInitialCap)
-	dat.fail = make([]int, datInitialCap)
-	dat.depth = make([]int, datInitialCap)
+	dat.base = make([]int32, datInitialCap)
+	dat.check = make([]int32, datInitialCap)
+	dat.fail = make([]int32, datInitialCap)
+	dat.depth = make([]int32, datInitialCap)
 	dat.cap = datInitialCap
 	dat.size = datRootPos + 1
-	dat.output = nil
+	dat.own, dat.outLink = nil, nil
+	// Reset with the arrays: Build reconstructs the automaton, so a rebuild from
+	// shorter keywords must not keep the old maximum.
+	dat.trieDepth = 0
 
 	runeSet := make(map[rune]struct{})
 	for kw := range keywords {
@@ -84,11 +106,17 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 	dat.build(dat.runes)
 
 	tmpChildren := make(map[int]map[rune]int)
-	tmpOutput := make(map[int][]string)
+	tmpOwn := make(map[int]string)
 	nextID := 1
 	tmpChildren[0] = make(map[rune]int)
 
 	for kw := range keywords {
+		// An empty keyword would end at the root, where own == "" already means "no
+		// keyword". The public API rejects empty keywords; skipping keeps this trie
+		// correct on its own.
+		if kw == "" {
+			continue
+		}
 		cur := 0
 		for _, ch := range kw {
 			if _, ok := tmpChildren[cur][ch]; !ok {
@@ -101,7 +129,7 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 			}
 			cur = tmpChildren[cur][ch]
 		}
-		tmpOutput[cur] = append(tmpOutput[cur], kw)
+		tmpOwn[cur] = kw
 	}
 
 	dat.ensureCapacity(nextID + 2)
@@ -131,22 +159,25 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 		}
 
 		base := dat.findBase(codes)
-		dat.base[datPos[parent]] = base
+		dat.base[datPos[parent]] = int32(base) //nolint:gosec // G115: see the int32 note on the fields.
 
 		for ch, childID := range children {
 			code := dat.index[ch]
 			pos := base + code
 			dat.ensureCapacity(pos + 1)
 
-			dat.check[pos] = datPos[parent]
+			dat.check[pos] = int32(datPos[parent]) //nolint:gosec // G115: as above.
 			dat.depth[pos] = dat.depth[datPos[parent]] + 1
+			if d := int(dat.depth[pos]); d > dat.trieDepth {
+				dat.trieDepth = d
+			}
 			datPos[childID] = pos
 
-			if outs, ok := tmpOutput[childID]; ok && len(outs) > 0 {
-				for pos >= len(dat.output) {
-					dat.output = append(dat.output, nil)
+			if kw, ok := tmpOwn[childID]; ok && kw != "" {
+				for pos >= len(dat.own) {
+					dat.own = append(dat.own, "")
 				}
-				dat.output[pos] = outs
+				dat.own[pos] = kw
 			}
 
 			if pos >= dat.size {
@@ -162,13 +193,23 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 	dat.fail = dat.fail[:dat.size]
 	dat.depth = dat.depth[:dat.size]
 
-	if len(dat.output) < dat.size {
-		newOut := make([][]string, dat.size)
-		copy(newOut, dat.output)
-		dat.output = newOut
+	if len(dat.own) < dat.size {
+		newOwn := make([]string, dat.size)
+		copy(newOwn, dat.own)
+		dat.own = newOwn
 	}
 
+	dat.outLink = make([]int32, dat.size)
+	for s := range dat.outLink {
+		dat.outLink[s] = outNone
+	}
 	dat.computeFailLinks()
+
+	// Derived after the fail links, which fill the output chain.
+	dat.hasOutput = make([]bool, dat.size)
+	for s := 0; s < dat.size; s++ {
+		dat.hasOutput[s] = dat.own[s] != "" || dat.outLink[s] != outNone
+	}
 }
 
 func (dat *doubleArrayTrie) findBase(codes []int) int {
@@ -228,33 +269,38 @@ func (dat *doubleArrayTrie) computeFailLinks() {
 			}
 			queue = append(queue, next)
 
-			dat.fail[next] = dat.followFailByCode(dat.fail[state], code)
-			if len(dat.output[dat.fail[next]]) > 0 {
-				dat.output[next] = append(dat.output[next], dat.output[dat.fail[next]]...)
+			dat.fail[next] = int32(dat.followFailByCode(int(dat.fail[state]), code)) //nolint:gosec // G115: as above.
+			// Link to the nearest keyword-carrying state on the failure path instead
+			// of copying its outputs in. The fail target is strictly shallower and
+			// this BFS visits by depth, so its outLink is already final.
+			if f := int(dat.fail[next]); dat.own[f] != "" {
+				dat.outLink[next] = int32(f) //nolint:gosec // G115: DAT state ids use int32 throughout.
+			} else {
+				dat.outLink[next] = dat.outLink[f]
 			}
 		}
 	}
 }
 
 // gotoStateByCode resolves a goto transition with the rune already mapped to its
-// alphabet index, so callers in the hot loop avoid re-resolving the rune on every fail hop.
+// alphabet index, so the hot loop does not re-resolve the rune on every fail hop.
 func (dat *doubleArrayTrie) gotoStateByCode(state, code int) int {
-	pos := dat.base[state] + code
+	pos := int(dat.base[state]) + code
 	if pos < 0 || pos >= dat.size {
 		return 0
 	}
-	if dat.check[pos] != state {
+	if int(dat.check[pos]) != state {
 		return 0
 	}
 	return pos
 }
 
 func (dat *doubleArrayTrie) followFailByCode(state, code int) int {
-	// Compute the transition once per visited state (loop condition + post-loop
-	// value share it) instead of twice, since this runs on the fail-walk hot path.
+	// Compute the transition once per visited state, shared by the loop condition
+	// and the post-loop value, since this runs on the fail-walk hot path.
 	next := dat.gotoStateByCode(state, code)
 	for state != datRootPos && next == 0 {
-		state = dat.fail[state]
+		state = int(dat.fail[state])
 		next = dat.gotoStateByCode(state, code)
 	}
 	if next == 0 {
@@ -264,25 +310,26 @@ func (dat *doubleArrayTrie) followFailByCode(state, code int) int {
 }
 
 func (dat *doubleArrayTrie) memoryBytes() int64 {
-	return int64(len(dat.base)+len(dat.check)+len(dat.fail)+len(dat.depth)) * 8
+	mem := int64(len(dat.base)+len(dat.check)+len(dat.fail)+len(dat.depth)) * 4
+	mem += int64(len(dat.own)) * 16 // string header per state
+	mem += int64(len(dat.outLink)) * 4
+	mem += int64(len(dat.hasOutput)) // one bool per state
+	return mem
 }
 
-func (dat *doubleArrayTrie) maxDepth() int {
-	d := 0
-	for _, v := range dat.depth {
-		if v > d {
-			d = v
-		}
-	}
-	return d
-}
+// maxDepth reports the deepest trie level from the value recorded during the
+// build, since depth itself is released once the band is chosen.
+func (dat *doubleArrayTrie) maxDepth() int { return dat.trieDepth }
 
+// keywordCount counts the states that terminate a keyword. Each keyword is
+// reached by exactly one path and so fills exactly one own slot, and the build
+// input is a set, so nothing needs deduplication.
 func (dat *doubleArrayTrie) keywordCount() int {
-	seen := make(map[string]struct{})
-	for _, outs := range dat.output {
-		for _, o := range outs {
-			seen[o] = struct{}{}
+	n := 0
+	for _, kw := range dat.own {
+		if kw != "" {
+			n++
 		}
 	}
-	return len(seen)
+	return n
 }
