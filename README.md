@@ -9,14 +9,41 @@
 [![License](https://img.shields.io/github/license/skyoo2003/acor.svg)](LICENSE)
 [![Sponsor](https://img.shields.io/badge/sponsor-GitHub-pink)](https://github.com/sponsors/skyoo2003)
 
+## Should you use ACOR?
+
+**Probably not, if you run a single process with a static dictionary.** An
+in-memory library like [`cloudflare/ahocorasick`](https://github.com/cloudflare/ahocorasick)
+or [`petar-dambovaliev/aho-corasick`](https://github.com/petar-dambovaliev/aho-corasick)
+is lighter and needs no infrastructure.
+
+**Use ACOR when several instances share one dictionary that changes at runtime.**
+On an Apple M4 with Redis 8 on loopback, one sample measured a keyword added on
+one instance reaching the others at a p50 of 211 µs (p99 2.3 ms). An in-memory
+automaton has no equivalent number, because its answer is a redeploy.
+
+Matching runs in-process once the automaton is warm, with no Redis round trip.
+Over 1,000 keywords and a 640 B text on an Apple M4, `PresetSpeed` measures:
+
+| Operation | ns/op | B/op | allocs/op |
+| --------- | ----- | ---- | --------- |
+| `FindSet` — which patterns appear | 791 | 152 | 3 |
+| `Find` — every occurrence | 838 | 2,048 | 4 |
+| `FindMatches` — occurrences with positions | 1,678 | 4,264 | 6 |
+
+`PresetBalanced` holds that dictionary in 314 KiB of retained heap. Absolute times
+are hardware-bound and move 20-25% between runs on the same machine, so read them
+as an order of magnitude; the
+[benchmarks page](https://skyoo2003.github.io/acor/reference/benchmarks/) has the
+method and the full tables.
+
 ## Overview
 
 ACOR implements the [Aho-Corasick algorithm](https://en.wikipedia.org/wiki/Aho%E2%80%93Corasick_algorithm) for efficient multi-pattern string matching, with all data structures persisted in Redis. This enables:
 
-- **Fast pattern matching** — O(n + m) complexity where n is text length and m is number of matches
-- **Distributed state** — Share pattern dictionaries across multiple application instances
-- **Persistence** — Pattern dictionaries survive application restarts
-- **Scalability** — Support for Redis Sentinel, Cluster, and Ring topologies
+- **Distributed state** — one pattern dictionary shared across every application instance
+- **Runtime updates** — change the dictionary without a redeploy; other instances pick it up via Pub/Sub
+- **Persistence** — dictionaries survive application restarts without being rebuilt
+- **Scalability** — Redis Sentinel, Cluster, and Ring topologies
 
 ## Use Cases
 
@@ -84,8 +111,10 @@ func main() {
 
 ## Match Details and Streaming
 
-Use `FindMatches` for ordered rune spans, `Contains` for an early-exit presence
-check, and `FindStream` for an `io.Reader`. See the
+`Find` reports every occurrence. Use `FindSet` to get each matched keyword once,
+`FindMatches` for ordered rune spans (`FindMatchesAppend` to reuse a buffer),
+`Contains` for an early-exit presence check, and `FindStream` for an `io.Reader`.
+See the
 [matching API reference](docs/content/reference/api.md#findmatches) for options
 and a compiled example.
 
@@ -131,23 +160,23 @@ ACOR supports two Redis schema versions:
 | V1 (Legacy)    | Multiple keys per collection | ~500K                  |
 | V2 (Optimized) | Fixed 3 keys per collection  | 3                      |
 
-**V2 is recommended** for new collections: `Add()` is ~13x faster, and V2 is the
+**V2 is recommended** for new collections: `Add()` is ~14x faster, and V2 is the
 only schema that supports local caching or preset engines.
 
 ### Performance Comparison
 
 Round trips are exact and enforced by tests. Timings are from Apple M4 with Redis
 8 on loopback at 1000 keywords — reproduce them and see the full tables on the
-[benchmarks page](docs/content/reference/benchmarks.md).
+[benchmarks page](https://skyoo2003.github.io/acor/reference/benchmarks/).
 
 | Operation | V1 (Legacy) | V2 (Optimized) |
 | --------- | ----------- | -------------- |
 | Find() round trips | 1 | 1 |
 | Add() round trips | grows with keyword length (53 at 5 chars, 507 at 26) | 2 |
-| Add() time | baseline | **~12x faster** |
+| Add() time | baseline | **~14x faster** |
 | Find() time, no cache | baseline | ~1.7x **slower** |
 | Find() time, `EnableCache` | n/a | ~15x faster |
-| Find() time, `PresetBalanced` | n/a | ~58x faster |
+| Find() time, `PresetBalanced` | n/a | ~59x faster |
 
 Uncached V2 `Find()` reads an outputs hash with one entry per trie state, where
 V1 reads only the keyword set, so it stays slightly slower on reads at one round
@@ -187,10 +216,19 @@ result, err = ac.RemoveMany([]string{"he", "her"})
 matches, err := ac.FindMany([]string{"he is him", "this is hers"})
 ```
 
+`AddMany`/`RemoveMany` plan the whole batch in one pass and commit it in a single
+transaction, so a batch costs two round trips regardless of size. In the Apple
+M4/Redis 8 loopback sample, 1,000 keywords loaded in ~3 ms. Prefer them over a
+loop of `Add`.
+
 **Batch Modes:**
 
 - `BatchModeBestEffort`: Continues on errors, returns partial results
-- `BatchModeTransactional`: Rolls back all changes if any error occurs
+- `BatchModeTransactional`: All-or-nothing
+
+On V2 and preset collections both modes commit as one compare-and-set write, so a
+failure leaves nothing written and the modes differ only in how they report it. V1
+still writes per keyword and rolls back on failure.
 
 ## Parallel Matching
 
@@ -235,10 +273,9 @@ Redis is the source of truth; a local preset-optimized automaton handles reads w
 
 | Preset | Engine | Best For | Trade-off |
 |--------|--------|----------|-----------|
-| `PresetSpeed` | Full DFA + flat array | Real-time packet inspection, latency-critical paths | Higher memory (states x alphabet) |
+| `PresetSpeed` | Full DFA + flat array | Highest throughput; real-time inspection, latency-critical paths | Higher memory (states x alphabet) |
 | `PresetBalanced` | Double-Array Trie + Banded DFA | General-purpose keyword filtering | Balanced speed and memory |
 | `PresetMemoryEfficient` | Map-based + Bloom filter | Large-scale domain blocking, millions of patterns | Slower search |
-| `PresetUltimate` | SIMD pre-filter + Double-Array + Banded DFA | Production systems needing max throughput | Reasonable memory with highest speed |
 
 ## Local Caching
 
