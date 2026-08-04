@@ -2,7 +2,11 @@
 
 package acor
 
-import "context"
+import (
+	"context"
+
+	"github.com/redis/go-redis/v9"
+)
 
 // batchPlanner is implemented by modes that can apply a whole batch of keyword
 // writes in a single Redis transaction instead of one per keyword.
@@ -13,7 +17,8 @@ import "context"
 // regardless of N.
 //
 // V1 does not implement it and keeps the per-keyword loop: its write path walks
-// per trie node, with different economics, and it is the legacy schema.
+// per trie node, with different economics, and it is the legacy schema. Callers
+// pass keywords already screened and normalized.
 type batchPlanner interface {
 	// addManyAtomic inserts every keyword in one transaction and returns those
 	// that were not already present. An error means nothing was written.
@@ -28,90 +33,60 @@ var (
 	_ batchPlanner = (*v2Operations)(nil)
 )
 
-// normalizeKeywords applies the same normalization the single-keyword paths do
-// and drops entries that normalize away, so planning never sees an empty string.
-func normalizeKeywords(keywords []string, caseSensitive bool) []string {
-	out := make([]string, 0, len(keywords))
-	for _, kw := range keywords {
-		if n := normalizeKeyword(kw, caseSensitive); n != "" {
-			out = append(out, n)
+// applyManyAtomic runs the shared V2 snapshot-plan-CAS loop. afterCommit is used
+// by preset mode to install the committed snapshot in its local engine.
+func applyManyAtomic(ctx context.Context, storage KVStorage, client redis.UniversalClient, name string,
+	keywords []string, clearOutputs bool,
+	plan func(*trieSnapshot, []string) (map[string][]string, []string),
+	afterCommit func(*trieSnapshot, int64)) ([]string, error) {
+	var applied []string
+	_, err := retryOnConflict(ctx, func() (int, error) {
+		snap, err := readTrieSnapshot(ctx, storage, name)
+		if err != nil {
+			return 0, err
 		}
+		outputs, changed := plan(snap, keywords)
+		if len(changed) == 0 {
+			applied = nil
+			return 0, nil
+		}
+		newVersion, err := commitV2Write(ctx, client, name, snap, outputs, clearOutputs)
+		if err != nil {
+			// A lost CAS race retries from a fresh snapshot, so anything this
+			// attempt staged must not leak into the next one.
+			applied = nil
+			return 0, err
+		}
+		applied = changed
+		if afterCommit != nil {
+			afterCommit(snap, newVersion)
+		}
+		return len(changed), nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	return out
+	return applied, nil
 }
 
 // --- preset mode ---
 
 func (ac *redisBackedAC) addManyAtomic(ctx context.Context, keywords []string) ([]string, error) {
-	normalized := normalizeKeywords(keywords, ac.caseSensitive)
-	if len(normalized) == 0 {
-		return nil, nil
-	}
-
-	var added []string
-	_, err := retryOnConflict(ctx, func() (int, error) {
-		snap, err := readTrieSnapshot(ctx, ac.storage, ac.name)
-		if err != nil {
-			return 0, err
-		}
-		outputs, newlyAdded := planAddMany(snap, normalized)
-		if len(newlyAdded) == 0 {
-			added = nil
-			return 0, nil
-		}
-		newVersion, err := commitV2Write(ctx, ac.redisClient, ac.name, snap, outputs, false)
-		if err != nil {
-			// A lost CAS race retries from a fresh snapshot, so anything this
-			// attempt staged must not leak into the next one.
-			added = nil
-			return 0, err
-		}
-		added = newlyAdded
-		ac.applyCommittedBatch(snap, newVersion)
-		return len(newlyAdded), nil
-	})
-	if err != nil {
-		return nil, err
-	}
+	added, err := applyManyAtomic(ctx, ac.storage, ac.redisClient, ac.name, keywords,
+		false, planAddMany, ac.applyCommittedBatch)
 	if len(added) > 0 {
 		ac.publishInvalidate(ctx)
 	}
-	return added, nil
+	return added, err
 }
 
 func (ac *redisBackedAC) removeManyAtomic(ctx context.Context, keywords []string) ([]string, error) {
-	normalized := normalizeKeywords(keywords, ac.caseSensitive)
-	if len(normalized) == 0 {
-		return nil, nil
-	}
-
-	var removed []string
-	_, err := retryOnConflict(ctx, func() (int, error) {
-		snap, err := readTrieSnapshot(ctx, ac.storage, ac.name)
-		if err != nil {
-			return 0, err
-		}
-		outputs, gone := planRemoveMany(snap, normalized)
-		if len(gone) == 0 {
-			removed = nil
-			return 0, nil
-		}
-		newVersion, err := commitV2Write(ctx, ac.redisClient, ac.name, snap, outputs, true)
-		if err != nil {
-			removed = nil
-			return 0, err
-		}
-		removed = gone
-		ac.applyCommittedBatch(snap, newVersion)
-		return len(gone), nil
-	})
-	if err != nil {
-		return nil, err
-	}
+	removed, err := applyManyAtomic(ctx, ac.storage, ac.redisClient, ac.name, keywords,
+		true, planRemoveMany, ac.applyCommittedBatch)
 	if len(removed) > 0 {
 		ac.publishInvalidate(ctx)
 	}
-	return removed, nil
+	return removed, err
 }
 
 // applyCommittedBatch installs the batch's own committed snapshot as the local
@@ -133,67 +108,19 @@ func (ac *redisBackedAC) applyCommittedBatch(snap *trieSnapshot, newVersion int6
 // --- V2 mode ---
 
 func (o *v2Operations) addManyAtomic(ctx context.Context, keywords []string) ([]string, error) {
-	normalized := normalizeKeywords(keywords, o.caseSensitive)
-	if len(normalized) == 0 {
-		return nil, nil
-	}
-
-	var added []string
-	_, err := retryOnConflict(ctx, func() (int, error) {
-		snap, err := readTrieSnapshot(ctx, o.storage, o.name)
-		if err != nil {
-			return 0, err
-		}
-		outputs, newlyAdded := planAddMany(snap, normalized)
-		if len(newlyAdded) == 0 {
-			added = nil
-			return 0, nil
-		}
-		if _, err := commitV2Write(ctx, o.client, o.name, snap, outputs, false); err != nil {
-			added = nil
-			return 0, err
-		}
-		added = newlyAdded
-		return len(newlyAdded), nil
-	})
-	if err != nil {
-		return nil, err
-	}
+	added, err := applyManyAtomic(ctx, o.storage, o.client, o.name, keywords,
+		false, planAddMany, nil)
 	if len(added) > 0 {
 		o.publishInvalidate(ctx)
 	}
-	return added, nil
+	return added, err
 }
 
 func (o *v2Operations) removeManyAtomic(ctx context.Context, keywords []string) ([]string, error) {
-	normalized := normalizeKeywords(keywords, o.caseSensitive)
-	if len(normalized) == 0 {
-		return nil, nil
-	}
-
-	var removed []string
-	_, err := retryOnConflict(ctx, func() (int, error) {
-		snap, err := readTrieSnapshot(ctx, o.storage, o.name)
-		if err != nil {
-			return 0, err
-		}
-		outputs, gone := planRemoveMany(snap, normalized)
-		if len(gone) == 0 {
-			removed = nil
-			return 0, nil
-		}
-		if _, err := commitV2Write(ctx, o.client, o.name, snap, outputs, true); err != nil {
-			removed = nil
-			return 0, err
-		}
-		removed = gone
-		return len(gone), nil
-	})
-	if err != nil {
-		return nil, err
-	}
+	removed, err := applyManyAtomic(ctx, o.storage, o.client, o.name, keywords,
+		true, planRemoveMany, nil)
 	if len(removed) > 0 {
 		o.publishInvalidate(ctx)
 	}
-	return removed, nil
+	return removed, err
 }
