@@ -1,12 +1,8 @@
 kind: Changed
 body: >-
-  Leftmost-longest `FindMatches` sorts through `slices.SortFunc` instead of
-  `sort.Slice`, whose reflect-based swapping measured as ~30% of the call, and
-  selects the surviving matches in place rather than into a second slice. At 1000
-  keywords that is 3,163 to 2,497 ns/op, with allocations down from 13 to 9 and
-  6,000 to 4,488 B/op. `Find` and `FindSet` also leave their result unallocated
-  until something matches, so scanning text that matches nothing - the common case
-  for a filter - no longer allocates at all
+  Improved leftmost-longest `FindMatches` sorting and selection to reduce time
+  and allocations. `Find` and `FindSet` also avoid allocating results when no
+  keywords match
 time: 2026-08-02T11:00:00.000000+09:00
 custom:
     Issue: "188"
