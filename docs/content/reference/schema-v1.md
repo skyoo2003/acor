@@ -1,11 +1,16 @@
 ---
-title: "Schema V1 (Legacy)"
+title: "Schema V1 (Deprecated)"
 weight: 2
 ---
 
-# Schema V1 (Legacy)
+# Schema V1 (Deprecated)
 
 V1 is the original ACOR storage schema. It uses multiple Redis keys per collection.
+
+> **V1 is deprecated.** It stays readable and writable so existing collections keep
+> working, and `MigrateV1ToV2` converts them in place, but it gains no new features:
+> preset engines and `EnableCache` both require V2. New collections should use the
+> default V2 schema. Support for V1 may be removed in a future major version.
 
 ## Overview
 

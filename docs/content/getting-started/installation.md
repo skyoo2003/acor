@@ -58,7 +58,11 @@ Verify the CLI:
 
 ```bash
 acor --help
+acor version
 ```
+
+`acor version` needs no Redis and prints the version stamped at release build
+time (`dev` for a locally built binary).
 
 CLI options must appear before the command. Batch commands accept keywords as
 arguments, or `-` as the only argument to read one keyword per line from stdin:
@@ -71,6 +75,26 @@ printf 'foo\nbar\n' | acor -addr localhost:6379 remove-many -
 `best-effort` is the default and reports per-keyword failures in JSON while
 returning success; `transactional` fails the command if the whole batch cannot
 be committed.
+
+Beyond `find` and `find-index`, the matching commands cover the set, span, and
+presence shapes of the same scan:
+
+```bash
+acor -addr localhost:6379 find-set "he is him"
+acor -addr localhost:6379 contains "he is him"
+acor -addr localhost:6379 -match-kind leftmost-longest -whole-word \
+  find-matches "he is him"
+```
+
+`find-set` reports each keyword once, `contains` stops at the first match, and
+`find-matches` reports each occurrence with its rune span in scan order.
+`-match-kind` and `-whole-word` apply only to `find-matches`.
+
+`-whole-word` assumes a script that separates words with spaces or punctuation.
+In scripts written without inter-word boundaries (CJK, Thai, …) every adjacent
+character counts as a word character, so nearly every match is treated as
+mid-word and dropped — scan such text without `-whole-word`, or use the library's
+`MatchOptions.WordRune` to supply your own boundary rule.
 
 Parallel matching accepts a text argument, or `-` to read the complete text
 from stdin. `word`, `sentence`, and `line` chunk boundaries are available:

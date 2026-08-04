@@ -1,0 +1,8 @@
+kind: Fixed
+body: >-
+  `MigrateV1ToV2` and `RollbackToV1` no longer panic with a nil pointer dereference
+  when called on a Preset-mode instance. They return the new `ErrMigrationRequiresRedis`
+  instead, matching the check the CLI already performed
+time: 2026-08-05T10:00:00.000000+09:00
+custom:
+    Issue: "196"

@@ -7,6 +7,17 @@ weight: 2
 
 Monitor ACOR performance with built-in observability support.
 
+> **The `server/*` packages on this page are experimental.** They live in the
+> separate `github.com/skyoo2003/acor/server` module, which publishes no version
+> tags of its own and is **not covered by the core module's compatibility
+> promise** — its API can change in any release. The core library (`pkg/acor`) is
+> unaffected.
+>
+> `go get github.com/skyoo2003/acor/server` resolves a pseudo-version from `main`.
+> Pin the core module explicitly in the same `go.mod`: Go ignores a dependency's
+> own `replace` directive, so without a pin you get whichever core version the
+> server module's `require` names.
+
 ## Overview
 
 ACOR provides three pillars of observability:

@@ -112,7 +112,7 @@ func TestIntegrationBatch(t *testing.T) {
 		t.Errorf("FindMany() returned %d entries, want 2", len(results))
 	}
 
-	if _, err := ac.RemoveMany([]string{"he", "her"}); err != nil {
+	if _, err := ac.RemoveMany([]string{"he", "her"}, nil); err != nil {
 		t.Fatalf("RemoveMany() error: %v", err)
 	}
 }

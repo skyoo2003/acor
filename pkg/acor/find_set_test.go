@@ -161,7 +161,7 @@ func TestBatchMatchesSequentialWrites(t *testing.T) {
 				if _, err := ac.AddMany(keywords, nil); err != nil {
 					t.Fatalf("AddMany(seed) error: %v", err)
 				}
-				if _, err := ac.RemoveMany(doomed); err != nil {
+				if _, err := ac.RemoveMany(doomed, nil); err != nil {
 					t.Fatalf("RemoveMany error: %v", err)
 				}
 			},
@@ -245,7 +245,7 @@ func TestAddManyReportsCaseFoldedWrites(t *testing.T) {
 			res.Added, res.Skipped)
 	}
 
-	rres, err := ac.RemoveMany([]string{"Hello"})
+	rres, err := ac.RemoveMany([]string{"Hello"}, nil)
 	if err != nil {
 		t.Fatalf("RemoveMany error: %v", err)
 	}

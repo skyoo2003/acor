@@ -50,20 +50,25 @@ result, err := ac.AddMany(keywords, &acor.BatchOptions{
 
 ## Removing Multiple Keywords
 
+<!-- doccheck -->
 ```go
-result, err := ac.RemoveMany([]string{"he", "her"})
+result, err := ac.RemoveMany([]string{"he", "her"}, nil)
 if err != nil {
     panic(err)
 }
 fmt.Printf("Removed: %d\n", len(result.Removed))
 ```
 
-Use `RemoveManyWithOptions` to control the batch mode:
+`nil` options mean best-effort, the same default `AddMany` uses. Pass options to
+control the batch mode:
 
+<!-- doccheck -->
 ```go
-result, err := ac.RemoveManyWithOptions([]string{"he", "her"}, &acor.BatchOptions{
+result, err := ac.RemoveMany([]string{"he", "her"}, &acor.BatchOptions{
     Mode: acor.BatchModeTransactional,
 })
+_ = result
+_ = err
 ```
 
 ## Finding Matches in Multiple Texts

@@ -14,6 +14,13 @@ builds:
 - id: acor
   binary: acor
   main: cmd/acor/main.go
+  # Stamps `acor version`. Without this a release binary reports its "dev"
+  # default, so a bug report would not say which release it came from.
+  # .Version, not .Tag: it is the unprefixed number the brew formula, the OCI
+  # image.version label, and the archive names all carry, so `acor version` agrees
+  # with whatever the user downloaded.
+  ldflags:
+  - -s -w -X main.version={{ .Version }}
   goos:
   - darwin
   - linux
@@ -67,9 +74,10 @@ brews:
   license: "Apache-2.0"
   install: |
     bin.install "acor"
-  # acor has no version command, and every real command needs a Redis/Valkey
-  # server, so the usage text on exit code 2 is all that can be asserted here.
+  # Every real command needs a Redis/Valkey server, so the only things assertable
+  # here are the stamped version and the usage text on exit code 2.
   test: |
+    assert_match version.to_s, shell_output("#{bin}/acor version")
     assert_match "Usage:", shell_output("#{bin}/acor 2>&1", 2)
 
 dockers_v2:

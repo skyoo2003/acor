@@ -7,7 +7,7 @@ If you need help with ACOR, here are the available channels:
 ### Documentation
 
 - **User Guide**: [GitHub Pages](https://skyoo2003.github.io/acor/)
-- **API Reference**: [pkg.go.dev](https://pkg.go.dev/github.com/skyoo2003/acor)
+- **API Reference**: [pkg.go.dev](https://pkg.go.dev/github.com/skyoo2003/acor/pkg/acor)
 
 ### Community
 

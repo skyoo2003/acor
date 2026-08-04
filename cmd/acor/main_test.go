@@ -36,6 +36,7 @@ type fakeService struct {
 	lastKeywords     []string
 	lastBatchOpts    *acor.BatchOptions
 	lastParallelOpts *acor.ParallelOptions
+	lastMatchOpts    *acor.MatchOptions
 }
 
 func (f *fakeService) Add(keyword string) (int, error) {
@@ -60,7 +61,7 @@ func (f *fakeService) Remove(keyword string) (int, error) {
 	return f.removeCount, nil
 }
 
-func (f *fakeService) RemoveManyWithOptions(keywords []string, opts *acor.BatchOptions) (*acor.BatchResult, error) {
+func (f *fakeService) RemoveMany(keywords []string, opts *acor.BatchOptions) (*acor.BatchResult, error) {
 	f.lastKeywords = keywords
 	f.lastBatchOpts = opts
 	return f.batchResult, f.err
@@ -72,6 +73,35 @@ func (f *fakeService) Find(input string) ([]string, error) {
 		return nil, f.err
 	}
 	return f.findMatches, nil
+}
+
+func (f *fakeService) FindSet(input string) ([]string, error) {
+	f.lastInput = input
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.findMatches, nil
+}
+
+func (f *fakeService) FindMatches(input string, opts *acor.MatchOptions) ([]acor.Match, error) {
+	f.lastInput = input
+	f.lastMatchOpts = opts
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make([]acor.Match, 0, len(f.findMatches))
+	for _, kw := range f.findMatches {
+		out = append(out, acor.Match{Keyword: kw, Start: 0, End: len([]rune(kw))})
+	}
+	return out, nil
+}
+
+func (f *fakeService) Contains(input string) (bool, error) {
+	f.lastInput = input
+	if f.err != nil {
+		return false, f.err
+	}
+	return len(f.findMatches) > 0, nil
 }
 
 func (f *fakeService) FindIndex(input string) (map[string][]int, error) {
@@ -588,6 +618,109 @@ func TestRunMigrateCommandWithDryRun(t *testing.T) {
 	}
 }
 
+// version must answer without a backend: it is what you run when the CLI is
+// misbehaving, which is exactly when Redis may be unreachable.
+func TestRunVersionCommandNeedsNoBackend(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := run([]string{"version"}, stdout, stderr, func(*acor.AhoCorasickArgs) (service, error) {
+		t.Fatal("version must not construct a service")
+		return nil, nil
+	})
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d with stderr %q", exitCode, stderr.String())
+	}
+	if strings.TrimSpace(stdout.String()) != version {
+		t.Fatalf("expected %q, got %q", version, stdout.String())
+	}
+}
+
+func TestRunMatchingCommands(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "find-set", args: []string{"find-set", "hehe"}, want: `"matches":["he"]`},
+		{name: "contains", args: []string{"contains", "hehe"}, want: `"contains":true`},
+		{
+			name: "find-matches",
+			args: []string{"find-matches", "hehe"},
+			want: `"matches":[{"keyword":"he","start":0,"end":2}]`,
+		},
+		{
+			name: "find-matches with options",
+			args: []string{"-match-kind", "leftmost-longest", "-whole-word", "find-matches", "hehe"},
+			want: `"keyword":"he"`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeService{findMatches: []string{testKeywordHE}}
+			stdout := &bytes.Buffer{}
+			stderr := &bytes.Buffer{}
+
+			exitCode := run(tc.args, stdout, stderr, func(*acor.AhoCorasickArgs) (service, error) {
+				return fake, nil
+			})
+
+			if exitCode != 0 {
+				t.Fatalf("expected exit code 0, got %d with stderr %q", exitCode, stderr.String())
+			}
+			if !strings.Contains(stdout.String(), tc.want) {
+				t.Fatalf("expected stdout to contain %q, got %q", tc.want, stdout.String())
+			}
+		})
+	}
+}
+
+func TestRunFindMatchesPassesOptions(t *testing.T) {
+	fake := &fakeService{findMatches: []string{testKeywordHE}}
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := run([]string{"-match-kind", "leftmost-longest", "-whole-word", "find-matches", "hehe"},
+		stdout, stderr, func(*acor.AhoCorasickArgs) (service, error) { return fake, nil })
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d with stderr %q", exitCode, stderr.String())
+	}
+	if fake.lastMatchOpts == nil {
+		t.Fatal("expected match options to reach FindMatches")
+	}
+	if fake.lastMatchOpts.Kind != acor.MatchKindLeftmostLongest {
+		t.Fatalf("expected leftmost-longest, got %v", fake.lastMatchOpts.Kind)
+	}
+	if !fake.lastMatchOpts.WholeWord {
+		t.Fatal("expected WholeWord to be set")
+	}
+}
+
+func TestRunRejectsMatchFlagsOnOtherCommands(t *testing.T) {
+	for _, args := range [][]string{
+		{"-match-kind", "leftmost-longest", "find", "text"},
+		{"-whole-word", "find-set", "text"},
+	} {
+		t.Run(args[0], func(t *testing.T) {
+			fake := &fakeService{}
+			stdout := &bytes.Buffer{}
+			stderr := &bytes.Buffer{}
+
+			exitCode := run(args, stdout, stderr, func(*acor.AhoCorasickArgs) (service, error) {
+				return fake, nil
+			})
+
+			if exitCode != exitCodeUsage {
+				t.Fatalf("expected exit code %d, got %d", exitCodeUsage, exitCode)
+			}
+			if !strings.Contains(stderr.String(), "only apply to") {
+				t.Fatalf("expected an explanatory error, got %q", stderr.String())
+			}
+		})
+	}
+}
+
 func TestRunRejectsMigrateFlagsOnOtherCommands(t *testing.T) {
 	for _, args := range [][]string{
 		{"-dry-run", "flush"},
@@ -979,6 +1112,84 @@ func TestParseArgsInvalidFlag(t *testing.T) {
 	_, _, _, err := parseArgs([]string{"-bogus", "info"})
 	if err == nil {
 		t.Fatal("expected error for invalid flag, got nil")
+	}
+}
+
+// commandSpecs is the dispatch table; commandsText is the hand-written help. A
+// command added to one and not the other is either invisible in `acor --help` or
+// advertised and unimplemented, and nothing else catches that.
+func TestUsageTextListsEveryCommand(t *testing.T) {
+	for command := range commandSpecs {
+		if !strings.Contains(commandsText, "\n  "+command) {
+			t.Errorf("command %q is dispatchable but missing from the usage text", command)
+		}
+	}
+
+	_, listed, ok := strings.Cut(commandsText, "Commands:\n")
+	if !ok {
+		t.Fatal(`usage text has no "Commands:" section`)
+	}
+	listed, _, _ = strings.Cut(listed, "\nOptions:")
+	for _, line := range strings.Split(listed, "\n") {
+		// The first field is the command name; the rest is argument syntax.
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		if _, ok := commandSpecs[fields[0]]; !ok {
+			t.Errorf("usage text advertises %q, which has no commandSpecs entry", fields[0])
+		}
+	}
+}
+
+// version must reject what every other command rejects: the short-circuit that
+// keeps it from needing Redis must not also skip argument and flag validation.
+func TestRunVersionValidatesArguments(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{name: "stray argument", args: []string{"version", "extra"}},
+		{name: "migrate flag", args: []string{"-dry-run", "version"}},
+		{name: "match flag", args: []string{"-whole-word", "version"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stdout := &bytes.Buffer{}
+			stderr := &bytes.Buffer{}
+
+			exitCode := run(tc.args, stdout, stderr, func(*acor.AhoCorasickArgs) (service, error) {
+				t.Fatal("version must not construct a service")
+				return nil, nil
+			})
+
+			if exitCode != exitCodeUsage {
+				t.Fatalf("expected exit code %d, got %d with stdout %q", exitCodeUsage, exitCode, stdout.String())
+			}
+		})
+	}
+}
+
+// Preset mode has no prefix index, so the library answers ErrSuggestRequiresRedis.
+// The CLI must say so before connecting and loading the whole dictionary.
+func TestRunRejectsSuggestInPresetMode(t *testing.T) {
+	for _, command := range []string{"suggest", "suggest-index"} {
+		t.Run(command, func(t *testing.T) {
+			stdout := &bytes.Buffer{}
+			stderr := &bytes.Buffer{}
+
+			exitCode := run([]string{"-addr", "localhost:6379", "-preset", "speed", command, "he"},
+				stdout, stderr, func(*acor.AhoCorasickArgs) (service, error) {
+					t.Fatal("preset-unsupported commands must fail before create()")
+					return nil, nil
+				})
+
+			if exitCode != exitCodeUsage {
+				t.Fatalf("expected exit code %d, got %d", exitCodeUsage, exitCode)
+			}
+			if !strings.Contains(stderr.String(), "unavailable in preset mode") {
+				t.Fatalf("expected an explanatory error, got %q", stderr.String())
+			}
+		})
 	}
 }
 

@@ -1,0 +1,8 @@
+kind: Fixed
+body: >-
+  `Create` now rejects `EnableCache` combined with a `Preset` (`ErrCacheWithPreset`)
+  instead of silently ignoring the cache setting. Preset mode already serves reads
+  from a local engine
+time: 2026-08-05T10:00:01.000000+09:00
+custom:
+    Issue: "196"
