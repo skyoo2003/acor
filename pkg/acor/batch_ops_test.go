@@ -5,6 +5,7 @@ package acor
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -443,6 +444,47 @@ func TestRemoveManyTransactionalDuplicate(t *testing.T) {
 	}
 	if len(result.Skipped) < 1 {
 		t.Errorf("expected duplicate to be skipped, got removed=%v skipped=%v", result.Removed, result.Skipped)
+	}
+}
+
+// TestBatchCaseNormalization pins duplicate detection to the normalized keyword
+// while preserving the caller's spelling in results.
+func TestBatchCaseNormalization(t *testing.T) {
+	for _, schema := range []int{SchemaV1, SchemaV2} {
+		for _, caseSensitive := range []bool{false, true} {
+			for _, mode := range []BatchMode{BatchModeBestEffort, BatchModeTransactional} {
+				ac, mr := createAhoCorasickWithOpts(t, schema, caseSensitive)
+				wantChanged := []string{"Foo"}
+				wantSkipped := []string{"foo"}
+				if caseSensitive {
+					wantChanged = []string{"Foo", "foo"}
+					wantSkipped = nil
+				}
+
+				added, err := ac.AddMany([]string{"Foo", "foo"}, &BatchOptions{Mode: mode})
+				if err != nil {
+					t.Fatalf("schema=%d caseSensitive=%t mode=%v: AddMany error: %v",
+						schema, caseSensitive, mode, err)
+				}
+				if !slices.Equal(added.Added, wantChanged) || !slices.Equal(added.Skipped, wantSkipped) {
+					t.Errorf("schema=%d caseSensitive=%t mode=%v: AddMany added=%v skipped=%v",
+						schema, caseSensitive, mode, added.Added, added.Skipped)
+				}
+
+				removed, err := ac.RemoveManyWithOptions([]string{"Foo", "foo"}, &BatchOptions{Mode: mode})
+				if err != nil {
+					t.Fatalf("schema=%d caseSensitive=%t mode=%v: RemoveMany error: %v",
+						schema, caseSensitive, mode, err)
+				}
+				if !slices.Equal(removed.Removed, wantChanged) || !slices.Equal(removed.Skipped, wantSkipped) {
+					t.Errorf("schema=%d caseSensitive=%t mode=%v: RemoveMany removed=%v skipped=%v",
+						schema, caseSensitive, mode, removed.Removed, removed.Skipped)
+				}
+
+				_ = ac.Close()
+				mr.Close()
+			}
+		}
 	}
 }
 
