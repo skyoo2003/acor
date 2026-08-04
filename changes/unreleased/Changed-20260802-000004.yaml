@@ -1,0 +1,8 @@
+kind: Changed
+body: >-
+  Improved leftmost-longest `FindMatches` sorting and selection to reduce time
+  and allocations. `Find` and `FindSet` also avoid allocating results when no
+  keywords match
+time: 2026-08-02T11:00:00.000000+09:00
+custom:
+    Issue: "188"
