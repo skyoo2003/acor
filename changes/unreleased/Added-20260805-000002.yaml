@@ -1,8 +1,0 @@
-kind: Added
-body: >-
-  CLI commands `version`, `find-set`, `find-matches`, and `contains`, with
-  `-match-kind` and `-whole-word` for `find-matches`. `acor version` reports the
-  version stamped into release builds and needs no Redis
-time: 2026-08-05T10:00:03.000000+09:00
-custom:
-    Issue: "196"

@@ -1,5 +1,0 @@
-kind: Added
-body: Homebrew installation via `brew install skyoo2003/tap/acor`, published to the tap on each release
-time: 2026-07-31T00:12:20.82073+09:00
-custom:
-    Issue: "181"

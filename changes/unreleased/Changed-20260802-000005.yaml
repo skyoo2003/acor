@@ -1,8 +1,0 @@
-kind: Changed
-body: >-
-  Flattened and packed the DFA transition tables to reduce per-character lookup
-  overhead across presets. `Find`, `FindSet`, and `Contains` also scan raw bytes
-  for ASCII-only dictionaries, improving common matching paths
-time: 2026-08-02T12:00:00.000000+09:00
-custom:
-    Issue: "187"

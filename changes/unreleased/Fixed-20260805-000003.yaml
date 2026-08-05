@@ -1,7 +1,0 @@
-kind: Fixed
-body: >-
-  `Create(nil)` now returns the new `ErrNilArgs` instead of panicking with a nil
-  pointer dereference. `CreateContext` shares the guard
-time: 2026-08-05T10:00:08.000000+09:00
-custom:
-    Issue: "196"
