@@ -115,7 +115,7 @@ func TestRemoveMany_CoalescesRebuild(t *testing.T) {
 	var result *BatchResult
 	n := countInvalidations(t, mr, func() {
 		var err error
-		result, err = ac.RemoveMany(toRemove)
+		result, err = ac.RemoveMany(toRemove, nil)
 		if err != nil {
 			t.Fatalf("RemoveMany: %v", err)
 		}
@@ -157,7 +157,7 @@ func TestRemoveMany_NoOpDoesNotCommit(t *testing.T) {
 	var result *BatchResult
 	n := countInvalidations(t, mr, func() {
 		var err error
-		result, err = ac.RemoveMany([]string{"absent1", "absent2"})
+		result, err = ac.RemoveMany([]string{"absent1", "absent2"}, nil)
 		if err != nil {
 			t.Fatalf("RemoveMany: %v", err)
 		}

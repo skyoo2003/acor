@@ -297,21 +297,19 @@ func (ac *AhoCorasick) rollbackBatch(ctx context.Context, keywords []string, op 
 
 // RemoveMany removes multiple keywords from the Aho-Corasick automaton.
 // This is more efficient than calling Remove repeatedly for large keyword sets.
-// Uses best-effort mode by default. Use RemoveManyWithOptions for batch mode control.
+//
+// The opts parameter controls error handling behavior, exactly as in AddMany:
+//   - nil or BatchModeBestEffort: continues on errors, returns partial results
+//   - BatchModeTransactional: re-adds what it removed on first error
 //
 // Example:
 //
-//	result, err := ac.RemoveMany([]string{"foo", "bar"})
+//	result, err := ac.RemoveMany([]string{"foo", "bar"}, nil)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
 //	fmt.Printf("Removed %d keywords\n", len(result.Removed))
-func (ac *AhoCorasick) RemoveMany(keywords []string) (*BatchResult, error) {
-	return ac.RemoveManyContext(ac.ctx, keywords, nil)
-}
-
-// RemoveManyWithOptions removes multiple keywords with batch options.
-func (ac *AhoCorasick) RemoveManyWithOptions(keywords []string, opts *BatchOptions) (*BatchResult, error) {
+func (ac *AhoCorasick) RemoveMany(keywords []string, opts *BatchOptions) (*BatchResult, error) {
 	return ac.RemoveManyContext(ac.ctx, keywords, opts)
 }
 

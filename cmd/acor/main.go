@@ -30,6 +30,9 @@ Commands:
   remove-many <keyword>... | -
   find <input>
   find-index <input>
+  find-set <input>
+  find-matches <input>
+  contains <input>
   find-parallel <input> | -
   find-index-parallel <input> | -
   suggest <input>
@@ -39,10 +42,15 @@ Commands:
   migrate [options]
   migrate-rollback
   schema-version
+  version
 
 Options:
 `
 )
+
+// version is stamped at build time with -ldflags "-X main.version=vX.Y.Z". A
+// plain `go build` or `go install` leaves it "dev".
+var version = "dev"
 
 // writeUsage prints the command list followed by the flag set's own defaults,
 // so a flag's description lives only where the flag is registered.
@@ -60,6 +68,10 @@ const (
 	commandRemoveMany        = "remove-many"
 	commandFind              = "find"
 	commandFindIndex         = "find-index"
+	commandFindSet           = "find-set"
+	commandFindMatches       = "find-matches"
+	commandContains          = "contains"
+	commandVersion           = "version"
 	commandFindParallel      = "find-parallel"
 	commandFindIndexParallel = "find-index-parallel"
 	commandSuggest           = "suggest"
@@ -72,18 +84,31 @@ const (
 
 	defaultCollectionName = "default"
 
-	jsonKeyCount   = "count"
-	jsonKeyMatches = "matches"
-	jsonKeyStatus  = "status"
+	jsonKeyCount    = "count"
+	jsonKeyMatches  = "matches"
+	jsonKeyStatus   = "status"
+	jsonKeyContains = "contains"
 )
+
+// matchJSON is the wire shape for find-matches. acor.Match carries no JSON tags,
+// so marshaling it directly would emit Go field names among the CLI's snake_case
+// output — and adding tags upstream would change what library callers marshal.
+type matchJSON struct {
+	Keyword string `json:"keyword"`
+	Start   int    `json:"start"`
+	End     int    `json:"end"`
+}
 
 type service interface {
 	Add(string) (int, error)
 	AddMany([]string, *acor.BatchOptions) (*acor.BatchResult, error)
 	Remove(string) (int, error)
-	RemoveManyWithOptions([]string, *acor.BatchOptions) (*acor.BatchResult, error)
+	RemoveMany([]string, *acor.BatchOptions) (*acor.BatchResult, error)
 	Find(string) ([]string, error)
 	FindIndex(string) (map[string][]int, error)
+	FindSet(string) ([]string, error)
+	FindMatches(string, *acor.MatchOptions) ([]acor.Match, error)
+	Contains(string) (bool, error)
 	FindParallel(string, *acor.ParallelOptions) ([]string, error)
 	FindIndexParallel(string, *acor.ParallelOptions) (map[string][]int, error)
 	Suggest(string) ([]string, error)
@@ -113,6 +138,8 @@ type commandConfig struct {
 	chunkSize    int
 	boundary     string
 	overlap      int
+	matchKind    string
+	wholeWord    bool
 	dryRun       bool
 	keepOldKeys  bool
 }
@@ -139,6 +166,9 @@ var commandSpecs = map[string]commandSpec{
 	commandRemoveMany:        {runRemoveMany, argumentsOneOrMore},
 	commandFind:              {runFind, argumentsOne},
 	commandFindIndex:         {runFindIndex, argumentsOne},
+	commandFindSet:           {runFindSet, argumentsOne},
+	commandFindMatches:       {runFindMatches, argumentsOne},
+	commandContains:          {runContains, argumentsOne},
 	commandFindParallel:      {runFindParallel, argumentsOne},
 	commandFindIndexParallel: {runFindIndexParallel, argumentsOne},
 	commandSuggest:           {runSuggest, argumentsOne},
@@ -148,6 +178,7 @@ var commandSpecs = map[string]commandSpec{
 	commandMigrate:           {runMigrate, argumentsNone},
 	commandMigrateRollback:   {runMigrateRollback, argumentsNone},
 	commandSchemaVersion:     {runSchemaVersion, argumentsNone},
+	commandVersion:           {runVersion, argumentsNone},
 }
 
 func main() {
@@ -159,8 +190,10 @@ type commandOptions struct {
 	keepOldKeys      bool
 	batchMode        acor.BatchMode
 	parallel         acor.ParallelOptions
+	match            acor.MatchOptions
 	batchFlagsSet    bool
 	parallelFlagsSet bool
+	matchFlagsSet    bool
 	pollFlagSet      bool
 }
 
@@ -210,12 +243,20 @@ func runWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer,
 		return exitCodeUsage
 	}
 
-	ac, err := create(config)
-	if err != nil {
-		_, _ = fmt.Fprintln(stderr, err.Error())
-		return 1
+	// version is the one command that must answer without a backend: it is what you
+	// run when the CLI misbehaves, which is exactly when Redis may be unreachable.
+	// It still passes through every check above, so stray arguments and misapplied
+	// flags are rejected for it like for any other command.
+	var ac service
+	if command != commandVersion {
+		created, createErr := create(config)
+		if createErr != nil {
+			_, _ = fmt.Fprintln(stderr, createErr.Error())
+			return 1
+		}
+		defer func() { _ = created.Close() }()
+		ac = created
 	}
-	defer func() { _ = ac.Close() }()
 
 	if err := runner(stdin, stdout, ac, commandArgs, commandOpts); err != nil {
 		_, _ = fmt.Fprintln(stderr, err.Error())
@@ -234,6 +275,7 @@ func newFlagSet() (*flag.FlagSet, *commandConfig) {
 		chunkSize: acor.DefaultChunkSize,
 		boundary:  "word",
 		overlap:   acor.DefaultOverlap,
+		matchKind: "overlapping",
 	}
 	fs := flag.NewFlagSet("acor", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -253,6 +295,11 @@ func newFlagSet() (*flag.FlagSet, *commandConfig) {
 	fs.IntVar(&config.chunkSize, "chunk-size", config.chunkSize, "Parallel matching chunk size in runes")
 	fs.StringVar(&config.boundary, "boundary", config.boundary, "Parallel chunk boundary: word, sentence, or line")
 	fs.IntVar(&config.overlap, "overlap", config.overlap, "Parallel chunk overlap in runes")
+	fs.StringVar(&config.matchKind, "match-kind", config.matchKind,
+		"find-matches: overlapping or leftmost-longest")
+	fs.BoolVar(&config.wholeWord, "whole-word", false,
+		"find-matches: drop matches whose neighboring runes are word characters "+
+			"(scripts without spaces between words, such as CJK, drop nearly every match)")
 	fs.BoolVar(&config.dryRun, "dry-run", false, "migrate: preview migration without making changes")
 	fs.BoolVar(&config.keepOldKeys, "keep-old-keys", false, "migrate: keep V1 keys after migration (for rollback)")
 	fs.Usage = func() {}
@@ -284,15 +331,7 @@ func parseArgs(args []string) (*acor.AhoCorasickArgs, *commandOptions, []string,
 		return nil, nil, nil, errors.New("addrs must contain at least one address")
 	}
 
-	preset, err := parsePreset(config.preset)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	batchMode, err := parseBatchMode(config.batchMode)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	boundary, err := parseBoundary(config.boundary)
+	enums, err := parseEnumOptions(config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -305,15 +344,20 @@ func parseArgs(args []string) (*acor.AhoCorasickArgs, *commandOptions, []string,
 	commandOpts := &commandOptions{
 		dryRun:      config.dryRun,
 		keepOldKeys: config.keepOldKeys,
-		batchMode:   batchMode,
+		batchMode:   enums.batchMode,
 		parallel: acor.ParallelOptions{
 			Workers:   config.workers,
 			ChunkSize: config.chunkSize,
-			Boundary:  boundary,
+			Boundary:  enums.boundary,
 			Overlap:   config.overlap,
+		},
+		match: acor.MatchOptions{
+			Kind:      enums.matchKind,
+			WholeWord: config.wholeWord,
 		},
 		batchFlagsSet:    seen["batch-mode"],
 		parallelFlagsSet: seen["workers"] || seen["chunk-size"] || seen["boundary"] || seen["overlap"],
+		matchFlagsSet:    seen["match-kind"] || seen["whole-word"],
 		pollFlagSet:      seen["invalidation-poll-interval"],
 	}
 
@@ -327,7 +371,7 @@ func parseArgs(args []string) (*acor.AhoCorasickArgs, *commandOptions, []string,
 		Name:                     config.name,
 		Debug:                    config.debug,
 		EnableCache:              config.cache,
-		Preset:                   preset,
+		Preset:                   enums.preset,
 		InvalidationPollInterval: config.pollInterval,
 	}, commandOpts, fs.Args(), nil
 }
@@ -368,6 +412,51 @@ func parseBoundary(raw string) (acor.ChunkBoundary, error) {
 		return acor.ChunkBoundaryLine, nil
 	default:
 		return acor.ChunkBoundaryWord, fmt.Errorf("unknown boundary %q", raw)
+	}
+}
+
+// enumOptions holds the flags that map a string onto a library enum. They are
+// parsed together so parseArgs carries one error branch instead of four.
+type enumOptions struct {
+	preset    acor.Preset
+	batchMode acor.BatchMode
+	boundary  acor.ChunkBoundary
+	matchKind acor.MatchKind
+}
+
+func parseEnumOptions(config *commandConfig) (*enumOptions, error) {
+	preset, err := parsePreset(config.preset)
+	if err != nil {
+		return nil, err
+	}
+	batchMode, err := parseBatchMode(config.batchMode)
+	if err != nil {
+		return nil, err
+	}
+	boundary, err := parseBoundary(config.boundary)
+	if err != nil {
+		return nil, err
+	}
+	matchKind, err := parseMatchKind(config.matchKind)
+	if err != nil {
+		return nil, err
+	}
+	return &enumOptions{
+		preset:    preset,
+		batchMode: batchMode,
+		boundary:  boundary,
+		matchKind: matchKind,
+	}, nil
+}
+
+func parseMatchKind(raw string) (acor.MatchKind, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "overlapping":
+		return acor.MatchKindOverlapping, nil
+	case "leftmost-longest":
+		return acor.MatchKindLeftmostLongest, nil
+	default:
+		return acor.MatchKindOverlapping, fmt.Errorf("unknown match kind %q", raw)
 	}
 }
 
@@ -466,14 +555,36 @@ func validateCommandOptions(command string, config *acor.AhoCorasickArgs, opts *
 		return fmt.Errorf("parallel matching options only apply to %q and %q", commandFindParallel, commandFindIndexParallel)
 	}
 
+	if opts.matchFlagsSet && command != commandFindMatches {
+		return fmt.Errorf("-match-kind and -whole-word only apply to %q", commandFindMatches)
+	}
+
+	return validatePresetOptions(command, config, opts)
+}
+
+// presetUnsupported lists the commands the library refuses in preset mode:
+// ErrMigrationRequiresRedis for the migration pair, ErrSuggestRequiresRedis for
+// the prefix lookups the local engine holds no index for.
+var presetUnsupported = map[string]bool{
+	commandMigrate:         true,
+	commandMigrateRollback: true,
+	commandSuggest:         true,
+	commandSuggestIndex:    true,
+}
+
+// validatePresetOptions rejects flag and command combinations that preset mode
+// cannot honor. The library refuses the same combinations (ErrCacheWithPreset,
+// ErrMigrationRequiresRedis, ErrSuggestRequiresRedis); these checks name the
+// offending flag and fail with the usage exit code instead of after a connection
+// attempt and a full dictionary load.
+func validatePresetOptions(command string, config *acor.AhoCorasickArgs, opts *commandOptions) error {
 	if config.EnableCache && config.Preset != acor.PresetNone {
 		return errors.New("-cache and -preset cannot be used together; preset mode already uses a local engine")
 	}
 	if opts.pollFlagSet && config.Preset == acor.PresetNone {
 		return errors.New("-invalidation-poll-interval requires -preset")
 	}
-	if config.Preset != acor.PresetNone &&
-		(command == commandMigrate || command == commandMigrateRollback) {
+	if config.Preset != acor.PresetNone && presetUnsupported[command] {
 		return fmt.Errorf("%q is unavailable in preset mode", command)
 	}
 	return nil
@@ -516,7 +627,7 @@ func runRemoveMany(stdin io.Reader, stdout io.Writer, ac service, args []string,
 	if err != nil {
 		return err
 	}
-	result, err := ac.RemoveManyWithOptions(keywords, &acor.BatchOptions{Mode: opts.batchMode})
+	result, err := ac.RemoveMany(keywords, &acor.BatchOptions{Mode: opts.batchMode})
 	if err != nil {
 		return err
 	}
@@ -529,6 +640,34 @@ func runFind(_ io.Reader, stdout io.Writer, ac service, args []string, _ *comman
 		return err
 	}
 	return writeJSON(stdout, map[string][]string{jsonKeyMatches: matches})
+}
+
+func runFindSet(_ io.Reader, stdout io.Writer, ac service, args []string, _ *commandOptions) error {
+	matches, err := ac.FindSet(args[0])
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, map[string][]string{jsonKeyMatches: matches})
+}
+
+func runFindMatches(_ io.Reader, stdout io.Writer, ac service, args []string, opts *commandOptions) error {
+	matches, err := ac.FindMatches(args[0], &opts.match)
+	if err != nil {
+		return err
+	}
+	out := make([]matchJSON, 0, len(matches))
+	for _, m := range matches {
+		out = append(out, matchJSON{Keyword: m.Keyword, Start: m.Start, End: m.End})
+	}
+	return writeJSON(stdout, map[string][]matchJSON{jsonKeyMatches: out})
+}
+
+func runContains(_ io.Reader, stdout io.Writer, ac service, args []string, _ *commandOptions) error {
+	found, err := ac.Contains(args[0])
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, map[string]bool{jsonKeyContains: found})
 }
 
 func runFindIndex(_ io.Reader, stdout io.Writer, ac service, args []string, _ *commandOptions) error {
@@ -616,8 +755,16 @@ func runMigrateRollback(_ io.Reader, stdout io.Writer, ac service, _ []string, _
 }
 
 func runSchemaVersion(_ io.Reader, stdout io.Writer, ac service, _ []string, _ *commandOptions) error {
-	version := ac.SchemaVersion()
-	return writeJSON(stdout, map[string]int{"schema_version": version})
+	// Not named `version`: that identifier is the build version at package scope.
+	schemaVersion := ac.SchemaVersion()
+	return writeJSON(stdout, map[string]int{"schema_version": schemaVersion})
+}
+
+// runVersion is the only runner that receives a nil service: runWithInput skips
+// create() for it so the build version is reportable without a reachable Redis.
+func runVersion(_ io.Reader, stdout io.Writer, _ service, _ []string, _ *commandOptions) error {
+	_, _ = fmt.Fprintln(stdout, version)
+	return nil
 }
 
 func batchKeywords(stdin io.Reader, args []string) ([]string, error) {

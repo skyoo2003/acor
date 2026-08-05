@@ -8,7 +8,7 @@ require (
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.2
 	github.com/rs/zerolog v1.35.1
-	github.com/skyoo2003/acor v0.8.0
+	github.com/skyoo2003/acor v0.10.1
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0
@@ -45,4 +45,11 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 )
 
+// Local development and CI build the server against the core in this checkout.
+// Go ignores a dependency's replace directives, so an external consumer resolves
+// the require above instead — keep it at a released core tag, not a stale one.
+//
+// This module is experimental and versioned separately from the core: it carries
+// no vX.Y.Z tags of its own and is not covered by the core's compatibility
+// promise. See docs/content/operations/monitoring.md.
 replace github.com/skyoo2003/acor => ../

@@ -2,16 +2,21 @@
 
 ## Supported Versions
 
-The following versions of ACOR are currently supported with security updates:
+ACOR is pre-1.0. Security patches go to the **latest released minor line only**,
+shipped as a new patch release. There is no long-term support branch, and earlier
+minor lines are not backported to.
 
-| Version | Supported |
-| ------- | --------- |
-| v2.x    | ✅        |
-| v1.8 - v1.x | ✅        |
-| < v1.8  | ❌        |
+| Version                | Supported |
+| ---------------------- | --------- |
+| Latest minor line      | ✅        |
+| Any earlier minor line | ❌        |
 
-"Supported" means the version receives security patches. Unsupported versions
-will not receive security fixes.
+See the [latest release](https://github.com/skyoo2003/acor/releases/latest) for
+which version that is, and upgrade to it before reporting a vulnerability so the
+report is against supported code.
+
+The experimental `acor/server` module publishes no tags of its own; fixes for it
+land on `main` and are consumed from there.
 
 ## Reporting a Vulnerability
 

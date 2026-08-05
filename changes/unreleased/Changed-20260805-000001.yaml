@@ -1,0 +1,8 @@
+kind: Changed
+body: >-
+  `RemoveMany` now takes `*BatchOptions` like `AddMany`, and `RemoveManyWithOptions`
+  is removed. Replace `RemoveMany(kw)` with `RemoveMany(kw, nil)` and
+  `RemoveManyWithOptions(kw, opts)` with `RemoveMany(kw, opts)`
+time: 2026-08-05T10:00:04.000000+09:00
+custom:
+    Issue: "196"

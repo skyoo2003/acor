@@ -1,0 +1,8 @@
+kind: Deprecated
+body: >-
+  `SchemaV1` is deprecated. V1 collections stay readable and writable and
+  `MigrateV1ToV2` converts them in place, but V1 gains no new features and support
+  for it may be removed in a future major version
+time: 2026-08-05T10:00:06.000000+09:00
+custom:
+    Issue: "196"

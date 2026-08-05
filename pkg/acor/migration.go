@@ -41,6 +41,16 @@ const (
 	migrationLockTTL       = 300 * time.Second
 )
 
+// requireRedisBacked rejects the migration entry points in preset mode, where
+// createPresetRedis leaves redisClient nil — every Redis call below it would
+// otherwise dereference a nil interface.
+func (ac *AhoCorasick) requireRedisBacked() error {
+	if ac.mode != modeOriginal || ac.redisClient == nil {
+		return ErrMigrationRequiresRedis
+	}
+	return nil
+}
+
 func (ac *AhoCorasick) migrationLockKey() string {
 	return keyPrefix(ac.name) + migrationLockKeySuffix
 }
@@ -87,7 +97,13 @@ func (ac *AhoCorasick) releaseMigrationLock() error {
 //	    log.Fatal(err)
 //	}
 //	fmt.Printf("Migrated %d keywords in %dms\n", result.Keywords, result.DurationMs)
+//
+// Returns ErrMigrationRequiresRedis when the instance was created with a Preset:
+// preset mode holds no Redis client for the V1 key walk.
 func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, error) { //nolint:gocyclo,funlen // Complex migration logic with multiple stages
+	if err := ac.requireRedisBacked(); err != nil {
+		return nil, err
+	}
 	if opts == nil {
 		opts = DefaultMigrationOptions()
 	}
@@ -330,7 +346,13 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 //
 // Note: This deletes V2 keys and switches the instance to use V1 operations.
 // Any keywords added after migration to V2 will be lost.
+//
+// Returns ErrMigrationRequiresRedis when the instance was created with a Preset,
+// for the reason MigrateV1ToV2 documents.
 func (ac *AhoCorasick) RollbackToV1() error {
+	if err := ac.requireRedisBacked(); err != nil {
+		return err
+	}
 	v1Exists, err := ac.redisClient.Exists(ac.ctx, keywordKey(ac.name)).Result()
 	if err != nil {
 		return fmt.Errorf("failed to check V1 keys: %w", err)

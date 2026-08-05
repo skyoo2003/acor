@@ -52,7 +52,10 @@ type redisBackedAC struct {
 // current keywords from Redis, builds the local automaton, and starts a
 // Pub/Sub listener for cross-instance invalidation.
 func newRedisBacked(ctx context.Context, args *AhoCorasickArgs) (*redisBackedAC, error) {
-	if args == nil || strings.Contains(args.Name, ":") {
+	if args == nil {
+		return nil, ErrNilArgs
+	}
+	if strings.Contains(args.Name, ":") {
 		return nil, ErrInvalidName
 	}
 
@@ -67,7 +70,12 @@ func newRedisBacked(ctx context.Context, args *AhoCorasickArgs) (*redisBackedAC,
 	}
 
 	storage := newRedisStorage(redisClient)
-	acCtx, acCancel := context.WithCancel(ctx)
+	// Background, not ctx: ctx is the construction context (see CreateContext) and
+	// may be request-scoped, while acCtx drives the subscribe, listener, and poller
+	// until Close. Deriving it from ctx would stop them the moment the caller's
+	// request ended. initTrie and reloadFromRedis below still take ctx, so
+	// construction honors its deadline for everything except the subscribe.
+	acCtx, acCancel := context.WithCancel(context.Background())
 
 	ac := &redisBackedAC{
 		engine:        matchengine.New(preset),

@@ -1,0 +1,8 @@
+kind: Removed
+body: >-
+  The exported V1 key-format constants `KeywordKey`, `PrefixKey`, `SuffixKey`,
+  `OutputKey`, and `NodeKey`. They never produced the keys ACOR writes (a real key
+  is hash-tagged, `{name}:keyword`) and nothing read them
+time: 2026-08-05T10:00:05.000000+09:00
+custom:
+    Issue: "196"

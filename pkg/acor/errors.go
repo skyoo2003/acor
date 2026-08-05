@@ -26,6 +26,18 @@ var (
 	// ErrSuggestRequiresRedis is returned when Suggest/SuggestIndex is called in
 	// preset mode, which doesn't support prefix-based suggestions.
 	ErrSuggestRequiresRedis = errors.New("suggest requires Redis-backed mode without Preset")
+	// ErrMigrationRequiresRedis is returned when MigrateV1ToV2 or RollbackToV1 is
+	// called in preset mode. Migration walks the collection's V1 keys directly,
+	// which preset mode never opens: it always speaks V2 and serves reads from its
+	// local engine. Migrate with an instance created without a Preset.
+	ErrMigrationRequiresRedis = errors.New("schema migration requires Redis-backed mode without Preset")
+	// ErrNilArgs is returned when Create or CreateContext is called with nil args.
+	// Name is required, so there is no meaningful all-defaults configuration.
+	ErrNilArgs = errors.New("args must not be nil")
+	// ErrCacheWithPreset is returned when EnableCache is combined with a Preset.
+	// Preset mode already answers reads from a local engine kept fresh by the same
+	// Pub/Sub invalidation, so the trie cache would be a redundant second copy.
+	ErrCacheWithPreset = errors.New("EnableCache cannot be combined with Preset")
 )
 
 // OperationError represents an error that occurred during an automaton operation.

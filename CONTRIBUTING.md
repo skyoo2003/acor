@@ -8,6 +8,7 @@ Thank you for your interest in contributing to ACOR! This document provides guid
 - [How Can I Contribute?](#how-can-i-contribute)
 - [Development Setup](#development-setup)
 - [Development Workflow](#development-workflow)
+- [Repository Layout](#repository-layout)
 - [Coding Standards](#coding-standards)
 - [Commit Messages](#commit-messages)
 - [Pull Requests](#pull-requests)
@@ -154,6 +155,28 @@ make clean
 ```
 
 Removes `dist/`, `coverage.out`, and `coverage.html`.
+
+## Repository Layout
+
+Three Go modules live in this repository:
+
+| Path          | Module                                 | Status                                        |
+| ------------- | -------------------------------------- | --------------------------------------------- |
+| `pkg/acor`    | `github.com/skyoo2003/acor`            | The library. Public API.                      |
+| `cmd/acor`    | same module                            | The CLI, released as a binary and image.      |
+| `server/`     | `github.com/skyoo2003/acor/server`     | Experimental. Separately versioned, untagged. |
+| `benchmarks/` | `github.com/skyoo2003/acor/benchmarks` | Test-only. Never published.                   |
+
+The library's import path is `github.com/skyoo2003/acor/pkg/acor` — the `pkg/`
+segment included. It stays that way deliberately: it is the path every released
+version has published, and moving the package to the module root would break every
+existing import to save eight characters. A proposal to flatten it needs to carry a
+migration plan for that, not just the shorter path.
+
+Both non-root modules keep a `replace` pointing at this checkout so local builds
+and CI compile against the core in the working tree. Go ignores a dependency's
+`replace`, so `server/go.mod`'s `require` for the core must name a released tag —
+that is the version an external consumer actually resolves.
 
 ## Coding Standards
 

@@ -229,7 +229,7 @@ func TestInitV2HSetError(t *testing.T) {
 		schemaVersion: SchemaV2,
 	}
 
-	err := ac.init()
+	err := ac.init(context.Background())
 	if err == nil {
 		t.Fatal("expected error from closed Redis in init()")
 	}
@@ -248,7 +248,7 @@ func TestInitV1ZAddError(t *testing.T) {
 		ctx:           context.Background(),
 		schemaVersion: SchemaV1,
 	}
-	err := ac.init()
+	err := ac.init(context.Background())
 	if err == nil {
 		t.Fatal("expected error from closed Redis in init() v1")
 	}

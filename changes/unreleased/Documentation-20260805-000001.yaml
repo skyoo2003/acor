@@ -1,0 +1,9 @@
+kind: Documentation
+body: >-
+  Corrected the security policy, which listed supported v1.x/v2.x lines that were
+  never released, and labeled the `acor/server` module experimental and separately
+  versioned. Documented the repository's module layout and why the library import
+  path keeps its `pkg/` segment
+time: 2026-08-05T10:00:07.000000+09:00
+custom:
+    Issue: "196"

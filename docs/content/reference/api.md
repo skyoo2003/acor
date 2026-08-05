@@ -32,12 +32,12 @@ type AhoCorasickArgs struct {
     Name                            string            // Collection name (required)
     Debug                           bool              // Enable debug logging to stdout
     Logger                          Logger            // Custom logger (nil disables logging)
-    SchemaVersion                   int               // 0 or 2: V2 (default, optimized); 1: V1 (legacy)
-    EnableCache                     bool              // Enable local in-memory caching for Find/FindIndex
+    SchemaVersion                   int               // 0 or 2: V2 (default, optimized); 1: V1 (deprecated)
+    EnableCache                     bool              // Local caching for Find/FindIndex (V2 only, not with Preset)
     SelfInvalidationCleanupInterval uint64            // Cleanup frequency for self-invalidation map (default: 128)
     CaseSensitive                   bool              // Enable case-sensitive matching (default: false)
     RollbackTimeout                 time.Duration     // V1 rollback timeout (default: 10s)
-    Preset                           Preset            // Architecture preset (default: PresetNone)
+    Preset                          Preset            // Architecture preset (default: PresetNone)
     InvalidationPollInterval        time.Duration     // Preset version polling (zero: disabled)
 }
 ```
@@ -51,6 +51,26 @@ Main type for pattern matching operations.
 ac, err := acor.Create(&acor.AhoCorasickArgs{...})
 defer ac.Close()
 ```
+
+`CreateContext` is the same constructor with a context bounding the setup I/O
+(schema check and initialization write, initial keyword load):
+
+<!-- doccheck -->
+```go
+setupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+defer cancel()
+instance, err := acor.CreateContext(setupCtx, &acor.AhoCorasickArgs{
+    Addr: "localhost:6379",
+    Name: "default",
+})
+_ = instance
+_ = err
+```
+
+The context bounds construction only. Canceling it afterwards does not close the
+instance or stop its invalidation listener — use `Close` for that, and the
+`*Context` methods for per-operation cancellation. The Pub/Sub subscribe is part
+of that listener, so it runs on the instance's own context rather than this one.
 
 ## Core Methods
 
@@ -86,12 +106,15 @@ count, err := ac.Remove("keyword")
 
 Remove multiple keywords in a batch.
 
+<!-- doccheck -->
 ```go
-result, err := ac.RemoveMany([]string{"a", "b"})
-// Use RemoveManyWithOptions when transactional behavior is required.
-result, err = ac.RemoveManyWithOptions([]string{"c", "d"}, &acor.BatchOptions{
+result, err := ac.RemoveMany([]string{"a", "b"}, nil)
+// Pass options when transactional behavior is required.
+result, err = ac.RemoveMany([]string{"c", "d"}, &acor.BatchOptions{
     Mode: acor.BatchModeTransactional,
 })
+_ = result
+_ = err
 ```
 
 ### Find

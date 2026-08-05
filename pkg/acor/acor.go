@@ -10,7 +10,7 @@
 //
 //   - Redis-backed storage for distributed state and persistence
 //   - Support for multiple Redis topologies: Standalone, Sentinel, Cluster, and Ring
-//   - Two schema versions: V1 (legacy) and V2 (optimized with fewer keys)
+//   - Two schema versions: V2 (optimized, default) and V1 (deprecated, see SchemaV1)
 //   - Thread-safe operations with optimistic locking (V2)
 //   - Batch operations for bulk keyword management
 //   - Parallel text matching for improved performance on large texts
@@ -78,11 +78,12 @@
 //
 // # Schema Versions
 //
-// V1 (SchemaVersion: 1): Legacy schema using multiple Redis keys for each prefix/suffix/output.
-// Suitable for small collections but creates many keys.
-//
 // V2 (SchemaVersion: 2, default): Optimized schema consolidating data into 3 keys.
-// Recommended for most use cases. Uses Lua scripts for atomic operations.
+// Recommended for every use case. Uses Lua scripts for atomic operations.
+//
+// V1 (SchemaVersion: 1): Deprecated legacy schema using multiple Redis keys for each
+// prefix/suffix/output. Kept for existing collections only; migrate with
+// MigrateV1ToV2. New collections should not select it.
 //
 // # Batch Operations
 //
@@ -256,12 +257,15 @@ type AhoCorasickArgs struct {
 	Logger Logger
 	// SchemaVersion specifies the storage schema to use:
 	//   - 0 or 2: V2 schema (default, optimized, 3 keys)
-	//   - 1: V1 schema (legacy, multiple keys per prefix)
+	//   - 1: V1 schema (deprecated, multiple keys per prefix — see SchemaV1)
 	SchemaVersion int
 	// EnableCache enables local in-memory caching of trie data for Find/FindIndex operations.
 	// When enabled, prefixes and outputs are cached after the first read and invalidated
 	// via Redis Pub/Sub when any instance modifies the collection. Reduces Redis round-trips
 	// for read-heavy workloads at the cost of increased memory usage.
+	//
+	// Requires V2 (ErrCacheRequiresV2 otherwise) and cannot be combined with Preset,
+	// which already serves reads from a local engine (ErrCacheWithPreset).
 	EnableCache bool
 	// SelfInvalidationCleanupInterval controls how often the expired self-invalidation
 	// sweep runs relative to publishInvalidate calls. Every N publishes triggers one O(n)
@@ -339,8 +343,8 @@ type AhoCorasickInfo struct {
 	// Nodes is the number of trie nodes (prefixes) in the automaton.
 	// This is typically larger than Keywords as it includes all prefixes.
 	Nodes int
-	// Preset is the engine architecture preset, or the internal default
-	// sentinel (-1) when using the original non-preset engine.
+	// Preset is the engine architecture preset, or PresetNone when using the
+	// original non-preset engine.
 	Preset Preset
 	// MemoryBytes is the estimated memory usage in bytes.
 	// Zero when using the original non-preset engine.
@@ -375,6 +379,24 @@ type AhoCorasickInfo struct {
 //	}
 //	defer ac.Close()
 func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
+	return CreateContext(context.Background(), args)
+}
+
+// CreateContext is Create with an explicit context governing the setup I/O: the
+// schema check and initialization write, and the initial keyword load. A canceled
+// or expired ctx fails the construction.
+//
+// ctx does not bound the returned instance's lifetime. Background work that must
+// outlive construction — the Pub/Sub subscribe, the invalidation listener, and the
+// version poller — runs on an internal context tied to Close instead, so passing a
+// request-scoped ctx here cannot leave a live instance whose listener has silently
+// stopped. That also means ctx does not bound the subscribe itself.
+// Per-operation cancellation is what the *Context methods (FindContext, AddContext,
+// …) are for.
+func CreateContext(ctx context.Context, args *AhoCorasickArgs) (*AhoCorasick, error) {
+	if args == nil {
+		return nil, ErrNilArgs
+	}
 	if strings.Contains(args.Name, ":") {
 		return nil, ErrInvalidName
 	}
@@ -387,11 +409,16 @@ func Create(args *AhoCorasickArgs) (*AhoCorasick, error) {
 		if args.SchemaVersion == SchemaV1 {
 			return nil, ErrPresetRequiresV2
 		}
-		return createPresetRedis(args)
+		// Rejected rather than ignored: preset mode never reads args.EnableCache, so
+		// setting both used to silently drop the caching the caller asked for.
+		if args.EnableCache {
+			return nil, ErrCacheWithPreset
+		}
+		return createPresetRedis(ctx, args)
 	}
 
 	// --- Branch 3: Original mode (unchanged) ---
-	return createOriginal(args)
+	return createOriginal(ctx, args)
 }
 
 func newLogger(args *AhoCorasickArgs) Logger {
@@ -406,11 +433,10 @@ func newLogger(args *AhoCorasickArgs) Logger {
 }
 
 // createPresetRedis creates a Redis-backed AhoCorasick with a local preset-optimized
-// engine. The internal context is derived from context.Background() since the
-// Create() API does not accept a caller context. Long-lived Pub/Sub and reload
-// operations use this context.
-func createPresetRedis(args *AhoCorasickArgs) (*AhoCorasick, error) {
-	rbAC, err := newRedisBacked(context.Background(), args)
+// engine. ctx covers setup only; newRedisBacked keeps its own Background-derived
+// context for the long-lived Pub/Sub listener and reloads, per CreateContext.
+func createPresetRedis(ctx context.Context, args *AhoCorasickArgs) (*AhoCorasick, error) {
+	rbAC, err := newRedisBacked(ctx, args)
 	if err != nil {
 		return nil, err
 	}
@@ -429,7 +455,7 @@ func createPresetRedis(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	return ac, nil
 }
 
-func createOriginal(args *AhoCorasickArgs) (*AhoCorasick, error) {
+func createOriginal(ctx context.Context, args *AhoCorasickArgs) (*AhoCorasick, error) {
 	logger := newLogger(args)
 
 	redisClient, err := newRedisClient(args)
@@ -473,6 +499,8 @@ func createOriginal(args *AhoCorasickArgs) (*AhoCorasick, error) {
 	}
 	ac.rollbackTimeout = resolveRollbackTimeout(args.RollbackTimeout)
 	ac.caseSensitive = args.CaseSensitive
+	// Background, not the caller's ctx: this context outlives Create and is what
+	// Close cancels. See CreateContext.
 	ac.ctx, ac.cancel = context.WithCancel(context.Background()) //nolint:gosec // G118: storing cancel func is intentional for lifecycle management
 
 	if schemaVersion == SchemaV2 {
@@ -481,7 +509,7 @@ func createOriginal(args *AhoCorasickArgs) (*AhoCorasick, error) {
 		ac.ops = ac.newV1Ops()
 	}
 
-	if err := ac.init(); err != nil {
+	if err := ac.init(ctx); err != nil {
 		ac.cancel()
 		_ = storage.Close()
 		return nil, err
@@ -509,14 +537,17 @@ func (ac *AhoCorasick) SchemaVersion() int {
 	return ac.schemaVersion
 }
 
-func (ac *AhoCorasick) init() error {
+// init performs the one-time schema setup. ctx is the caller's construction
+// context, not ac.ctx: a caller that gave up waiting should not leave Create
+// blocked on Redis.
+func (ac *AhoCorasick) init(ctx context.Context) error {
 	if ac.schemaVersion == SchemaV2 {
-		exists, err := ac.storage.Exists(ac.ctx, trieKey(ac.name))
+		exists, err := ac.storage.Exists(ctx, trieKey(ac.name))
 		if err != nil {
 			return fmt.Errorf("failed to check trie key: %w", err)
 		}
 		if exists == 0 {
-			err := ac.storage.HSet(ac.ctx, trieKey(ac.name), emptyTrieFields())
+			err := ac.storage.HSet(ctx, trieKey(ac.name), emptyTrieFields())
 			if err != nil {
 				return fmt.Errorf("failed to initialize V2 trie: %w", err)
 			}
@@ -529,7 +560,7 @@ func (ac *AhoCorasick) init() error {
 		Score:  initScore,
 		Member: "",
 	}
-	if err := ac.storage.ZAdd(ac.ctx, prefixKey, member); err != nil {
+	if err := ac.storage.ZAdd(ctx, prefixKey, member); err != nil {
 		return fmt.Errorf("failed to initialize V1 prefix key: %w", err)
 	}
 	return nil
