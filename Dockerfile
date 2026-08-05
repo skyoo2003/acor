@@ -21,6 +21,9 @@ RUN addgroup -S -g 1000 app \
 VOLUME /acor
 WORKDIR /acor
 COPY --from=builder --chown=appuser:app /github.com/skyoo2003/acor/dist/acor /usr/bin/acor
+# Same path as Dockerfile.goreleaser, so the locally built and released images
+# carry the third-party notices in the same place.
+COPY --from=builder /github.com/skyoo2003/acor/LICENSE /github.com/skyoo2003/acor/NOTICE /usr/share/doc/acor/
 
 USER appuser
 ENTRYPOINT ["acor"]

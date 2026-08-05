@@ -44,6 +44,16 @@ repos:
         language: system
         files: '(\.go|go\.mod|go\.sum)$'
         pass_filenames: false
+      # Catches a dependency change that alters what the acor binary links before
+      # NOTICE is regenerated to match. Triggered by the manifests rather than by
+      # *.go: what the binary bundles changes when a require line moves, not when
+      # our own code does.
+      - id: license-check
+        name: third-party notices
+        entry: make license-check
+        language: system
+        files: '(go\.mod|go\.sum|NOTICE)$'
+        pass_filenames: false
       - id: add-spdx-header
         name: Add SPDX license header
         entry: python3 scripts/add-spdx-header.py

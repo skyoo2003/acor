@@ -48,6 +48,11 @@ archives:
     formats: [ zip ]
   files:
     - LICENSE
+    # The MIT and BSD licenses of the modules linked into the binary all require
+    # their copyright notice and license text be reproduced in binary
+    # redistributions. NOTICE carries them, so it has to be in the archive, not
+    # merely in the repository.
+    - NOTICE
     - README.md
     - CHANGELOG.md
     - CODE_OF_CONDUCT.md
@@ -86,6 +91,13 @@ dockers_v2:
   dockerfile: Dockerfile.goreleaser
   ids:
   - acor
+  # Puts these in the build context so the Dockerfile can COPY them. An image is a
+  # binary redistribution too, so it owes the same notices as the archive; without
+  # this the image would ship the binary with every dependency's copyright notice
+  # stripped.
+  extra_files:
+  - LICENSE
+  - NOTICE
   sbom: false
   flags:
   - "--provenance=false"
