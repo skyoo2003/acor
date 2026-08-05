@@ -1,11 +1,11 @@
 kind: Deprecated
 body: >-
-  Retracted the whole `v1.x` line (`[v1.0.0, v1.4.1]`). The `v1.0.0`-`v1.4.0` git
-  tags were deleted long ago, but the module proxy caches versions permanently, so
-  they stayed resolvable and `go get github.com/skyoo2003/acor` selected `v1.4.0`
-  over the supported v0.x line. `v1.4.1` is a retraction-only tag that also
-  retracts itself, so `go get` now resolves to the latest v0.x release. Existing
-  pins to a v1 version keep building and report the retraction on `go list -m -u`
+  Retracted the whole `v1.x` line (`[v1.0.0, v1.4.1]`). The `v1.0.0`-`v1.4.0` tags
+  were deleted long ago, but the module proxy caches versions permanently, so
+  `go get github.com/skyoo2003/acor` still resolved to `v1.4.0` instead of the
+  supported v0.x line. `v1.4.1` carries the retractions and retracts itself, so
+  `go get` now selects the latest v0.x release. Existing v1 pins keep building and
+  report the retraction on `go list -m -u`
 time: 2026-08-05T20:46:35.000000+09:00
 custom:
     Issue: "198"

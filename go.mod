@@ -16,11 +16,8 @@ require (
 )
 
 // Published in error; use the latest v0.x release instead.
-// Only this first line reaches users - the go command truncates a retraction
-// rationale at the first newline - so keep it a complete, actionable sentence.
-// The v1.x tags were deleted from this repository, but proxy.golang.org caches
-// versions permanently, so `go get github.com/skyoo2003/acor` resolved to
-// v1.4.0 instead of the supported v0.x line. v1.4.1 is the retraction carrier
-// and retracts itself, so @latest falls back to the highest v0.x.
-// A real v1 starts at v1.5.0 - do not widen this range past v1.4.1.
+// Only the line above reaches users: the go command truncates a retraction
+// rationale at the first newline, so keep it a complete sentence.
+// v1.4.1 retracts itself, so @latest falls back to the highest v0.x.
+// See RELEASE.md. A real v1 starts at v1.5.0 - do not widen this range.
 retract [v1.0.0, v1.4.1]
