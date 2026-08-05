@@ -89,7 +89,7 @@ YAML fragment under `changes/unreleased/`. Commit it with your change.
 
 ## What the tag build does
 
-`release.yaml` runs on any `v*` tag except `v1.*` (see [Retracted
+`release.yaml` runs on any `v*` tag except `v1.4.1` (see [Retracted
 versions](#retracted-versions)) and:
 
 1. **Guards** that `changes/<tag>.md` exists — fails fast if you forgot
@@ -143,27 +143,58 @@ range is retracted in the root `go.mod`:
 retract [v1.0.0, v1.4.1]
 ```
 
-`v1.4.1` is a retraction-only tag: it carries that block and nothing else, and
-it retracts itself, which is what makes `@latest` fall back to the highest v0.x.
-Keep the `retract` block on `main` — the go command reads retractions only from
-the highest published version's `go.mod`, so a future v1 tag without it would
-silently un-retract the whole line.
+`v1.4.1` is the retraction carrier: it exists only so the `retract` block sits on
+a published version, and it retracts itself, which is what makes `@latest` fall
+back to the highest v0.x. It is cut from `main`, so it does publish the current
+v0.x tree under a v1 number — harmless, because it is retracted, but it is not an
+empty tag. Keep the `retract` block on `main`: the go command reads retractions
+only from the highest published version's `go.mod`, so a future v1 tag without it
+would silently un-retract the whole line.
 
-Because of this, `release.yaml` skips its entire job for any `v1.*` tag
-(`if: ${{ !startsWith(github.ref_name, 'v1.') }}`). Without that condition
-GoReleaser would publish `v1-alpine` and drag `latest-alpine` onto retracted
-code.
+Only the **first line** of the comment above the `retract` directive reaches
+users — the go command truncates a retraction rationale at the first newline — so
+keep that line a complete, actionable sentence.
 
-When a real v1 ships it starts at **v1.5.0**: drop the workflow condition and
-leave the retract range alone — `[v1.0.0, v1.4.1]` already excludes v1.5.0.
+`release.yaml` skips its job for exactly this tag
+(`if: ${{ github.ref_name != 'v1.4.1' }}`), so GoReleaser never publishes
+`v1-alpine` or drags `latest-alpine` onto retracted code. The condition is an
+exact match rather than a `v1.` prefix on purpose: a real **v1.5.0** then
+releases with no edit here, and any other stray v1 tag still runs and fails
+loudly on the changie guard instead of silently skipping.
+
+### Publishing the retraction tag
+
+Order matters and is **not reversible** — the proxy caches whatever you push. A
+`v1.4.1` tag cut from a commit *without* the `retract` block becomes the highest
+published version with no retractions, and `go get` would then resolve to
+`v1.4.1`: strictly worse than the state you are fixing, permanently.
+
+1. Merge the `retract` block to `main` first, and confirm it is there.
+2. Tag the merge commit — never a release branch:
+
+   ```sh
+   git switch main && git pull
+   grep -A1 'retract' go.mod
+   git tag v1.4.1
+   git push origin v1.4.1
+   ```
+
+3. Expect no `changes/v1.4.1.md`, no GitHub release, and a skipped workflow run.
+4. Verify below.
+
+When a real v1 ships it starts at **v1.5.0**. Leave the retract range and the
+workflow condition alone — `[v1.0.0, v1.4.1]` already excludes v1.5.0.
 
 To verify a retraction took effect, from a scratch module outside this repo:
 
 ```sh
 curl -s https://proxy.golang.org/github.com/skyoo2003/acor/@v/v1.4.1.info
-go list -m github.com/skyoo2003/acor@latest              # want the highest v0.x
-go list -m -retracted -versions github.com/skyoo2003/acor
+go list -m github.com/skyoo2003/acor@latest                # want the highest v0.x
+go list -m -versions github.com/skyoo2003/acor             # v1.x must be gone
+go list -m -retracted -versions github.com/skyoo2003/acor  # v1.x back, for contrast
 ```
 
 The proxy has to fetch the retraction-holding version before retractions apply,
-which is what the `curl` is for.
+which is what the `curl` is for. The check that proves anything is the one
+*without* `-retracted`: with that flag retracted versions are listed alongside
+the rest, so its output is identical before and after the retraction lands.
