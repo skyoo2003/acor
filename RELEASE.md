@@ -129,3 +129,41 @@ in GHCR — they stay until a build overwrites them. And `latest-alpine` (plus
 `vMAJOR-alpine` / `vMAJOR.MINOR-alpine`) always points at whichever tag built
 *last*, so re-running an older tag's build silently drags `latest-alpine` back
 to that older version. When redoing an older release, re-tag the newest one last.
+
+## Retracted versions
+
+`v1.0.0`-`v1.4.0` were published from tags that no longer exist here. Deleting a
+tag does not unpublish a module version — `proxy.golang.org` caches it forever —
+so they stayed resolvable, and `go get github.com/skyoo2003/acor` picked
+`v1.4.0` over the v0.x line. They are retracted in the root `go.mod`:
+
+```go
+retract [v1.0.0, v1.4.0]
+```
+
+**v1.5.0 is the first supported v1 release.** That is why the numbering jumps
+from v0.11.x: everything below v1.5.0 in the v1 line is retracted, and the range
+stops at `v1.4.0` so it can never cover a real release.
+
+There is no separate step to publish the retractions — they take effect with the
+release whose `go.mod` carries them. Two rules when editing this:
+
+- **Keep the block on `main`.** The go command reads retractions only from the
+  highest published version's `go.mod`, so the next release silently un-retracts
+  the old versions if the block is missing.
+- **Only the first comment line reaches users.** The go command truncates a
+  retraction rationale at the first newline, so keep that line a complete,
+  actionable sentence.
+
+After tagging a release that carries the block, verify from a scratch module
+outside this repo:
+
+```sh
+curl -s https://proxy.golang.org/github.com/skyoo2003/acor/@v/v1.5.0.info
+go list -m github.com/skyoo2003/acor@latest     # want v1.5.0
+go list -m -versions github.com/skyoo2003/acor  # v1.0.0-v1.4.0 must be gone
+```
+
+The `curl` is needed because the proxy has to fetch the release before its
+retractions apply. Do not add `-retracted`: it lists retracted versions alongside
+the rest, so the output is the same before and after.
