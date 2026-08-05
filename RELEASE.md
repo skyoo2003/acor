@@ -89,8 +89,7 @@ YAML fragment under `changes/unreleased/`. Commit it with your change.
 
 ## What the tag build does
 
-`release.yaml` runs on any `v*` tag except `v1.4.1`
-(see [Retracted versions](#retracted-versions)) and:
+`release.yaml` runs on any `v*` tag and:
 
 1. **Guards** that `changes/<tag>.md` exists — fails fast if you forgot
    `changie batch` / `changie merge`.
@@ -136,62 +135,35 @@ to that older version. When redoing an older release, re-tag the newest one last
 `v1.0.0`-`v1.4.0` were published from tags that no longer exist here. Deleting a
 tag does not unpublish a module version — `proxy.golang.org` caches it forever —
 so they stayed resolvable, and `go get github.com/skyoo2003/acor` picked
-`v1.4.0` over the v0.x line. The whole range is retracted in the root `go.mod`:
+`v1.4.0` over the v0.x line. They are retracted in the root `go.mod`:
 
 ```go
-retract [v1.0.0, v1.4.1]
+retract [v1.0.0, v1.4.0]
 ```
 
-`v1.4.1` carries that block and retracts itself, which is what makes `@latest`
-fall back to the highest v0.x. It is cut from `main`, so it publishes the current
-v0.x tree under a v1 number — harmless because it is retracted, but it is not an
-empty tag.
+**v1.5.0 is the first supported v1 release.** That is why the numbering jumps
+from v0.11.x: everything below v1.5.0 in the v1 line is retracted, and the range
+stops at `v1.4.0` so it can never cover a real release.
 
-Two rules when editing this:
+There is no separate step to publish the retractions — they take effect with the
+release whose `go.mod` carries them. Two rules when editing this:
 
 - **Keep the block on `main`.** The go command reads retractions only from the
-  highest published version's `go.mod`, so a future v1 tag without it would
-  un-retract the whole line.
+  highest published version's `go.mod`, so the next release silently un-retracts
+  the old versions if the block is missing.
 - **Only the first comment line reaches users.** The go command truncates a
   retraction rationale at the first newline, so keep that line a complete,
   actionable sentence.
 
-`release.yaml` skips its job for exactly this tag
-(`if: ${{ github.ref_name != 'v1.4.1' }}`), so GoReleaser never publishes
-`v1-alpine` or moves `latest-alpine` onto retracted code. The match is exact
-rather than a `v1.` prefix so that a real **v1.5.0** releases with no edit here,
-and any other stray v1 tag fails loudly on the changie guard instead of skipping
-in silence.
+After tagging a release that carries the block, verify from a scratch module
+outside this repo:
 
-### Publishing the retraction tag
+```sh
+curl -s https://proxy.golang.org/github.com/skyoo2003/acor/@v/v1.5.0.info
+go list -m github.com/skyoo2003/acor@latest     # want v1.5.0
+go list -m -versions github.com/skyoo2003/acor  # v1.0.0-v1.4.0 must be gone
+```
 
-**Not reversible** — the proxy caches whatever you push. A `v1.4.1` tag cut from
-a commit *without* the `retract` block becomes the highest published version and
-carries no retractions, so `go get` resolves to it: permanently worse than the
-state you are fixing.
-
-1. Merge the `retract` block to `main` first.
-2. Tag the merge commit, never a release branch:
-
-   ```sh
-   git switch main && git pull
-   grep -A1 'retract' go.mod        # the block must be there
-   git tag v1.4.1
-   git push origin v1.4.1
-   ```
-
-3. Expect a skipped workflow run, no GitHub release, and no `changes/v1.4.1.md`.
-4. Verify from a scratch module outside this repo:
-
-   ```sh
-   curl -s https://proxy.golang.org/github.com/skyoo2003/acor/@v/v1.4.1.info
-   go list -m github.com/skyoo2003/acor@latest     # want the highest v0.x
-   go list -m -versions github.com/skyoo2003/acor  # v1.x must be gone
-   ```
-
-   The `curl` is needed because the proxy has to fetch the retraction-carrying
-   version before retractions apply. Do not add `-retracted`: it lists retracted
-   versions alongside the rest, so the output is the same before and after.
-
-A real v1 starts at **v1.5.0**, which `[v1.0.0, v1.4.1]` already excludes, so
-leave both the range and the workflow condition alone.
+The `curl` is needed because the proxy has to fetch the release before its
+retractions apply. Do not add `-retracted`: it lists retracted versions alongside
+the rest, so the output is the same before and after.

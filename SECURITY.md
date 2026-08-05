@@ -2,9 +2,9 @@
 
 ## Supported Versions
 
-ACOR is pre-1.0. Security patches go to the **latest released minor line only**,
-shipped as a new patch release. There is no long-term support branch, and earlier
-minor lines are not backported to.
+Security patches go to the **latest released minor line only**, shipped as a new
+patch release. There is no long-term support branch, and earlier minor lines are
+not backported to.
 
 | Version                | Supported |
 | ---------------------- | --------- |
@@ -15,10 +15,9 @@ See the [latest release](https://github.com/skyoo2003/acor/releases/latest) for
 which version that is, and upgrade to it before reporting a vulnerability so the
 report is against supported code.
 
-The whole `v1.x` line — `v1.0.0` through `v1.4.1` — is **retracted**, including
-`v1.4.1`, which only carries the retractions. None of them receive fixes, and
-`go get` will not select them. If you pinned a v1 version, move to the latest
-v0.x release.
+`v1.0.0`-`v1.4.0` were published in error and are **retracted**. They receive no
+fixes, and `go get` will not select them — v1.5.0 is the first supported v1
+release. If you pinned one of them, upgrade.
 
 The experimental `acor/server` module publishes no tags of its own; fixes for it
 land on `main` and are consumed from there.

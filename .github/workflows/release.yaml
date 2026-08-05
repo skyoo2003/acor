@@ -8,10 +8,6 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # v1.4.1 only carries the go.mod retractions (see RELEASE.md); releasing it
-    # would create v1-alpine and move latest-alpine onto retracted code. The
-    # match is exact, not a `v1.` prefix, so a real v1.5.0 still releases here.
-    if: ${{ github.ref_name != 'v1.4.1' }}
     permissions:
       contents: write
       packages: write
