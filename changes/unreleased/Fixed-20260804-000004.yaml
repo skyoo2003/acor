@@ -1,9 +1,0 @@
-kind: Fixed
-body: >-
-  `AddMany` and `RemoveMany` now detect case-insensitive duplicates using normalized
-  keywords in V2 and preset collections. Inputs such as `["Foo", "foo"]` now report
-  one item as Added and the duplicate as Skipped, matching V1 and single-keyword
-  operations
-time: 2026-08-04T10:00:03.000000+09:00
-custom:
-    Issue: "185"

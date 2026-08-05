@@ -1,7 +1,0 @@
-kind: Changed
-body: >-
-  Improved `Contains` by scanning directly and stopping at the first match, and
-  optimized `FindSet` deduplication to reduce scan time and allocations
-time: 2026-08-04T10:00:01.000000+09:00
-custom:
-    Issue: "188"

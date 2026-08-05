@@ -1,9 +1,0 @@
-kind: Added
-body: >-
-  `CreateContext` constructs an instance with a context bounding the setup I/O
-  (schema check, initial keyword load, Pub/Sub subscribe). The context does not
-  bound the instance's lifetime, so canceling it cannot silently stop the
-  invalidation listener
-time: 2026-08-05T10:00:02.000000+09:00
-custom:
-    Issue: "196"

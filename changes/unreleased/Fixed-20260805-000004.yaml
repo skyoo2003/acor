@@ -1,9 +1,0 @@
-kind: Fixed
-body: >-
-  The `acor` CLI now rejects `suggest` and `suggest-index` under `-preset` with the
-  usage exit code, instead of connecting, loading the whole dictionary, and then
-  failing with `ErrSuggestRequiresRedis`. `acor version` also no longer ignores
-  stray arguments and inapplicable flags
-time: 2026-08-05T10:00:09.000000+09:00
-custom:
-    Issue: "196"

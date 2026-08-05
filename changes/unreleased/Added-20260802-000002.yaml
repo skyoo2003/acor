@@ -1,7 +1,0 @@
-kind: Added
-body: >-
-  `FindSet`/`FindSetContext` return each matched keyword once in first-match
-  order. `Find` remains unchanged and reports every occurrence
-time: 2026-08-02T10:05:00.000000+09:00
-custom:
-    Issue: "188"

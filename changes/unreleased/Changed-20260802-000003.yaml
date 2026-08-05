@@ -1,8 +1,0 @@
-kind: Changed
-body: >-
-  Improved `FindMatches` and `Contains` performance by scanning input strings
-  directly and preallocating a small result buffer. `FindStream` retains its
-  streaming path for `io.Reader` inputs
-time: 2026-08-02T10:10:00.000000+09:00
-custom:
-    Issue: "188"
