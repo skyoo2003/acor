@@ -89,7 +89,8 @@ YAML fragment under `changes/unreleased/`. Commit it with your change.
 
 ## What the tag build does
 
-`release.yaml` runs on any `v*` tag and:
+`release.yaml` runs on any `v*` tag except `v1.*` (see [Retracted
+versions](#retracted-versions)) and:
 
 1. **Guards** that `changes/<tag>.md` exists — fails fast if you forgot
    `changie batch` / `changie merge`.
@@ -129,3 +130,40 @@ in GHCR — they stay until a build overwrites them. And `latest-alpine` (plus
 `vMAJOR-alpine` / `vMAJOR.MINOR-alpine`) always points at whichever tag built
 *last*, so re-running an older tag's build silently drags `latest-alpine` back
 to that older version. When redoing an older release, re-tag the newest one last.
+
+## Retracted versions
+
+`v1.0.0`-`v1.4.0` were published from tags that have since been deleted from
+this repository. Deleting a tag does not unpublish a module version:
+`proxy.golang.org` caches them permanently, so they stayed resolvable and
+`go get github.com/skyoo2003/acor` picked `v1.4.0` over the v0.x line. The whole
+range is retracted in the root `go.mod`:
+
+```go
+retract [v1.0.0, v1.4.1]
+```
+
+`v1.4.1` is a retraction-only tag: it carries that block and nothing else, and
+it retracts itself, which is what makes `@latest` fall back to the highest v0.x.
+Keep the `retract` block on `main` — the go command reads retractions only from
+the highest published version's `go.mod`, so a future v1 tag without it would
+silently un-retract the whole line.
+
+Because of this, `release.yaml` skips its entire job for any `v1.*` tag
+(`if: ${{ !startsWith(github.ref_name, 'v1.') }}`). Without that condition
+GoReleaser would publish `v1-alpine` and drag `latest-alpine` onto retracted
+code.
+
+When a real v1 ships it starts at **v1.5.0**: drop the workflow condition and
+leave the retract range alone — `[v1.0.0, v1.4.1]` already excludes v1.5.0.
+
+To verify a retraction took effect, from a scratch module outside this repo:
+
+```sh
+curl -s https://proxy.golang.org/github.com/skyoo2003/acor/@v/v1.4.1.info
+go list -m github.com/skyoo2003/acor@latest              # want the highest v0.x
+go list -m -retracted -versions github.com/skyoo2003/acor
+```
+
+The proxy has to fetch the retraction-holding version before retractions apply,
+which is what the `curl` is for.

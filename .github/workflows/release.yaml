@@ -8,6 +8,10 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # The v1.x line is retracted in go.mod, so a v1 tag can only be a
+    # retraction placeholder. Publishing it would create v1-alpine and move
+    # latest-alpine onto retracted code. Drop this when a real v1 ships.
+    if: ${{ !startsWith(github.ref_name, 'v1.') }}
     permissions:
       contents: write
       packages: write

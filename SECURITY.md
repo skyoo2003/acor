@@ -15,6 +15,10 @@ See the [latest release](https://github.com/skyoo2003/acor/releases/latest) for
 which version that is, and upgrade to it before reporting a vulnerability so the
 report is against supported code.
 
+Versions `v1.0.0`-`v1.4.0` were published in error and are **retracted**
+(`v1.4.1` carries the retractions). They receive no fixes, and `go get` will not
+select them. If you pinned one, move to the latest v0.x release.
+
 The experimental `acor/server` module publishes no tags of its own; fixes for it
 land on `main` and are consumed from there.
 
