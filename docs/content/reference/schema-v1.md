@@ -1,16 +1,17 @@
 ---
 title: "Schema V1 (Deprecated)"
-weight: 2
+weight: 3
 ---
 
 # Schema V1 (Deprecated)
 
 V1 is the original ACOR storage schema. It uses multiple Redis keys per collection.
 
-> **V1 is deprecated.** It stays readable and writable so existing collections keep
-> working, and `MigrateV1ToV2` converts them in place, but it gains no new features:
-> preset engines and `EnableCache` both require V2. New collections should use the
-> default V2 schema. Support for V1 may be removed in a future major version.
+> **V1 is deprecated and read-only as of `v1.5.0`.** Reads, `Suggest`, `Info`, and
+> `Flush` work, and `MigrateV1ToV2` converts a collection in place, but `Add` and
+> `Remove` return `ErrV1ReadOnly`. It gains no features either: preset engines and
+> `EnableCache` both require V2. New collections should use the default V2 schema.
+> The read path stays for the whole `v1` line and is removed no earlier than `v2`.
 
 ## Overview
 
@@ -29,7 +30,7 @@ V1 creates approximately 5 keys per 100 keywords:
 | Operation | Complexity |
 |-----------|------------|
 | Find() | O(N×3-5) RTT |
-| Add() | O(M×3-10) RTT |
+| Add() | O(M×3-10) RTT — no longer reachable; kept to explain the migration's value |
 
 Where:
 - N = number of trie states visited

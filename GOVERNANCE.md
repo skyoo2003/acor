@@ -22,11 +22,12 @@ ACOR accepts contributions from the community. All contributions are reviewed by
 
 ## Release Process
 
-ACOR follows [Semantic Versioning](https://semver.org/):
+ACOR follows [Semantic Versioning](https://semver.org/). What a major version actually
+promises — which surfaces are covered, which are excluded, and what counts as a breaking
+change — is defined in the [compatibility policy](docs/content/reference/compatibility.md).
+That page is the single source; these rules are not restated here.
 
-- **Patch** (x.x.Z): Bug fixes, no API changes
-- **Minor** (x.Y.0): New features, backward-compatible API additions
-- **Major** (X.0.0): Breaking API changes
+The decision to cut a major version is the project lead's.
 
 Releases are managed via [Changie](https://github.com/miniscruff/changie) for changelog generation.
 
