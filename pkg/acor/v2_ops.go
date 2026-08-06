@@ -275,17 +275,22 @@ func (o *v2Operations) loadEngine(ctx context.Context) (*matchengine.Engine, err
 		return engine, nil
 	}
 
+	// Counted before the lock for the same reason redisBackedAC.ensureValid counts
+	// before its singleflight: this read found the cache invalid and waits for a
+	// rebuild whether or not it performs one. Coalesced readers therefore stay misses
+	// here too, which is what makes Misses-Rebuilds the work the coalescing saved.
+	o.stats.miss()
+
 	o.cache.loadMu.Lock()
 	defer o.cache.loadMu.Unlock()
 
-	// Double-check after acquiring lock. Still a hit: another goroutine did the load
-	// while this one waited, so this read cost no fetch of its own.
+	// Double-check after acquiring lock: another goroutine loaded while this one
+	// waited, so no fetch of its own is needed — but it still waited, so it was
+	// counted a miss above.
 	if engine, valid := o.cache.getEngine(); valid {
-		o.stats.hit()
 		return engine, nil
 	}
 
-	o.stats.miss()
 	if err := o.loadCache(ctx); err != nil {
 		return nil, err
 	}

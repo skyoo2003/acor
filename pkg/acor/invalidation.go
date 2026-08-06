@@ -138,13 +138,18 @@ func isSelfEcho(payload, name string, skip *selfSkipSet) bool {
 // for CacheStats.LastInvalidationLag. It reads the timestamp newInvalidationID
 // already puts in front of every ID, so measuring lag needs no extra wire format.
 //
-// It reports false rather than a zero duration for a payload it cannot parse, so a
-// corrupt message is left out of the statistics instead of recorded as instant
-// delivery. The two timestamps come from two machines, so the result carries their
-// clock skew; recordInvalidationLag discards a negative value for that reason.
-func invalidationLag(payload string) (time.Duration, bool) {
+// It reports false rather than a zero duration for a payload it cannot parse or one
+// naming another collection — the same two conditions isSelfEcho screens on — so a
+// message this instance did not publish the format of is left out of the statistics
+// instead of recorded as instant delivery. Only the timestamp's syntax is checked,
+// though: a publisher whose clock is years off still yields a parseable, absurd,
+// recorded lag, which the gauge then holds until the next message replaces it.
+//
+// The two timestamps come from two machines, so the result carries their clock skew;
+// recordInvalidationLag discards a negative value for that reason.
+func invalidationLag(payload, name string) (time.Duration, bool) {
 	parts := strings.SplitN(payload, ":", invalidatePayloadSplitMax)
-	if len(parts) != invalidatePayloadSplitMax {
+	if len(parts) != invalidatePayloadSplitMax || parts[0] != name {
 		return 0, false
 	}
 	// parts[1] is the ID, itself "<unixnano>:<random>".
@@ -157,6 +162,24 @@ func invalidationLag(payload string) (time.Duration, bool) {
 		return 0, false
 	}
 	return time.Since(time.Unix(0, published)), true
+}
+
+// foreignInvalidation reports whether payload is a peer's invalidation rather than
+// this instance's own echo, recording its delivery lag on the way through.
+//
+// Both listeners — the V2 trie cache and the preset engine — need exactly this pair
+// of steps before they act, so they live here once instead of in two callbacks that
+// would drift. Only foreign messages are measured: a self-echo returned above, and
+// timing this process against its own clock says nothing about how fast peers reach
+// us.
+func foreignInvalidation(payload, name string, skip *selfSkipSet, stats *cacheStats) bool {
+	if isSelfEcho(payload, name, skip) {
+		return false
+	}
+	if lag, ok := invalidationLag(payload, name); ok {
+		stats.recordInvalidationLag(lag)
+	}
+	return true
 }
 
 // subscribeInvalidations subscribes to the collection's invalidation channel and

@@ -164,17 +164,29 @@ func buildEngine(preset Preset, keywordSet map[string]struct{}) *matchengine.Eng
 	return e
 }
 
+// rebuildEngine replaces the engine from the current keyword set and records the
+// build. Every build in this mode routes through here, not just the reload path: a
+// single-keyword write and a flush rebuild directly, and a build the counters miss
+// inflates the mean rebuild cost that a write is supposed to explain.
+//
+// The timing covers the build alone. The Redis round trip that fetched the keywords
+// happened in the caller, and folding it in would report the network as build time.
+//
+// Caller holds ac.mu.
+func (ac *redisBackedAC) rebuildEngine() {
+	start := time.Now()
+	engine := buildEngine(ac.preset, ac.keywordSet)
+	ac.stats.recordRebuild(time.Since(start))
+	ac.engine = engine
+}
+
 func (ac *redisBackedAC) applyReload(snap *trieSnapshot) {
 	keywordSet := make(map[string]struct{}, len(snap.Keywords))
 	for _, kw := range snap.Keywords {
 		keywordSet[kw] = struct{}{}
 	}
 	ac.keywordSet = keywordSet
-	// Timed around the build alone: readTrieSnapshot already happened in the caller,
-	// and counting its round trip as build time would misattribute the network.
-	start := time.Now()
-	ac.engine = buildEngine(ac.preset, keywordSet)
-	ac.stats.recordRebuild(time.Since(start))
+	ac.rebuildEngine()
 	ac.localVersion = snap.Version
 	ac.stale = false
 }
@@ -258,7 +270,13 @@ const (
 func (ac *redisBackedAC) startListener() error {
 	ac.stopCh = make(chan struct{})
 
-	pubsub, err := subscribeInvalidations(ac.ctx, ac.storage, ac.name, ac.stopCh, ac.handleInvalidation)
+	// Bind the counters once, as AhoCorasick.startCacheListener does: the callback
+	// runs on its own goroutine, so reading the field live would race anything that
+	// reassigns it (the stats benchmark switches recording off that way).
+	stats := ac.stats
+	pubsub, err := subscribeInvalidations(ac.ctx, ac.storage, ac.name, ac.stopCh, func(payload string) {
+		ac.handleInvalidation(stats, payload)
+	})
 	if err != nil {
 		return err
 	}
@@ -267,15 +285,9 @@ func (ac *redisBackedAC) startListener() error {
 	return nil
 }
 
-func (ac *redisBackedAC) handleInvalidation(payload string) {
-	if isSelfEcho(payload, ac.name, &ac.selfSkip) {
+func (ac *redisBackedAC) handleInvalidation(stats *cacheStats, payload string) {
+	if !foreignInvalidation(payload, ac.name, &ac.selfSkip, stats) {
 		return
-	}
-	// Only foreign invalidations are measured. A self-echo returned above, and its lag
-	// would time this process against its own clock — a number that says nothing about
-	// how fast peers reach us.
-	if lag, ok := invalidationLag(payload); ok {
-		ac.stats.recordInvalidationLag(lag)
 	}
 	ac.markStale()
 }

@@ -68,11 +68,19 @@ stays yours.
 - **`Rebuilds` will not equal `Misses`.** Concurrent misses coalesce onto one build, so
   `Misses - Rebuilds` is what that coalescing saved; local writes rebuild off the read
   path and push the count the other way. In `Preset` mode `Rebuilds` starts at 1, from
-  the build during `Create`.
-- **`LastInvalidationLag` includes clock skew.** The publish timestamp comes from
-  another machine's clock, so this is an upper bound on delivery delay, not a network
-  measurement. Watch it for step changes rather than trusting the absolute value, and
-  check NTP before concluding Pub/Sub is slow.
+  the build during `Create`. Both counters are `uint64`, so check `Misses > Rebuilds`
+  before subtracting — a write-heavy instance is routinely the other way round, and the
+  difference wraps to roughly 1.8e19 rather than going negative.
+- **One read is one scan, not one call.** `FindParallel` and `FindIndexParallel` scan
+  chunk by chunk, so a text split into N chunks adds N to `Hits`+`Misses`. Their hit
+  rate is not comparable to a serial workload's without dividing that out.
+- **`LastInvalidationLag` needs a listener, and carries clock skew.** It is populated
+  only in `Preset` mode and in V2 with `EnableCache`; the other modes subscribe to
+  nothing, so a zero there means unavailable, not fast. Where it is populated, the
+  publish timestamp comes from another machine's clock, so the value is the real delay
+  plus that clock's offset — it can understate the delay as readily as overstate it, and
+  bounds it in neither direction. Watch it for step changes rather than trusting the
+  absolute value, and check NTP before concluding Pub/Sub is slow.
 - **A zero hit rate is not always a bug.** Without `Preset` or `EnableCache` every read
   still checks Redis for freshness; a hit there means only that the automaton was
   reused, not that the round trip was skipped.
@@ -92,7 +100,7 @@ graph LR
     D --> G[Jaeger/Zipkin]
 ```
 
-## Metrics
+### Metrics
 
 Import the metrics package:
 
@@ -100,7 +108,7 @@ Import the metrics package:
 import "github.com/skyoo2003/acor/server/metrics"
 ```
 
-### Available Metrics
+#### Available Metrics
 
 | Metric                                  | Type      | Description                                 |
 | --------------------------------------- | --------- | ------------------------------------------- |
@@ -117,7 +125,7 @@ gRPC metrics use the standard `grpc_server_*` names from
 `go-grpc-middleware/providers/prometheus`, wired via
 `NewGRPCServerWithObservability`.
 
-### Exposing Metrics
+#### Exposing Metrics
 
 ```go
 import (
@@ -137,7 +145,7 @@ func main() {
 }
 ```
 
-## Logging
+### Logging
 
 Import the logging package:
 
@@ -145,7 +153,7 @@ Import the logging package:
 import "github.com/skyoo2003/acor/server/logging"
 ```
 
-### Structured Logging
+#### Structured Logging
 
 `NewLogger` takes an `io.Writer` and a level string (`debug`, `info`, `warn`,
 `error`) and returns a zerolog-based logger that always emits structured JSON.
@@ -178,14 +186,14 @@ func main() {
 }
 ```
 
-### Log Levels
+#### Log Levels
 
 - `debug`: Detailed debugging info
 - `info`: General operational info
 - `warn`: Warning conditions
 - `error`: Error conditions
 
-## Tracing
+### Tracing
 
 Import the tracing package:
 
@@ -193,7 +201,7 @@ Import the tracing package:
 import "github.com/skyoo2003/acor/server/tracing"
 ```
 
-### OpenTelemetry Setup
+#### OpenTelemetry Setup
 
 <!-- doccheck:server -->
 ```go
@@ -209,7 +217,7 @@ if err != nil {
 defer tracer.Shutdown()
 ```
 
-### Spans
+#### Spans
 
 The core `pkg/acor` library does not emit its own spans. Request spans are
 created by the `server/tracing` middleware for incoming traffic:
@@ -220,16 +228,16 @@ created by the `server/tracing` middleware for incoming traffic:
 To trace individual `Add`/`Find`/`Remove` calls, wrap them in your own spans
 using the OpenTelemetry API.
 
-## Dashboards
+### Dashboards
 
-### Key Metrics to Monitor
+#### Key Metrics to Monitor
 
 1. **Operation Latency**: P50, P95, P99
 2. **Error Rate**: Operations failing
 3. **Keyword Count**: Collection size
 4. **Redis Connections**: Pool utilization
 
-### Grafana Dashboard
+#### Grafana Dashboard
 
 Create a Grafana dashboard using the metrics above. Key panels to include:
 
@@ -238,7 +246,7 @@ Create a Grafana dashboard using the metrics above. Key panels to include:
 3. **Keyword Count**: Gauge `acor_keywords_total`
 4. **Trie Nodes**: Gauge `acor_trie_nodes_total`
 
-## Alerting Rules
+### Alerting Rules
 
 ```yaml
 groups:

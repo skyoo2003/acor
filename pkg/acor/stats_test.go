@@ -130,6 +130,20 @@ func TestCacheStatsPreset(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertStats(t, ac.CacheStats(), 1, 1, 2)
+
+	// A single-keyword write rebuilds directly rather than going through the reload
+	// path, and a flush does too. Both move Rebuilds without touching either read
+	// counter — miss these and the reported mean rebuild cost drifts high on any
+	// instance that writes.
+	if _, err := ac.Add("he"); err != nil {
+		t.Fatal(err)
+	}
+	assertStats(t, ac.CacheStats(), 1, 1, 3)
+
+	if err := ac.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	assertStats(t, ac.CacheStats(), 1, 1, 4)
 }
 
 // TestCacheStatsInvalidationLagEndToEnd is the only test that proves lag survives the
@@ -182,10 +196,13 @@ func TestInvalidationLag(t *testing.T) {
 		{"id without random suffix", "coll:12345", false},
 		{"non-numeric timestamp", "coll:notanumber:a1b2", false},
 		{"empty", "", false},
+		// Screened for the same reason isSelfEcho screens it: a payload naming another
+		// collection is not this instance's peer traffic, so it must not move the gauge.
+		{"other collection", fmt.Sprintf("other:%d:a1b2c3d4", published.UnixNano()), false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			lag, ok := invalidationLag(tc.payload)
+			lag, ok := invalidationLag(tc.payload, "coll")
 			if ok != tc.wantOK {
 				t.Fatalf("invalidationLag(%q) ok = %v, want %v", tc.payload, ok, tc.wantOK)
 			}

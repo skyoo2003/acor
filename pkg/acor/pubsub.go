@@ -22,13 +22,8 @@ func (ac *AhoCorasick) startCacheListener() error {
 		if cache == nil {
 			return
 		}
-		if isSelfEcho(payload, ac.name, &cache.selfSkip) {
+		if !foreignInvalidation(payload, ac.name, &cache.selfSkip, stats) {
 			return
-		}
-		// Foreign invalidations only: a self-echo returned above, and timing this
-		// process against its own clock would say nothing about how fast peers reach us.
-		if lag, ok := invalidationLag(payload); ok {
-			stats.recordInvalidationLag(lag)
 		}
 		cache.invalidate()
 	})

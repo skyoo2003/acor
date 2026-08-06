@@ -297,7 +297,7 @@ type CacheStats struct {
     Misses              uint64        // Reads that waited for a rebuild
     Rebuilds            uint64        // Automaton builds (starts at 1 in Preset mode)
     RebuildDuration     time.Duration // Cumulative build time, excluding Redis I/O
-    LastInvalidationLag time.Duration // Delay of the last peer invalidation (includes clock skew)
+    LastInvalidationLag time.Duration // Last peer invalidation delay (Preset/EnableCache only; carries clock skew)
 }
 ```
 
