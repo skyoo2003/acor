@@ -152,11 +152,16 @@ jobs:
       # go.mod, so a release whose go.mod lost this block silently un-retracts
       # v1.0.0-v1.4.0 and `go get` starts resolving them again. RELEASE.md states
       # the rule; this is what enforces it.
+      #
+      # Asked of `go mod edit -json` rather than of grep: what matters is whether the
+      # go command sees a retraction, and a commented-out directive still matches the
+      # text while retracting nothing. Parsing also accepts the block form of the
+      # directive, which a text search would have to be taught separately.
       - name: Verify retraction block
         if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
         run: |
-          if ! grep -q 'retract \[v1.0.0, v1.4.0\]' go.mod; then
-            echo "::error::go.mod is missing 'retract [v1.0.0, v1.4.0]'. Releasing without it silently un-retracts v1.0.0-v1.4.0. See RELEASE.md#retracted-versions."
+          if ! go mod edit -json | jq -e '[.Retract[]? | select(.Low == "v1.0.0" and .High == "v1.4.0")] | length == 1' >/dev/null; then
+            echo "::error::go.mod has no active 'retract [v1.0.0, v1.4.0]'. Releasing without it silently un-retracts v1.0.0-v1.4.0. See RELEASE.md#retracted-versions."
             exit 1
           fi
 

@@ -6,16 +6,16 @@ const BatchModeTransactional BatchMode
 const ChunkBoundaryLine ChunkBoundary
 const ChunkBoundarySentence ChunkBoundary
 const ChunkBoundaryWord ChunkBoundary
-const DefaultChunkSize
-const DefaultOverlap
+const DefaultChunkSize = 1000
+const DefaultOverlap = 50
 const MatchKindLeftmostLongest MatchKind
 const MatchKindOverlapping MatchKind
 const PresetBalanced Preset
 const PresetMemoryEfficient Preset
 const PresetNone Preset
 const PresetSpeed Preset
-const SchemaV1
-const SchemaV2
+const SchemaV1 = 1
+const SchemaV2 = 2
 field AhoCorasickArgs.Addr string
 field AhoCorasickArgs.Addrs []string
 field AhoCorasickArgs.CaseSensitive bool
@@ -63,20 +63,20 @@ field MatchOptions.WordRune func(rune) bool
 field MigrationOptions.DryRun bool
 field MigrationOptions.KeepOldKeys bool
 field MigrationOptions.Progress func(done, total int, message string)
-field MigrationResult.Collection string
-field MigrationResult.DryRun bool
-field MigrationResult.DurationMs int64
-field MigrationResult.ErrorMessage string
-field MigrationResult.FromSchema int
-field MigrationResult.KeysAfter int
-field MigrationResult.KeysBefore int
-field MigrationResult.Keywords int
-field MigrationResult.NodesKeys int
-field MigrationResult.OutputsKeys int
-field MigrationResult.Prefixes int
-field MigrationResult.RolledBack bool
-field MigrationResult.Status string
-field MigrationResult.ToSchema int
+field MigrationResult.Collection string `json:"collection"`
+field MigrationResult.DryRun bool `json:"dry_run"`
+field MigrationResult.DurationMs int64 `json:"duration_ms"`
+field MigrationResult.ErrorMessage string `json:"error,omitempty"`
+field MigrationResult.FromSchema int `json:"from_schema"`
+field MigrationResult.KeysAfter int `json:"keys_after"`
+field MigrationResult.KeysBefore int `json:"keys_before"`
+field MigrationResult.Keywords int `json:"keywords"`
+field MigrationResult.NodesKeys int `json:"nodes_keys"`
+field MigrationResult.OutputsKeys int `json:"outputs_keys"`
+field MigrationResult.Prefixes int `json:"prefixes"`
+field MigrationResult.RolledBack bool `json:"rolled_back"`
+field MigrationResult.Status string `json:"status"`
+field MigrationResult.ToSchema int `json:"to_schema"`
 field OperationError.Err error
 field OperationError.Keyword string
 field OperationError.Op string

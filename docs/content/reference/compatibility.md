@@ -101,6 +101,11 @@ break a reader — and they do gain fields inside `v1`. The condition on them is
 you not construct or whole-value compare one: assert on the fields you care about, and a
 later release adding a sixth counter stays invisible to your code.
 
+Their JSON field names are covered too. `api/v1.txt` records struct tags, so renaming
+`json:"status"` is a breaking change even though it moves no Go signature. That applies
+to marshaling a returned struct yourself; the `acor` command's own `--json` output is a
+CLI detail and stays uncovered.
+
 ### Do not expect the exported interfaces to grow
 
 Five exported interfaces can be implemented from outside the module: `Logger`,

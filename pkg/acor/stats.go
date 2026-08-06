@@ -57,6 +57,12 @@ type CacheStats struct {
 	// lock a finished build takes to publish itself is included.
 	// RebuildDuration/Rebuilds is the mean cost of one rebuild — what a write to a
 	// large collection makes every reader pay.
+	//
+	// Where decoding the fetched payload lands differs by mode. A default V2 instance
+	// parses inside the memoized build, so the decode counts here; Preset materializes
+	// its keyword set in applyReload before rebuildEngine starts timing, so there it
+	// does not. Read the mean against itself over time rather than across two
+	// differently configured instances.
 	RebuildDuration time.Duration
 	// LastInvalidationLag is the delay between a peer publishing an invalidation and
 	// this instance receiving it, for the most recent one.

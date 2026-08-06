@@ -12,25 +12,33 @@
 // Struct fields and interface methods are included because the promise covers
 // them specifically: structs ACOR returns may gain fields, and exported
 // interfaces may not gain methods at all (docs/content/reference/compatibility.md).
+// Field tags come along with the fields: a json tag is the name a field goes out
+// under, so renaming one breaks a caller without changing any Go signature.
 // Type aliases print their right-hand side, so an alias reaching back into an
 // internal package also shows up here.
 //
-// Doc comments and const values are deliberately absent. Documentation wording
-// and error strings are explicitly not covered by the promise, so including them
-// would fail the gate on every rewording.
+// Doc comments are deliberately absent, and so is the value of anything carrying a
+// declared type. Documentation wording and error strings are explicitly not covered,
+// so recording those would fail the gate on every rewording. An untyped constant is
+// the one exception, because there the value is the type: DefaultChunkSize = 1000
+// assigns to any numeric type and = int64(1000) does not. Untyped vars stay
+// name-only, since a sentinel's initializer is errors.New("...") and its static type
+// is not something a caller can hold onto.
 //
-// Usage: go run ./tools/apisnap   (from the repository root)
+// Usage: go run ./tools/apisnap   (from the repository root; writes api/v1.txt)
 package main
 
 import (
 	"bytes"
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/printer"
 	"go/token"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -38,7 +46,11 @@ import (
 const (
 	pkgDir     = "pkg/acor"
 	pkgImport  = "github.com/skyoo2003/acor/pkg/acor"
+	snapFile   = "api/v1.txt"
 	regenerate = "make api-check"
+	// Applies only when creating the file, which git already tracks and checks out
+	// with its own mode. It is here to satisfy WriteFile, not to protect anything.
+	snapMode = 0o600
 )
 
 func main() {
@@ -55,55 +67,83 @@ func main() {
 	for _, l := range lines {
 		fmt.Fprintln(out, l)
 	}
-	fmt.Print(out.String())
+	// Written here rather than piped: a shell redirect empties the committed
+	// snapshot before the tool even runs, so any failure above would leave a
+	// truncated file behind and a diff that says the whole API was removed.
+	if err := os.WriteFile(snapFile, []byte(out.String()), snapMode); err != nil {
+		fmt.Fprintln(os.Stderr, "apisnap:", err)
+		os.Exit(1)
+	}
 }
 
 func snapshot(dir string) ([]string, error) {
-	entries, err := os.ReadDir(dir)
+	// go/build applies the same filename and //go:build rules the go command does,
+	// so GoFiles is the package as the compiler sees it: _test.go files and anything
+	// constrained out are separated for us rather than filtered by hand here.
+	p, err := build.ImportDir(dir, 0)
 	if err != nil {
 		return nil, err
+	}
+	if skipped := unsnapshottable(p); len(skipped) > 0 {
+		return nil, fmt.Errorf(
+			"%s: build-constrained or cgo files %v are outside GoFiles; apisnap reads one build context, so teach it build contexts first",
+			dir, skipped)
 	}
 
 	fset := token.NewFileSet()
 	var lines []string
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
+	for _, name := range p.GoFiles {
 		// parser.ParseDir would be shorter but returns the deprecated ast.Package,
 		// and the surface spans files anyway — nothing here needs them grouped.
 		f, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.SkipObjectResolution)
 		if err != nil {
 			return nil, err
 		}
-		lines = append(lines, declLines(fset, f)...)
+		lines = append(lines, declLines(f)...)
 	}
 
 	sort.Strings(lines)
 	return dedupe(lines), nil
 }
 
-func declLines(fset *token.FileSet, f *ast.File) []string {
+// unsnapshottable names the .go files go/build kept out of GoFiles that would make
+// the snapshot describe something other than the package. A package split across
+// platforms has no single exported surface, and the union of every file hides a
+// removal only one GOOS can see; a cgo file is dropped from GoFiles entirely, so its
+// exported symbols would vanish behind a green gate. Refuse in both cases.
+//
+// Test files are exempt on purpose: they carry no exported surface, so a
+// //go:build integration on one is not a reason to fail the API gate.
+func unsnapshottable(p *build.Package) []string {
+	skipped := slices.Clone(p.CgoFiles)
+	for _, name := range p.IgnoredGoFiles {
+		if !strings.HasSuffix(name, "_test.go") {
+			skipped = append(skipped, name)
+		}
+	}
+	return skipped
+}
+
+func declLines(f *ast.File) []string {
 	var lines []string
 	for _, decl := range f.Decls {
 		switch d := decl.(type) {
 		case *ast.FuncDecl:
-			if l, ok := funcLine(fset, d); ok {
+			if l, ok := funcLine(d); ok {
 				lines = append(lines, l)
 			}
 		case *ast.GenDecl:
-			lines = append(lines, genLines(fset, d)...)
+			lines = append(lines, genLines(d)...)
 		}
 	}
 	return lines
 }
 
-func funcLine(fset *token.FileSet, d *ast.FuncDecl) (string, bool) {
+func funcLine(d *ast.FuncDecl) (string, bool) {
 	if !d.Name.IsExported() {
 		return "", false
 	}
-	sig := signature(fset, d.Type)
+	sig := signature(d.Type)
 	if d.Recv == nil {
 		return "func " + d.Name.Name + sig, true
 	}
@@ -113,10 +153,10 @@ func funcLine(fset *token.FileSet, d *ast.FuncDecl) (string, bool) {
 	if !ast.IsExported(baseName(recv)) {
 		return "", false
 	}
-	return fmt.Sprintf("method (%s) %s%s", render(fset, recv), d.Name.Name, sig), true
+	return fmt.Sprintf("method (%s) %s%s", render(recv), d.Name.Name, sig), true
 }
 
-func genLines(fset *token.FileSet, d *ast.GenDecl) []string {
+func genLines(d *ast.GenDecl) []string {
 	var lines []string
 	// Only the first spec of an iota group declares the type; the rest inherit it.
 	// Recording the type per spec as written would make the snapshot depend on
@@ -131,22 +171,31 @@ func genLines(fset *token.FileSet, d *ast.GenDecl) []string {
 			if d.Tok == token.CONST {
 				kind = "const"
 			}
+			inferred := false
 			switch {
 			case s.Type != nil:
-				groupType = render(fset, s.Type)
+				groupType = render(s.Type)
 			case len(s.Values) > 0:
 				// Own value, so the type is inferred from it rather than inherited.
 				groupType = ""
+				inferred = true
 			}
-			for _, n := range s.Names {
+			for i, n := range s.Names {
 				if !n.IsExported() {
 					continue
 				}
-				// The declared type only, never the value. Sentinel error identity
-				// is promised; the message text explicitly is not.
 				line := kind + " " + n.Name
-				if groupType != "" {
+				switch {
+				case groupType != "":
+					// The declared type only, never the value. Sentinel error
+					// identity is promised; the message text explicitly is not.
 					line += " " + groupType
+				case inferred && d.Tok == token.CONST && i < len(s.Values):
+					// Nothing declares this constant's type, so the value is the
+					// only thing that does: 1000 assigns to any numeric type and
+					// int64(1000) does not. Recording the name alone would let
+					// that break through the gate silently.
+					line += " = " + render(s.Values[i])
 				}
 				lines = append(lines, line)
 			}
@@ -154,47 +203,69 @@ func genLines(fset *token.FileSet, d *ast.GenDecl) []string {
 			if !s.Name.IsExported() {
 				continue
 			}
-			lines = append(lines, typeLines(fset, s)...)
+			lines = append(lines, typeLines(s)...)
 		}
 	}
 	return lines
 }
 
-func typeLines(fset *token.FileSet, s *ast.TypeSpec) []string {
+func typeLines(s *ast.TypeSpec) []string {
 	name := s.Name.Name
+	// Type parameters go on the header line only. Repeating "[T any]" on every
+	// member would state the same constraint once per field for no added signal.
+	head := name + typeParams(s.TypeParams)
 	if s.Assign.IsValid() {
 		// An alias is the same type as its right-hand side, so the RHS is part of
 		// the surface. This is what catches a leak back into internal/.
-		return []string{"type " + name + " = " + render(fset, s.Type)}
+		return []string{"type " + head + " = " + render(s.Type)}
 	}
 
 	switch t := s.Type.(type) {
 	case *ast.StructType:
-		lines := []string{"type " + name + " struct"}
+		lines := []string{"type " + head + " struct"}
 		for _, fld := range t.Fields.List {
-			lines = append(lines, memberLines(fset, name, "field", fld)...)
+			lines = append(lines, memberLines(name, "field", fld)...)
 		}
 		return lines
 	case *ast.InterfaceType:
-		lines := []string{"type " + name + " interface"}
+		lines := []string{"type " + head + " interface"}
 		for _, fld := range t.Methods.List {
-			lines = append(lines, memberLines(fset, name, "method", fld)...)
+			lines = append(lines, memberLines(name, "method", fld)...)
 		}
 		return lines
 	default:
-		return []string{"type " + name + " " + render(fset, s.Type)}
+		return []string{"type " + head + " " + render(s.Type)}
 	}
+}
+
+// typeParams renders a generic declaration's parameter list as "[K comparable, V any]".
+// go/printer cannot print a bare *ast.FieldList, so this assembles one. Tightening a
+// constraint breaks every existing instantiation while leaving the name untouched,
+// which is exactly the kind of change the snapshot exists to surface.
+func typeParams(l *ast.FieldList) string {
+	if l == nil {
+		return ""
+	}
+	params := make([]string, 0, len(l.List))
+	for _, f := range l.List {
+		names := make([]string, 0, len(f.Names))
+		for _, n := range f.Names {
+			names = append(names, n.Name)
+		}
+		params = append(params, strings.Join(names, ", ")+" "+render(f.Type))
+	}
+	return "[" + strings.Join(params, ", ") + "]"
 }
 
 // memberLines renders one struct field or interface method. An embedded entry has
 // no name of its own, so its type supplies one.
-func memberLines(fset *token.FileSet, owner, kind string, fld *ast.Field) []string {
+func memberLines(owner, kind string, fld *ast.Field) []string {
 	if len(fld.Names) == 0 {
 		embedded := baseName(fld.Type)
 		if !ast.IsExported(embedded) {
 			return nil
 		}
-		return []string{fmt.Sprintf("%s %s.%s %s", kind, owner, embedded, render(fset, fld.Type))}
+		return []string{fmt.Sprintf("%s %s.%s %s", kind, owner, embedded, render(fld.Type)) + tag(fld)}
 	}
 
 	var lines []string
@@ -203,26 +274,40 @@ func memberLines(fset *token.FileSet, owner, kind string, fld *ast.Field) []stri
 			continue
 		}
 		if ft, ok := fld.Type.(*ast.FuncType); ok && kind == "method" {
-			lines = append(lines, fmt.Sprintf("method %s.%s%s", owner, n.Name, signature(fset, ft)))
+			lines = append(lines, fmt.Sprintf("method %s.%s%s", owner, n.Name, signature(ft)))
 			continue
 		}
-		lines = append(lines, fmt.Sprintf("%s %s.%s %s", kind, owner, n.Name, render(fset, fld.Type)))
+		lines = append(lines, fmt.Sprintf("%s %s.%s %s", kind, owner, n.Name, render(fld.Type))+tag(fld))
 	}
 	return lines
 }
 
-// signature renders a func type as the part that follows the name, so a printed
-// "func(ctx context.Context) error" becomes "(ctx context.Context) error".
-func signature(fset *token.FileSet, ft *ast.FuncType) string {
-	return strings.TrimPrefix(render(fset, ft), "func")
+// tag renders a struct tag, which names the field on the wire. Renaming a json tag
+// on a struct ACOR returns breaks everyone marshaling it, and does so without moving
+// a single Go signature — invisible to any tool that compares types alone.
+func tag(fld *ast.Field) string {
+	if fld.Tag == nil {
+		return ""
+	}
+	return " " + fld.Tag.Value
 }
 
-// render prints an AST node on one line. Positions come from the original source,
-// so go/printer reproduces its line breaks; collapsing whitespace is what keeps
-// one symbol to one line regardless of how the declaration was formatted.
-func render(fset *token.FileSet, node ast.Node) string {
+// signature renders a func type as the part that follows the name, so a printed
+// "func(ctx context.Context) error" becomes "(ctx context.Context) error".
+func signature(ft *ast.FuncType) string {
+	return strings.TrimPrefix(render(ft), "func")
+}
+
+// render prints an AST node on one line, deliberately against an empty FileSet
+// rather than the one the node was parsed with. go/printer reproduces the line
+// breaks of whatever positions it can resolve, so passing the real FileSet would
+// make a hand-wrapped declaration render as several lines — and rewrapping one
+// changes no API but would still fail the gate. With no positions to find, every
+// node comes back in canonical single-line form. Collapsing whitespace afterwards
+// is belt-and-braces for anything that still carries an internal newline.
+func render(node ast.Node) string {
 	var buf bytes.Buffer
-	if err := printer.Fprint(&buf, fset, node); err != nil {
+	if err := printer.Fprint(&buf, token.NewFileSet(), node); err != nil {
 		// Unreachable for a parsed node, and a panic here would be a worse
 		// failure mode than a line that fails the diff loudly.
 		return "<unprintable>"

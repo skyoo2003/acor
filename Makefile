@@ -54,8 +54,10 @@ license-check:
 # snapshot is rewritten in place, and the diff against the committed one is what
 # fails. So there is no separate -update target — regenerating *is* running the
 # check, and the resulting diff is the record of what the API change was.
+# apisnap writes api/v1.txt itself rather than being redirected into it, so a tool
+# failure leaves the committed snapshot intact instead of truncating it.
 api-check:
-	@go run ./tools/apisnap > api/v1.txt
+	@go run ./tools/apisnap
 	@git diff --exit-code api/v1.txt
 
 # Regenerate gRPC/protobuf code. Requires protoc, protoc-gen-go, protoc-gen-go-grpc.
