@@ -21,6 +21,9 @@ type engineMemo struct {
 	mu     sync.Mutex
 	engine *matchengine.Engine
 	digest uint64
+	// stats is shared with the operations that own this memo, so a hit here counts
+	// toward the same CacheStats as a hit in the other modes. Nil records nothing.
+	stats *cacheStats
 }
 
 // engineDigestSeed keys the digests, which are only ever compared against
@@ -37,9 +40,11 @@ func (m *engineMemo) engineFor(digest uint64, build func() (*matchengine.Engine,
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.engine != nil && m.digest == digest {
+		m.stats.hit()
 		return m.engine, nil
 	}
-	engine, err := build()
+	m.stats.miss()
+	engine, err := timeRebuild(m.stats, build)
 	if err != nil {
 		return nil, err
 	}

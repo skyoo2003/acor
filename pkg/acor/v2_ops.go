@@ -31,6 +31,7 @@ type v2Operations struct {
 	logger        Logger
 	caseSensitive bool
 	engines       engineMemo
+	stats         *cacheStats
 }
 
 // --- operations interface methods ---
@@ -230,7 +231,11 @@ func (o *v2Operations) loadCache(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// Timed around set alone, which is where the automaton is built. fetchTrieData
+	// above is Redis I/O, and folding it in would report the network as build time.
+	start := time.Now()
 	o.cache.set(outputs)
+	o.stats.recordRebuild(time.Since(start))
 	return nil
 }
 
@@ -266,17 +271,21 @@ func (o *v2Operations) loadEngine(ctx context.Context) (*matchengine.Engine, err
 	}
 
 	if engine, valid := o.cache.getEngine(); valid {
+		o.stats.hit()
 		return engine, nil
 	}
 
 	o.cache.loadMu.Lock()
 	defer o.cache.loadMu.Unlock()
 
-	// Double-check after acquiring lock.
+	// Double-check after acquiring lock. Still a hit: another goroutine did the load
+	// while this one waited, so this read cost no fetch of its own.
 	if engine, valid := o.cache.getEngine(); valid {
+		o.stats.hit()
 		return engine, nil
 	}
 
+	o.stats.miss()
 	if err := o.loadCache(ctx); err != nil {
 		return nil, err
 	}

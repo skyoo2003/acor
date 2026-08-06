@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -131,6 +132,31 @@ func isSelfEcho(payload, name string, skip *selfSkipSet) bool {
 		return false
 	}
 	return skip.claim(parts[1])
+}
+
+// invalidationLag reports how long ago the invalidation in payload was published,
+// for CacheStats.LastInvalidationLag. It reads the timestamp newInvalidationID
+// already puts in front of every ID, so measuring lag needs no extra wire format.
+//
+// It reports false rather than a zero duration for a payload it cannot parse, so a
+// corrupt message is left out of the statistics instead of recorded as instant
+// delivery. The two timestamps come from two machines, so the result carries their
+// clock skew; recordInvalidationLag discards a negative value for that reason.
+func invalidationLag(payload string) (time.Duration, bool) {
+	parts := strings.SplitN(payload, ":", invalidatePayloadSplitMax)
+	if len(parts) != invalidatePayloadSplitMax {
+		return 0, false
+	}
+	// parts[1] is the ID, itself "<unixnano>:<random>".
+	nanos, _, found := strings.Cut(parts[1], ":")
+	if !found {
+		return 0, false
+	}
+	published, err := strconv.ParseInt(nanos, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return time.Since(time.Unix(0, published)), true
 }
 
 // subscribeInvalidations subscribes to the collection's invalidation channel and

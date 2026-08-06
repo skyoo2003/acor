@@ -38,6 +38,8 @@ type redisBackedAC struct {
 	stale        bool
 	pollInterval time.Duration
 
+	stats *cacheStats
+
 	selfSkip    selfSkipSet
 	reloadGroup singleflight.Group
 	pubsub      Subscription
@@ -85,6 +87,7 @@ func newRedisBacked(ctx context.Context, args *AhoCorasickArgs) (*redisBackedAC,
 		storage:       storage,
 		redisClient:   redisClient,
 		keywordSet:    make(map[string]struct{}),
+		stats:         &cacheStats{},
 		pollInterval:  args.InvalidationPollInterval,
 		ctx:           acCtx,
 		cancel:        acCancel,
@@ -167,7 +170,11 @@ func (ac *redisBackedAC) applyReload(snap *trieSnapshot) {
 		keywordSet[kw] = struct{}{}
 	}
 	ac.keywordSet = keywordSet
+	// Timed around the build alone: readTrieSnapshot already happened in the caller,
+	// and counting its round trip as build time would misattribute the network.
+	start := time.Now()
 	ac.engine = buildEngine(ac.preset, keywordSet)
+	ac.stats.recordRebuild(time.Since(start))
 	ac.localVersion = snap.Version
 	ac.stale = false
 }
@@ -208,9 +215,16 @@ func (ac *redisBackedAC) ensureValid(ctx context.Context) error {
 	ac.mu.RLock()
 	if !ac.stale {
 		ac.mu.RUnlock()
+		ac.stats.hit()
 		return nil
 	}
 	ac.mu.RUnlock()
+
+	// Counted before the singleflight, not inside it: this read found stale state and
+	// waits for a rebuild whether or not it performs one. Readers coalesced onto
+	// another goroutine's reload therefore still count as misses, which is what makes
+	// Misses-Rebuilds the work the coalescing saved.
+	ac.stats.miss()
 
 	_, err, _ := ac.reloadGroup.Do("reload", func() (interface{}, error) {
 		ac.mu.Lock()
@@ -256,6 +270,12 @@ func (ac *redisBackedAC) startListener() error {
 func (ac *redisBackedAC) handleInvalidation(payload string) {
 	if isSelfEcho(payload, ac.name, &ac.selfSkip) {
 		return
+	}
+	// Only foreign invalidations are measured. A self-echo returned above, and its lag
+	// would time this process against its own clock — a number that says nothing about
+	// how fast peers reach us.
+	if lag, ok := invalidationLag(payload); ok {
+		ac.stats.recordInvalidationLag(lag)
 	}
 	ac.markStale()
 }

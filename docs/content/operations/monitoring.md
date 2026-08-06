@@ -20,11 +20,66 @@ Monitor ACOR performance with built-in observability support.
 
 ## Overview
 
-ACOR provides three pillars of observability:
+Two layers, and which one you get depends on how you run ACOR:
 
-- **Metrics**: Prometheus-compatible metrics
-- **Logging**: Structured JSON logging
-- **Tracing**: OpenTelemetry distributed tracing
+| Layer | What it gives you | Covered by the `v1` promise |
+| ----- | ----------------- | --------------------------- |
+| `pkg/acor` — the library | `CacheStats()`: cache hit rate, rebuild cost, invalidation lag | ✅ |
+| `acor/server` — the service | Prometheus metrics, structured JSON logs, OpenTelemetry traces | ❌ experimental |
+
+Embedding the library gets you the first row only. Everything after the next section is
+`server/*`, which means importing a separate, experimental module — reach for it when
+you run ACOR as a service, not to instrument your own process.
+
+## Core library: cache statistics
+
+`CacheStats()` answers the three questions that decide whether ACOR is behaving: how
+often reads avoid Redis, how much a peer's write costs every reader, and how fast
+invalidations propagate. It does no Redis I/O, so scraping it on a timer is cheap.
+
+<!-- doccheck -->
+```go
+stats := ac.CacheStats()
+
+// Hits+Misses is the read count. Both are zero before the first read.
+hitRate := 0.0
+if reads := stats.Hits + stats.Misses; reads > 0 {
+    hitRate = float64(stats.Hits) / float64(reads)
+}
+
+// What one rebuild costs — the price a write makes every reader pay.
+meanRebuild := time.Duration(0)
+if stats.Rebuilds > 0 {
+    meanRebuild = stats.RebuildDuration / time.Duration(stats.Rebuilds)
+}
+
+lag := stats.LastInvalidationLag
+_, _, _ = hitRate, meanRebuild, lag
+```
+
+Wire those three into whatever you already run — a Prometheus collector, an OTel
+meter, a log line. ACOR deliberately depends on no metrics library, so the choice
+stays yours.
+
+### Reading the numbers
+
+- **The counters are per instance and per process.** Nothing is aggregated through
+  Redis, so in a fleet you scrape every instance. A restart resets them.
+- **`Rebuilds` will not equal `Misses`.** Concurrent misses coalesce onto one build, so
+  `Misses - Rebuilds` is what that coalescing saved; local writes rebuild off the read
+  path and push the count the other way. In `Preset` mode `Rebuilds` starts at 1, from
+  the build during `Create`.
+- **`LastInvalidationLag` includes clock skew.** The publish timestamp comes from
+  another machine's clock, so this is an upper bound on delivery delay, not a network
+  measurement. Watch it for step changes rather than trusting the absolute value, and
+  check NTP before concluding Pub/Sub is slow.
+- **A zero hit rate is not always a bug.** Without `Preset` or `EnableCache` every read
+  still checks Redis for freshness; a hit there means only that the automaton was
+  reused, not that the round trip was skipped.
+- **What is not here**: match counts, keyword counts, and Redis latency. Keyword and
+  node counts come from `Info()`, which does read Redis.
+
+## Service layer: `server/*`
 
 ```mermaid
 graph LR

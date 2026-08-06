@@ -240,6 +240,20 @@ info, err := ac.Info()
 // Returns: &AhoCorasickInfo{Keywords: N, Nodes: M, Preset: ..., MemoryBytes: ..., TrieDepth: ...}
 ```
 
+### CacheStats
+
+Get local cache statistics. Unlike `Info`, this performs no Redis I/O, so it is cheap
+enough to scrape on a timer.
+
+```go
+stats := ac.CacheStats()
+// Returns: CacheStats{Hits: N, Misses: M, Rebuilds: R, RebuildDuration: ..., LastInvalidationLag: ...}
+```
+
+The counters are per instance and per process — scrape every instance in a fleet. See
+[Monitoring](../../operations/monitoring/) for how to read them, including why
+`Rebuilds` does not equal `Misses` and why `LastInvalidationLag` carries clock skew.
+
 ### Flush
 
 Clear all data from the collection.
@@ -271,6 +285,21 @@ type AhoCorasickInfo struct {
 }
 ```
 <!-- AUTO-GENERATED:types:end -->
+
+### CacheStats (type)
+
+A snapshot of one instance's local cache activity. Returned by `CacheStats()`, never
+constructed by callers — fields may be added inside `v1`.
+
+```go
+type CacheStats struct {
+    Hits                uint64        // Reads served without rebuilding the automaton
+    Misses              uint64        // Reads that waited for a rebuild
+    Rebuilds            uint64        // Automaton builds (starts at 1 in Preset mode)
+    RebuildDuration     time.Duration // Cumulative build time, excluding Redis I/O
+    LastInvalidationLag time.Duration // Delay of the last peer invalidation (includes clock skew)
+}
+```
 
 ### Preset
 

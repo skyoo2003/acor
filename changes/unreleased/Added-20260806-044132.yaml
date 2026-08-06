@@ -1,0 +1,5 @@
+kind: Added
+body: '`AhoCorasick.CacheStats()` reports local cache hit rate, rebuild cost, and the lag of the last peer invalidation, with no Redis I/O. Previously only the experimental `server/` module exposed metrics, so a library user could observe the cache only by inferring it from latency. Counters are per instance and per process; `CacheStats` is returned, never constructed, so it may gain fields inside v1.'
+time: 2026-08-06T04:41:32.142197+09:00
+custom:
+    Issue: "202"
