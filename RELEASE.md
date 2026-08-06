@@ -49,6 +49,19 @@ YAML fragment under `changes/unreleased/`. Commit it with your change.
    unreleased fragments in `changes/unreleased/` — the major-version call is
    always yours.
 
+   Then have the toolchain check the choice against the previous release:
+
+   ```sh
+   go run golang.org/x/exp/cmd/gorelease@v0.0.0-20260727155853-b88d891fe743 -base=vPREV.Y.Z
+   ```
+
+   `gorelease` compares types, not text, and reports the version the changes
+   actually require. It **refuses to run on a dirty tree**, which is why this is a
+   release step rather than a CI gate — CI uses `make api-check` against
+   `api/v1.txt` instead, which works mid-edit and needs no published baseline.
+   Treat a reported incompatible change inside `v1` as a release blocker: the fix
+   is to restore what was removed, not to bump the version.
+
 3. **Batch the fragments** into a version file:
 
    ```sh
@@ -150,7 +163,9 @@ release whose `go.mod` carries them. Two rules when editing this:
 
 - **Keep the block on `main`.** The go command reads retractions only from the
   highest published version's `go.mod`, so the next release silently un-retracts
-  the old versions if the block is missing.
+  the old versions if the block is missing. CI enforces this — the
+  `Verify retraction block` step in `ci.yaml` fails if the line is gone, so the
+  rule no longer depends on anyone remembering it.
 - **Only the first comment line reaches users.** The go command truncates a
   retraction rationale at the first newline, so keep that line a complete,
   actionable sentence.

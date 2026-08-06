@@ -1,11 +1,11 @@
-.PHONY: all setup clean build test lint lint-fix coverage vet fuzz bench bench-module race docs-verify license-check proto tidy-check
+.PHONY: all setup clean build test lint lint-fix coverage vet fuzz bench bench-module race docs-verify license-check api-check proto tidy-check
 
 # Pin golangci-lint so local `make lint` matches CI (see .github/workflows/ci.yaml).
 # Run via `go run` so the installed binary's version can't drift from CI.
 GOLANGCI_LINT_VERSION ?= v2.11.3
 GOLANGCI_LINT ?= go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
-all: vet lint test build docs-verify license-check
+all: vet lint test build docs-verify license-check api-check
 
 setup:
 	@pre-commit install
@@ -49,6 +49,16 @@ docs-verify:
 license-check:
 	@go run ./tools/licensesnap > NOTICE.tmp && mv NOTICE.tmp NOTICE || { rm -f NOTICE.tmp; exit 1; }
 	@git diff --exit-code NOTICE
+
+# Gate on the frozen public surface of pkg/acor. Same shape as tidy-check: the
+# snapshot is rewritten in place, and the diff against the committed one is what
+# fails. So there is no separate -update target — regenerating *is* running the
+# check, and the resulting diff is the record of what the API change was.
+# apisnap writes api/v1.txt itself rather than being redirected into it, so a tool
+# failure leaves the committed snapshot intact instead of truncating it.
+api-check:
+	@go run ./tools/apisnap
+	@git diff --exit-code api/v1.txt
 
 # Regenerate gRPC/protobuf code. Requires protoc, protoc-gen-go, protoc-gen-go-grpc.
 proto:

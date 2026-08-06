@@ -101,6 +101,11 @@ break a reader — and they do gain fields inside `v1`. The condition on them is
 you not construct or whole-value compare one: assert on the fields you care about, and a
 later release adding a sixth counter stays invisible to your code.
 
+Their JSON field names are covered too. `api/v1.txt` records struct tags, so renaming
+`json:"status"` is a breaking change even though it moves no Go signature. That applies
+to marshaling a returned struct yourself; the `acor` command's own `--json` output is a
+CLI detail and stays uncovered.
+
 ### Do not expect the exported interfaces to grow
 
 Five exported interfaces can be implemented from outside the module: `Logger`,
@@ -160,6 +165,30 @@ not catch any of them:
 Undocumented detail is not covered. Sort order among equally-ranked matches, the exact
 wording of an error string, allocation counts, and round-trip counts can change in any
 release.
+
+## How the promise is enforced
+
+Most of this page is checked by machine rather than by a reviewer noticing.
+
+`api/v1.txt` in the repository is the covered surface, one symbol per line —
+functions, methods, struct fields, and interface methods. CI regenerates it and fails
+if the result differs from what is committed. A pull request that changes the public
+API therefore has to change that file in the same diff: an addition appends a line, and
+a removal **deletes** one, in front of a reviewer. Nothing stops a removal from being
+merged; what is gone is the possibility of merging one unnoticed.
+
+Two clauses on this page are not covered by that, and both are stated here rather than
+left to be discovered:
+
+- **Documented behavior.** Match ordering, `MatchKind` semantics, `FindSet`'s
+  first-match order — no tool compares these across versions. They are part of the
+  promise and enforced by review only.
+- **Cross-version Redis interop.** Tests pin the key names and hash field names, so a
+  *rename* fails CI. They do not run an older ACOR against a newer one's data, so
+  additive-only is verified as far as naming and no further.
+
+Retractions are checked too: CI fails if `retract [v1.0.0, v1.4.0]` leaves `go.mod`,
+because a release without it silently makes the retracted range resolvable again.
 
 ## Deprecation
 
