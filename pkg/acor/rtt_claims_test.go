@@ -4,6 +4,7 @@ package acor //nolint:errcheck // claim pinning focuses on round-trip counts
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -131,6 +132,97 @@ func TestRTTV2FindIsFixed(t *testing.T) {
 	if cSmall.count() != cLarge.count() {
 		t.Fatalf("V2 Find() cost varies with dictionary size: 10 keywords = %d RTT, 500 keywords = %d RTT; the 'fixed' claim is false",
 			cSmall.count(), cLarge.count())
+	}
+}
+
+// parallelRTTOptions splits the fixture text below into 1, 6, 21, and 63 chunks
+// at the four sizes TestRTTParallelFindIsFixed measures.
+func parallelRTTOptions() *ParallelOptions {
+	return &ParallelOptions{Workers: 4, ChunkSize: 100, Overlap: 5, Boundary: ChunkBoundaryWord}
+}
+
+// TestRTTParallelFindIsFixed pins FindParallel and FindIndexParallel at one round
+// trip whatever the chunk count.
+//
+// They cost one *per chunk* until this test measured it: each chunk called
+// ops.find, and every find reloaded the engine, so a 63-chunk text issued 63
+// HGETALLs of the full outputs hash where serial Find issues one at any input
+// size. A 1 MB input at the default chunk size is roughly 1000 concurrent reads —
+// a burst, not a trickle (#205).
+//
+// Flatness is the claim, not the number 1: a version that regressed to per-chunk
+// loads only above some size would pass a single-size assertion.
+func TestRTTParallelFindIsFixed(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer ac.Close()
+
+	for _, kw := range []string{"he", "her", "him"} {
+		if _, err := ac.Add(kw); err != nil {
+			t.Fatalf("Add(%q) error: %v", kw, err)
+		}
+	}
+
+	opts := parallelRTTOptions()
+	c := countRTT(t, ac)
+	maxChunks := 0
+
+	for _, reps := range []int{8, 40, 160, 480} {
+		text := strings.Repeat("he is here. ", reps)
+		chunks := len(splitChunks(text, opts))
+		maxChunks = max(maxChunks, chunks)
+
+		c.reset()
+		if _, err := ac.FindParallel(text, opts); err != nil {
+			t.Fatalf("FindParallel() error: %v", err)
+		}
+		if got := c.count(); got != 1 {
+			t.Fatalf("FindParallel() over %d chunks = %d round trips, want 1 (published in docs/content/reference/benchmarks.md)", chunks, got)
+		}
+
+		c.reset()
+		if _, err := ac.FindIndexParallel(text, opts); err != nil {
+			t.Fatalf("FindIndexParallel() error: %v", err)
+		}
+		if got := c.count(); got != 1 {
+			t.Fatalf("FindIndexParallel() over %d chunks = %d round trips, want 1", chunks, got)
+		}
+	}
+
+	// Without this the whole test passes vacuously if chunking ever stops
+	// splitting: one chunk at every size proves nothing about a fixed cost.
+	if maxChunks < 20 {
+		t.Fatalf("largest text split into only %d chunks; this test no longer varies chunk count and proves nothing", maxChunks)
+	}
+}
+
+// TestRTTFindManyIsOneRoundTrip pins FindMany at one round trip for the whole
+// batch. It had the same per-call engine load as the parallel paths above — N
+// texts cost N round trips — and the same fix.
+func TestRTTFindManyIsOneRoundTrip(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer ac.Close()
+
+	if _, err := ac.Add("he"); err != nil {
+		t.Fatalf("Add() error: %v", err)
+	}
+
+	c := countRTT(t, ac)
+
+	for _, n := range []int{1, 5, 50} {
+		texts := make([]string, n)
+		for i := range texts {
+			texts[i] = fmt.Sprintf("he is here %d", i)
+		}
+
+		c.reset()
+		if _, err := ac.FindMany(texts); err != nil {
+			t.Fatalf("FindMany() error: %v", err)
+		}
+		if got := c.count(); got != 1 {
+			t.Fatalf("FindMany() over %d texts = %d round trips, want 1", n, got)
+		}
 	}
 }
 
@@ -380,8 +472,22 @@ func TestRTTPublishedTable(t *testing.T) {
 	find := func(ac *AhoCorasick) error { _, err := ac.Find("he is him"); return err }
 	add := func(ac *AhoCorasick) error { _, err := ac.Add("new-keyword"); return err }
 
+	longText := strings.Repeat("he is here. ", 480)
+	chunks := len(splitChunks(longText, parallelRTTOptions()))
+	findParallel := func(ac *AhoCorasick) error {
+		_, err := ac.FindParallel(longText, parallelRTTOptions())
+		return err
+	}
+	findMany := func(ac *AhoCorasick) error {
+		_, err := ac.FindMany([]string{"he is him", "her hat", "nothing here"})
+		return err
+	}
+
 	measure("V2 Find", newV2, addSome, find)
 	measure("V2 Add", newV2, addSome, add)
+	measure(fmt.Sprintf("V2 FindParallel (%d chunks)", chunks), newV2, addSome, findParallel)
+	measure("V2 FindMany (3 texts)", newV2, addSome, findMany)
 	measure("V1 Find (3 keywords)", newV1, addSome, find)
 	measure("V1 Add", newV1, addSome, add)
+	measure(fmt.Sprintf("V1 FindParallel (%d chunks)", chunks), newV1, addSome, findParallel)
 }

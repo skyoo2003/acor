@@ -71,9 +71,10 @@ stays yours.
   the build during `Create`. Both counters are `uint64`, so check `Misses > Rebuilds`
   before subtracting — a write-heavy instance is routinely the other way round, and the
   difference wraps to roughly 1.8e19 rather than going negative.
-- **One read is one scan, not one call.** `FindParallel` and `FindIndexParallel` scan
-  chunk by chunk, so a text split into N chunks adds N to `Hits`+`Misses`. Their hit
-  rate is not comparable to a serial workload's without dividing that out.
+- **One call is one read, whatever it scans.** `FindParallel`, `FindIndexParallel`, and
+  `FindMany` load the automaton once per call and scan every chunk or text against that
+  snapshot, so each adds 1 to `Hits`+`Misses` and their hit rate is directly comparable
+  to a serial workload's. Before `v1.5.0` they loaded per chunk, which added N.
 - **`LastInvalidationLag` needs a listener, and carries clock skew.** It is populated
   only in `Preset` mode and in V2 with `EnableCache`; the other modes subscribe to
   nothing, so a zero there means unavailable, not fast. Where it is populated, the

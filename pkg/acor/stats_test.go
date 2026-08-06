@@ -4,6 +4,7 @@ package acor
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,6 +50,42 @@ func TestCacheStatsUncachedV2(t *testing.T) {
 	if got := ac.CacheStats().RebuildDuration; got <= 0 {
 		t.Errorf("RebuildDuration = %v, want > 0 after a rebuild", got)
 	}
+}
+
+// TestCacheStatsCountsOneReadPerCall pins the accounting CacheStats.Hits
+// documents: one call into ACOR is one read, however many chunks or texts it
+// scans. Before v1.5.0 the multi-scan paths loaded the automaton per chunk, so a
+// 63-chunk text recorded 63 reads and a parallel workload's hit rate was not
+// comparable to a serial one's. The godoc said so; the fix made that false, and
+// this keeps the two from drifting apart again.
+func TestCacheStatsCountsOneReadPerCall(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+
+	if _, err := ac.Add("he"); err != nil {
+		t.Fatal(err)
+	}
+
+	longText := strings.Repeat("he is here. ", 480)
+	opts := parallelRTTOptions()
+	if chunks := len(splitChunks(longText, opts)); chunks < 20 {
+		t.Fatalf("fixture split into %d chunks; this test needs a genuinely multi-chunk text", chunks)
+	}
+
+	if _, err := ac.FindParallel(longText, opts); err != nil {
+		t.Fatal(err)
+	}
+	assertStats(t, ac.CacheStats(), 0, 1, 1)
+
+	if _, err := ac.FindIndexParallel(longText, opts); err != nil {
+		t.Fatal(err)
+	}
+	assertStats(t, ac.CacheStats(), 1, 1, 1)
+
+	if _, err := ac.FindMany([]string{"he", "her", "him", "nothing"}); err != nil {
+		t.Fatal(err)
+	}
+	assertStats(t, ac.CacheStats(), 2, 1, 1)
 }
 
 // TestCacheStatsUncachedV2Rebuilds proves the digest is doing real work: a changed

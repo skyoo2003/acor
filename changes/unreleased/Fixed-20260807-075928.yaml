@@ -1,0 +1,5 @@
+kind: Fixed
+body: FindParallel, FindIndexParallel, and FindMany now cost one Redis round trip per call instead of one per chunk or per text. Each chunk called into Find, and every Find reloaded the automaton, so a 63-chunk text issued 63 HGETALL calls of the full outputs hash where a serial Find issues one at any input size — at the default chunk size a 1 MB input was roughly 1000 concurrent reads. The automaton is now loaded once per call and every chunk or text is scanned against that one snapshot, which also gives them a consistent view of the dictionary that per-chunk loads did not guarantee. CacheStats correspondingly records one read per call rather than N
+time: 2026-08-07T07:59:28.686193+09:00
+custom:
+    Issue: "206"

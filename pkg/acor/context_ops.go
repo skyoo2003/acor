@@ -84,14 +84,28 @@ func (ac *AhoCorasick) RemoveManyContext(ctx context.Context, keywords []string,
 
 // FindManyContext searches for keywords in multiple texts with context.
 func (ac *AhoCorasick) FindManyContext(ctx context.Context, texts []string) (map[string][]string, error) {
-	results := make(map[string][]string)
+	results := make(map[string][]string, len(texts))
+	if len(texts) == 0 {
+		return results, nil
+	}
+
+	// One engine for the whole batch. Calling ops.find per text reloaded it every
+	// time, so N texts cost N round trips where a single Find costs one — the same
+	// defect the parallel paths below had (#205).
+	eng, err := ac.ops.loadEngine(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, text := range texts {
-		matches, err := ac.ops.find(ctx, text)
-		if err != nil {
+		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		results[text] = matches
+		if text == "" {
+			results[text] = []string{}
+			continue
+		}
+		results[text] = eng.Find(normalizeText(text, ac.caseSensitive))
 	}
 
 	return results, nil
@@ -104,14 +118,36 @@ func (ac *AhoCorasick) FindParallelContext(ctx context.Context, text string, opt
 	if opts.ChunkSize <= 0 {
 		return nil, ErrInvalidChunkSize
 	}
+	// Before loadEngine: an empty text has never touched Redis, and loading an
+	// engine to scan nothing with would newly cost a round trip.
+	if text == "" {
+		return []string{}, nil
+	}
 
 	chunks := splitChunks(text, opts)
 	if len(chunks) == 0 {
 		return []string{}, nil
 	}
 
+	// One engine for the whole call, not one per chunk. Each ops.find reloaded it,
+	// so an N-chunk text cost N round trips where serial Find costs one at any
+	// input size — the fixed read cost V2 is built around (#205). Loading once also
+	// gives every chunk the same dictionary snapshot, which per-chunk loads did not
+	// guarantee.
+	eng, err := ac.ops.loadEngine(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	perChunk, err := scanChunks(ctx, chunks, opts.Workers, func(ctx context.Context, c chunk) ([]string, error) {
-		return ac.ops.find(ctx, c.text)
+		// Per chunk, not once above: the in-memory scan is not ctx-threaded, and in
+		// Preset mode loadEngine touches no Redis, so this is the only place a
+		// canceled context is noticed. Checking here also stops chunks that have not
+		// started yet, which the old per-chunk ops.find did.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		return eng.Find(normalizeText(c.text, ac.caseSensitive)), nil
 	})
 	if err != nil {
 		return nil, err
@@ -130,14 +166,27 @@ func (ac *AhoCorasick) FindIndexParallelContext(ctx context.Context, text string
 	if opts.ChunkSize <= 0 {
 		return nil, ErrInvalidChunkSize
 	}
+	// See FindParallelContext: empty text stays off Redis.
+	if text == "" {
+		return map[string][]int{}, nil
+	}
 
 	chunks := splitChunks(text, opts)
 	if len(chunks) == 0 {
 		return map[string][]int{}, nil
 	}
 
+	// One engine for the whole call; see FindParallelContext.
+	eng, err := ac.ops.loadEngine(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	perChunk, err := scanChunks(ctx, chunks, opts.Workers, func(ctx context.Context, c chunk) (map[string][]int, error) {
-		return ac.ops.findIndex(ctx, c.text)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		return eng.FindIndex(normalizeText(c.text, ac.caseSensitive)), nil
 	})
 	if err != nil {
 		return nil, err
