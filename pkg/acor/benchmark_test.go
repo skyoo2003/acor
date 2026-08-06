@@ -42,10 +42,13 @@ func BenchmarkFindV1(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer func() { _ = ac.Close() }()
+	ac = v1Writable(b, ac)
 
 	keywords := []string{"he", "she", "his", "hers", "hello", "world", "benchmark"}
 	for _, kw := range keywords {
-		_, _ = ac.Add(kw)
+		if _, err := ac.Add(kw); err != nil {
+			b.Fatalf("Add(%q) error: %v", kw, err)
+		}
 	}
 
 	input := benchmarkInputText
@@ -121,10 +124,15 @@ func BenchmarkAddV1(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer func() { _ = ac.Close() }()
+	// V1 takes no new keywords, so the writes under measurement go through the
+	// fixture writer. See BenchmarkRealServerAdd for why V1 stays in the comparison.
+	ac = v1Writable(b, ac)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = ac.Add(fmt.Sprintf("keyword%d", i))
+		if _, err := ac.Add(fmt.Sprintf("keyword%d", i)); err != nil {
+			b.Fatalf("Add() error: %v", err)
+		}
 	}
 }
 
