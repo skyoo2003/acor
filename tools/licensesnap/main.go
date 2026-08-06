@@ -166,16 +166,17 @@ func run() error {
 		out.WriteString(indent(text))
 
 		for _, extra := range extraNames {
-			// A dependency's own NOTICE must not be confused with its license
-			// file; skip the case where the two are the same file.
-			if extra == name {
-				continue
-			}
 			// Path comes from `go list`, not from user input.
 			b, err := os.ReadFile(filepath.Join(m.dir, extra)) //nolint:gosec
+			// Any read error other than absence is a term this file was
+			// supposed to reproduce and now silently would not, so it fails
+			// rather than continues.
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("read %s for %s: %w", extra, m.path, err)
+			}
 			// Absent is the common case, and an empty NOTICE is what
 			// google.golang.org/grpc ships — neither is worth a heading.
-			if err != nil || strings.TrimSpace(string(b)) == "" {
+			if strings.TrimSpace(string(b)) == "" {
 				continue
 			}
 			fmt.Fprintf(out, "\n%s (%s):\n\n", extra, m.path)
@@ -183,8 +184,11 @@ func run() error {
 		}
 	}
 
-	fmt.Print(out.String())
-	return nil
+	// Checked, unlike fmt.Print: stdout is redirected into the file that becomes
+	// NOTICE, so a short write here would otherwise exit 0 with a truncated
+	// attribution — the very thing the temp file in the Makefile guards against.
+	_, writeErr := os.Stdout.WriteString(out.String())
+	return writeErr
 }
 
 // modules returns everything the target binary bundles: the third-party modules
@@ -296,6 +300,12 @@ func licenseText(m module) (text, filename string, err error) {
 		if readErr == nil {
 			return string(b), name, nil
 		}
+		// A license that is present but unreadable is not the same as one that
+		// is absent, and reporting it as absent would send the reader looking
+		// for a file that is sitting right there.
+		if !errors.Is(readErr, os.ErrNotExist) {
+			return "", "", fmt.Errorf("read %s for %s: %w", name, m.path, readErr)
+		}
 	}
 	return "", "", fmt.Errorf("no license file in %s for %s (tried %s)", m.dir, m.path, strings.Join(licenseNames, ", "))
 }
@@ -304,10 +314,13 @@ func licenseText(m module) (text, filename string, err error) {
 // where an upstream text starts and stops. Blank lines stay empty rather than
 // becoming trailing whitespace, which the trailing-whitespace and
 // end-of-file-fixer hooks would otherwise rewrite on commit and break the gate.
+// The carriage return of a CRLF upstream text is trimmed for the same reason:
+// .gitattributes normalizes NOTICE to LF, so leaving it in would make the file
+// differ from its own regenerated form on every run.
 func indent(s string) string {
 	var b strings.Builder
 	for line := range strings.SplitSeq(strings.TrimRight(s, "\n"), "\n") {
-		if line = strings.TrimRight(line, " \t"); line == "" {
+		if line = strings.TrimRight(line, " \t\r"); line == "" {
 			b.WriteString("\n")
 			continue
 		}

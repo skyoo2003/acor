@@ -37,6 +37,13 @@ jobs:
           echo "::error::Run 'changie batch ${{ github.ref_name }}' and 'changie merge' before pushing the tag."
           exit 1
         fi
+    # The obligation attaches at redistribution, so it is gated here and not only
+    # in CI: the CI job is path-filtered, and a tag can be pushed at a commit
+    # whose merge never matched those paths. Runs before GoReleaser so a stale
+    # NOTICE fails the release rather than shipping inside the archives, the
+    # images, and the brew bottle.
+    - name: Check third-party notices
+      run: make license-check
     # Short-lived token scoped to the homebrew-tap repository only, for the
     # brews section in .goreleaser.yaml, which owns the tap coordinates. The
     # owner defaults to this repository's owner. Expires with the job, so
