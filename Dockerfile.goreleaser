@@ -6,6 +6,9 @@ WORKDIR /acor
 ARG TARGETOS
 ARG TARGETARCH
 COPY ${TARGETOS}/${TARGETARCH}/acor /usr/bin/acor
+# Supplied via extra_files in .goreleaser.yaml. The image redistributes the
+# binary, so the notices its MIT/BSD dependencies require have to travel with it.
+COPY LICENSE NOTICE /usr/share/doc/acor/
 
 USER appuser
 ENTRYPOINT ["acor"]

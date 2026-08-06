@@ -19,6 +19,10 @@ on:
       - "benchmarks/go.sum"
       - ".github/workflows/*.yaml"
       - ".golangci.yaml"
+      # The attribution file itself: a PR that edits only NOTICE is a PR that
+      # records a third-party attribution change, which is precisely the case the
+      # gate must not skip.
+      - "NOTICE"
   pull_request:
     branches:
       - main
@@ -37,6 +41,10 @@ on:
       - "benchmarks/go.sum"
       - ".github/workflows/*.yaml"
       - ".golangci.yaml"
+      # The attribution file itself: a PR that edits only NOTICE is a PR that
+      # records a third-party attribution change, which is precisely the case the
+      # gate must not skip.
+      - "NOTICE"
 
 permissions:
   contents: read
@@ -120,6 +128,15 @@ jobs:
         run: make build
       - name: Verify documentation examples compile
         run: make docs-verify
+      # Pinned to one matrix leg: the check is a git diff of generated text, so it
+      # is platform-independent and running it four times would add no signal. A
+      # failure means the set of modules linked into the acor binary changed without
+      # NOTICE being regenerated, which would ship the release archives and images
+      # with a dependency's copyright notice stripped — something the MIT and BSD
+      # licenses those dependencies carry do not permit.
+      - name: Check third-party notices
+        if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
+        run: make license-check
 
   integration:
     name: Integration (${{ matrix.server }})

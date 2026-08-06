@@ -44,6 +44,17 @@ repos:
         language: system
         files: '(\.go|go\.mod|go\.sum)$'
         pass_filenames: false
+      # Catches a dependency change that alters what the acor binary links before
+      # NOTICE is regenerated to match. Includes *.go, not just the manifests:
+      # miniredis and gopher-lua are already required but test-only, so the commit
+      # that first imports one from production code moves it into the binary while
+      # touching no manifest at all.
+      - id: license-check
+        name: third-party notices
+        entry: make license-check
+        language: system
+        files: '(\.go|go\.mod|go\.sum|NOTICE)$'
+        pass_filenames: false
       - id: add-spdx-header
         name: Add SPDX license header
         entry: python3 scripts/add-spdx-header.py

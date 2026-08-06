@@ -21,6 +21,9 @@ builds:
   # with whatever the user downloaded.
   ldflags:
   - -s -w -X main.version={{ .Version }}
+  # Mirrored by releaseGOOS in tools/licensesnap/main.go: `go list` resolves
+  # imports against GOOS, so an OS added here without being added there ships
+  # that platform's modules unattributed.
   goos:
   - darwin
   - linux
@@ -48,6 +51,11 @@ archives:
     formats: [ zip ]
   files:
     - LICENSE
+    # The MIT and BSD licenses of the modules linked into the binary all require
+    # their copyright notice and license text be reproduced in binary
+    # redistributions. NOTICE carries them, so it has to be in the archive, not
+    # merely in the repository.
+    - NOTICE
     - README.md
     - CHANGELOG.md
     - CODE_OF_CONDUCT.md
@@ -74,6 +82,10 @@ brews:
   license: "Apache-2.0"
   install: |
     bin.install "acor"
+    # A bottle contains the installed prefix, not the archive it was built from,
+    # so the notices have to be installed to survive a `brew install`. Adding them
+    # to archives.files above is not enough on its own.
+    doc.install "LICENSE", "NOTICE"
   # Every real command needs a Redis/Valkey server, so the only things assertable
   # here are the stamped version and the usage text on exit code 2.
   test: |
@@ -86,6 +98,13 @@ dockers_v2:
   dockerfile: Dockerfile.goreleaser
   ids:
   - acor
+  # Puts these in the build context so the Dockerfile can COPY them. An image is a
+  # binary redistribution too, so it owes the same notices as the archive; without
+  # this the image would ship the binary with every dependency's copyright notice
+  # stripped.
+  extra_files:
+  - LICENSE
+  - NOTICE
   sbom: false
   flags:
   - "--provenance=false"

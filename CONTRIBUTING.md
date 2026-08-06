@@ -146,7 +146,17 @@ make fuzz
 make all
 ```
 
-This runs vet, lint, test, and build.
+This runs vet, lint, test, build, docs-verify, and license-check.
+
+### Third-Party Notices
+
+```sh
+make license-check
+```
+
+Regenerates `NOTICE` from the modules linked into the `acor` binary and fails if
+the committed file is out of date. Adding a dependency fails this target until
+its license is read by hand and recorded in `tools/licensesnap/main.go`.
 
 ### Cleaning
 

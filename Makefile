@@ -1,11 +1,11 @@
-.PHONY: all setup clean build test lint lint-fix coverage vet fuzz bench bench-module race docs-verify proto tidy-check
+.PHONY: all setup clean build test lint lint-fix coverage vet fuzz bench bench-module race docs-verify license-check proto tidy-check
 
 # Pin golangci-lint so local `make lint` matches CI (see .github/workflows/ci.yaml).
 # Run via `go run` so the installed binary's version can't drift from CI.
 GOLANGCI_LINT_VERSION ?= v2.11.3
 GOLANGCI_LINT ?= go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
-all: vet lint test build docs-verify
+all: vet lint test build docs-verify license-check
 
 setup:
 	@pre-commit install
@@ -33,6 +33,22 @@ tidy-check:
 
 docs-verify:
 	@go run ./tools/doccheck README.md $$(find docs/content -name '*.md')
+
+# Gate on the third-party attribution in NOTICE. Same shape as tidy-check: the
+# file is rewritten in place, and the diff against the committed one is what fails
+# the check. Scoped to ./cmd/acor because that binary is the only thing this
+# project redistributes, and redistribution is what triggers the obligation — so a
+# dependency change that alters what the binary links has to change NOTICE too.
+# The generator fails on a dependency whose license it cannot identify rather than
+# guessing, which is why adding a dependency can break this target.
+#
+# Generated via a temp file rather than redirecting straight into NOTICE: the
+# shell truncates the target before the generator runs, so an unidentified
+# dependency would otherwise leave the attribution file empty in the working
+# tree, one `commit -a --no-verify` away from shipping.
+license-check:
+	@go run ./tools/licensesnap > NOTICE.tmp && mv NOTICE.tmp NOTICE || { rm -f NOTICE.tmp; exit 1; }
+	@git diff --exit-code NOTICE
 
 # Regenerate gRPC/protobuf code. Requires protoc, protoc-gen-go, protoc-gen-go-grpc.
 proto:
