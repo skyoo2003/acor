@@ -79,6 +79,10 @@ brews:
   license: "Apache-2.0"
   install: |
     bin.install "acor"
+    # A bottle contains the installed prefix, not the archive it was built from,
+    # so the notices have to be installed to survive a `brew install`. Adding them
+    # to archives.files above is not enough on its own.
+    doc.install "LICENSE", "NOTICE"
   # Every real command needs a Redis/Valkey server, so the only things assertable
   # here are the stamped version and the usage text on exit code 2.
   test: |
