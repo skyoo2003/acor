@@ -10,15 +10,26 @@ import (
 	"io"
 	"slices"
 	"unicode"
-
-	matchengine "github.com/skyoo2003/acor/internal/engine"
 )
 
 // Match is a single keyword occurrence in the searched text. Start and End are
 // rune offsets forming the half-open span [Start, End), consistent with
-// FindIndex's rune-based offsets. Re-exported from the internal engine package so
-// callers depend only on the public acor API.
-type Match = matchengine.Match
+// FindIndex's rune-based offsets. Matches are reported in scan order, by end
+// position.
+type Match struct {
+	// Keyword is the matched dictionary entry, as it was added.
+	Keyword string
+	// Start is the rune offset where the match begins, inclusive.
+	Start int
+	// End is the rune offset where the match ends, exclusive.
+	End int
+}
+
+// matchResultHint is the starting capacity for a match slice. Text that matches
+// nothing is the common case, so it only has to absorb the first few appends on
+// text that does match; sizing it to the dictionary would allocate far more than a
+// single scan needs.
+const matchResultHint = 8
 
 // MatchKind selects how overlapping matches are reported by FindMatches.
 type MatchKind int
@@ -114,7 +125,17 @@ func (ac *AhoCorasick) findMatches(ctx context.Context, dst []Match, text string
 	// would read out of range, and leftmostLongest could drop the caller's earlier
 	// results.
 	base := len(dst)
-	matches := eng.FindMatchesAppend(dst, norm)
+	matches := dst
+	eng.MatchString(norm, func(keyword string, start, end int) bool {
+		if matches == nil {
+			matches = make([]Match, 0, matchResultHint)
+		}
+		matches = append(matches, Match{Keyword: keyword, Start: start, End: end})
+		return true
+	})
+	if matches == nil {
+		matches = []Match{}
+	}
 	if opts != nil {
 		found := matches[base:]
 		// Guard the []rune conversion: on the common zero-match path (a clean doc
@@ -252,7 +273,9 @@ func (ac *AhoCorasick) FindStreamContext(ctx context.Context, r io.Reader, onMat
 		return ru, true
 	}
 
-	eng.Stream(next, onMatch)
+	eng.Stream(next, func(keyword string, start, end int) bool {
+		return onMatch(Match{Keyword: keyword, Start: start, End: end})
+	})
 	return scanErr
 }
 

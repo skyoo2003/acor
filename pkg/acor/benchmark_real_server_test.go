@@ -58,6 +58,9 @@ func BenchmarkRealServerFind(b *testing.B) {
 			b.Run(fmt.Sprintf("%s/%dkw", tc.name, n), func(b *testing.B) {
 				args := *tc.args
 				ac := newRealServerAC(b, fmt.Sprintf("bench-find-%s-%d", tc.name, n), &args)
+				if args.SchemaVersion == SchemaV1 {
+					ac = v1Writable(b, ac)
+				}
 				for i := range n {
 					if _, err := ac.Add(fmt.Sprintf("keyword%d", i)); err != nil {
 						b.Fatalf("Add() error: %v", err)
@@ -90,6 +93,14 @@ func BenchmarkRealServerAdd(b *testing.B) {
 		b.Run(tc.name, func(b *testing.B) {
 			args := *tc.args
 			ac := newRealServerAC(b, "bench-add-"+tc.name, &args)
+			// V1 is measured through the fixture writer rather than dropped from the
+			// comparison. docs/content/reference/benchmarks.md uses V1 as the baseline
+			// for every table and rests its case for V2 on V1's per-node write cost,
+			// so deleting this case would leave those published numbers unverifiable.
+			// The wrapper calls the same writeKeyword that Add used to reach.
+			if args.SchemaVersion == SchemaV1 {
+				ac = v1Writable(b, ac)
+			}
 
 			b.ResetTimer()
 			for i := range b.N {
@@ -129,6 +140,12 @@ func TestRTTAgainstRealServer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			args := *tc.args
 			ac := newRealServerAC(t, "rtt-real-"+tc.name, &args)
+			// V1 rejects Add in every build, so its fixture goes through the writer
+			// that path used to reach. The claim under measurement is a read-path
+			// round-trip count, which the wrapper does not touch.
+			if args.SchemaVersion == SchemaV1 {
+				ac = v1Writable(t, ac)
+			}
 			for _, kw := range tc.seed {
 				if _, err := ac.Add(kw); err != nil {
 					t.Fatalf("Add(%q) error: %v", kw, err)

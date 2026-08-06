@@ -78,7 +78,7 @@ func newRedisBacked(ctx context.Context, args *AhoCorasickArgs) (*redisBackedAC,
 	acCtx, acCancel := context.WithCancel(context.Background())
 
 	ac := &redisBackedAC{
-		engine:        matchengine.New(preset),
+		engine:        matchengine.New(enginePreset(preset)),
 		preset:        preset,
 		caseSensitive: args.CaseSensitive,
 		name:          args.Name,
@@ -156,7 +156,7 @@ func (ac *redisBackedAC) initTrie(ctx context.Context) error {
 // obtained under RLock stays immutable after the lock is released — this is what
 // makes lock-free scanning (loadEngine) and long-running streaming safe.
 func buildEngine(preset Preset, keywordSet map[string]struct{}) *matchengine.Engine {
-	e := matchengine.New(preset)
+	e := matchengine.New(enginePreset(preset))
 	e.Build(keywordSet)
 	return e
 }

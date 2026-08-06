@@ -96,7 +96,7 @@ func BenchmarkEngineBuild(b *testing.B) {
 			b.Run(fmt.Sprintf("%s/%dkw", preset.String(), n/1000), func(b *testing.B) {
 				b.ResetTimer()
 				for range b.N {
-					eng := matchengine.New(preset)
+					eng := matchengine.New(enginePreset(preset))
 					eng.Build(kwSet)
 				}
 			})
@@ -132,6 +132,37 @@ func BenchmarkPresetFindIndex(b *testing.B) {
 			for range b.N {
 				ac.FindIndex(rbBenchInputText)
 			}
+		})
+	}
+}
+
+// BenchmarkPresetFindMatches covers the Match path, the one public read API whose
+// result type crosses the engine boundary. The append case reuses a single buffer
+// across iterations, which is the whole reason FindMatchesAppend exists, so it is
+// where a regression in that boundary would show up first.
+func BenchmarkPresetFindMatches(b *testing.B) {
+	keywords := []string{"he", "she", "his", "hers", "hello", "world"}
+	for _, preset := range allPresets() {
+		b.Run(preset.String(), func(b *testing.B) {
+			ac := newBenchPreset(b, preset)
+			for _, kw := range keywords {
+				ac.Add(kw)
+			}
+			b.Run("fresh", func(b *testing.B) {
+				b.ReportAllocs()
+				b.ResetTimer()
+				for range b.N {
+					_, _ = ac.FindMatches(rbBenchInputText, nil)
+				}
+			})
+			b.Run("append", func(b *testing.B) {
+				buf := make([]Match, 0, 64)
+				b.ReportAllocs()
+				b.ResetTimer()
+				for range b.N {
+					buf, _ = ac.FindMatchesAppend(buf[:0], rbBenchInputText, nil)
+				}
+			})
 		})
 	}
 }

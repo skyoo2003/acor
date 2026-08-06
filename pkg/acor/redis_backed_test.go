@@ -79,15 +79,6 @@ func TestPresetAddFind(t *testing.T) {
 			text:     "한글과 일본어",
 			want:     []string{"한글", "일본어"},
 		},
-		{
-			// Guards the deprecated PresetUltimate alias: it must keep resolving to a
-			// working engine, or code that still names it breaks silently.
-			name:     "deprecated ultimate alias",
-			preset:   PresetUltimate,
-			keywords: []string{"abc", "bc", "c"},
-			text:     "abc",
-			want:     []string{"abc", "bc", "c"},
-		},
 	}
 
 	for _, tt := range tests {

@@ -209,7 +209,7 @@ func (ac *redisBackedAC) info(_ context.Context) (*AhoCorasickInfo, error) {
 	return &AhoCorasickInfo{
 		Keywords:    mi.Keywords,
 		Nodes:       mi.Nodes,
-		Preset:      mi.Preset,
+		Preset:      presetFromEngine(mi.Preset),
 		MemoryBytes: mi.MemoryBytes,
 		TrieDepth:   mi.TrieDepth,
 	}, nil

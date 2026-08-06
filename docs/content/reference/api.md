@@ -282,7 +282,6 @@ const (
     PresetSpeed                         // Full DFA + flat array — max speed, higher memory
     PresetBalanced                      // Double-Array Trie + Banded DFA — best speed-to-memory ratio
     PresetMemoryEfficient               // Map-based + Bloom filter — min memory, slower search
-    // PresetUltimate is a deprecated alias for PresetBalanced.
 )
 ```
 

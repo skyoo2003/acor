@@ -58,13 +58,9 @@ func indexOutputChain(dst map[string][]int, state, end int, own []string, outLin
 	}
 }
 
-func emitOutputChain(state, end int, own []string, outLink []int32, asciiOnly bool, emit func(Match) bool) bool {
+func emitOutputChain(state, end int, own []string, outLink []int32, asciiOnly bool, emit func(keyword string, start, end int) bool) bool {
 	for s := state; s != outNone; s = int(outLink[s]) {
-		if kw := own[s]; kw != "" && !emit(Match{
-			Keyword: kw,
-			Start:   end - runeLen(kw, asciiOnly),
-			End:     end,
-		}) {
+		if kw := own[s]; kw != "" && !emit(kw, end-runeLen(kw, asciiOnly), end) {
 			return false
 		}
 	}

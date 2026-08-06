@@ -187,6 +187,10 @@ func TestIntegrationMigration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create(V1) error: %v", err)
 	}
+	// Add returns ErrV1ReadOnly in every build, so the fixture is written through the
+	// writer that path used to reach. What this test exercises is the migration of a
+	// real V1 layout, which is exactly what hand-seeded keys would only approximate.
+	v1 = v1Writable(t, v1)
 	for _, kw := range []string{"he", "she", "his"} {
 		if _, addErr := v1.Add(kw); addErr != nil {
 			_ = v1.Close()

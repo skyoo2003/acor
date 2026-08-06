@@ -277,7 +277,7 @@ func (e *balancedEngine) findIndex(text string) map[string][]int {
 // matchString is matchStream with the runes read straight off the string. The
 // loop body deliberately duplicates matchStream's instead of sharing a helper
 // that takes a step closure, which would reintroduce the indirect call per rune.
-func (e *balancedEngine) matchString(text string, emit func(Match) bool) {
+func (e *balancedEngine) matchString(text string, emit func(keyword string, start, end int) bool) {
 	dat := e.banded.dat
 	if dat.size <= datRootPos+1 {
 		return
@@ -303,7 +303,7 @@ func (e *balancedEngine) matchString(text string, emit func(Match) bool) {
 	}
 }
 
-func (e *balancedEngine) matchStream(next func() (rune, bool), emit func(Match) bool) {
+func (e *balancedEngine) matchStream(next func() (rune, bool), emit func(keyword string, start, end int) bool) {
 	dat := e.banded.dat
 	if dat.size <= datRootPos+1 {
 		return

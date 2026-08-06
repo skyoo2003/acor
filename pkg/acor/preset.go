@@ -4,39 +4,85 @@ package acor
 
 import "github.com/skyoo2003/acor/internal/engine"
 
-// Preset selects the architecture for the in-memory Aho-Corasick engine.
-// See the engine presets for the trade-offs each option makes between speed,
-// memory, and feature set. The preset is fixed at creation time.
-type Preset = engine.Preset
+// Preset selects the architecture for the in-memory Aho-Corasick engine. Each
+// value names a different trade-off between speed, memory, and feature set,
+// documented on the constant. The preset is fixed at creation time.
+type Preset int
 
-// InMemoryInfo contains statistics about an in-memory Aho-Corasick engine.
-// Re-exported from the internal engine package so callers depend only on the
-// public acor API.
-type InMemoryInfo = engine.InMemoryInfo
-
-// Preset values re-exported from the internal engine package so callers depend
-// only on the public acor API.
 const (
 	// PresetNone is the zero value (unset). Create falls through to the original
 	// V1/V2 Redis-backed mode when Preset is PresetNone.
-	PresetNone = engine.PresetNone
+	PresetNone Preset = iota
 	// PresetSpeed prioritizes maximum search speed (Full DFA, flat array trie).
-	PresetSpeed = engine.PresetSpeed
+	// Trade-off: memory grows with states × alphabet size.
+	PresetSpeed
 	// PresetBalanced provides the best speed-to-memory ratio (DAT + Banded DFA).
-	PresetBalanced = engine.PresetBalanced
+	PresetBalanced
 	// PresetMemoryEfficient minimizes memory usage (map-based sparse trie + Bloom).
-	PresetMemoryEfficient = engine.PresetMemoryEfficient
-	// PresetUltimate is an alias for PresetBalanced. It used to add a root-state
-	// first-rune Bloom pre-filter, which measured 1.7-1.8x slower than Balanced on
-	// every benchmark in the repository, on ASCII and multibyte text alike: the
-	// per-character filter check cost more than the trie work it skipped, and it
-	// blocked the byte-scan fast path an ASCII dictionary can take. Existing code
-	// keeps compiling and now gets the faster engine.
-	//
-	// Deprecated: use PresetBalanced.
-	PresetUltimate = engine.PresetBalanced
+	// Trade-off: slower search from failure-link traversal and map lookups.
+	PresetMemoryEfficient
 )
 
 // presetDefault is an internal sentinel (-1) meaning "unset"; it behaves
 // identically to PresetNone and is not part of the public API.
-const presetDefault = engine.PresetDefault
+const presetDefault Preset = -1
+
+// String returns the preset name, or "Unknown" for a value outside the set.
+func (p Preset) String() string {
+	switch p {
+	case PresetNone:
+		return "None"
+	case PresetSpeed:
+		return "Speed"
+	case PresetBalanced:
+		return "Balanced"
+	case PresetMemoryEfficient:
+		return "MemoryEfficient"
+	case presetDefault:
+		return "Default"
+	default:
+		return "Unknown"
+	}
+}
+
+// enginePreset maps a public preset onto the internal engine's own enum.
+//
+// The two enums are mapped by name, not converted numerically: this package's
+// values are frozen by the v1 compatibility promise while the engine's are free
+// to be reordered, and a numeric cast would silently repoint a preset at a
+// different architecture the first time that happened.
+func enginePreset(p Preset) engine.Preset {
+	switch p {
+	case PresetNone:
+		return engine.PresetNone
+	case PresetSpeed:
+		return engine.PresetSpeed
+	case PresetBalanced:
+		return engine.PresetBalanced
+	case PresetMemoryEfficient:
+		return engine.PresetMemoryEfficient
+	case presetDefault:
+		return engine.PresetDefault
+	default:
+		// The engine resolves an unrecognized preset to Balanced; mapping it here
+		// keeps that behavior explicit instead of relying on the engine's default.
+		return engine.PresetBalanced
+	}
+}
+
+// presetFromEngine maps an engine preset back for reporting in AhoCorasickInfo.
+// Only the three architectures an engine can report reach this: None and Default
+// select an implementation but are never reported back by one.
+func presetFromEngine(p engine.Preset) Preset {
+	switch p {
+	case engine.PresetSpeed:
+		return PresetSpeed
+	case engine.PresetMemoryEfficient:
+		return PresetMemoryEfficient
+	case engine.PresetNone, engine.PresetBalanced, engine.PresetDefault:
+		return PresetBalanced
+	}
+	// A preset added to the engine but not mapped here: Balanced is the engine's own
+	// fallback for an unrecognized value, so reporting it keeps Info honest.
+	return PresetBalanced
+}

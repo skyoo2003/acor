@@ -16,7 +16,7 @@ type setFinder interface {
 
 // container is the optional specialization behind Engine.Contains. Routing a
 // presence check through matchString was the most expensive of the cheap
-// operations: it missed the byte-scan fast path on ASCII text and built a Match
+// operations: it missed the byte-scan fast path on ASCII text and reported a match
 // (including a RuneCountInString) per hit only to discard it. On 1000 keywords
 // over a 640 B text it went from 1,147 to 666 ns with no match, 77 to 25 ns with
 // one, and two allocations to zero.
@@ -150,7 +150,7 @@ func (e *Engine) Build(keywords map[string]struct{}) {
 	e.impl.buildFromKeywords(keywords)
 }
 
-// Find returns the keywords found in text. Like FindMatches it is never nil (an
+// Find returns the keywords found in text. It is never nil (an
 // automaton with no keywords yields an empty slice), so callers can hand it
 // straight to a JSON encoder or compare it without a nil special case.
 func (e *Engine) Find(text string) []string {
@@ -163,41 +163,28 @@ func (e *Engine) FindIndex(text string) map[string][]int {
 	return e.impl.findIndex(text)
 }
 
-// FindMatches returns every match (overlaps included) in text, in scan order,
-// each carrying its keyword and rune-offset span.
-func (e *Engine) FindMatches(text string) []Match {
-	return e.FindMatchesAppend(nil, text)
-}
-
-// FindMatchesAppend appends matches to dst and returns the extended slice, so a
-// caller scanning many texts can reuse one buffer instead of allocating a result
-// slice per call. dst may be nil.
-func (e *Engine) FindMatchesAppend(dst []Match, text string) []Match {
-	out := dst
-	e.impl.matchString(text, func(m Match) bool {
-		if out == nil {
-			out = make([]Match, 0, findResultHint)
-		}
-		out = append(out, m)
-		return true
-	})
-	if out == nil {
-		return []Match{}
-	}
-	return out
+// MatchString reports every match (overlaps included) in text to emit in scan
+// order, passing each keyword with its rune-offset span [start, end). It stops
+// early if emit returns false.
+//
+// The match type itself lives in the public acor package rather than here, so
+// callers assemble their own values. Declaring it here would put an internal type
+// on acor's public API, and a []Match cannot be converted at the boundary.
+func (e *Engine) MatchString(text string, emit func(keyword string, start, end int) bool) {
+	e.impl.matchString(text, emit)
 }
 
 // Contains reports whether text contains any keyword, stopping at the first hit.
 func (e *Engine) Contains(text string) bool {
 	// An engine that can answer presence without positions does so directly; the
-	// generic path below pays UTF-8 decoding, a Match struct, and a heap-boxed
+	// generic path below pays UTF-8 decoding, a match span, and a heap-boxed
 	// capture for a bool.
 	if c, ok := e.impl.(container); ok {
 		return c.contains(text)
 	}
 
 	found := false
-	e.impl.matchString(text, func(Match) bool {
+	e.impl.matchString(text, func(string, int, int) bool {
 		found = true
 		return false
 	})
@@ -211,7 +198,7 @@ func (e *Engine) Contains(text string) bool {
 // the per-occurrence slice, which on match-dense text is most of the work.
 func (e *Engine) FindSet(text string) []string {
 	// An engine that can answer this without positions does so directly; the
-	// generic path below pays for a Match struct and a closure call per occurrence,
+	// generic path below pays for a match span and a closure call per occurrence,
 	// all of which a set query throws away.
 	if sf, ok := e.impl.(setFinder); ok {
 		return sf.findSet(text)
@@ -221,8 +208,8 @@ func (e *Engine) FindSet(text string) []string {
 	// is the common case for a filter, and it should not pay for the bookkeeping of
 	// a hit that never happened.
 	var c setCollector
-	e.impl.matchString(text, func(m Match) bool {
-		c.addKeyword(m.Keyword)
+	e.impl.matchString(text, func(keyword string, _, _ int) bool {
+		c.addKeyword(keyword)
 		return true
 	})
 	return c.result()
@@ -231,7 +218,7 @@ func (e *Engine) FindSet(text string) []string {
 // Stream pulls runes from next (rune-global offsets accumulate across calls) and
 // reports every match to emit until next is exhausted or emit returns false.
 // It lets callers scan an io.Reader without materializing the whole input.
-func (e *Engine) Stream(next func() (rune, bool), emit func(Match) bool) {
+func (e *Engine) Stream(next func() (rune, bool), emit func(keyword string, start, end int) bool) {
 	e.impl.matchStream(next, emit)
 }
 

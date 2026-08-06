@@ -8,12 +8,17 @@ const (
 	// V1 uses multiple Redis keys: one per prefix, suffix, output, and node, so a
 	// collection's key count grows with the dictionary.
 	//
-	// It stays readable and writable so existing collections keep working, and
-	// MigrateV1ToV2 converts them in place. It gains no new features: Preset engines
-	// and EnableCache both require V2.
+	// V1 collections are read-only as of v1.5.0: Find, FindIndex, Suggest, Info, and
+	// Flush work, MigrateV1ToV2 converts a collection in place, and Add and Remove
+	// return ErrV1ReadOnly. Selecting V1 for a fresh collection therefore produces one
+	// that can never gain a keyword — it exists so collections written by an earlier
+	// release can still be read and migrated.
 	//
-	// Deprecated: use SchemaV2 (the default). New collections should not select V1;
-	// support for it may be removed in a future major version.
+	// It gains no features either: Preset engines and EnableCache both require V2.
+	//
+	// Deprecated: use SchemaV2 (the default) and migrate existing collections with
+	// MigrateV1ToV2. The read path stays for the whole v1 line and is removed no
+	// earlier than v2.
 	SchemaV1 = 1
 	// SchemaV2 represents the current V2 schema version (default).
 	// V2 consolidates data into 3 Redis keys using JSON and Lua scripts.

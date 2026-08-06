@@ -30,7 +30,7 @@ func buildEngineFromOutputs(outputs map[string][]string) *matchengine.Engine {
 			keywords[kw] = struct{}{}
 		}
 	}
-	engine := matchengine.New(PresetBalanced)
+	engine := matchengine.New(enginePreset(PresetBalanced))
 	engine.Build(keywords)
 	return engine
 }

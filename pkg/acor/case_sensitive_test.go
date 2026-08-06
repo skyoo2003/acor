@@ -44,7 +44,7 @@ func createAhoCorasickCaseSensitiveV1(t *testing.T) (*AhoCorasick, *miniredis.Mi
 		mr.Close()
 		t.Fatal(err)
 	}
-	return ac, mr
+	return v1Writable(t, ac), mr
 }
 
 func createAhoCorasickWithOpts(t *testing.T, schemaVersion int, caseSensitive bool) (*AhoCorasick, *miniredis.Miniredis) {
@@ -62,6 +62,9 @@ func createAhoCorasickWithOpts(t *testing.T, schemaVersion int, caseSensitive bo
 	if err != nil {
 		mr.Close()
 		t.Fatal(err)
+	}
+	if schemaVersion == SchemaV1 {
+		return v1Writable(t, ac), mr
 	}
 	return ac, mr
 }
