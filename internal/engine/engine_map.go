@@ -195,7 +195,7 @@ func (e *memEfficientEngine) findIndex(text string) map[string][]int {
 
 // matchString is matchStream over an in-memory string; see the matchEngine
 // interface for why the loop is duplicated rather than shared through a closure.
-func (e *memEfficientEngine) matchString(text string, emit func(Match) bool) {
+func (e *memEfficientEngine) matchString(text string, emit func(keyword string, start, end int) bool) {
 	if len(e.trie.nodes) <= 1 {
 		return
 	}
@@ -227,7 +227,7 @@ func (e *memEfficientEngine) matchString(text string, emit func(Match) bool) {
 	}
 }
 
-func (e *memEfficientEngine) matchStream(next func() (rune, bool), emit func(Match) bool) {
+func (e *memEfficientEngine) matchStream(next func() (rune, bool), emit func(keyword string, start, end int) bool) {
 	if len(e.trie.nodes) <= 1 {
 		return
 	}

@@ -57,8 +57,7 @@ var corpusSizes = []int{100, 1000}
 // good: the trade-off between them is what the presets exist to express, and the
 // fastest one here is not the one the docs recommend.
 //
-// PresetUltimate is absent because it is now an alias for PresetBalanced and would
-// only duplicate that row.
+// PresetUltimate was removed in v1.5.0; it had been an alias for PresetBalanced.
 var acorPresets = []struct {
 	name   string
 	preset acor.Preset

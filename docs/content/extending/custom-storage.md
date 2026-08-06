@@ -54,10 +54,10 @@ type KVStorage interface {
 ```
 
 The `Z`, `Pipeliner`, `StringMapResult`, `Subscription`, and `PubSubMessage`
-types referenced above are re-exported from the `acor` package (use
-`acor.KVStorage`, `acor.Z`, etc.). Their definitions live in
-[`internal/storage/interfaces.go`](https://github.com/skyoo2003/acor/blob/main/internal/storage/interfaces.go);
-they are documented in [Helper Types](#helper-types) below.
+types referenced above belong to the `acor` package (use `acor.KVStorage`,
+`acor.Z`, etc.) and are covered by the
+[compatibility policy](../../reference/compatibility/). They are documented in
+[Helper Types](#helper-types) below.
 
 ## Example: In-Memory Storage
 
@@ -185,8 +185,8 @@ type Pipeliner interface {
 
 ## Helper Types
 
-These types are referenced by `KVStorage` and `Pipeliner` and are defined in
-[`internal/storage/interfaces.go`](https://github.com/skyoo2003/acor/blob/main/internal/storage/interfaces.go).
+These types are referenced by `KVStorage` and `Pipeliner` and are declared in the
+`acor` package alongside it.
 
 `Z` — a sorted set member (score + value):
 

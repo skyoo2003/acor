@@ -59,12 +59,6 @@ Each preset optimizes for a different trade-off between speed, memory, and featu
 | `PresetBalanced` | Double-Array Trie + Banded DFA + output link compression | General-purpose backend keyword filtering, search engines | Balanced speed and memory |
 | `PresetMemoryEfficient` | Map-based sparse trie + Bloom filter pre-filtering + standard NFA | Large-scale domain blocking, malware signature matching, millions of patterns | Slower search due to failure link traversal and map lookups |
 
-> `PresetUltimate` is a deprecated alias for `PresetBalanced`. It used to add a
-> root-state first-rune Bloom pre-filter, which measured 1.7-1.8x slower than
-> `PresetBalanced` on every benchmark in the repository, on ASCII and multibyte text
-> alike: the per-character check cost more than the trie work it skipped. Code using
-> it keeps compiling and now gets the faster engine.
-
 ### Choosing a Preset
 
 - **Start with `PresetBalanced`** — it provides the best speed-to-memory ratio for most workloads.

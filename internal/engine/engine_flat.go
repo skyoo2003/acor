@@ -413,7 +413,7 @@ func (e *speedEngine) findIndex(text string) map[string][]int {
 
 // matchString is matchStream over an in-memory string; see the matchEngine
 // interface for why the loop is duplicated rather than shared through a closure.
-func (e *speedEngine) matchString(text string, emit func(Match) bool) {
+func (e *speedEngine) matchString(text string, emit func(keyword string, start, end int) bool) {
 	if e.dfa == nil {
 		return
 	}
@@ -441,7 +441,7 @@ func (e *speedEngine) matchString(text string, emit func(Match) bool) {
 	}
 }
 
-func (e *speedEngine) matchStream(next func() (rune, bool), emit func(Match) bool) {
+func (e *speedEngine) matchStream(next func() (rune, bool), emit func(keyword string, start, end int) bool) {
 	if e.dfa == nil {
 		return
 	}

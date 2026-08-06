@@ -48,7 +48,27 @@ func (m *engineMemo) engineForKeywords(kws []string) *matchengine.Engine {
 
 // --- operations interface methods ---
 
-func (o *v1Operations) add(ctx context.Context, keyword string) (int, error) {
+// add refuses unconditionally: V1 collections take no new keywords. Every public
+// write path reaches this method, so there is no second place to guard and no
+// configuration that reopens it.
+func (o *v1Operations) add(context.Context, string) (int, error) {
+	return 0, ErrV1ReadOnly
+}
+
+// remove refuses for the same reason as add. Flush still works, so a V1 collection
+// can be discarded wholesale even though single keywords can no longer be taken out
+// of it.
+func (o *v1Operations) remove(context.Context, string) (int, error) {
+	return 0, ErrV1ReadOnly
+}
+
+// writeKeyword is the V1 writer that releases before v1.5.0 reached through add.
+// Nothing in production calls it: it is retained so tests can build a V1 collection
+// the way an older release did, which is the only way one can exist now. Seeding
+// through a hand-written fixture instead would duplicate the trie-building
+// algorithm, and a divergent copy would let the read and migration paths pass
+// against data that is not actually V1.
+func (o *v1Operations) writeKeyword(ctx context.Context, keyword string) (int, error) {
 	keyword = strings.TrimSpace(keyword)
 	if !o.caseSensitive {
 		keyword = strings.ToLower(keyword)
@@ -78,7 +98,7 @@ func (o *v1Operations) add(ctx context.Context, keyword string) (int, error) {
 		// added keyword to avoid leaving the trie in an inconsistent state.
 		rollbackCtx, cancel := context.WithTimeout(context.Background(), o.rollbackTimeout)
 		defer cancel()
-		if _, rollbackErr := o.remove(rollbackCtx, keyword); rollbackErr != nil {
+		if _, rollbackErr := o.deleteKeyword(rollbackCtx, keyword); rollbackErr != nil {
 			return 0, newOperationError("add", SchemaV1, fmt.Errorf("build trie: %w; rollback keyword: %v", err, rollbackErr))
 		}
 		return 0, newOperationError("add", SchemaV1, err)
@@ -87,7 +107,9 @@ func (o *v1Operations) add(ctx context.Context, keyword string) (int, error) {
 	return 1, nil
 }
 
-func (o *v1Operations) remove(_ context.Context, keyword string) (int, error) {
+// deleteKeyword is writeKeyword's counterpart: the V1 deleter that remove used to
+// expose. It stays reachable for writeKeyword's own rollback and for tests.
+func (o *v1Operations) deleteKeyword(_ context.Context, keyword string) (int, error) {
 	keyword = strings.TrimSpace(keyword)
 	if !o.caseSensitive {
 		keyword = strings.ToLower(keyword)

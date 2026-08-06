@@ -139,6 +139,7 @@ func TestV1V2Compatibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	acV1 = v1Writable(t, acV1)
 
 	for _, kw := range keywords {
 		if _, addErr := acV1.Add(kw); addErr != nil {

@@ -27,6 +27,7 @@ func TestGoWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ac = v1Writable(t, ac)
 	defer func() { _ = ac.Close() }()
 
 	ctx := context.Background()
@@ -67,6 +68,7 @@ func TestFailWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ac = v1Writable(t, ac)
 	defer func() { _ = ac.Close() }()
 
 	ctx := context.Background()
@@ -95,6 +97,7 @@ func TestOutputWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ac = v1Writable(t, ac)
 	defer func() { _ = ac.Close() }()
 
 	ctx := context.Background()
@@ -123,6 +126,7 @@ func TestBuildTrieWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ac = v1Writable(t, ac)
 	defer func() { _ = ac.Close() }()
 
 	ctx := context.Background()
@@ -167,6 +171,7 @@ func TestPruneTrieWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ac = v1Writable(t, ac)
 	defer func() { _ = ac.Close() }()
 
 	if _, addErr := ac.Add("test"); addErr != nil {
@@ -210,6 +215,7 @@ func TestContextCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ac = v1Writable(t, ac)
 	defer func() { _ = ac.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -246,6 +252,7 @@ func TestContextTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ac = v1Writable(t, ac)
 	defer func() { _ = ac.Close() }()
 
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
@@ -272,6 +279,7 @@ func TestAppendMatchedIndexesWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ac = v1Writable(t, ac)
 	defer func() { _ = ac.Close() }()
 
 	ctx := context.Background()
@@ -306,6 +314,7 @@ func TestRemovePrefixAndSuffixWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ac = v1Writable(t, ac)
 	defer func() { _ = ac.Close() }()
 
 	if _, addErr := ac.Add("test"); addErr != nil {

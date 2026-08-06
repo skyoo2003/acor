@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package storage
+package acor
 
 import (
 	"context"
@@ -20,8 +20,8 @@ func TestRedisStorageImplementsKVStorage(t *testing.T) {
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer func() { _ = client.Close() }()
 
-	if storage := NewRedisStorage(client); storage == nil {
-		t.Fatal("NewRedisStorage returned nil")
+	if storage := newRedisStorage(client); storage == nil {
+		t.Fatal("newRedisStorage returned nil")
 	}
 }
 
@@ -36,7 +36,7 @@ func TestRedisStorageOperations(t *testing.T) {
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer func() { _ = client.Close() }()
 
-	storage := NewRedisStorage(client)
+	storage := newRedisStorage(client)
 	ctx := context.Background()
 
 	t.Run("Set and Get", func(t *testing.T) {

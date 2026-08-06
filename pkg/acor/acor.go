@@ -10,7 +10,7 @@
 //
 //   - Redis-backed storage for distributed state and persistence
 //   - Support for multiple Redis topologies: Standalone, Sentinel, Cluster, and Ring
-//   - Two schema versions: V2 (optimized, default) and V1 (deprecated, see SchemaV1)
+//   - Two schema versions: V2 (optimized, default) and V1 (deprecated, read-only)
 //   - Thread-safe operations with optimistic locking (V2)
 //   - Batch operations for bulk keyword management
 //   - Parallel text matching for improved performance on large texts
@@ -272,7 +272,10 @@ type AhoCorasickArgs struct {
 	Logger Logger
 	// SchemaVersion specifies the storage schema to use:
 	//   - 0 or 2: V2 schema (default, optimized, 3 keys)
-	//   - 1: V1 schema (deprecated, multiple keys per prefix — see SchemaV1)
+	//   - 1: V1 schema (deprecated and read-only — see SchemaV1)
+	//
+	// Selecting 1 opens an existing V1 collection for reading and migration. Add and
+	// Remove return ErrV1ReadOnly, so a new V1 collection can never be populated.
 	SchemaVersion int
 	// EnableCache enables local in-memory caching of trie data for Find/FindIndex operations.
 	// When enabled, prefixes and outputs are cached after the first read and invalidated

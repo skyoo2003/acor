@@ -129,6 +129,7 @@ func newV1Parity(t *testing.T, keywords []string, caseSensitive bool) *AhoCorasi
 	if err != nil {
 		t.Fatalf("Create V1: %v", err)
 	}
+	ac = v1Writable(t, ac)
 	t.Cleanup(func() { _ = ac.Close() })
 
 	for _, kw := range keywords {

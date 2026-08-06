@@ -1,0 +1,5 @@
+kind: Changed
+body: 'Moved every public type that was a type alias into an internal package to `pkg/acor` itself: `KVStorage`, `Z`, `Pipeliner`, `Subscription`, `StringMapResult`, `PubSubMessage`, `Preset`, and `Match` are now declared where they are exported, and the `internal/storage` package is gone. This is source-compatible — the interfaces keep byte-identical method sets and Go satisfies them structurally, and the structs keep the same fields — so custom `KVStorage` backends and `Match` consumers need no changes. Internal refactors can no longer break the public API by accident'
+time: 2026-08-05T23:22:47.991523+09:00
+custom:
+    Issue: "201"

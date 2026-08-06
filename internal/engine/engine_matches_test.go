@@ -10,9 +10,29 @@ import (
 	"unicode/utf8"
 )
 
+// match is the test's own record of what MatchString emitted. The engine reports a
+// keyword and its span as arguments and declares no match type of its own — that
+// type belongs to the public acor package.
+type match struct {
+	Keyword string
+	Start   int
+	End     int
+}
+
+// collectMatches gathers every match in text, which is what the removed
+// Engine.FindMatches used to return.
+func collectMatches(e *Engine, text string) []match {
+	var out []match
+	e.MatchString(text, func(keyword string, start, end int) bool {
+		out = append(out, match{Keyword: keyword, Start: start, End: end})
+		return true
+	})
+	return out
+}
+
 // startsByKeyword collapses matches into brute-comparable start-offset lists and
 // checks each span is [start, start+runeLen(keyword)).
-func startsByKeyword(t *testing.T, matches []Match) map[string][]int {
+func startsByKeyword(t *testing.T, matches []match) map[string][]int {
 	t.Helper()
 	got := make(map[string][]int)
 	for _, m := range matches {
@@ -43,7 +63,7 @@ func TestFindMatches_MatchesBruteForce(t *testing.T) {
 		for _, p := range allPresets {
 			e := New(p)
 			e.Build(kws)
-			got := startsByKeyword(t, e.FindMatches(tc.text))
+			got := startsByKeyword(t, collectMatches(e, tc.text))
 			// bruteFindIndex omits keywords with no occurrence; drop empty entries.
 			for k, v := range got {
 				if len(v) == 0 {
@@ -208,7 +228,7 @@ func TestStream_EarlyStop(t *testing.T) {
 		e := New(p)
 		e.Build(kws)
 		count := 0
-		e.Stream(stringRuneSource("abababab"), func(Match) bool {
+		e.Stream(stringRuneSource("abababab"), func(string, int, int) bool {
 			count++
 			return false // stop after the first
 		})
@@ -222,7 +242,7 @@ func TestFindMatches_Empty(t *testing.T) {
 	for _, p := range allPresets {
 		e := New(p)
 		e.Build(keywordSet())
-		if got := e.FindMatches("anything"); len(got) != 0 {
+		if got := collectMatches(e, "anything"); len(got) != 0 {
 			t.Errorf("preset %v: empty automaton FindMatches = %v, want none", p, got)
 		}
 	}

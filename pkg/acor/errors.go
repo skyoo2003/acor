@@ -38,6 +38,14 @@ var (
 	// Preset mode already answers reads from a local engine kept fresh by the same
 	// Pub/Sub invalidation, so the trie cache would be a redundant second copy.
 	ErrCacheWithPreset = errors.New("EnableCache cannot be combined with Preset")
+	// ErrV1ReadOnly is returned by Add and Remove on a V1 collection. V1 is
+	// deprecated and takes no new data: the schema spreads a collection over one key
+	// per prefix, suffix, output, and node, and keeping two write paths alive means
+	// every change has to be correct in both.
+	//
+	// Reads, Suggest, Info, and Flush still work, and MigrateV1ToV2 converts the
+	// collection in place — which is the supported way forward.
+	ErrV1ReadOnly = errors.New("V1 collections are read-only; migrate with MigrateV1ToV2")
 )
 
 // OperationError represents an error that occurred during an automaton operation.
