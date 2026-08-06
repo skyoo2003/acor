@@ -1,0 +1,5 @@
+kind: Documentation
+body: 'Documented the v1 compatibility promise: `pkg/acor`''s exported API, its documented behavior, sentinel error identity, and additive-only changes to the on-Redis V2 format are covered for every `v1.x.y` release, so mixed-version fleets stay safe during a rolling deploy. The CLI contract, the experimental `acor/server` module, and `internal/...` are excluded. Callers must construct option structs with field names and must not dot-import the package, and the five exported interfaces gain no methods inside v1'
+time: 2026-08-05T22:50:12.994369+09:00
+custom:
+    Issue: "200"
