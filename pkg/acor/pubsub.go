@@ -15,11 +15,14 @@ func (ac *AhoCorasick) startCacheListener() error {
 	// Bind the cache once per message: RollbackToV1 clears ac.cache, so re-reading
 	// the field mid-callback can hand us a nil pointer between the guard and the use.
 	cache := ac.cache
+	// Bound alongside cache for the same reason: the callback runs on its own
+	// goroutine, so it reads neither field live.
+	stats := ac.stats
 	pubsub, err := subscribeInvalidations(ac.ctx, ac.storage, ac.name, ac.stopCh, func(payload string) {
 		if cache == nil {
 			return
 		}
-		if isSelfEcho(payload, ac.name, &cache.selfSkip) {
+		if !foreignInvalidation(payload, ac.name, &cache.selfSkip, stats) {
 			return
 		}
 		cache.invalidate()

@@ -38,6 +38,8 @@ type redisBackedAC struct {
 	stale        bool
 	pollInterval time.Duration
 
+	stats *cacheStats
+
 	selfSkip    selfSkipSet
 	reloadGroup singleflight.Group
 	pubsub      Subscription
@@ -85,6 +87,7 @@ func newRedisBacked(ctx context.Context, args *AhoCorasickArgs) (*redisBackedAC,
 		storage:       storage,
 		redisClient:   redisClient,
 		keywordSet:    make(map[string]struct{}),
+		stats:         &cacheStats{},
 		pollInterval:  args.InvalidationPollInterval,
 		ctx:           acCtx,
 		cancel:        acCancel,
@@ -161,13 +164,29 @@ func buildEngine(preset Preset, keywordSet map[string]struct{}) *matchengine.Eng
 	return e
 }
 
+// rebuildEngine replaces the engine from the current keyword set and records the
+// build. Every build in this mode routes through here, not just the reload path: a
+// single-keyword write and a flush rebuild directly, and a build the counters miss
+// inflates the mean rebuild cost that a write is supposed to explain.
+//
+// The timing covers the build alone. The Redis round trip that fetched the keywords
+// happened in the caller, and folding it in would report the network as build time.
+//
+// Caller holds ac.mu.
+func (ac *redisBackedAC) rebuildEngine() {
+	start := time.Now()
+	engine := buildEngine(ac.preset, ac.keywordSet)
+	ac.stats.recordRebuild(time.Since(start))
+	ac.engine = engine
+}
+
 func (ac *redisBackedAC) applyReload(snap *trieSnapshot) {
 	keywordSet := make(map[string]struct{}, len(snap.Keywords))
 	for _, kw := range snap.Keywords {
 		keywordSet[kw] = struct{}{}
 	}
 	ac.keywordSet = keywordSet
-	ac.engine = buildEngine(ac.preset, keywordSet)
+	ac.rebuildEngine()
 	ac.localVersion = snap.Version
 	ac.stale = false
 }
@@ -208,9 +227,16 @@ func (ac *redisBackedAC) ensureValid(ctx context.Context) error {
 	ac.mu.RLock()
 	if !ac.stale {
 		ac.mu.RUnlock()
+		ac.stats.hit()
 		return nil
 	}
 	ac.mu.RUnlock()
+
+	// Counted before the singleflight, not inside it: this read found stale state and
+	// waits for a rebuild whether or not it performs one. Readers coalesced onto
+	// another goroutine's reload therefore still count as misses, which is what makes
+	// Misses-Rebuilds the work the coalescing saved.
+	ac.stats.miss()
 
 	_, err, _ := ac.reloadGroup.Do("reload", func() (interface{}, error) {
 		ac.mu.Lock()
@@ -244,7 +270,13 @@ const (
 func (ac *redisBackedAC) startListener() error {
 	ac.stopCh = make(chan struct{})
 
-	pubsub, err := subscribeInvalidations(ac.ctx, ac.storage, ac.name, ac.stopCh, ac.handleInvalidation)
+	// Bind the counters once, as AhoCorasick.startCacheListener does: the callback
+	// runs on its own goroutine, so reading the field live would race anything that
+	// reassigns it (the stats benchmark switches recording off that way).
+	stats := ac.stats
+	pubsub, err := subscribeInvalidations(ac.ctx, ac.storage, ac.name, ac.stopCh, func(payload string) {
+		ac.handleInvalidation(stats, payload)
+	})
 	if err != nil {
 		return err
 	}
@@ -253,8 +285,8 @@ func (ac *redisBackedAC) startListener() error {
 	return nil
 }
 
-func (ac *redisBackedAC) handleInvalidation(payload string) {
-	if isSelfEcho(payload, ac.name, &ac.selfSkip) {
+func (ac *redisBackedAC) handleInvalidation(stats *cacheStats, payload string) {
+	if !foreignInvalidation(payload, ac.name, &ac.selfSkip, stats) {
 		return
 	}
 	ac.markStale()

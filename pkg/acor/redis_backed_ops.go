@@ -76,7 +76,7 @@ func (ac *redisBackedAC) applyLocalWrite(keyword string, add bool, newVersion in
 	}
 	ac.localVersion = newVersion
 	if rebuild {
-		ac.engine = buildEngine(ac.preset, ac.keywordSet)
+		ac.rebuildEngine()
 		ac.stale = false
 	} else {
 		ac.stale = true
@@ -193,7 +193,7 @@ func (ac *redisBackedAC) flush(ctx context.Context) error {
 
 	ac.mu.Lock()
 	ac.keywordSet = make(map[string]struct{})
-	ac.engine = buildEngine(ac.preset, ac.keywordSet)
+	ac.rebuildEngine()
 	ac.stale = false
 	ac.mu.Unlock()
 

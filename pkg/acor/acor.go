@@ -129,6 +129,9 @@
 // Cache synchronization uses Redis Pub/Sub. When any instance modifies the collection,
 // all instances receive an invalidation message and reload on next Find().
 //
+// CacheStats reports how that is going — hit rate, rebuild cost, and the lag of the last
+// invalidation received — without touching Redis, so it is cheap to scrape on a timer.
+//
 // # Thread Safety
 //
 // All operations are safe for concurrent use. V2 schema uses optimistic locking
@@ -346,6 +349,7 @@ type AhoCorasick struct {
 	caseSensitive   bool
 
 	cache     *trieCache
+	stats     *cacheStats
 	pubsub    Subscription
 	stopCh    chan struct{}
 	closeOnce sync.Once
@@ -464,6 +468,9 @@ func createPresetRedis(ctx context.Context, args *AhoCorasickArgs) (*AhoCorasick
 		logger:        newLogger(args),
 		schemaVersion: SchemaV2,
 		ops:           rbAC,
+		// Same counters the engine records into, not a second set: newRedisBacked owns
+		// them because it builds the first automaton before this struct exists.
+		stats:         rbAC.stats,
 		mode:          modePresetRedis,
 		caseSensitive: args.CaseSensitive,
 		ctx:           context.Background(),
@@ -513,6 +520,7 @@ func createOriginal(ctx context.Context, args *AhoCorasickArgs) (*AhoCorasick, e
 		logger:        logger,
 		schemaVersion: schemaVersion,
 		cache:         cache,
+		stats:         &cacheStats{},
 		mode:          modeOriginal,
 	}
 	ac.rollbackTimeout = resolveRollbackTimeout(args.RollbackTimeout)
@@ -613,6 +621,10 @@ func (ac *AhoCorasick) newV2Ops(cache *trieCache) operations {
 		cache:         cache,
 		logger:        ac.logger,
 		caseSensitive: ac.caseSensitive,
+		stats:         ac.stats,
+		// The memo shares the same counters, so an uncached V2 instance still reports a
+		// hit rate: it skips the rebuild even though the freshness read remains.
+		engines: engineMemo{stats: ac.stats},
 	}
 }
 
@@ -624,7 +636,19 @@ func (ac *AhoCorasick) newV1Ops() operations {
 		ac:              ac,
 		caseSensitive:   ac.caseSensitive,
 		rollbackTimeout: ac.rollbackTimeout,
+		engines:         engineMemo{stats: ac.stats},
 	}
+}
+
+// CacheStats returns a snapshot of this instance's local cache activity: hit rate,
+// rebuild cost, and the lag of the last invalidation received from a peer. See
+// CacheStats for what each field counts and what it does not.
+//
+// It performs no Redis I/O, takes no lock the read path contends on, and is safe to
+// call concurrently and after Close — so it is cheap enough to scrape on a timer.
+// The counters are process-local: in a fleet, scrape every instance.
+func (ac *AhoCorasick) CacheStats() CacheStats {
+	return ac.stats.snapshot()
 }
 
 // Add inserts a keyword into the Aho-Corasick automaton.

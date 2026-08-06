@@ -95,6 +95,12 @@ That literal compiles against `v1.5.0` and stops compiling the moment `MatchOpti
 a fourth field. `go vet`'s `composites` check reports unkeyed literals of another package's
 structs, so this condition is verifiable in your own build.
 
+The structs ACOR *returns* run the other way. `AhoCorasickInfo`, `MigrationResult`,
+`BatchResult`, and `CacheStats` are built by ACOR and read by you, so a new field cannot
+break a reader — and they do gain fields inside `v1`. The condition on them is only that
+you not construct or whole-value compare one: assert on the fields you care about, and a
+later release adding a sixth counter stays invisible to your code.
+
 ### Do not expect the exported interfaces to grow
 
 Five exported interfaces can be implemented from outside the module: `Logger`,
