@@ -19,11 +19,13 @@
 // # Compatibility
 //
 // Every v1.x.y release keeps this package's exported identifiers compiling and behaving
-// as documented. v1.5.0 is the first supported v1 release. Two conditions apply to
+// as documented. v1.5.0 is the first supported v1 release. Three conditions apply to
 // calling code: construct AhoCorasickArgs, MatchOptions, BatchOptions, ParallelOptions,
 // and MigrationOptions with field names, since those structs gain fields in minor
-// releases; and do not expect Logger, KVStorage, StringMapResult, Subscription, or
-// Pipeliner to gain methods, since they will not inside v1.
+// releases; do not expect Logger, KVStorage, StringMapResult, Subscription, or
+// Pipeliner to gain methods, since they will not inside v1; and do not dot-import this
+// package, since a name added in a minor release can then collide with a declaration of
+// your own.
 //
 // The full policy — including the on-Redis format rules that make mixed-version fleets
 // safe, and what the promise excludes — is at

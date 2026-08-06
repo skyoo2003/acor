@@ -15,15 +15,23 @@ surface. `v1.0.0`-`v1.4.0` are retracted and were never covered — see
 [Retracted versions](https://github.com/skyoo2003/acor/blob/main/RELEASE.md#retracted-versions)
 for why the numbering starts there.
 
-**Upgrading from `v0.x` is a one-time exception.** `v1.5.0` removes deprecated members and
-closes paths that `v0.11.x` still allowed, so that upgrade can require changes to your
-code. Specifically:
+**Upgrading from `v0.11.x` is a one-time exception.** `v1.5.0` removes deprecated members
+and closes paths that `v0.11.x` still allowed, so that upgrade can require changes to your
+code. From `v0.10.x` or earlier, `v0.11.0`'s own breaking changes apply first — the
+`RemoveMany` signature, the removal of `RemoveManyWithOptions`, and the removal of the
+exported V1 key constants — so upgrade through `v0.11.x` and follow the
+[changelog](https://github.com/skyoo2003/acor/blob/main/CHANGELOG.md); this page does not
+restate them.
+
+From `v0.11.x`, specifically:
 
 - `PresetUltimate` is removed. It was an alias for `PresetBalanced`; rename it.
 - `InMemoryInfo` is removed. No exported function accepted or returned it.
 - **V1 collections are read-only.** `Add` and `Remove` return `ErrV1ReadOnly`. Reads,
-  `Suggest`, `Info`, `Flush`, and `MigrateV1ToV2` still work, so an existing V1
-  collection can be read and converted, but it takes no new keywords. Migrate to V2.
+  `Suggest`, `Info`, and `MigrateV1ToV2` still work, so an existing V1 collection can be
+  read and converted, but it takes no new keywords. Migrate to V2. `Flush` also still
+  works — and still deletes every key in the collection. Read-only means keyword writes
+  are refused, not that the collection cannot be destroyed.
 
 Every upgrade *after* `v1.5.0`, within `v1`, is covered by everything below. Each of
 those three would be a promise violation in `v1.6.0`; `v1.5.0` is the only release that
@@ -44,8 +52,9 @@ can make them.
 - **The CLI.** Flags, output format, and exit codes of the `acor` command can change in
   any release. If you need a stable contract, call the library rather than parsing CLI
   output.
-- **`acor/server`.** A separate, experimental module that publishes no tags of its own,
-  versioned independently of the core.
+- **`acor/server`.** A separate, experimental module. It publishes no tags of its own, so
+  it can only be required by pseudo-version, and the core's version numbers say nothing
+  about it.
 - **`internal/...`.** Not importable, and free to change in any release.
 - **The `benchmarks` module.** A measurement harness, not an API.
 - **Documentation wording.** Pages get rewritten. What they describe is pinned by this
@@ -53,10 +62,10 @@ can make them.
 - **The V1 schema layout.** Deprecated, and not evolved further. See
   [Deprecation](#deprecation).
 
-## Two conditions on your code
+## Conditions on your code
 
-The promise holds for code that follows both. Neither is something the compiler can
-enforce on your behalf.
+The promise holds for code that follows all three. None of them is something the compiler
+can enforce on your behalf.
 
 ### Construct option structs with field names
 
@@ -79,17 +88,25 @@ promise:
 
 ```go
 // Not covered: positional fields break when a field is added.
-args := &acor.AhoCorasickArgs{"localhost:6379", "sample"}
+opts := acor.MatchOptions{acor.MatchKindLeftmostLongest, true, nil}
 ```
 
-`go vet`'s `composites` check reports unkeyed literals of another package's structs, so
-this condition is verifiable in your own build.
+That literal compiles against `v1.5.0` and stops compiling the moment `MatchOptions` gains
+a fourth field. `go vet`'s `composites` check reports unkeyed literals of another package's
+structs, so this condition is verifiable in your own build.
 
 ### Do not expect the exported interfaces to grow
 
 Five exported interfaces can be implemented from outside the module: `Logger`,
 `KVStorage`, `StringMapResult`, `Subscription`, and `Pipeliner`. No method is added to
 any of them inside `v1` — doing so would break every existing implementation.
+
+### Do not dot-import the package
+
+`import . "github.com/skyoo2003/acor/pkg/acor"` puts every exported name into your file's
+scope, so a name added in a minor release can collide with one of your own declarations and
+stop the file compiling. A normal import cannot: additions land behind the `acor.`
+qualifier, where they collide with nothing.
 
 ## The on-Redis data format
 
@@ -100,15 +117,26 @@ says nothing about that case. This section does.
 Inside `v1`, changes to the V2 format are **additive only**:
 
 - Key names, hash tags, and the names and meanings of existing fields do not change.
-- New fields may be added. An ACOR version that does not recognize a field ignores it.
+- New fields may be added to the `{name}:trie` hash, or under a new key. An ACOR version
+  that does not recognize a field there ignores it: that hash is read by looking its
+  fields up by name.
+- Nothing is added to the `{name}:outputs` hash. Its field names are automaton states and
+  every value in it is read as match data, so it has no room for metadata.
 - A mixed-version fleet therefore keeps working in both directions for the whole `v1`
   line, and a rolling deploy needs no coordinated restart.
+
+`Flush` rewrites `{name}:trie` in full, so a `Flush` issued by an older instance drops
+fields a newer one added. The next write from an upgraded instance restores them.
 
 The cost lands on new features rather than on availability: a feature that depends on a
 newly added field does not take effect until every instance writing to the collection is
 upgraded. Expect it to appear after the rollout finishes, not during it.
 
 ## What counts as a breaking change
+
+A patch release (`x.y.Z`) carries bug fixes and no surface change; a minor release
+(`x.Y.0`) adds to the surface without breaking it; a breaking change requires a new major
+version.
 
 Removing or renaming an exported identifier, changing a signature, and narrowing a return
 type are the obvious cases, and tooling catches them. These count too, and tooling does
@@ -143,4 +171,4 @@ A `v2` would ship as the module `github.com/skyoo2003/acor/v2`, imported as
 path, so nothing breaks by the act of publishing `v2`. There is no schedule.
 
 Security patches follow the [security policy](https://github.com/skyoo2003/acor/blob/main/SECURITY.md),
-which covers the latest released minor line only.
+which defines which lines receive them.

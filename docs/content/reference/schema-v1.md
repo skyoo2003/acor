@@ -7,9 +7,11 @@ weight: 3
 
 V1 is the original ACOR storage schema. It uses multiple Redis keys per collection.
 
-> **V1 is deprecated and read-only as of `v1.5.0`.** Reads, `Suggest`, `Info`, and
-> `Flush` work, and `MigrateV1ToV2` converts a collection in place, but `Add` and
-> `Remove` return `ErrV1ReadOnly`. It gains no features either: preset engines and
+> **V1 is deprecated and read-only as of `v1.5.0`.** Reads, `Suggest`, and `Info` work,
+> and `MigrateV1ToV2` converts a collection in place, but `Add` and `Remove` return
+> `ErrV1ReadOnly`. `Flush` also still works, and still deletes every key in the
+> collection — read-only refuses keyword writes, it does not protect the collection from
+> `Flush`. It gains no features either: preset engines and
 > `EnableCache` both require V2. New collections should use the default V2 schema.
 > The read path stays for the whole `v1` line and is removed no earlier than `v2`.
 
