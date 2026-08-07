@@ -148,6 +148,10 @@ func scanChunks[T any](ctx context.Context, chunks []chunk, workers int, scan fu
 // single chunk is scanned by a single worker, so it pays no parallelization cost
 // while still returning the same shape as a multi-chunk scan.
 //
+// The automaton is loaded once per call however many chunks the text splits into,
+// so the read cost matches Find's at any input size and every chunk is scanned
+// against the same dictionary snapshot. FindIndexParallel does the same.
+//
 // Note: Due to chunk overlap for boundary handling, duplicate matches are
 // automatically deduplicated in the returned slice, so each keyword appears at
 // most once regardless of how many times or in how many chunks it occurs. (Find

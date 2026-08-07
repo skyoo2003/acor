@@ -26,6 +26,8 @@ CI fails.
 | `Find()` | 1 | 1 |
 | `Find()` with `EnableCache`, warm | n/a | 0 |
 | `Find()` with a `Preset` engine | n/a | 0 |
+| `FindParallel()` / `FindIndexParallel()`, 63 chunks | 1 | 1 |
+| `FindMany()`, 3 texts | 1 | 1 |
 | `Add()`, 5-character keyword | 53 | 2 |
 | `Add()`, 26-character keyword | 507 | 2 |
 
@@ -33,6 +35,11 @@ Both schemas read in a single round trip: V1 issues one `SMEMBERS`, V2 pipelines
 two `HGETALL` calls into one trip. V1's round-trip cost is on **writes**, where it
 walks the trie node by node, so the cost grows with the length of the keyword being
 added rather than with the size of the dictionary.
+
+The multi-scan reads cost the same as one `Find()`, and the count does not grow with
+the chunk count or the batch size: the automaton is loaded once per call and every
+chunk or text is scanned against that one snapshot. Before `v1.5.0` each chunk loaded
+its own, so a 63-chunk text issued 63 reads.
 
 ```sh
 go test -run RTT ./pkg/acor

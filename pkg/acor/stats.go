@@ -26,10 +26,11 @@ type CacheStats struct {
 	// happens on every call and a hit means only that the automaton did not have to be
 	// rebuilt from the bytes that read returned.
 	//
-	// A read here is one scan of the automaton, not one call into ACOR. FindParallel
-	// and FindIndexParallel scan chunk by chunk, so one call over a text split into N
-	// chunks records N reads; a parallel workload's hit rate is therefore not directly
-	// comparable to a serial one's.
+	// One call that scans the automaton is one read, whatever it scans over.
+	// FindParallel, FindIndexParallel, and FindMany load the automaton once and scan
+	// every chunk or text against that one snapshot, so their hit rate is directly
+	// comparable to a serial workload's. Calls that never reach the automaton —
+	// writes, Suggest, Info — record nothing here.
 	Hits uint64
 	// Misses is the number of reads that had to wait for the local automaton to be
 	// rebuilt, whether because a peer's write invalidated it or because nothing was
@@ -38,7 +39,7 @@ type CacheStats struct {
 	//
 	// Hits+Misses is the read count, so the hit rate is Hits/(Hits+Misses). Both are
 	// zero on a fresh instance, so guard that division. See Hits for what one read
-	// means under FindParallel.
+	// means.
 	Misses uint64
 	// Rebuilds is the number of automaton builds. It starts at 1 in Preset mode, which
 	// builds once during Create before any read.
