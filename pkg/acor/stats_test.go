@@ -61,6 +61,7 @@ func TestCacheStatsUncachedV2(t *testing.T) {
 func TestCacheStatsCountsOneReadPerCall(t *testing.T) {
 	ac, mr := createAhoCorasick(t)
 	defer mr.Close()
+	defer func() { _ = ac.Close() }()
 
 	if _, err := ac.Add("he"); err != nil {
 		t.Fatal(err)

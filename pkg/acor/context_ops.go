@@ -2,7 +2,11 @@
 
 package acor
 
-import "context"
+import (
+	"context"
+
+	matchengine "github.com/skyoo2003/acor/internal/engine"
+)
 
 // AddContext inserts a keyword with context for cancellation and timeout propagation.
 func (ac *AhoCorasick) AddContext(ctx context.Context, keyword string) (int, error) {
@@ -85,17 +89,15 @@ func (ac *AhoCorasick) RemoveManyContext(ctx context.Context, keywords []string,
 // FindManyContext searches for keywords in multiple texts with context.
 func (ac *AhoCorasick) FindManyContext(ctx context.Context, texts []string) (map[string][]string, error) {
 	results := make(map[string][]string, len(texts))
-	if len(texts) == 0 {
-		return results, nil
-	}
 
 	// One engine for the whole batch. Calling ops.find per text reloaded it every
 	// time, so N texts cost N round trips where a single Find costs one — the same
 	// defect the parallel paths below had (#205).
-	eng, err := ac.ops.loadEngine(ctx)
-	if err != nil {
-		return nil, err
-	}
+	//
+	// Loaded on the first text that actually needs it, not up front: a batch that is
+	// empty or all-empty-strings has never touched Redis, and loading an engine to
+	// scan nothing with would newly cost a round trip (see FindParallelContext).
+	var eng *matchengine.Engine
 
 	for _, text := range texts {
 		if err := ctx.Err(); err != nil {
@@ -104,6 +106,13 @@ func (ac *AhoCorasick) FindManyContext(ctx context.Context, texts []string) (map
 		if text == "" {
 			results[text] = []string{}
 			continue
+		}
+		if eng == nil {
+			loaded, err := ac.ops.loadEngine(ctx)
+			if err != nil {
+				return nil, err
+			}
+			eng = loaded
 		}
 		results[text] = eng.Find(normalizeText(text, ac.caseSensitive))
 	}
@@ -125,9 +134,6 @@ func (ac *AhoCorasick) FindParallelContext(ctx context.Context, text string, opt
 	}
 
 	chunks := splitChunks(text, opts)
-	if len(chunks) == 0 {
-		return []string{}, nil
-	}
 
 	// One engine for the whole call, not one per chunk. Each ops.find reloaded it,
 	// so an N-chunk text cost N round trips where serial Find costs one at any
@@ -147,7 +153,12 @@ func (ac *AhoCorasick) FindParallelContext(ctx context.Context, text string, opt
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
 		}
-		return eng.Find(normalizeText(c.text, ac.caseSensitive)), nil
+		// FindSet, not Find: the result of this call is a set, so every duplicate
+		// occurrence Find reports is built only to be dropped by
+		// dedupPreservingOrder below. On match-dense text that per-occurrence slice
+		// is most of the scan's allocation, and it is accumulated across every chunk
+		// before the dedup runs.
+		return eng.FindSet(normalizeText(c.text, ac.caseSensitive)), nil
 	})
 	if err != nil {
 		return nil, err
@@ -172,9 +183,6 @@ func (ac *AhoCorasick) FindIndexParallelContext(ctx context.Context, text string
 	}
 
 	chunks := splitChunks(text, opts)
-	if len(chunks) == 0 {
-		return map[string][]int{}, nil
-	}
 
 	// One engine for the whole call; see FindParallelContext.
 	eng, err := ac.ops.loadEngine(ctx)

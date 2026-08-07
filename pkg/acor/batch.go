@@ -429,9 +429,13 @@ func (ac *AhoCorasick) removeManyTransactional(ctx context.Context, keywords []s
 // FindMany searches for keywords in multiple texts and returns a map of text to matches.
 // This is convenient when you need to match against many texts at once.
 //
+// The automaton is loaded once for the whole batch and every text is scanned
+// against that one snapshot, so a batch of any size costs the single read one
+// Find costs, and every text sees the same dictionary. Splitting a batch into
+// individual Find or FindParallel calls costs one read each instead.
+//
 // Note: If the same text appears multiple times in the input slice, only one result
-// entry will be stored (last occurrence wins). For large batches, consider using
-// parallel processing with individual FindParallel calls.
+// entry will be stored (last occurrence wins).
 //
 // Example:
 //

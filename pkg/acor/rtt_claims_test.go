@@ -141,6 +141,33 @@ func parallelRTTOptions() *ParallelOptions {
 	return &ParallelOptions{Workers: 4, ChunkSize: 100, Overlap: 5, Boundary: ChunkBoundaryWord}
 }
 
+func newRTTV2(t *testing.T) *AhoCorasick {
+	t.Helper()
+	ac, mr := createAhoCorasick(t)
+	t.Cleanup(func() { ac.Close(); mr.Close() })
+	return ac
+}
+
+func newRTTV1(t *testing.T) *AhoCorasick {
+	t.Helper()
+	ac, mr := createAhoCorasickV1(t)
+	t.Cleanup(func() { ac.Close(); mr.Close() })
+	return ac
+}
+
+// rttSchemas is both columns of the published round-trip table. A claim measured
+// on V2 alone leaves the V1 column of
+// docs/content/reference/benchmarks.md unenforced, which is the same as
+// unmeasured — and V1 reaches the engine by a different route (SMEMBERS of the
+// keyword set, not HGETALL of the outputs hash), so it can regress on its own.
+var rttSchemas = []struct {
+	name  string
+	build func(t *testing.T) *AhoCorasick
+}{
+	{"V2", newRTTV2},
+	{"V1", newRTTV1},
+}
+
 // TestRTTParallelFindIsFixed pins FindParallel and FindIndexParallel at one round
 // trip whatever the chunk count.
 //
@@ -153,46 +180,48 @@ func parallelRTTOptions() *ParallelOptions {
 // Flatness is the claim, not the number 1: a version that regressed to per-chunk
 // loads only above some size would pass a single-size assertion.
 func TestRTTParallelFindIsFixed(t *testing.T) {
-	ac, mr := createAhoCorasick(t)
-	defer mr.Close()
-	defer ac.Close()
+	for _, schema := range rttSchemas {
+		t.Run(schema.name, func(t *testing.T) {
+			ac := schema.build(t)
 
-	for _, kw := range []string{"he", "her", "him"} {
-		if _, err := ac.Add(kw); err != nil {
-			t.Fatalf("Add(%q) error: %v", kw, err)
-		}
-	}
+			for _, kw := range []string{"he", "her", "him"} {
+				if _, err := ac.Add(kw); err != nil {
+					t.Fatalf("Add(%q) error: %v", kw, err)
+				}
+			}
 
-	opts := parallelRTTOptions()
-	c := countRTT(t, ac)
-	maxChunks := 0
+			opts := parallelRTTOptions()
+			c := countRTT(t, ac)
+			maxChunks := 0
 
-	for _, reps := range []int{8, 40, 160, 480} {
-		text := strings.Repeat("he is here. ", reps)
-		chunks := len(splitChunks(text, opts))
-		maxChunks = max(maxChunks, chunks)
+			for _, reps := range []int{8, 40, 160, 480} {
+				text := strings.Repeat("he is here. ", reps)
+				chunks := len(splitChunks(text, opts))
+				maxChunks = max(maxChunks, chunks)
 
-		c.reset()
-		if _, err := ac.FindParallel(text, opts); err != nil {
-			t.Fatalf("FindParallel() error: %v", err)
-		}
-		if got := c.count(); got != 1 {
-			t.Fatalf("FindParallel() over %d chunks = %d round trips, want 1 (published in docs/content/reference/benchmarks.md)", chunks, got)
-		}
+				c.reset()
+				if _, err := ac.FindParallel(text, opts); err != nil {
+					t.Fatalf("FindParallel() error: %v", err)
+				}
+				if got := c.count(); got != 1 {
+					t.Fatalf("FindParallel() over %d chunks = %d round trips, want 1 (published in docs/content/reference/benchmarks.md)", chunks, got)
+				}
 
-		c.reset()
-		if _, err := ac.FindIndexParallel(text, opts); err != nil {
-			t.Fatalf("FindIndexParallel() error: %v", err)
-		}
-		if got := c.count(); got != 1 {
-			t.Fatalf("FindIndexParallel() over %d chunks = %d round trips, want 1", chunks, got)
-		}
-	}
+				c.reset()
+				if _, err := ac.FindIndexParallel(text, opts); err != nil {
+					t.Fatalf("FindIndexParallel() error: %v", err)
+				}
+				if got := c.count(); got != 1 {
+					t.Fatalf("FindIndexParallel() over %d chunks = %d round trips, want 1", chunks, got)
+				}
+			}
 
-	// Without this the whole test passes vacuously if chunking ever stops
-	// splitting: one chunk at every size proves nothing about a fixed cost.
-	if maxChunks < 20 {
-		t.Fatalf("largest text split into only %d chunks; this test no longer varies chunk count and proves nothing", maxChunks)
+			// Without this the whole test passes vacuously if chunking ever stops
+			// splitting: one chunk at every size proves nothing about a fixed cost.
+			if maxChunks < 20 {
+				t.Fatalf("largest text split into only %d chunks; this test no longer varies chunk count and proves nothing", maxChunks)
+			}
+		})
 	}
 }
 
@@ -200,29 +229,42 @@ func TestRTTParallelFindIsFixed(t *testing.T) {
 // batch. It had the same per-call engine load as the parallel paths above — N
 // texts cost N round trips — and the same fix.
 func TestRTTFindManyIsOneRoundTrip(t *testing.T) {
-	ac, mr := createAhoCorasick(t)
-	defer mr.Close()
-	defer ac.Close()
+	for _, schema := range rttSchemas {
+		t.Run(schema.name, func(t *testing.T) {
+			ac := schema.build(t)
 
-	if _, err := ac.Add("he"); err != nil {
-		t.Fatalf("Add() error: %v", err)
-	}
+			if _, err := ac.Add("he"); err != nil {
+				t.Fatalf("Add() error: %v", err)
+			}
 
-	c := countRTT(t, ac)
+			c := countRTT(t, ac)
 
-	for _, n := range []int{1, 5, 50} {
-		texts := make([]string, n)
-		for i := range texts {
-			texts[i] = fmt.Sprintf("he is here %d", i)
-		}
+			for _, n := range []int{1, 5, 50} {
+				texts := make([]string, n)
+				for i := range texts {
+					texts[i] = fmt.Sprintf("he is here %d", i)
+				}
 
-		c.reset()
-		if _, err := ac.FindMany(texts); err != nil {
-			t.Fatalf("FindMany() error: %v", err)
-		}
-		if got := c.count(); got != 1 {
-			t.Fatalf("FindMany() over %d texts = %d round trips, want 1", n, got)
-		}
+				c.reset()
+				if _, err := ac.FindMany(texts); err != nil {
+					t.Fatalf("FindMany() error: %v", err)
+				}
+				if got := c.count(); got != 1 {
+					t.Fatalf("FindMany() over %d texts = %d round trips, want 1", n, got)
+				}
+			}
+
+			// A batch with nothing to scan must not load an engine to scan it with:
+			// the empty-text guard is what keeps FindMany off Redis, and losing it
+			// would turn every all-empty batch into a read.
+			c.reset()
+			if _, err := ac.FindMany([]string{"", ""}); err != nil {
+				t.Fatalf("FindMany(empty texts) error: %v", err)
+			}
+			if got := c.count(); got != 0 {
+				t.Fatalf("FindMany() over empty texts = %d round trips, want 0", got)
+			}
+		})
 	}
 }
 
@@ -448,18 +490,7 @@ func TestRTTPublishedTable(t *testing.T) {
 		})
 	}
 
-	newV2 := func(t *testing.T) *AhoCorasick {
-		t.Helper()
-		ac, mr := createAhoCorasick(t)
-		t.Cleanup(func() { ac.Close(); mr.Close() })
-		return ac
-	}
-	newV1 := func(t *testing.T) *AhoCorasick {
-		t.Helper()
-		ac, mr := createAhoCorasickV1(t)
-		t.Cleanup(func() { ac.Close(); mr.Close() })
-		return ac
-	}
+	newV2, newV1 := newRTTV2, newRTTV1
 
 	addSome := func(ac *AhoCorasick) error {
 		for _, kw := range []string{"he", "her", "him"} {
@@ -490,4 +521,5 @@ func TestRTTPublishedTable(t *testing.T) {
 	measure("V1 Find (3 keywords)", newV1, addSome, find)
 	measure("V1 Add", newV1, addSome, add)
 	measure(fmt.Sprintf("V1 FindParallel (%d chunks)", chunks), newV1, addSome, findParallel)
+	measure("V1 FindMany (3 texts)", newV1, addSome, findMany)
 }
