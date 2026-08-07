@@ -165,6 +165,74 @@ func TestConflictSurfacesOnlyAfterRetriesAreSpent(t *testing.T) {
 	}
 }
 
+// TestParallelOptionsHaveNoImpliedDefaults pins the correction to
+// ParallelOptions.ChunkSize and .Overlap, both of which claimed to default to the
+// Default* constants. normalizeParallelOptions fills in neither: only
+// DefaultParallelOptions supplies them. The ChunkSize half is the sharp one — the
+// documented "defaults to 1000" was in fact an error return.
+func TestParallelOptionsHaveNoImpliedDefaults(t *testing.T) {
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+
+	if _, err := ac.Add(testKeywordHE); err != nil {
+		t.Fatal(err)
+	}
+
+	// A caller-built struct leaving ChunkSize unset fails rather than falling back.
+	if _, err := ac.FindParallel("she", &ParallelOptions{Workers: 2}); !errors.Is(err, ErrInvalidChunkSize) {
+		t.Errorf("FindParallel with an unset ChunkSize = %v, want ErrInvalidChunkSize", err)
+	}
+
+	// Overlap is left at zero rather than raised to DefaultOverlap. Asserting on the
+	// struct the library normalized is what shows the field is untouched; asserting
+	// on a missed match would depend on the dictionary instead.
+	opts := &ParallelOptions{ChunkSize: 100}
+	normalizeParallelOptions(opts)
+	if opts.Overlap != 0 {
+		t.Errorf("normalizeParallelOptions set Overlap to %d, want 0 — only DefaultParallelOptions supplies %d",
+			opts.Overlap, DefaultOverlap)
+	}
+	if opts.ChunkSize != 100 {
+		t.Errorf("normalizeParallelOptions changed ChunkSize to %d, want the caller's 100", opts.ChunkSize)
+	}
+
+	// DefaultParallelOptions is the one place the documented values come from.
+	if d := DefaultParallelOptions(); d.ChunkSize != DefaultChunkSize || d.Overlap != DefaultOverlap ||
+		d.Boundary != ChunkBoundaryWord {
+		t.Errorf("DefaultParallelOptions = %+v, want ChunkSize %d, Overlap %d, ChunkBoundaryWord",
+			d, DefaultChunkSize, DefaultOverlap)
+	}
+}
+
+// TestBatchModeZeroValueIsBestEffort pins the correction to BatchOptions.Mode and
+// BatchModeBestEffort, which both described Mode as defaulting "if nil". Mode is an
+// int; it cannot be nil. Unset means the zero value, and a nil *BatchOptions is the
+// separate case the old wording conflated it with.
+func TestBatchModeZeroValueIsBestEffort(t *testing.T) {
+	if BatchModeBestEffort != 0 {
+		t.Fatalf("BatchModeBestEffort = %d, want 0 — the doc rests on it being the zero value", BatchModeBestEffort)
+	}
+	var unset BatchOptions
+	if unset.Mode != BatchModeBestEffort {
+		t.Errorf("an unset BatchOptions.Mode = %d, want BatchModeBestEffort", unset.Mode)
+	}
+
+	ac, mr := createAhoCorasick(t)
+	defer mr.Close()
+	defer func() { _ = ac.Close() }()
+
+	// Nil options take best-effort too: an empty keyword is recorded, not returned,
+	// which is the observable difference between the two modes.
+	res, err := ac.AddMany([]string{testKeywordHE, ""}, nil)
+	if err != nil {
+		t.Fatalf("AddMany with nil options returned %v, want best-effort partial results", err)
+	}
+	if len(res.Failed) != 1 || !errors.Is(res.Failed[0].Error, ErrEmptyKeyword) {
+		t.Errorf("Failed = %+v, want the empty keyword recorded rather than returned", res.Failed)
+	}
+}
+
 // TestKVStorageIsNotInjectable pins the correction to the KVStorage godoc, which
 // offered "mock implementations can be used for testing". Nothing on the public
 // surface accepts one, so that was a capability the package cannot deliver. The
