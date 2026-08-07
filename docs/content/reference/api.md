@@ -18,25 +18,25 @@ Configuration for creating an AhoCorasick instance.
 <!-- AUTO-GENERATED:types:start -->
 ```go
 type AhoCorasickArgs struct {
-    Addr                            string            // Standalone Redis address
-    Addrs                           []string          // Sentinel or Cluster addresses
+    Addr                            string            // Standalone Redis address (conflicts with Addrs)
+    Addrs                           []string          // Sentinel or Cluster addresses (one entry still means cluster)
     RingAddrs                       map[string]string // Ring shard addresses
     MasterName                      string            // Sentinel master name
     Password                        string            // Redis password
-    DB                              int               // Redis database number (0-15, default: 0)
+    DB                              int               // Redis database number (default: 0; rejected with Addrs)
     DialTimeout                     time.Duration     // Connection timeout (zero: go-redis default)
     ReadTimeout                     time.Duration     // Socket read timeout (zero: go-redis default)
     WriteTimeout                    time.Duration     // Socket write timeout (zero: go-redis default)
     MaxRetries                      int               // Command retries (zero: go-redis default; -1: disabled)
     PoolSize                        int               // Connections per server (zero: go-redis default)
     Name                            string            // Collection name (required)
-    Debug                           bool              // Enable debug logging to stdout
+    Debug                           bool              // Send the default logger to stdout (ignored when Logger is set)
     Logger                          Logger            // Custom logger (nil disables logging)
     SchemaVersion                   int               // 0 or 2: V2 (default, optimized); 1: V1 (deprecated)
     EnableCache                     bool              // Local caching for Find/FindIndex (V2 only, not with Preset)
     SelfInvalidationCleanupInterval uint64            // Cleanup frequency for self-invalidation map (default: 128)
     CaseSensitive                   bool              // Enable case-sensitive matching (default: false)
-    RollbackTimeout                 time.Duration     // V1 rollback timeout (default: 10s)
+    RollbackTimeout                 time.Duration     // V1 flush/rollback timeout, not the caller's ctx (default: 10s)
     Preset                          Preset            // Architecture preset (default: PresetNone)
     InvalidationPollInterval        time.Duration     // Preset version polling (zero: disabled)
 }

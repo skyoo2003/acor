@@ -194,6 +194,13 @@ left to be discovered:
   A verdict of `unaudited` is legal, so an unreviewed entry does not fail the build —
   it is counted instead, and the tally prints on every run. Whether each verdict is
   *right*, and whether its cited `file:line` still points where it did, is review.
+
+  Every entry of the `v1.5.0` surface has been read against the code it describes,
+  and 38 of them said something the code did not do. Those sentences were rewritten
+  before the freeze, so what `v1` promises is the corrected wording, not the wording
+  that shipped in `v1.4.0`. A non-`unaudited` verdict has to cite the `file:line`
+  the behavior was read at, which is what stops a future pass from marking a line
+  reviewed without reviewing it.
 - **Cross-version Redis interop.** Tests pin the key names and hash field names, so a
   *rename* fails CI. They do not run an older ACOR against a newer one's data, so
   additive-only is verified as far as naming and no further.

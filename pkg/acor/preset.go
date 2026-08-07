@@ -5,8 +5,16 @@ package acor
 import "github.com/skyoo2003/acor/internal/engine"
 
 // Preset selects the architecture for the in-memory Aho-Corasick engine. Each
-// value names a different trade-off between speed, memory, and feature set,
-// documented on the constant. The preset is fixed at creation time.
+// value names a different trade-off between search speed and memory, documented
+// on the constant. They do not differ in what they can do: the capabilities of
+// preset mode — no Suggest, no EnableCache, V2 only — come from the mode, not
+// from which architecture it runs, so switching between the three changes only
+// the cost of a search.
+//
+// The preset is fixed at creation time; there is no way to change it on a live
+// instance. Setting any value other than PresetNone also selects preset mode
+// itself, which is what makes Create require Redis (ErrPresetRequiresRedis) and
+// reject SchemaV1 and EnableCache.
 type Preset int
 
 const (
@@ -18,8 +26,15 @@ const (
 	PresetSpeed
 	// PresetBalanced provides the best speed-to-memory ratio (DAT + Banded DFA).
 	PresetBalanced
-	// PresetMemoryEfficient minimizes memory usage (map-based sparse trie + Bloom).
-	// Trade-off: slower search from failure-link traversal and map lookups.
+	// PresetMemoryEfficient minimizes memory usage (map-based sparse trie + Bloom)
+	// as the dictionary grows. Trade-off: slower search from failure-link traversal
+	// and map lookups.
+	//
+	// The saving is asymptotic, not universal: on a small dictionary the per-node
+	// map and the Bloom filter cost more than the arrays they replace, so
+	// AhoCorasickInfo.MemoryBytes can report more here than for PresetBalanced.
+	// That figure is also each engine's own estimate of its own layout, so treat it
+	// as a trend for one preset over time rather than as a comparison between two.
 	PresetMemoryEfficient
 )
 
@@ -27,7 +42,14 @@ const (
 // identically to PresetNone and is not part of the public API.
 const presetDefault Preset = -1
 
-// String returns the preset name, or "Unknown" for a value outside the set.
+// String returns the preset name: "None", "Speed", "Balanced", or
+// "MemoryEfficient".
+//
+// A Preset the package never defined returns "Unknown" — with one exception a
+// caller can reach. Preset(-1) is an internal sentinel meaning "unset" and
+// returns "Default", so it is the one value outside the exported set that does
+// not report itself as unknown. Nothing on the public surface produces it;
+// only a hand-built Preset(-1) gets there.
 func (p Preset) String() string {
 	switch p {
 	case PresetNone:

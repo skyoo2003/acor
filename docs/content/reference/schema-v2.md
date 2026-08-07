@@ -5,17 +5,22 @@ weight: 4
 
 # Schema V2 (Optimized)
 
-V2 is the recommended schema for ACOR. It uses a fixed 3 keys per collection.
+V2 is the recommended schema for ACOR. A collection occupies a fixed set of at
+most 3 keys, whatever the dictionary size.
 
 ## Overview
 
-V2 consolidates storage into 3 keys:
+V2 consolidates storage into these keys:
 
-| Key Pattern | Purpose |
-|-------------|---------|
-| `{name}:trie` | Serialized trie structure (keywords, prefixes, version) |
-| `{name}:outputs` | All output mappings (state -> keywords) |
-| `{name}:nodes` | Node metadata (migration only, cleaned up by flush) |
+| Key Pattern | Purpose | When it exists |
+|-------------|---------|----------------|
+| `{name}:trie` | Serialized trie structure (keywords, prefixes, version) | Always, from creation |
+| `{name}:outputs` | All output mappings (state -> keywords) | Once the collection has a keyword |
+| `{name}:nodes` | Node metadata | Only on a collection produced by `MigrateV1ToV2`; cleaned up by flush |
+
+Most collections therefore hold two keys, and a freshly created one holds a
+single `:trie`. Nothing but migration writes `:nodes`, so a collection built with
+`Add` never has it. Budget for three; expect to count fewer.
 
 ## Performance Characteristics
 
@@ -31,7 +36,7 @@ hardware named on the [benchmarks page](../benchmarks/).
 
 | Metric | V1 | V2 |
 |--------|----|----|
-| Keys per 100K keywords | ~500K | 3 |
+| Keys per 100K keywords | ~500K | 2 |
 | `Find()` round trips | 1 | 1 |
 | `Add()` round trips | grows with keyword length (53 at 5 chars, 507 at 26) | 2 |
 | `Add()` time | baseline | ~14x faster |
