@@ -106,11 +106,17 @@ Their JSON field names are covered too. `api/v1.txt` records struct tags, so ren
 to marshaling a returned struct yourself; the `acor` command's own `--json` output is a
 CLI detail and stays uncovered.
 
-### Do not expect the exported interfaces to grow
+### Do not expect the exported interface to grow
 
-Five exported interfaces can be implemented from outside the module: `Logger`,
-`KVStorage`, `StringMapResult`, `Subscription`, and `Pipeliner`. No method is added to
-any of them inside `v1` — doing so would break every existing implementation.
+One exported interface can be implemented from outside the module: `Logger`. No method
+is added to it inside `v1` — doing so would break every existing implementation.
+
+`KVStorage`, `StringMapResult`, `Subscription`, and `Pipeliner` were exported through
+`v1.4.0` and are not part of the `v1.5.0` surface. Nothing public ever accepted or
+returned one, so no caller could supply an implementation; and freezing them would have
+capped the pluggable-storage work they existed for, since this very rule forbids adding
+a method to them later. They are unexported now so that feature can choose its own
+shape, which `v1` permits as an addition.
 
 ### Do not dot-import the package
 

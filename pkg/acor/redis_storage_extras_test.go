@@ -194,7 +194,7 @@ func TestRedisPipelinerZAdd(t *testing.T) {
 	store := newRedisStorage(client)
 
 	pipe := store.Pipeline()
-	if err := pipe.ZAdd(ctx, "myzset", &Z{Score: 1.0, Member: "a"}, &Z{Score: 2.0, Member: "b"}); err != nil {
+	if err := pipe.ZAdd(ctx, "myzset", &zMember{Score: 1.0, Member: "a"}, &zMember{Score: 2.0, Member: "b"}); err != nil {
 		t.Fatalf("pipeliner.ZAdd() error: %v", err)
 	}
 	if err := pipe.Exec(ctx); err != nil {
@@ -220,7 +220,7 @@ func TestRedisStorageTxPipelined(t *testing.T) {
 	ctx := context.Background()
 	store := newRedisStorage(client)
 
-	err := store.TxPipelined(ctx, func(pipe Pipeliner) error {
+	err := store.TxPipelined(ctx, func(pipe pipeliner) error {
 		if err := pipe.SAdd(ctx, "txset", "a", "b"); err != nil {
 			return err
 		}
@@ -356,7 +356,7 @@ func TestRedisStorageZOperations(t *testing.T) {
 	ctx := context.Background()
 	store := newRedisStorage(client)
 
-	if err := store.ZAdd(ctx, "zset", &Z{Score: 1.0, Member: "a"}, &Z{Score: 2.0, Member: "b"}); err != nil {
+	if err := store.ZAdd(ctx, "zset", &zMember{Score: 1.0, Member: "a"}, &zMember{Score: 2.0, Member: "b"}); err != nil {
 		t.Fatal(err)
 	}
 

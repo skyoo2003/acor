@@ -113,7 +113,7 @@ func BenchmarkRealServerAdd(b *testing.B) {
 }
 
 // TestRTTAgainstRealServer proves the round-trip counts are structural rather
-// than an artifact of miniredis. The counter wraps the KVStorage seam, which
+// than an artifact of miniredis. The counter wraps the kvStorage seam, which
 // sits above the wire, so a real server must produce the identical numbers
 // pinned in rtt_claims_test.go. If it ever doesn't, the backend is taking a
 // different code path and the published table describes only miniredis.

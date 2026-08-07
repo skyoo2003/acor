@@ -1,0 +1,5 @@
+kind: Removed
+body: 'Unexported the storage abstraction — `KVStorage`, `Pipeliner`, `Subscription`, `StringMapResult`, `PubSubMessage`, and `Z` — removing 43 of the 223 entries from the frozen v1 surface. Nothing public ever accepted or returned one, so no caller could supply an implementation: the interfaces could be named but not used. Freezing them would also have capped the pluggable-backend work they were exported for, because the compatibility policy forbids adding a method to an exported interface inside v1, and `KVStorage` has 23 of them. Unexported, the shape stays free until that feature can choose it, and publishing an interface later is an addition v1 allows. No behavior changed and the Redis backend is unaffected; for testing without Redis, use miniredis as ACOR''s own suite does.'
+time: 2026-08-07T16:00:00.000000+09:00
+custom:
+    Issue: "209"

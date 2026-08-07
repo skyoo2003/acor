@@ -222,18 +222,18 @@ func TestBatchModeZeroValueIsBestEffort(t *testing.T) {
 	}
 }
 
-// TestKVStorageIsNotInjectable pins the correction to the KVStorage godoc, which
+// TestKVStorageIsNotInjectable pins the correction to the kvStorage godoc, which
 // offered "mock implementations can be used for testing". Nothing on the public
 // surface accepts one, so that was a capability the package cannot deliver. The
-// assertion is structural: no AhoCorasickArgs field can carry a KVStorage in.
+// assertion is structural: no AhoCorasickArgs field can carry a kvStorage in.
 func TestKVStorageIsNotInjectable(t *testing.T) {
-	storage := reflect.TypeOf((*KVStorage)(nil)).Elem()
+	storage := reflect.TypeOf((*kvStorage)(nil)).Elem()
 	args := reflect.TypeOf(AhoCorasickArgs{})
 
 	for i := range args.NumField() {
 		f := args.Field(i)
 		if f.Type == storage || f.Type.Implements(storage) {
-			t.Errorf("AhoCorasickArgs.%s can carry a KVStorage; the godoc says one cannot be supplied, "+
+			t.Errorf("AhoCorasickArgs.%s can carry a kvStorage; the godoc says one cannot be supplied, "+
 				"so revisit both it and api/v1-audit.txt", f.Name)
 		}
 	}

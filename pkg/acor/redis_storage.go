@@ -14,8 +14,8 @@ type redisStorage struct {
 	client redis.UniversalClient
 }
 
-// newRedisStorage returns a KVStorage backed by the given Redis client.
-func newRedisStorage(client redis.UniversalClient) KVStorage {
+// newRedisStorage returns a kvStorage backed by the given Redis client.
+func newRedisStorage(client redis.UniversalClient) kvStorage {
 	return &redisStorage{client: client}
 }
 
@@ -55,7 +55,7 @@ func (s *redisStorage) SIsMember(ctx context.Context, key, member string) (bool,
 	return s.client.SIsMember(ctx, key, member).Result()
 }
 
-func (s *redisStorage) ZAdd(ctx context.Context, key string, members ...*Z) error {
+func (s *redisStorage) ZAdd(ctx context.Context, key string, members ...*zMember) error {
 	zMembers := make([]redis.Z, len(members))
 	for i, m := range members {
 		zMembers[i] = redis.Z{Score: m.Score, Member: m.Member}
@@ -91,7 +91,7 @@ func (s *redisStorage) Exists(ctx context.Context, keys ...string) (int64, error
 	return s.client.Exists(ctx, keys...).Result()
 }
 
-func (s *redisStorage) TxPipelined(ctx context.Context, fn func(Pipeliner) error) error {
+func (s *redisStorage) TxPipelined(ctx context.Context, fn func(pipeliner) error) error {
 	_, err := s.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 		return fn(&redisPipeliner{pipe: pipe})
 	})
@@ -102,7 +102,7 @@ func (s *redisStorage) SetNX(ctx context.Context, key string, value interface{},
 	return s.client.SetNX(ctx, key, value, expiration).Result()
 }
 
-func (s *redisStorage) Pipeline() Pipeliner {
+func (s *redisStorage) Pipeline() pipeliner {
 	return &redisPipeliner{pipe: s.client.Pipeline()}
 }
 
@@ -110,7 +110,7 @@ func (s *redisStorage) Publish(ctx context.Context, channel string, message inte
 	return s.client.Publish(ctx, channel, message).Err()
 }
 
-func (s *redisStorage) Subscribe(ctx context.Context, channels ...string) Subscription {
+func (s *redisStorage) Subscribe(ctx context.Context, channels ...string) subscription {
 	return &redisSubscription{pubsub: s.client.Subscribe(ctx, channels...), done: make(chan struct{})}
 }
 
@@ -128,7 +128,7 @@ func (r *redisStringMapResult) Val() map[string]string {
 
 type redisSubscription struct {
 	pubsub    *redis.PubSub
-	ch        chan PubSubMessage
+	ch        chan pubSubMessage
 	once      sync.Once
 	done      chan struct{}
 	closeOnce sync.Once
@@ -141,9 +141,9 @@ func (s *redisSubscription) Receive(ctx context.Context) error {
 
 const pubsubChannelSize = 100
 
-func (s *redisSubscription) Channel() <-chan PubSubMessage {
+func (s *redisSubscription) Channel() <-chan pubSubMessage {
 	s.once.Do(func() {
-		ch := make(chan PubSubMessage, pubsubChannelSize)
+		ch := make(chan pubSubMessage, pubsubChannelSize)
 		src := s.pubsub.Channel()
 		go func() {
 			defer close(ch)
@@ -156,7 +156,7 @@ func (s *redisSubscription) Channel() <-chan PubSubMessage {
 						return
 					}
 					select {
-					case ch <- PubSubMessage{Channel: msg.Channel, Payload: msg.Payload}:
+					case ch <- pubSubMessage{Channel: msg.Channel, Payload: msg.Payload}:
 					case <-s.done:
 						return
 					}
@@ -190,7 +190,7 @@ func (p *redisPipeliner) HSet(ctx context.Context, key string, values ...interfa
 	return p.pipe.HSet(ctx, key, values...).Err()
 }
 
-func (p *redisPipeliner) ZAdd(ctx context.Context, key string, members ...*Z) error {
+func (p *redisPipeliner) ZAdd(ctx context.Context, key string, members ...*zMember) error {
 	zMembers := make([]redis.Z, len(members))
 	for i, m := range members {
 		zMembers[i] = redis.Z{Score: m.Score, Member: m.Member}
@@ -202,7 +202,7 @@ func (p *redisPipeliner) Del(ctx context.Context, keys ...string) error {
 	return p.pipe.Del(ctx, keys...).Err()
 }
 
-func (p *redisPipeliner) HGetAll(ctx context.Context, key string) StringMapResult {
+func (p *redisPipeliner) HGetAll(ctx context.Context, key string) stringMapResult {
 	return &redisStringMapResult{cmd: p.pipe.HGetAll(ctx, key)}
 }
 

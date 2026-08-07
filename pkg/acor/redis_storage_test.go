@@ -70,7 +70,7 @@ func TestRedisStorageOperations(t *testing.T) {
 	})
 
 	t.Run("ZAdd and ZRange", func(t *testing.T) {
-		err := storage.ZAdd(ctx, "zset", &Z{Score: 1.0, Member: "a"}, &Z{Score: 2.0, Member: "b"})
+		err := storage.ZAdd(ctx, "zset", &zMember{Score: 1.0, Member: "a"}, &zMember{Score: 2.0, Member: "b"})
 		if err != nil {
 			t.Fatalf("ZAdd() error = %v", err)
 		}

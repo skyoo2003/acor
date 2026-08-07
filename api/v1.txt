@@ -86,13 +86,9 @@ field ParallelOptions.Boundary ChunkBoundary
 field ParallelOptions.ChunkSize int
 field ParallelOptions.Overlap int
 field ParallelOptions.Workers int
-field PubSubMessage.Channel string
-field PubSubMessage.Payload string
 field RedisError.Err error
 field RedisError.Key string
 field RedisError.Op string
-field Z.Member string
-field Z.Score float64
 func Create(args *AhoCorasickArgs) (*AhoCorasick, error)
 func CreateContext(ctx context.Context, args *AhoCorasickArgs) (*AhoCorasick, error)
 func DefaultMigrationOptions() *MigrationOptions
@@ -144,41 +140,8 @@ method (*OperationError) Unwrap() error
 method (*RedisError) Error() string
 method (*RedisError) Unwrap() error
 method (Preset) String() string
-method KVStorage.Close() error
-method KVStorage.Del(ctx context.Context, keys ...string) error
-method KVStorage.Exists(ctx context.Context, keys ...string) (int64, error)
-method KVStorage.Get(ctx context.Context, key string) (string, error)
-method KVStorage.HGetAll(ctx context.Context, key string) (map[string]string, error)
-method KVStorage.HSet(ctx context.Context, key string, values ...interface{}) error
-method KVStorage.Pipeline() Pipeliner
-method KVStorage.Publish(ctx context.Context, channel string, message interface{}) error
-method KVStorage.SAdd(ctx context.Context, key string, members ...interface{}) error
-method KVStorage.SCard(ctx context.Context, key string) (int64, error)
-method KVStorage.SIsMember(ctx context.Context, key, member string) (bool, error)
-method KVStorage.SMembers(ctx context.Context, key string) ([]string, error)
-method KVStorage.SRem(ctx context.Context, key string, members ...interface{}) error
-method KVStorage.Set(ctx context.Context, key string, value interface{}) error
-method KVStorage.SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error)
-method KVStorage.Subscribe(ctx context.Context, channels ...string) Subscription
-method KVStorage.TxPipelined(ctx context.Context, fn func(Pipeliner) error) error
-method KVStorage.ZAdd(ctx context.Context, key string, members ...*Z) error
-method KVStorage.ZCard(ctx context.Context, key string) (int64, error)
-method KVStorage.ZRange(ctx context.Context, key string, start, stop int64) ([]string, error)
-method KVStorage.ZRank(ctx context.Context, key, member string) (int64, error)
-method KVStorage.ZRem(ctx context.Context, key string, members ...interface{}) error
-method KVStorage.ZScore(ctx context.Context, key, member string) (float64, error)
 method Logger.Printf(format string, v ...interface{})
 method Logger.Println(v ...interface{})
-method Pipeliner.Del(ctx context.Context, keys ...string) error
-method Pipeliner.Exec(ctx context.Context) error
-method Pipeliner.HGetAll(ctx context.Context, key string) StringMapResult
-method Pipeliner.HSet(ctx context.Context, key string, values ...interface{}) error
-method Pipeliner.SAdd(ctx context.Context, key string, members ...interface{}) error
-method Pipeliner.ZAdd(ctx context.Context, key string, members ...*Z) error
-method StringMapResult.Val() map[string]string
-method Subscription.Channel() <-chan PubSubMessage
-method Subscription.Close() error
-method Subscription.Receive(ctx context.Context) error
 type AhoCorasick struct
 type AhoCorasickArgs struct
 type AhoCorasickInfo struct
@@ -187,7 +150,6 @@ type BatchOptions struct
 type BatchResult struct
 type CacheStats struct
 type ChunkBoundary int
-type KVStorage interface
 type KeywordError struct
 type Logger interface
 type Match struct
@@ -197,13 +159,8 @@ type MigrationOptions struct
 type MigrationResult struct
 type OperationError struct
 type ParallelOptions struct
-type Pipeliner interface
 type Preset int
-type PubSubMessage struct
 type RedisError struct
-type StringMapResult interface
-type Subscription interface
-type Z struct
 var ErrAlreadyV2
 var ErrCacheRequiresV2
 var ErrCacheWithPreset

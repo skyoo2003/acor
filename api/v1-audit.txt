@@ -86,13 +86,9 @@ field ParallelOptions.Boundary ChunkBoundary	ok	options.go:68; the zero value is
 field ParallelOptions.ChunkSize int	fixed	options.go:61 promised a DefaultChunkSize fallback; normalizeParallelOptions (parallel.go:89-104) never sets it and context_ops.go:127,177 reject <= 0 with ErrInvalidChunkSize, so the documented default was an error return. TestParallelOptionsHaveNoImpliedDefaults pins it
 field ParallelOptions.Overlap int	fixed	options.go:71 promised DefaultOverlap; parallel.go:96-102 only clamps negatives, leaving an unset Overlap at 0 and silently missing boundary-straddling keywords. Same test pins it
 field ParallelOptions.Workers int	ok	options.go:58; parallel.go:93-95 substitutes runtime.NumCPU() when <= 0, exactly as documented
-field PubSubMessage.Channel string	ok	set from msg.Channel, redis_storage.go:159
-field PubSubMessage.Payload string	ok	set from msg.Payload, redis_storage.go:159
 field RedisError.Err error	ok	errors.go:99; the client error, returned by Unwrap at errors.go:109
 field RedisError.Key string	ok	errors.go:97; the key involved, v2_ops.go:108
 field RedisError.Op string	ok	errors.go:95; the Redis verb, e.g. "HGETALL" at v2_ops.go:108
-field Z.Member string	ok	copied to redis.Z.Member, redis_storage.go:61
-field Z.Score float64	ok	copied to redis.Z.Score, redis_storage.go:61
 func Create(args *AhoCorasickArgs) (*AhoCorasick, error)	ok	acor.go:403 delegates to CreateContext with context.Background, and the documented error cases are the guards at acor.go:420-437 and client.go:47-68
 func CreateContext(ctx context.Context, args *AhoCorasickArgs) (*AhoCorasick, error)	ok	acor.go:418; ctx governs setup only, and the background listener runs on an internal context per acor.go:476
 func DefaultMigrationOptions() *MigrationOptions	unaudited
@@ -144,41 +140,8 @@ method (*OperationError) Unwrap() error	ok	errors.go:90 returns Err, so errors.I
 method (*RedisError) Error() string	ok	errors.go:104 formats op, key and cause
 method (*RedisError) Unwrap() error	ok	errors.go:109 returns Err, so errors.Is reaches the go-redis error
 method (Preset) String() string	unaudited
-method KVStorage.Close() error	ok	redis_storage.go:117 closes the underlying client
-method KVStorage.Del(ctx context.Context, keys ...string) error	ok	redis_storage.go:86
-method KVStorage.Exists(ctx context.Context, keys ...string) (int64, error)	ok	redis_storage.go:90 returns the count as documented
-method KVStorage.Get(ctx context.Context, key string) (string, error)	ok	redis_storage.go:22; the documented redis.Nil on a missing key is what trie.go:20 tests for, so the promise is load-bearing rather than decorative
-method KVStorage.HGetAll(ctx context.Context, key string) (map[string]string, error)	ok	redis_storage.go:30
-method KVStorage.HSet(ctx context.Context, key string, values ...interface{}) error	ok	redis_storage.go:34
-method KVStorage.Pipeline() Pipeliner	ok	redis_storage.go:105 returns a non-transactional pipeline, distinct from TxPipelined as documented
-method KVStorage.Publish(ctx context.Context, channel string, message interface{}) error	ok	redis_storage.go:109
-method KVStorage.SAdd(ctx context.Context, key string, members ...interface{}) error	ok	redis_storage.go:38
-method KVStorage.SCard(ctx context.Context, key string) (int64, error)	ok	redis_storage.go:50
-method KVStorage.SIsMember(ctx context.Context, key, member string) (bool, error)	ok	redis_storage.go:54
-method KVStorage.SMembers(ctx context.Context, key string) ([]string, error)	ok	redis_storage.go:42
-method KVStorage.SRem(ctx context.Context, key string, members ...interface{}) error	ok	redis_storage.go:46
-method KVStorage.Set(ctx context.Context, key string, value interface{}) error	ok	redis_storage.go:26 passes expiration 0, which is "no expiration" as documented
-method KVStorage.SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error)	ok	redis_storage.go:101 returns the SETNX result, true when set
-method KVStorage.Subscribe(ctx context.Context, channels ...string) Subscription	ok	redis_storage.go:113
-method KVStorage.TxPipelined(ctx context.Context, fn func(Pipeliner) error) error	ok	redis_storage.go:94 wraps go-redis TxPipelined, so the commands run inside MULTI/EXEC as "transaction pipeline" claims
-method KVStorage.ZAdd(ctx context.Context, key string, members ...*Z) error	ok	redis_storage.go:58 converts each *Z to redis.Z before the call
-method KVStorage.ZCard(ctx context.Context, key string) (int64, error)	ok	redis_storage.go:78
-method KVStorage.ZRange(ctx context.Context, key string, start, stop int64) ([]string, error)	ok	redis_storage.go:66; "by index range" matches ZRANGE start/stop semantics
-method KVStorage.ZRank(ctx context.Context, key, member string) (int64, error)	ok	redis_storage.go:70
-method KVStorage.ZRem(ctx context.Context, key string, members ...interface{}) error	ok	redis_storage.go:82
-method KVStorage.ZScore(ctx context.Context, key, member string) (float64, error)	ok	redis_storage.go:74
 method Logger.Printf(format string, v ...interface{})	ok	satisfied by log.Logger and by the args-supplied logger, acor.go:446-454
 method Logger.Println(v ...interface{})	ok	same construction path, acor.go:446-454
-method Pipeliner.Del(ctx context.Context, keys ...string) error	ok	redis_storage.go:201
-method Pipeliner.Exec(ctx context.Context) error	ok	redis_storage.go:209
-method Pipeliner.HGetAll(ctx context.Context, key string) StringMapResult	ok	redis_storage.go:205 returns the deferred wrapper; readable after Exec as documented
-method Pipeliner.HSet(ctx context.Context, key string, values ...interface{}) error	ok	redis_storage.go:189
-method Pipeliner.SAdd(ctx context.Context, key string, members ...interface{}) error	ok	redis_storage.go:185 buffers on the pipeline rather than issuing immediately
-method Pipeliner.ZAdd(ctx context.Context, key string, members ...*Z) error	ok	redis_storage.go:193
-method StringMapResult.Val() map[string]string	ok	redis_storage.go:125 reads the deferred cmd; before Exec it yields the zero value, which is why the doc requires Exec first
-method Subscription.Channel() <-chan PubSubMessage	ok	redis_storage.go:144 fans go-redis messages into a buffered channel, once per subscription via sync.Once
-method Subscription.Close() error	ok	redis_storage.go:171 closes the pubsub and releases the forwarding goroutine via done
-method Subscription.Receive(ctx context.Context) error	ok	redis_storage.go:137; used exactly as documented at invalidation.go:192, once right after Subscribe, where what arrives is the confirmation
 type AhoCorasick struct	ok	acor.go:331; instance state is mutex- or atomic-guarded (acor.go:337-358) and the concurrency claim is exercised under make race
 type AhoCorasickArgs struct	ok	acor.go:219; the documented topology precedence matches CreateContext (acor.go:418) and client.go:47-68, and Name is the only required field
 type AhoCorasickInfo struct	unaudited
@@ -187,7 +150,6 @@ type BatchOptions struct	ok	options.go:22; consumed by AddMany/RemoveMany, batch
 type BatchResult struct	ok	options.go:101; the four slices partition a batch's outcome, batch.go:114-361
 type CacheStats struct	ok	stats.go:10; returned by value from acor.go:650 and never constructed by callers, and snapshot() reads process-local atomics only, so "nothing here is read from or written to Redis" holds
 type ChunkBoundary int	ok	options.go:30; all three values are handled in isBoundary, parallel.go:77-86
-type KVStorage interface	risk	storage.go:18 promised "mock implementations can be used for testing"; no exported symbol accepts or returns a KVStorage, so callers can name it but never supply one. Sentence corrected; whether the 43-entry island belongs on the frozen surface is a shape decision for milestone 4
 type KeywordError struct	ok	options.go:92; pairs keyword and error, constructed at batch.go:67,126,139
 type Logger interface	ok	acor.go:209; newLogger (acor.go:446) defaults to io.Discard and switches to stdout only when Debug is set, exactly as documented
 type Match struct	ok	matches.go:15; rune offsets, half-open, emitted in scan order by the engine callback at matches.go:129
@@ -197,13 +159,8 @@ type MigrationOptions struct	unaudited
 type MigrationResult struct	unaudited
 type OperationError struct	ok	errors.go:68; constructed by newOperationError (errors.go:111) and used at v2_ops.go:114 for unmarshal failures
 type ParallelOptions struct	ok	options.go:55; consumed by splitChunks and normalizeParallelOptions, parallel.go:19,89
-type Pipeliner interface	ok	storage.go:104 "buffered and sent together"; redisPipeliner buffers on redis.Pipeliner and flushes in Exec, redis_storage.go:181,209. Reachable only via KVStorage.Pipeline/TxPipelined — see the KVStorage verdict
 type Preset int	unaudited
-type PubSubMessage struct	ok	storage.go:86; constructed from the go-redis message at redis_storage.go:159
 type RedisError struct	ok	errors.go:92; constructed by newRedisError (errors.go:115), used at v2_ops.go:108
-type StringMapResult interface	ok	storage.go:78 "deferred string map result from a pipeline HGetAll"; redisStringMapResult wraps the deferred cmd, redis_storage.go:121,205
-type Subscription interface	ok	storage.go:94 descriptive; redisSubscription implements it, redis_storage.go:129. Reachable only via KVStorage.Subscribe
-type Z struct	ok	storage.go:10 "compatible with Redis ZSET operations"; converted field-for-field to redis.Z at redis_storage.go:61
 var ErrAlreadyV2	ok	migration.go:139 when the collection is already V2
 var ErrCacheRequiresV2	ok	acor.go:503 rejects EnableCache on V1, matching the doc; v1_ops.go:209 records the same constraint
 var ErrCacheWithPreset	ok	acor.go:437 rejects the combination rather than silently dropping the cache, as the doc states

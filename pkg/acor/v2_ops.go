@@ -24,7 +24,7 @@ var _ operations = (*v2Operations)(nil)
 // It holds all dependencies needed for V2 Aho-Corasick operations without
 // depending directly on the AhoCorasick struct.
 type v2Operations struct {
-	storage       KVStorage
+	storage       kvStorage
 	client        redis.UniversalClient
 	name          string
 	cache         *trieCache

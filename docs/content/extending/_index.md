@@ -9,7 +9,7 @@ Extend ACOR with custom functionality.
 
 ## Sections
 
-- [Custom Storage](custom-storage/) - Implement custom storage backends
+- [Custom Storage](custom-storage/) - Why Redis is the only backend, and how to test without one
 
 ## Navigation
 

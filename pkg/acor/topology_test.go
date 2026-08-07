@@ -236,7 +236,7 @@ func TestStorageAdapterMethods(t *testing.T) {
 	})
 
 	t.Run("ZAdd", func(t *testing.T) {
-		if err := storage.ZAdd(ctx, "zset2", &Z{Score: 1.0, Member: "a"}); err != nil {
+		if err := storage.ZAdd(ctx, "zset2", &zMember{Score: 1.0, Member: "a"}); err != nil {
 			t.Errorf("ZAdd() error: %v", err)
 		}
 	})
@@ -289,10 +289,10 @@ func TestStorageAdapterMethods(t *testing.T) {
 	})
 
 	t.Run("TxPipelined", func(t *testing.T) {
-		err := storage.TxPipelined(ctx, func(pipe Pipeliner) error {
+		err := storage.TxPipelined(ctx, func(pipe pipeliner) error {
 			_ = pipe.SAdd(ctx, "txset", "member")
 			_ = pipe.HSet(ctx, "txhash", "field", "value")
-			_ = pipe.ZAdd(ctx, "txzset", &Z{Score: 1.0, Member: "a"})
+			_ = pipe.ZAdd(ctx, "txzset", &zMember{Score: 1.0, Member: "a"})
 			return nil
 		})
 		if err != nil {

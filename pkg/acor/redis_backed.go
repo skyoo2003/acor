@@ -30,7 +30,7 @@ type redisBackedAC struct {
 	caseSensitive bool
 	name          string
 
-	storage     KVStorage
+	storage     kvStorage
 	redisClient redis.UniversalClient
 
 	keywordSet   map[string]struct{}
@@ -42,7 +42,7 @@ type redisBackedAC struct {
 
 	selfSkip    selfSkipSet
 	reloadGroup singleflight.Group
-	pubsub      Subscription
+	pubsub      subscription
 	stopCh      chan struct{}
 	ctx         context.Context
 	cancel      context.CancelFunc

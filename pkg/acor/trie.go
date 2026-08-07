@@ -66,9 +66,9 @@ func (ac *AhoCorasick) buildTrieWithContext(ctx context.Context, keyword string)
 		_, err := ac.storage.ZScore(ctx, pKey, prefix)
 		if err == redis.Nil {
 			sKey := suffixKey(ac.name)
-			pMember := &Z{Score: memberScore, Member: prefix}
-			sMember := &Z{Score: memberScore, Member: suffix}
-			if pipeErr := ac.storage.TxPipelined(ctx, func(pipe Pipeliner) error {
+			pMember := &zMember{Score: memberScore, Member: prefix}
+			sMember := &zMember{Score: memberScore, Member: suffix}
+			if pipeErr := ac.storage.TxPipelined(ctx, func(pipe pipeliner) error {
 				_ = pipe.ZAdd(ctx, pKey, pMember)
 				_ = pipe.ZAdd(ctx, sKey, sMember)
 				return nil
@@ -173,7 +173,7 @@ func (ac *AhoCorasick) buildOutputWithContext(ctx context.Context, state string)
 		for i, v := range outputs {
 			args[i] = v
 		}
-		if pipeErr := ac.storage.TxPipelined(ctx, func(pipe Pipeliner) error {
+		if pipeErr := ac.storage.TxPipelined(ctx, func(pipe pipeliner) error {
 			_ = pipe.SAdd(ctx, oKey, args...)
 			for _, output := range outputs {
 				nKey := nodeKey(ac.name, output)

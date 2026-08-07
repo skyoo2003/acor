@@ -54,7 +54,7 @@ type trieSnapshot struct {
 }
 
 // readTrieSnapshot loads and deserializes the trie hash from Redis.
-func readTrieSnapshot(ctx context.Context, storage KVStorage, name string) (*trieSnapshot, error) {
+func readTrieSnapshot(ctx context.Context, storage kvStorage, name string) (*trieSnapshot, error) {
 	trieData, err := storage.HGetAll(ctx, trieKey(name))
 	if err != nil {
 		return nil, newRedisError("HGETALL", trieKey(name), err)
@@ -159,9 +159,9 @@ func commitV2Write(ctx context.Context, client redis.UniversalClient, name strin
 //
 // Shared by both V2 write paths, which differ only in the local state they reset
 // afterwards.
-func flushV2Keys(ctx context.Context, storage KVStorage, name string) error {
+func flushV2Keys(ctx context.Context, storage kvStorage, name string) error {
 	tKey := trieKey(name)
-	err := storage.TxPipelined(ctx, func(pipe Pipeliner) error {
+	err := storage.TxPipelined(ctx, func(pipe pipeliner) error {
 		// nodesKey is only written during migration; including it here ensures a clean state.
 		if err := pipe.Del(ctx, outputsKey(name), nodesKey(name), tKey); err != nil {
 			return err
