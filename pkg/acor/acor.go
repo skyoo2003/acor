@@ -659,6 +659,8 @@ func (ac *AhoCorasick) CacheStats() CacheStats {
 // Returns:
 //   - 1 if the keyword was successfully added
 //   - 0 if the keyword already exists (no duplicate is added)
+//   - 0 and no error if the keyword is empty or whitespace-only; the batch form
+//     reports that case as ErrEmptyKeyword, this one does not
 //   - error if the operation fails
 //
 // For V2 schema, this operation uses optimistic locking with automatic retries.
@@ -667,7 +669,8 @@ func (ac *AhoCorasick) Add(keyword string) (int, error) {
 }
 
 // Remove removes a keyword from the Aho-Corasick automaton.
-// Returns the number of keywords removed (0 or 1) or an error.
+// Returns the number of keywords removed (0 or 1) or an error. An empty or
+// whitespace-only keyword removes nothing and reports (0, nil); see Add.
 func (ac *AhoCorasick) Remove(keyword string) (int, error) {
 	return ac.ops.remove(ac.ctx, keyword)
 }
@@ -690,8 +693,12 @@ func (ac *AhoCorasick) Flush() error {
 	return ac.ops.flush(ac.ctx)
 }
 
-// Info returns diagnostic information about the automaton, including the
-// schema version, keyword count, and storage details.
+// Info returns diagnostic information about the automaton: the keyword and trie-node
+// counts, and in Preset mode the engine preset with its memory and depth estimates.
+// See AhoCorasickInfo for which fields each mode fills in.
+//
+// The schema version is not part of it — call SchemaVersion for that, which costs no
+// Redis round trip.
 func (ac *AhoCorasick) Info() (*AhoCorasickInfo, error) {
 	return ac.ops.info(ac.ctx)
 }
@@ -707,11 +714,16 @@ func (ac *AhoCorasick) SuggestIndex(input string) (map[string][]int, error) {
 	return ac.ops.suggestIndex(ac.ctx, input)
 }
 
-// Debug prints the current state of the Aho-Corasick automaton to stdout.
-// This includes keywords, prefixes, suffixes, outputs, and nodes.
-// Useful for debugging and understanding the trie structure.
-// Note: Only supported in original V1/V2 Redis-backed mode. In-memory and
-// preset-optimized modes are no-ops since they have no Redis trie state to dump.
+// Debug dumps the collection's Redis state — keywords, prefixes, suffixes, outputs,
+// and nodes — through the instance's Logger. Useful for understanding the trie
+// structure.
+//
+// It writes to the Logger, not to stdout: on an instance built without Debug or a
+// Logger the default logger discards everything, so Debug produces no output at all.
+// Set AhoCorasickArgs.Debug to send it to stdout, or supply a Logger.
+//
+// Only the original V1/V2 Redis-backed mode dumps anything. Preset mode is a no-op,
+// having no Redis trie state to read.
 func (ac *AhoCorasick) Debug() {
 	if ac.mode == modeOriginal && ac.schemaVersion == SchemaV2 {
 		ac.debugV2()

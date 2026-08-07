@@ -34,8 +34,14 @@ type CacheStats struct {
 	Hits uint64
 	// Misses is the number of reads that had to wait for the local automaton to be
 	// rebuilt, whether because a peer's write invalidated it or because nothing was
-	// cached yet. A read whose Redis fetch then failed is counted here too: it waited
-	// and came back without an automaton.
+	// cached yet.
+	//
+	// Whether a read whose Redis fetch failed lands here depends on the mode, because
+	// the mode decides which side of the fetch the counter sits on. Preset and V2 with
+	// EnableCache count the read before fetching, so a failure is a miss: it waited and
+	// came back without an automaton. Default V2 fetches first and consults the memo
+	// only afterwards, so there a failed read moves neither counter — a burst of Redis
+	// errors shows up as reads that stopped happening, not as misses.
 	//
 	// Hits+Misses is the read count, so the hit rate is Hits/(Hits+Misses). Both are
 	// zero on a fresh instance, so guard that division. See Hits for what one read

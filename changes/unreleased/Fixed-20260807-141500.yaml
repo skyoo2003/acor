@@ -1,0 +1,5 @@
+kind: Fixed
+body: 'Corrected seven godoc claims on the frozen v1 surface that did not describe what the code does. `AhoCorasick.Debug()` said it prints to stdout — it writes through the configured `Logger`, so on a default instance it produces no output at all. `AhoCorasick.Info()` said it returns the schema version; `AhoCorasickInfo` has no such field, and `SchemaVersion()` is the call that answers it. `ErrEmptyKeyword` said it is returned for any empty keyword; only the batch forms return it, while `Add`/`Remove` report `(0, nil)`. `ErrConcurrencyConflict` said it surfaces when a conflict occurs and told the caller to retry; writes already retry internally with backoff, so it escapes only once that ramp is spent. `CacheStats.Misses` said a failed Redis fetch is always a miss; that holds for Preset and cached V2 but not for default V2. `KVStorage` offered that mock implementations can be used for testing; nothing on the public surface accepts one. No signature, sentinel identity, or behavior changed — `api/v1.txt` is unmoved.'
+time: 2026-08-07T14:15:00.000000+09:00
+custom:
+    Issue: "208"
