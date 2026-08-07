@@ -27,8 +27,9 @@ func createPresetAC(t *testing.T) (*AhoCorasick, *miniredis.Miniredis) {
 }
 
 // countInvalidations subscribes to the "test" collection's invalidation channel
-// and returns how many messages arrive within a short drain window. One message
-// per commitBatch is the observable proof that a batch coalesces to a single rebuild.
+// and returns how many messages arrive within a short drain window. One message for
+// a whole batch is the observable proof that it coalesced to a single rebuild: the
+// batchPlanner modes commit every keyword in one CAS write and publish once.
 func countInvalidations(t *testing.T, mr *miniredis.Miniredis, during func()) int {
 	t.Helper()
 	ctx := context.Background()

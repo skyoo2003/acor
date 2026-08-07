@@ -92,10 +92,9 @@ func (ac *redisBackedAC) removeManyAtomic(ctx context.Context, keywords []string
 // applyCommittedBatch installs the batch's own committed snapshot as the local
 // view, rebuilding the engine once for the whole batch.
 //
-// It rebuilds from snap rather than the incrementally maintained keywordSet for the
-// reason commitBatch documents: that set can be missing a keyword another node
-// wrote, so clearing stale entries against it would drop that write from local
-// reads until the next invalidation. snap is authoritative instead — the CAS that
+// It rebuilds from snap rather than the incrementally maintained keywordSet: that
+// set can be missing a keyword another node wrote, so clearing stale entries
+// against it would drop that write from local reads until the next invalidation. snap is authoritative instead — the CAS that
 // just succeeded proves Redis was still at snap's version, and planAddMany /
 // planRemoveMany already folded this batch into snap.Keywords.
 func (ac *redisBackedAC) applyCommittedBatch(snap *trieSnapshot, newVersion int64) {

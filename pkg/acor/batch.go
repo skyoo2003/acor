@@ -10,37 +10,15 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// batchWriter is implemented by modes (preset) that can coalesce the local
-// automaton rebuild and pub/sub invalidation across a batch of writes. When
-// ac.ops satisfies it, AddMany/RemoveMany write each keyword with the rebuild
-// deferred and then commit a single rebuild + publish, turning N per-keyword
-// automaton rebuilds into one. Modes without a per-write local rebuild (V1, V2)
-// do not implement it and fall back to the plain per-keyword path.
-type batchWriter interface {
-	addDeferred(ctx context.Context, keyword string) (int, error)
-	removeDeferred(ctx context.Context, keyword string) (int, error)
-	commitBatch(ctx context.Context)
-}
-
-// batchAddFns returns the per-keyword add function and a commit function for a
-// batch. In a batchWriter mode (preset) the add is deferred and commit runs the
-// single coalesced rebuild+publish; otherwise add is the plain per-keyword add
-// (which already rebuilt+published) and commit is a no-op. Callers gate commit on
-// whether anything actually changed, so no-op batches never trigger a rebuild.
-func (ac *AhoCorasick) batchAddFns() (add func(context.Context, string) (int, error), commit func(context.Context)) {
-	if bw, ok := ac.ops.(batchWriter); ok {
-		return bw.addDeferred, bw.commitBatch
-	}
-	return ac.ops.add, func(context.Context) {}
-}
-
-// batchRemoveFns is batchAddFns for the remove side.
-func (ac *AhoCorasick) batchRemoveFns() (remove func(context.Context, string) (int, error), commit func(context.Context)) {
-	if bw, ok := ac.ops.(batchWriter); ok {
-		return bw.removeDeferred, bw.commitBatch
-	}
-	return ac.ops.remove, func(context.Context) {}
-}
+// The per-keyword loops below are the fallback for modes that cannot plan a whole
+// batch — V1. Every batchPlanner mode (preset, V2) returns from its own branch
+// well before reaching them, so they write one keyword at a time through
+// ac.ops.add/remove, each of which already rebuilds and publishes for itself.
+//
+// A deferred-write mechanism (batchWriter, addDeferred/removeDeferred/commitBatch)
+// used to sit here to coalesce preset-mode rebuilds. batchPlanner superseded it in
+// #185 by ordering its branch first, which left the deferred path unreachable in
+// every configuration; it was removed rather than frozen into the v1 line.
 
 // AddMany adds multiple keywords to the Aho-Corasick automaton in batch mode.
 // This is more efficient than calling Add repeatedly for large keyword sets.
@@ -160,9 +138,8 @@ func (ac *AhoCorasick) addManyBestEffort(ctx context.Context, keywords []string,
 		return result, nil
 	}
 
-	add, commit := ac.batchAddFns()
 	for _, keyword := range candidates {
-		count, err := add(ctx, keyword)
+		count, err := ac.ops.add(ctx, keyword)
 		if err != nil {
 			result.Failed = append(result.Failed, KeywordError{
 				Keyword: keyword,
@@ -176,10 +153,6 @@ func (ac *AhoCorasick) addManyBestEffort(ctx context.Context, keywords []string,
 		} else {
 			result.Added = append(result.Added, keyword)
 		}
-	}
-
-	if len(result.Added) > 0 {
-		commit(ctx)
 	}
 
 	return result, nil
@@ -211,8 +184,6 @@ func (ac *AhoCorasick) addManyTransactional(ctx context.Context, keywords []stri
 
 	added := make([]string, 0)
 	seen := make(map[string]bool)
-	add, commit := ac.batchAddFns()
-
 	rollbackCtx := context.WithoutCancel(ctx)
 	for _, keyword := range keywords {
 		keyword = strings.TrimSpace(keyword)
@@ -227,10 +198,8 @@ func (ac *AhoCorasick) addManyTransactional(ctx context.Context, keywords []stri
 		}
 		seen[keyword] = true
 
-		count, err := add(ctx, keyword)
+		count, err := ac.ops.add(ctx, keyword)
 		if err != nil {
-			// rollbackAdded also repairs the deferred, not-yet-committed local
-			// engine (it ends with its own commit) before returning.
 			ac.rollbackAdded(rollbackCtx, added)
 			return nil, fmt.Errorf("batch add failed at keyword %q: %w", keyword, err)
 		}
@@ -242,41 +211,33 @@ func (ac *AhoCorasick) addManyTransactional(ctx context.Context, keywords []stri
 		}
 	}
 
-	if len(added) > 0 {
-		commit(ctx)
-	}
-
 	result.Added = added
 	return result, nil
 }
 
 // rollbackAdded undoes the adds a failed transactional batch already committed.
 func (ac *AhoCorasick) rollbackAdded(ctx context.Context, keywords []string) {
-	remove, commit := ac.batchRemoveFns()
-	ac.rollbackBatch(ctx, keywords, "remove", remove, commit)
+	ac.rollbackBatch(ctx, keywords, "remove", ac.ops.remove)
 }
 
 // rollbackRemoved re-adds the removes a failed transactional batch already committed.
 func (ac *AhoCorasick) rollbackRemoved(ctx context.Context, keywords []string) {
-	add, commit := ac.batchAddFns()
-	ac.rollbackBatch(ctx, keywords, "re-add", add, commit)
+	ac.rollbackBatch(ctx, keywords, "re-add", ac.ops.add)
 }
 
 // rollbackBatchWorkers caps how many undo operations run at once. Rollback is
 // off the hot path and hits Redis per keyword, so a small fixed pool is enough.
 const rollbackBatchWorkers = 10
 
-// rollbackBatch applies undo to every keyword concurrently and then commits once.
-// It uses the deferred write plus a single commit so a failed batch triggers one
-// rebuild and publish rather than one per keyword (commit is a no-op outside
-// batchWriter modes, where each write already rebuilt and published).
+// rollbackBatch applies undo to every keyword concurrently. Each undo is a plain
+// per-keyword write, which rebuilds and publishes for itself.
 //
 // Errors are logged, not returned: this is the failure path already, and the
 // caller is about to return the original error. ctx is not checked for
 // cancellation either: callers pass context.WithoutCancel so the undo still runs
 // when the batch failed because the caller's context went away.
 func (ac *AhoCorasick) rollbackBatch(ctx context.Context, keywords []string, op string,
-	undo func(context.Context, string) (int, error), commit func(context.Context)) {
+	undo func(context.Context, string) (int, error)) {
 	if len(keywords) == 0 {
 		return
 	}
@@ -292,7 +253,6 @@ func (ac *AhoCorasick) rollbackBatch(ctx context.Context, keywords []string, op 
 		})
 	}
 	_ = g.Wait()
-	commit(ctx)
 }
 
 // RemoveMany removes multiple keywords from the Aho-Corasick automaton.
@@ -333,9 +293,8 @@ func (ac *AhoCorasick) removeManyBestEffort(ctx context.Context, keywords []stri
 		return result, nil
 	}
 
-	remove, commit := ac.batchRemoveFns()
 	for _, keyword := range candidates {
-		count, err := remove(ctx, keyword)
+		count, err := ac.ops.remove(ctx, keyword)
 		if err != nil {
 			result.Failed = append(result.Failed, KeywordError{
 				Keyword: keyword,
@@ -352,10 +311,6 @@ func (ac *AhoCorasick) removeManyBestEffort(ctx context.Context, keywords []stri
 		} else {
 			result.Skipped = append(result.Skipped, keyword)
 		}
-	}
-
-	if len(result.Removed) > 0 {
-		commit(ctx)
 	}
 
 	return result, nil
@@ -385,8 +340,6 @@ func (ac *AhoCorasick) removeManyTransactional(ctx context.Context, keywords []s
 
 	removed := make([]string, 0)
 	seen := make(map[string]bool)
-	remove, commit := ac.batchRemoveFns()
-
 	rollbackCtx := context.WithoutCancel(ctx)
 	for _, keyword := range keywords {
 		keyword = strings.TrimSpace(keyword)
@@ -401,10 +354,8 @@ func (ac *AhoCorasick) removeManyTransactional(ctx context.Context, keywords []s
 		}
 		seen[keyword] = true
 
-		count, err := remove(ctx, keyword)
+		count, err := ac.ops.remove(ctx, keyword)
 		if err != nil {
-			// rollbackRemoved re-adds the actually-removed keywords and ends with its
-			// own commit, repairing the deferred local engine before returning.
 			ac.rollbackRemoved(rollbackCtx, removed)
 			return nil, fmt.Errorf("batch remove failed at keyword %q: %w", keyword, err)
 		}
@@ -416,10 +367,6 @@ func (ac *AhoCorasick) removeManyTransactional(ctx context.Context, keywords []s
 		} else {
 			result.Skipped = append(result.Skipped, keyword)
 		}
-	}
-
-	if len(removed) > 0 {
-		commit(ctx)
 	}
 
 	result.Removed = removed
