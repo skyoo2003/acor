@@ -6,19 +6,14 @@ import (
 	"context"
 	"fmt"
 	"strings"
-
-	"golang.org/x/sync/errgroup"
 )
 
-// The per-keyword loops below are the fallback for modes that cannot plan a whole
-// batch — V1. Every batchPlanner mode (preset, V2) returns from its own branch
-// well before reaching them, so they write one keyword at a time through
-// ac.ops.add/remove, each of which already rebuilds and publishes for itself.
-//
-// A deferred-write mechanism (batchWriter, addDeferred/removeDeferred/commitBatch)
-// used to sit here to coalesce preset-mode rebuilds. batchPlanner superseded it in
-// #185 by ordering its branch first, which left the deferred path unreachable in
-// every configuration; it was removed rather than frozen into the v1 line.
+// The per-keyword loop in each of the four batch entry points below is the fallback
+// for modes that cannot plan a whole batch. V1 is the only one: every batchPlanner
+// mode (preset, V2) returns from its own branch first. rollbackBatch is the
+// exception, having no batchPlanner branch — so there every mode undoes one keyword
+// at a time through ac.ops.add/remove, each of which rebuilds and publishes for
+// itself.
 
 // AddMany adds multiple keywords to the Aho-Corasick automaton in batch mode.
 // This is more efficient than calling Add repeatedly for large keyword sets.
@@ -225,12 +220,14 @@ func (ac *AhoCorasick) rollbackRemoved(ctx context.Context, keywords []string) {
 	ac.rollbackBatch(ctx, keywords, "re-add", ac.ops.add)
 }
 
-// rollbackBatchWorkers caps how many undo operations run at once. Rollback is
-// off the hot path and hits Redis per keyword, so a small fixed pool is enough.
-const rollbackBatchWorkers = 10
-
-// rollbackBatch applies undo to every keyword concurrently. Each undo is a plain
+// rollbackBatch applies undo to every keyword in turn. Each undo is a plain
 // per-keyword write, which rebuilds and publishes for itself.
+//
+// One at a time on purpose. Every undo optimistically writes the same trie key,
+// so undoing concurrently made the undos race each other: a loser came back
+// ErrConcurrencyConflict after exhausting its retries and, because errors here
+// are only logged, dropped out of the rollback silently. Rollback is off the hot
+// path, so the serial round-trips cost nothing worth a partial undo.
 //
 // Errors are logged, not returned: this is the failure path already, and the
 // caller is about to return the original error. ctx is not checked for
@@ -238,21 +235,11 @@ const rollbackBatchWorkers = 10
 // when the batch failed because the caller's context went away.
 func (ac *AhoCorasick) rollbackBatch(ctx context.Context, keywords []string, op string,
 	undo func(context.Context, string) (int, error)) {
-	if len(keywords) == 0 {
-		return
-	}
-
-	var g errgroup.Group
-	g.SetLimit(rollbackBatchWorkers)
 	for _, keyword := range keywords {
-		g.Go(func() error {
-			if _, err := undo(ctx, keyword); err != nil && ac.logger != nil {
-				ac.logger.Printf("rollback: failed to %s %q: %v", op, keyword, err)
-			}
-			return nil
-		})
+		if _, err := undo(ctx, keyword); err != nil && ac.logger != nil {
+			ac.logger.Printf("rollback: failed to %s %q: %v", op, keyword, err)
+		}
 	}
-	_ = g.Wait()
 }
 
 // RemoveMany removes multiple keywords from the Aho-Corasick automaton.
