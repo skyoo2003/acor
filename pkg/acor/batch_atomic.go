@@ -73,7 +73,7 @@ func applyManyAtomic(ctx context.Context, storage KVStorage, client redis.Univer
 
 func (ac *redisBackedAC) addManyAtomic(ctx context.Context, keywords []string) ([]string, error) {
 	added, err := applyManyAtomic(ctx, ac.storage, ac.redisClient, ac.name, keywords,
-		false, planAddMany, ac.applyCommittedBatch)
+		false, planAddMany, ac.applyCommittedWrite)
 	if len(added) > 0 {
 		ac.publishInvalidate(ctx)
 	}
@@ -82,22 +82,25 @@ func (ac *redisBackedAC) addManyAtomic(ctx context.Context, keywords []string) (
 
 func (ac *redisBackedAC) removeManyAtomic(ctx context.Context, keywords []string) ([]string, error) {
 	removed, err := applyManyAtomic(ctx, ac.storage, ac.redisClient, ac.name, keywords,
-		true, planRemoveMany, ac.applyCommittedBatch)
+		true, planRemoveMany, ac.applyCommittedWrite)
 	if len(removed) > 0 {
 		ac.publishInvalidate(ctx)
 	}
 	return removed, err
 }
 
-// applyCommittedBatch installs the batch's own committed snapshot as the local
-// view, rebuilding the engine once for the whole batch.
+// applyCommittedWrite installs a write's own committed snapshot as the local view,
+// rebuilding the engine once. Every preset-mode write routes through it — single
+// keyword and whole batch alike — so both leave the same local state.
 //
 // It rebuilds from snap rather than the incrementally maintained keywordSet: that
-// set can be missing a keyword another node wrote, so clearing stale entries
-// against it would drop that write from local reads until the next invalidation. snap is authoritative instead — the CAS that
-// just succeeded proves Redis was still at snap's version, and planAddMany /
-// planRemoveMany already folded this batch into snap.Keywords.
-func (ac *redisBackedAC) applyCommittedBatch(snap *trieSnapshot, newVersion int64) {
+// set can be missing a keyword another node wrote, so rebuilding against it while
+// clearing stale drops that write from local reads with nothing left to restore it
+// (stale is false and the version now matches, so neither the listener nor the
+// poller will re-fetch). snap is authoritative instead — the CAS that just
+// succeeded proves Redis was still at snap's version, and the plan functions
+// already folded this write into snap.Keywords.
+func (ac *redisBackedAC) applyCommittedWrite(snap *trieSnapshot, newVersion int64) {
 	ac.mu.Lock()
 	ac.applyReload(snap)
 	ac.localVersion = newVersion

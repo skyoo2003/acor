@@ -43,24 +43,10 @@ func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string) (int, error
 		return 0, err
 	}
 
-	ac.applyLocalWrite(keyword, true, newVersion)
+	// planAdd folded the keyword into snap, so the snapshot is the authoritative
+	// post-write state; see applyCommittedWrite for why the local set is not.
+	ac.applyCommittedWrite(snap, newVersion)
 	return 1, nil
-}
-
-// applyLocalWrite applies a committed Redis write to the local state under lock,
-// rebuilding the engine and clearing the stale flag. add selects insertion vs
-// deletion of keyword in the keyword set.
-func (ac *redisBackedAC) applyLocalWrite(keyword string, add bool, newVersion int64) {
-	ac.mu.Lock()
-	if add {
-		ac.keywordSet[keyword] = struct{}{}
-	} else {
-		delete(ac.keywordSet, keyword)
-	}
-	ac.localVersion = newVersion
-	ac.rebuildEngine()
-	ac.stale = false
-	ac.mu.Unlock()
 }
 
 // remove deletes a keyword from the automaton.
@@ -93,7 +79,8 @@ func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string) (int, er
 		return 0, err
 	}
 
-	ac.applyLocalWrite(keyword, false, newVersion)
+	// planRemove already dropped the keyword from snap; see tryAdd.
+	ac.applyCommittedWrite(snap, newVersion)
 	return 1, nil
 }
 
