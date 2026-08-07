@@ -9,41 +9,25 @@ import (
 // redisBackedAC implements the operations interface directly, so AhoCorasick
 // dispatches into it with no adapter in between. Suggest/SuggestIndex are the
 // only operations preset mode cannot serve (there is no prefix index locally).
-var (
-	_ operations  = (*redisBackedAC)(nil)
-	_ batchWriter = (*redisBackedAC)(nil)
-)
+var _ operations = (*redisBackedAC)(nil)
 
 // add inserts a keyword into the automaton. The keyword is written atomically
 // to Redis via a V2 Lua script (optimistic locking), then the local automaton
 // is rebuilt and an invalidation is published.
 func (ac *redisBackedAC) add(ctx context.Context, keyword string) (int, error) {
-	return ac.addWith(ctx, keyword, true)
-}
-
-// addDeferred writes a keyword but skips the local rebuild and pub/sub publish;
-// commitBatch performs both once for the whole batch. This turns AddMany's N
-// per-keyword automaton rebuilds into a single rebuild.
-func (ac *redisBackedAC) addDeferred(ctx context.Context, keyword string) (int, error) {
-	return ac.addWith(ctx, keyword, false)
-}
-
-// addWith is the shared Add path. rebuild=true rebuilds the local engine and
-// publishes on success (single Add); rebuild=false defers both (batch writes).
-func (ac *redisBackedAC) addWith(ctx context.Context, keyword string, rebuild bool) (int, error) {
 	keyword = normalizeKeyword(keyword, ac.caseSensitive)
 	if keyword == "" {
 		return 0, nil
 	}
 
-	added, err := retryOnConflict(ctx, func() (int, error) { return ac.tryAdd(ctx, keyword, rebuild) })
-	if err == nil && added == 1 && rebuild {
+	added, err := retryOnConflict(ctx, func() (int, error) { return ac.tryAdd(ctx, keyword) })
+	if err == nil && added == 1 {
 		ac.publishInvalidate(ctx)
 	}
 	return added, err
 }
 
-func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, rebuild bool) (int, error) {
+func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string) (int, error) {
 	snap, err := readTrieSnapshot(ctx, ac.storage, ac.name)
 	if err != nil {
 		return 0, err
@@ -59,73 +43,27 @@ func (ac *redisBackedAC) tryAdd(ctx context.Context, keyword string, rebuild boo
 		return 0, err
 	}
 
-	ac.applyLocalWrite(keyword, true, newVersion, rebuild)
+	// planAdd folded the keyword into snap, so the snapshot is the authoritative
+	// post-write state; see applyCommittedWrite for why the local set is not.
+	ac.applyCommittedWrite(snap, newVersion)
 	return 1, nil
-}
-
-// applyLocalWrite applies a committed Redis write to the local state under lock.
-// add selects insertion vs deletion of keyword in the keyword set. rebuild=true
-// rebuilds the engine now and clears the stale flag; rebuild=false marks the
-// engine stale so a concurrent Find reloads from Redis until commitBatch rebuilds.
-func (ac *redisBackedAC) applyLocalWrite(keyword string, add bool, newVersion int64, rebuild bool) {
-	ac.mu.Lock()
-	if add {
-		ac.keywordSet[keyword] = struct{}{}
-	} else {
-		delete(ac.keywordSet, keyword)
-	}
-	ac.localVersion = newVersion
-	if rebuild {
-		ac.rebuildEngine()
-		ac.stale = false
-	} else {
-		ac.stale = true
-	}
-	ac.mu.Unlock()
-}
-
-// commitBatch refreshes the local engine once and publishes a single
-// invalidation, collapsing the rebuild/publish that addDeferred/removeDeferred
-// skipped during a batch.
-//
-// It reloads from Redis (the source of truth) rather than rebuilding from the
-// local keyword set: that set is only incrementally maintained, so it can miss a
-// keyword another node wrote concurrently, and a remote invalidation received
-// during the batch must not be silently cleared by setting stale=false against a
-// stale local view. On reload failure the deferred writes left the engine stale,
-// so the next Find retries the reload.
-func (ac *redisBackedAC) commitBatch(ctx context.Context) {
-	if err := ac.reloadFromRedis(ctx); err != nil {
-		ac.markStale()
-	}
-	ac.publishInvalidate(ctx)
 }
 
 // remove deletes a keyword from the automaton.
 func (ac *redisBackedAC) remove(ctx context.Context, keyword string) (int, error) {
-	return ac.removeWith(ctx, keyword, true)
-}
-
-// removeDeferred is Remove with the local rebuild and publish deferred to
-// commitBatch; see addDeferred.
-func (ac *redisBackedAC) removeDeferred(ctx context.Context, keyword string) (int, error) {
-	return ac.removeWith(ctx, keyword, false)
-}
-
-func (ac *redisBackedAC) removeWith(ctx context.Context, keyword string, rebuild bool) (int, error) {
 	keyword = normalizeKeyword(keyword, ac.caseSensitive)
 	if keyword == "" {
 		return 0, nil
 	}
 
-	removed, err := retryOnConflict(ctx, func() (int, error) { return ac.tryRemove(ctx, keyword, rebuild) })
-	if err == nil && removed == 1 && rebuild {
+	removed, err := retryOnConflict(ctx, func() (int, error) { return ac.tryRemove(ctx, keyword) })
+	if err == nil && removed == 1 {
 		ac.publishInvalidate(ctx)
 	}
 	return removed, err
 }
 
-func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, rebuild bool) (int, error) {
+func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string) (int, error) {
 	snap, err := readTrieSnapshot(ctx, ac.storage, ac.name)
 	if err != nil {
 		return 0, err
@@ -141,7 +79,8 @@ func (ac *redisBackedAC) tryRemove(ctx context.Context, keyword string, rebuild 
 		return 0, err
 	}
 
-	ac.applyLocalWrite(keyword, false, newVersion, rebuild)
+	// planRemove already dropped the keyword from snap; see tryAdd.
+	ac.applyCommittedWrite(snap, newVersion)
 	return 1, nil
 }
 

@@ -23,10 +23,11 @@ func newV1ReadOnly(t *testing.T, name string) *AhoCorasick {
 	return ac
 }
 
-// TestV1WritesAreClosed covers every public write path, not just Add. Batch writes
-// reach ac.ops.add and ac.ops.remove through batchAddFns and batchRemoveFns, so this
-// is what proves one guard on v1Operations closes all of them — and that a future
-// caller cannot reopen a V1 write by taking a different route.
+// TestV1WritesAreClosed covers every public write path, not just Add. V1 is not a
+// batchPlanner, so batch writes fall through to ac.ops.add and ac.ops.remove one
+// keyword at a time. That is what proves one guard on v1Operations closes all of
+// them, and that a future caller cannot reopen a V1 write by taking a different
+// route.
 func TestV1WritesAreClosed(t *testing.T) {
 	ac := newV1ReadOnly(t, "v1-closed")
 

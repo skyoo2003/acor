@@ -26,6 +26,65 @@ func newTestPresetRedis(t *testing.T, preset Preset) *AhoCorasick {
 	return ac
 }
 
+// TestPresetSingleWriteKeepsPeerKeyword pins the invariant applyCommittedWrite
+// documents, on the single-keyword path: a local write clears the stale flag, so
+// the engine it leaves behind must come from the committed snapshot and not from
+// the incrementally maintained keyword set, which can be missing a keyword a peer
+// wrote. Rebuilding from the local set drops that keyword from local reads with
+// nothing left to restore it — stale is now false and the version matches.
+func TestPresetSingleWriteKeepsPeerKeyword(t *testing.T) {
+	mr := miniredis.RunT(t)
+	args := &AhoCorasickArgs{Addr: mr.Addr(), Name: t.Name(), Preset: PresetBalanced}
+
+	ac, err := Create(args)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	defer func() { _ = ac.Close() }()
+	rb, ok := ac.ops.(*redisBackedAC)
+	if !ok {
+		t.Fatalf("ops is %T, want *redisBackedAC", ac.ops)
+	}
+
+	peer, err := Create(args)
+	if err != nil {
+		t.Fatalf("Create peer: %v", err)
+	}
+	defer func() { _ = peer.Close() }()
+	if _, addErr := peer.Add("bar"); addErr != nil {
+		t.Fatalf("peer Add: %v", addErr)
+	}
+
+	// Wait for the peer's invalidation to land before writing locally. Once stale is
+	// set there is no notification still in flight that could mask a bad rebuild.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		rb.mu.RLock()
+		stale := rb.stale
+		rb.mu.RUnlock()
+		if stale {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("peer invalidation never arrived")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	if _, addErr := ac.Add("foo"); addErr != nil {
+		t.Fatalf("Add: %v", addErr)
+	}
+
+	got, err := ac.Find("foo bar")
+	if err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if len(got) != 2 {
+		t.Errorf("Find after local Add = %v, want both foo and bar; the write rebuilt "+
+			"from the stale local keyword set and dropped the peer's write", got)
+	}
+}
+
 func TestPresetNew(t *testing.T) {
 	mr := miniredis.RunT(t)
 	ac, err := Create(&AhoCorasickArgs{
