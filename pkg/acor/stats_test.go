@@ -131,8 +131,15 @@ func TestCacheStatsFailedFetchByMode(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mr := createTestRedisServer(t)
+			// Closed mid-test, so Cleanup rather than defer; Close is idempotent and
+			// this is what covers the t.Fatal paths above that close.
+			t.Cleanup(mr.Close)
 			args := tc.args
 			args.Addr, args.Name = mr.Addr(), "stats-failed-fetch"
+			// MaxRetries -1 as in createAhoCorasick: the point of this test is the read
+			// that fails, and go-redis's default three retries with backoff spend over a
+			// second per subtest waiting to fail the same way.
+			args.MaxRetries, args.PoolSize = -1, 1
 			ac, err := Create(&args)
 			if err != nil {
 				t.Fatal(err)

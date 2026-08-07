@@ -29,8 +29,10 @@
 // the surface still behaves as its godoc claims. compatibility.md freezes that
 // wording too and admits it is "enforced by review only". So this also gates
 // api/v1-audit.txt, which carries one verdict per line of the snapshot, and fails
-// when an entry has none — an unreviewed entry is then a build failure rather than
-// an omission nobody notices.
+// when an entry has none — an entry nobody recorded a verdict for is then a build
+// failure rather than an omission nobody notices. Recording "unaudited" clears the
+// gate, so what this buys is that unreviewed entries are counted out loud, not that
+// they block the build.
 //
 // Usage: go run ./tools/apisnap   (from the repository root; writes api/v1.txt)
 package main
@@ -122,7 +124,10 @@ func auditProblems(entries []string, path string) (tally map[string]int, problem
 	// only so the tests can point this at a temp file.
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, []string{fmt.Sprintf("%v; regenerate with: %s", err, regenerate)}
+		// Not "regenerate with make api-check": nothing generates this file. It is
+		// written by hand, one line per entry of the snapshot, so re-running the gate
+		// would only report the same absence again.
+		return nil, []string{fmt.Sprintf("%v; add it by hand, one line per entry of %s", err, snapFile)}
 	}
 
 	tally = map[string]int{}

@@ -2,13 +2,13 @@
 # Verdicts: ok | fixed | risk | unaudited. A non-unaudited verdict must cite where the
 # behavior was read, as file:line. Completeness is checked by: make api-check
 # See docs/content/reference/compatibility.md for what counts as documented behavior.
-const BatchModeBestEffort BatchMode	fixed	options.go:11 repeated the "Mode is nil" wording; corrected to the zero value. Best-effort recording is at batch.go:96,102
-const BatchModeTransactional BatchMode	ok	options.go:15; the transactional paths return on first error at batch.go:194,221,369,395 and undo committed writes via rollbackAdded/rollbackRemoved, giving the documented all-or-nothing
+const BatchModeBestEffort BatchMode	fixed	options.go:11 repeated the "Mode is nil" wording; corrected to the zero value. Best-effort recording is at batch.go:126,139
+const BatchModeTransactional BatchMode	ok	options.go:16; the transactional paths return on first error at batch.go:172,199,320,347 and undo committed writes via rollbackAdded/rollbackRemoved, giving the documented all-or-nothing
 const ChunkBoundaryLine ChunkBoundary	ok	parallel.go:81 splits after a newline
 const ChunkBoundarySentence ChunkBoundary	ok	parallel.go:83 requires '.', '!' or '?' followed by a space, matching the doc exactly
 const ChunkBoundaryWord ChunkBoundary	ok	parallel.go:79 splits where a space follows a non-space; zero value, so it is the default as documented
-const DefaultChunkSize = 1000	ok	options.go:45 says characters; splitChunks converts to []rune first and slices by rune index, parallel.go:24-33
-const DefaultOverlap = 50	ok	options.go:47; applied as a rune count at parallel.go:53
+const DefaultChunkSize = 1000	ok	options.go:47 says characters; splitChunks converts to []rune first and slices by rune index, parallel.go:24-33
+const DefaultOverlap = 50	ok	options.go:49; applied as a rune count at parallel.go:53
 const MatchKindLeftmostLongest MatchKind	ok	matches.go:42; leftmostLongest (matches.go:294-318) sorts start ascending then end descending and greedily keeps non-overlapping, which is the documented preference
 const MatchKindOverlapping MatchKind	ok	matches.go:38; zero value, and the unfiltered path at matches.go:129 is the raw automaton output Find returns
 const PresetBalanced Preset	unaudited
@@ -43,18 +43,18 @@ field AhoCorasickInfo.MemoryBytes int64	unaudited
 field AhoCorasickInfo.Nodes int	unaudited
 field AhoCorasickInfo.Preset Preset	unaudited
 field AhoCorasickInfo.TrieDepth int	unaudited
-field BatchOptions.Mode BatchMode	fixed	options.go:23 said it defaults "if nil", but BatchMode is an int and cannot be nil. Now distinguishes the zero value from a nil *BatchOptions; TestBatchModeZeroValueIsBestEffort pins both
-field BatchResult.Added []string	ok	appended only on a successful write, batch.go:107 onward
-field BatchResult.Failed []KeywordError	ok	options.go:98; populated at batch.go:96 in best-effort mode only, which is what makes the two modes observably different
-field BatchResult.Removed []string	ok	the RemoveMany counterpart, batch.go:341 onward
-field BatchResult.Skipped []string	fixed	options.go:100 gave only "duplicates in input"; batch.go:159,208,332 also append unchanged keywords the collection already held, so an all-present batch reports everything here. Sentence broadened
-field CacheStats.Hits uint64	ok	stats.go:21; the per-chunk claim matches this tree, where FindParallel loads the engine per chunk. PR #206 changes that behavior and this sentence together — re-verdict when it merges
-field CacheStats.LastInvalidationLag time.Duration	ok	stats.go:67; recordInvalidationLag drops only negatives (stats.go:136) per TestCacheStatsDiscardsNegativeLag, and the listener-only modes match invalidation.go:192
-field CacheStats.Misses uint64	fixed	stats.go:34 claimed a failed Redis fetch is always a miss; true for preset (redis_backed.go:239) and cached V2 (v2_ops.go:282), false for default V2, which fetches at v2_ops.go:260 and only then reaches the counter. Sentence now names the split; TestCacheStatsFailedFetchByMode pins all three modes
-field CacheStats.RebuildDuration time.Duration	ok	stats.go:55; timeRebuild (stats.go:158) wraps build alone — the Redis fetch happens before it at v2_ops.go:260 and the lock is taken before it at engine_memo.go:40, matching both exclusions
-field CacheStats.Rebuilds uint64	ok	stats.go:43; starts at 1 in Preset per TestCacheStatsPreset (stats_test.go:117), and coalesced misses share one build at engine_memo.go:39-47, which is the documented Misses-Rebuilds gap
-field KeywordError.Error error	ok	options.go:87; carries ErrEmptyKeyword or the write error, batch.go:96
-field KeywordError.Keyword string	ok	options.go:85; set from the offending keyword, batch.go:96
+field BatchOptions.Mode BatchMode	fixed	options.go:24 said it defaults "if nil", but BatchMode is an int and cannot be nil. Now distinguishes the zero value from a nil *BatchOptions; TestBatchModeZeroValueIsBestEffort pins both
+field BatchResult.Added []string	ok	appended only on a successful write, batch.go:131,149
+field BatchResult.Failed []KeywordError	ok	options.go:108; populated at batch.go:126,139 in best-effort mode only, which is what makes the two modes observably different — screenBatch fills it in both modes (batch.go:67), but transactional discards the result instead (batch.go:159,309)
+field BatchResult.Removed []string	ok	the RemoveMany counterpart, batch.go:278,297
+field BatchResult.Skipped []string	fixed	options.go:110 gave only "duplicates in input"; batch.go:132,147,279,299 also append unchanged keywords the collection already held, so an all-present batch reports everything here. Sentence broadened
+field CacheStats.Hits uint64	ok	stats.go:21; re-verdicted after #206, which landed the one-read-per-call behavior the sentence now describes. FindParallelContext, FindIndexParallelContext and FindManyContext each call loadEngine exactly once (context_ops.go:143,188,111), and hit/miss are recorded only inside loadEngine (v2_ops.go:274,282, redis_backed.go:230,239, engine_memo.go:43,46), so writes, Suggest and Info record nothing. TestCacheStatsCountsOneReadPerCall (stats_test.go:61) pins it
+field CacheStats.LastInvalidationLag time.Duration	ok	stats.go:74; recordInvalidationLag drops only negatives (stats.go:143) per TestCacheStatsDiscardsNegativeLag, and the listener-only modes match invalidation.go:192
+field CacheStats.Misses uint64	fixed	stats.go:35 claimed a failed Redis fetch is always a miss; true for preset (redis_backed.go:239) and cached V2 (v2_ops.go:282), false for default V2, which fetches at v2_ops.go:260 and only then reaches the counter. Sentence now names the split; TestCacheStatsFailedFetchByMode pins all three modes
+field CacheStats.RebuildDuration time.Duration	ok	stats.go:62; timeRebuild (stats.go:165) wraps build alone — the Redis fetch happens before it at v2_ops.go:260 and the lock is taken before it at engine_memo.go:40, matching both exclusions
+field CacheStats.Rebuilds uint64	ok	stats.go:50; starts at 1 in Preset per TestCacheStatsPreset (stats_test.go:214), and coalesced misses share one build at engine_memo.go:39-47, which is the documented Misses-Rebuilds gap
+field KeywordError.Error error	ok	options.go:97; carries ErrEmptyKeyword or the write error, batch.go:69,126,141
+field KeywordError.Keyword string	ok	options.go:95; set from the offending keyword, batch.go:68,126,140
 field Match.End int	ok	matches.go:25; exclusive, indexed at matches.go:327 with an m.End >= len bound
 field Match.Keyword string	ok	matches.go:20; the dictionary entry as stored, matches.go:133
 field Match.Start int	ok	matches.go:22; rune offset used to index []rune(norm) at matches.go:326, which only holds if offsets are runes
@@ -78,71 +78,71 @@ field MigrationResult.Prefixes int `json:"prefixes"`	unaudited
 field MigrationResult.RolledBack bool `json:"rolled_back"`	unaudited
 field MigrationResult.Status string `json:"status"`	unaudited
 field MigrationResult.ToSchema int `json:"to_schema"`	unaudited
-field OperationError.Err error	ok	errors.go:60; the wrapped cause, returned by Unwrap at errors.go:73
-field OperationError.Keyword string	ok	errors.go:56; left empty by newOperationError, which is why Error has the two-branch format at errors.go:66
-field OperationError.Op string	ok	errors.go:54; set from the op argument, errors.go:95
-field OperationError.Schema int	ok	errors.go:58; carries the schema constant passed in, e.g. SchemaV2 at v2_ops.go:114
-field ParallelOptions.Boundary ChunkBoundary	ok	options.go:63; the zero value is ChunkBoundaryWord (options.go:35), so unset does split on whitespace
-field ParallelOptions.ChunkSize int	fixed	options.go:59 promised a DefaultChunkSize fallback; normalizeParallelOptions (parallel.go:89-104) never sets it and context_ops.go:105,131 reject <= 0 with ErrInvalidChunkSize, so the documented default was an error return. TestParallelOptionsHaveNoImpliedDefaults pins it
-field ParallelOptions.Overlap int	fixed	options.go:65 promised DefaultOverlap; parallel.go:96-102 only clamps negatives, leaving an unset Overlap at 0 and silently missing boundary-straddling keywords. Same test pins it
-field ParallelOptions.Workers int	ok	options.go:56; parallel.go:93-95 substitutes runtime.NumCPU() when <= 0, exactly as documented
+field OperationError.Err error	ok	errors.go:77; the wrapped cause, returned by Unwrap at errors.go:90
+field OperationError.Keyword string	ok	errors.go:73; left empty by newOperationError, which is why Error has the two-branch format at errors.go:83
+field OperationError.Op string	ok	errors.go:71; set from the op argument, errors.go:112
+field OperationError.Schema int	ok	errors.go:75; carries the schema constant passed in, e.g. SchemaV2 at v2_ops.go:114
+field ParallelOptions.Boundary ChunkBoundary	ok	options.go:68; the zero value is ChunkBoundaryWord (options.go:37), so unset does split on whitespace
+field ParallelOptions.ChunkSize int	fixed	options.go:61 promised a DefaultChunkSize fallback; normalizeParallelOptions (parallel.go:89-104) never sets it and context_ops.go:127,177 reject <= 0 with ErrInvalidChunkSize, so the documented default was an error return. TestParallelOptionsHaveNoImpliedDefaults pins it
+field ParallelOptions.Overlap int	fixed	options.go:71 promised DefaultOverlap; parallel.go:96-102 only clamps negatives, leaving an unset Overlap at 0 and silently missing boundary-straddling keywords. Same test pins it
+field ParallelOptions.Workers int	ok	options.go:58; parallel.go:93-95 substitutes runtime.NumCPU() when <= 0, exactly as documented
 field PubSubMessage.Channel string	ok	set from msg.Channel, redis_storage.go:159
 field PubSubMessage.Payload string	ok	set from msg.Payload, redis_storage.go:159
-field RedisError.Err error	ok	errors.go:82; the client error, returned by Unwrap at errors.go:92
-field RedisError.Key string	ok	errors.go:80; the key involved, v2_ops.go:108
-field RedisError.Op string	ok	errors.go:78; the Redis verb, e.g. "HGETALL" at v2_ops.go:108
+field RedisError.Err error	ok	errors.go:99; the client error, returned by Unwrap at errors.go:109
+field RedisError.Key string	ok	errors.go:97; the key involved, v2_ops.go:108
+field RedisError.Op string	ok	errors.go:95; the Redis verb, e.g. "HGETALL" at v2_ops.go:108
 field Z.Member string	ok	copied to redis.Z.Member, redis_storage.go:61
 field Z.Score float64	ok	copied to redis.Z.Score, redis_storage.go:61
 func Create(args *AhoCorasickArgs) (*AhoCorasick, error)	ok	acor.go:403 delegates to CreateContext with context.Background, and the documented error cases are the guards at acor.go:420-437 and client.go:47-68
 func CreateContext(ctx context.Context, args *AhoCorasickArgs) (*AhoCorasick, error)	ok	acor.go:418; ctx governs setup only, and the background listener runs on an internal context per acor.go:476
 func DefaultMigrationOptions() *MigrationOptions	unaudited
-func DefaultParallelOptions() *ParallelOptions	ok	options.go:73 returns exactly the four documented values, and is the only source of them
-method (*AhoCorasick) Add(keyword string) (int, error)	fixed	acor.go:654 listed only "added" and "already exists" for a 0 return; an empty keyword also returns (0, nil) at redis_backed_ops.go:35 and v2_ops.go:81. Case added; TestEmptyKeywordIsNotAnErrorOutsideBatch pins it
+func DefaultParallelOptions() *ParallelOptions	ok	options.go:83 returns exactly the four documented values, and is the only source of them
+method (*AhoCorasick) Add(keyword string) (int, error)	fixed	acor.go:654 listed only "added" and "already exists" for a 0 return; an empty keyword also returns (0, nil) at redis_backed_ops.go:20 and v2_ops.go:81. Case added; TestEmptyKeywordIsNotAnErrorOutsideBatch pins it
 method (*AhoCorasick) AddContext(ctx context.Context, keyword string) (int, error)	unaudited
 method (*AhoCorasick) AddMany(keywords []string, opts *BatchOptions) (*BatchResult, error)	unaudited
 method (*AhoCorasick) AddManyContext(ctx context.Context, keywords []string, opts *BatchOptions) (*BatchResult, error)	unaudited
-method (*AhoCorasick) CacheStats() CacheStats	ok	acor.go:650 returns stats.snapshot(); safe after Close per TestCacheStatsAfterClose (stats_test.go:329)
+method (*AhoCorasick) CacheStats() CacheStats	ok	acor.go:650 returns stats.snapshot(); safe after Close per TestCacheStatsAfterClose (stats_test.go:437)
 method (*AhoCorasick) Close() error	ok	acor.go:598; closeOnce makes the second call return ErrRedisAlreadyClosed at acor.go:611
 method (*AhoCorasick) Contains(text string) (bool, error)	ok	matches.go:195; delegates to eng.Contains (matches.go:213), which stops at the first match rather than collecting
 method (*AhoCorasick) ContainsContext(ctx context.Context, text string) (bool, error)	ok	matches.go:200; empty text is false with no engine load
-method (*AhoCorasick) Debug()	fixed	acor.go:710 claimed it prints "to stdout" and named an in-memory mode that does not exist (modes.go:11-12 has only two). It writes via ac.logger (acor.go:730,783), which discards by default. Rewritten; TestDebugWritesToLoggerNotStdout and TestDebugIsSilentWithoutALogger pin both halves
-method (*AhoCorasick) Find(text string) ([]string, error)	ok	acor.go:677 delegates to ops.find; empty text returns an empty slice at redis_backed_ops.go:101
+method (*AhoCorasick) Debug()	fixed	acor.go:720 claimed it prints "to stdout" and named an in-memory mode that does not exist (modes.go:11-12 has only two). It writes via ac.logger (acor.go:747,800), which discards by default. Rewritten; TestDebugWritesToLoggerNotStdout and TestDebugIsSilentWithoutALogger pin both halves
+method (*AhoCorasick) Find(text string) ([]string, error)	ok	acor.go:683 delegates to ops.find; empty text returns an empty slice at redis_backed_ops.go:90
 method (*AhoCorasick) FindContext(ctx context.Context, text string) ([]string, error)	unaudited
-method (*AhoCorasick) FindIndex(text string) (map[string][]int, error)	ok	acor.go:683 delegates to ops.findIndex, which returns start indices per keyword, redis_backed_ops.go:122
+method (*AhoCorasick) FindIndex(text string) (map[string][]int, error)	ok	acor.go:689 delegates to ops.findIndex, which returns start indices per keyword, redis_backed_ops.go:124
 method (*AhoCorasick) FindIndexContext(ctx context.Context, text string) (map[string][]int, error)	unaudited
-method (*AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (map[string][]int, error)	ok	parallel.go:193; mergeIndexResults shifts by chunk offset, dedups through a set, and sorts, parallel.go:203-225 — matching "sorted slices of unique start indices"
+method (*AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (map[string][]int, error)	ok	parallel.go:197; mergeIndexResults shifts by chunk offset, dedups through a set, and sorts, parallel.go:207-229 — matching "sorted slices of unique start indices"
 method (*AhoCorasick) FindIndexParallelContext(ctx context.Context, text string, opts *ParallelOptions) (map[string][]int, error)	unaudited
 method (*AhoCorasick) FindMany(texts []string) (map[string][]string, error)	unaudited
 method (*AhoCorasick) FindManyContext(ctx context.Context, texts []string) (map[string][]string, error)	unaudited
 method (*AhoCorasick) FindMatches(text string, opts *MatchOptions) ([]Match, error)	ok	matches.go:80; delegates with a nil dst so the result is fresh, matches.go:98
 method (*AhoCorasick) FindMatchesAppend(dst []Match, text string, opts *MatchOptions) ([]Match, error)	ok	matches.go:92; empty text returns dst untouched (matches.go:102-110) and filtering is scoped to matches[base:] (matches.go:127,140), so earlier results are neither refiltered nor reordered
 method (*AhoCorasick) FindMatchesContext(ctx context.Context, text string, opts *MatchOptions) ([]Match, error)	ok	matches.go:97; ctx is honored at the match boundary, matches.go:119
-method (*AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]string, error)	ok	parallel.go:169; nil opts take DefaultParallelOptions (parallel.go:90), and the documented dedup contract holds via dedupPreservingOrder (parallel.go:107). The overlap limitation is real — splitChunks advances by boundary-Overlap at parallel.go:53
+method (*AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]string, error)	ok	parallel.go:173; nil opts take DefaultParallelOptions (parallel.go:90), and the documented dedup contract holds via dedupPreservingOrder (parallel.go:107). The overlap limitation is real — splitChunks advances by boundary-Overlap at parallel.go:53
 method (*AhoCorasick) FindParallelContext(ctx context.Context, text string, opts *ParallelOptions) ([]string, error)	unaudited
-method (*AhoCorasick) FindSet(text string) ([]string, error)	ok	matches.go:170; first-match order holds because engine_handle.go:210-215 collects during the scan rather than sorting after
+method (*AhoCorasick) FindSet(text string) ([]string, error)	ok	matches.go:170; first-match order holds because internal/engine/engine_handle.go:210-215 collects during the scan rather than sorting after
 method (*AhoCorasick) FindSetContext(ctx context.Context, text string) ([]string, error)	ok	matches.go:175; empty text returns an empty slice, and ctx is checked at matches.go:186
 method (*AhoCorasick) FindStream(r io.Reader, onMatch func(Match) bool) error	ok	matches.go:229; a single automaton state spans the whole input via eng.Stream (matches.go:276), so no match is split, unlike the chunked path
 method (*AhoCorasick) FindStreamContext(ctx context.Context, r io.Reader, onMatch func(Match) bool) error	ok	matches.go:236; ctx is checked per rune at matches.go:253, and a nil reader or callback is a no-op at matches.go:237
-method (*AhoCorasick) Flush() error	ok	acor.go:689 delegates to ops.flush, which clears the keyword set and rebuilds empty at redis_backed_ops.go:141
+method (*AhoCorasick) Flush() error	ok	acor.go:695 delegates to ops.flush, which clears the keyword set and rebuilds empty at redis_backed_ops.go:134
 method (*AhoCorasick) FlushContext(ctx context.Context) error	unaudited
-method (*AhoCorasick) Info() (*AhoCorasickInfo, error)	fixed	acor.go:693 promised "the schema version" among what it returns; AhoCorasickInfo has no such field (acor.go:362). Doc now points at SchemaVersion instead; TestInfoCarriesNoSchemaVersion pins it
+method (*AhoCorasick) Info() (*AhoCorasickInfo, error)	fixed	acor.go:699 promised "the schema version" among what it returns; AhoCorasickInfo has no such field (acor.go:362). Doc now points at SchemaVersion instead; TestInfoCarriesNoSchemaVersion pins it
 method (*AhoCorasick) InfoContext(ctx context.Context) (*AhoCorasickInfo, error)	unaudited
 method (*AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, error)	unaudited
-method (*AhoCorasick) Remove(keyword string) (int, error)	fixed	acor.go:671 same omission as Add; empty keyword reports (0, nil) at v2_ops.go:89. Cross-reference added and pinned by the same test
+method (*AhoCorasick) Remove(keyword string) (int, error)	fixed	acor.go:677 same omission as Add; empty keyword reports (0, nil) at v2_ops.go:89. Cross-reference added and pinned by the same test
 method (*AhoCorasick) RemoveContext(ctx context.Context, keyword string) (int, error)	unaudited
 method (*AhoCorasick) RemoveMany(keywords []string, opts *BatchOptions) (*BatchResult, error)	unaudited
 method (*AhoCorasick) RemoveManyContext(ctx context.Context, keywords []string, opts *BatchOptions) (*BatchResult, error)	unaudited
 method (*AhoCorasick) RollbackToV1() error	unaudited
 method (*AhoCorasick) SchemaVersion() int	ok	acor.go:562 returns the stored version with no Redis I/O
-method (*AhoCorasick) Suggest(input string) ([]string, error)	ok	acor.go:700 delegates to ops.suggest; preset mode returns ErrSuggestRequiresRedis at redis_backed_ops.go:221
+method (*AhoCorasick) Suggest(input string) ([]string, error)	ok	acor.go:710 delegates to ops.suggest; preset mode returns ErrSuggestRequiresRedis at redis_backed_ops.go:160
 method (*AhoCorasick) SuggestContext(ctx context.Context, input string) ([]string, error)	unaudited
-method (*AhoCorasick) SuggestIndex(input string) (map[string][]int, error)	ok	acor.go:706 delegates to ops.suggestIndex; preset mode returns ErrSuggestRequiresRedis at redis_backed_ops.go:225
+method (*AhoCorasick) SuggestIndex(input string) (map[string][]int, error)	ok	acor.go:716 delegates to ops.suggestIndex; preset mode returns ErrSuggestRequiresRedis at redis_backed_ops.go:164
 method (*AhoCorasick) SuggestIndexContext(ctx context.Context, input string) (map[string][]int, error)	unaudited
 method (*MigrationResult) Stats() map[string]interface{}	unaudited
-method (*OperationError) Error() string	ok	errors.go:65; includes op, schema and cause, and adds the keyword only when set
-method (*OperationError) Unwrap() error	ok	errors.go:73 returns Err, so errors.Is and errors.As reach the cause as documented
-method (*RedisError) Error() string	ok	errors.go:87 formats op, key and cause
-method (*RedisError) Unwrap() error	ok	errors.go:92 returns Err, so errors.Is reaches the go-redis error
+method (*OperationError) Error() string	ok	errors.go:82; includes op, schema and cause, and adds the keyword only when set
+method (*OperationError) Unwrap() error	ok	errors.go:90 returns Err, so errors.Is and errors.As reach the cause as documented
+method (*RedisError) Error() string	ok	errors.go:104 formats op, key and cause
+method (*RedisError) Unwrap() error	ok	errors.go:109 returns Err, so errors.Is reaches the go-redis error
 method (Preset) String() string	unaudited
 method KVStorage.Close() error	ok	redis_storage.go:117 closes the underlying client
 method KVStorage.Del(ctx context.Context, keys ...string) error	ok	redis_storage.go:86
@@ -182,34 +182,34 @@ method Subscription.Receive(ctx context.Context) error	ok	redis_storage.go:137; 
 type AhoCorasick struct	ok	acor.go:331; instance state is mutex- or atomic-guarded (acor.go:337-358) and the concurrency claim is exercised under make race
 type AhoCorasickArgs struct	ok	acor.go:219; the documented topology precedence matches CreateContext (acor.go:418) and client.go:47-68, and Name is the only required field
 type AhoCorasickInfo struct	unaudited
-type BatchMode int	ok	options.go:7; two values, both handled at batch.go:144,189,319,365
-type BatchOptions struct	ok	options.go:21; consumed by AddMany/RemoveMany, batch.go
-type BatchResult struct	ok	options.go:91; the four slices partition a batch's outcome, batch.go:96-241
+type BatchMode int	ok	options.go:7; two values, both dispatched at context_ops.go:64,83
+type BatchOptions struct	ok	options.go:22; consumed by AddMany/RemoveMany, batch.go
+type BatchResult struct	ok	options.go:101; the four slices partition a batch's outcome, batch.go:114-361
 type CacheStats struct	ok	stats.go:10; returned by value from acor.go:650 and never constructed by callers, and snapshot() reads process-local atomics only, so "nothing here is read from or written to Redis" holds
-type ChunkBoundary int	ok	options.go:28; all three values are handled in isBoundary, parallel.go:77-86
+type ChunkBoundary int	ok	options.go:30; all three values are handled in isBoundary, parallel.go:77-86
 type KVStorage interface	risk	storage.go:18 promised "mock implementations can be used for testing"; no exported symbol accepts or returns a KVStorage, so callers can name it but never supply one. Sentence corrected; whether the 43-entry island belongs on the frozen surface is a shape decision for milestone 4
-type KeywordError struct	ok	options.go:82; pairs keyword and error, constructed at batch.go:96
+type KeywordError struct	ok	options.go:92; pairs keyword and error, constructed at batch.go:67,126,139
 type Logger interface	ok	acor.go:209; newLogger (acor.go:446) defaults to io.Discard and switches to stdout only when Debug is set, exactly as documented
 type Match struct	ok	matches.go:15; rune offsets, half-open, emitted in scan order by the engine callback at matches.go:129
 type MatchKind int	ok	matches.go:34; both values are handled at matches.go:151
 type MatchOptions struct	ok	matches.go:48; a nil *MatchOptions skips all filtering at matches.go:139, giving the documented raw output
 type MigrationOptions struct	unaudited
 type MigrationResult struct	unaudited
-type OperationError struct	ok	errors.go:51; constructed by newOperationError (errors.go:94) and used at v2_ops.go:114 for unmarshal failures
-type ParallelOptions struct	ok	options.go:53; consumed by splitChunks and normalizeParallelOptions, parallel.go:19,89
-type Pipeliner interface	ok	storage.go:99 "buffered and sent together"; redisPipeliner buffers on redis.Pipeliner and flushes in Exec, redis_storage.go:181,209. Reachable only via KVStorage.Pipeline/TxPipelined — see the KVStorage verdict
+type OperationError struct	ok	errors.go:68; constructed by newOperationError (errors.go:111) and used at v2_ops.go:114 for unmarshal failures
+type ParallelOptions struct	ok	options.go:55; consumed by splitChunks and normalizeParallelOptions, parallel.go:19,89
+type Pipeliner interface	ok	storage.go:104 "buffered and sent together"; redisPipeliner buffers on redis.Pipeliner and flushes in Exec, redis_storage.go:181,209. Reachable only via KVStorage.Pipeline/TxPipelined — see the KVStorage verdict
 type Preset int	unaudited
-type PubSubMessage struct	ok	storage.go:81; constructed from the go-redis message at redis_storage.go:159
-type RedisError struct	ok	errors.go:75; constructed by newRedisError (errors.go:98), used at v2_ops.go:108
-type StringMapResult interface	ok	storage.go:73 "deferred string map result from a pipeline HGetAll"; redisStringMapResult wraps the deferred cmd, redis_storage.go:121,205
-type Subscription interface	ok	storage.go:89 descriptive; redisSubscription implements it, redis_storage.go:129. Reachable only via KVStorage.Subscribe
+type PubSubMessage struct	ok	storage.go:86; constructed from the go-redis message at redis_storage.go:159
+type RedisError struct	ok	errors.go:92; constructed by newRedisError (errors.go:115), used at v2_ops.go:108
+type StringMapResult interface	ok	storage.go:78 "deferred string map result from a pipeline HGetAll"; redisStringMapResult wraps the deferred cmd, redis_storage.go:121,205
+type Subscription interface	ok	storage.go:94 descriptive; redisSubscription implements it, redis_storage.go:129. Reachable only via KVStorage.Subscribe
 type Z struct	ok	storage.go:10 "compatible with Redis ZSET operations"; converted field-for-field to redis.Z at redis_storage.go:61
 var ErrAlreadyV2	ok	migration.go:139 when the collection is already V2
 var ErrCacheRequiresV2	ok	acor.go:503 rejects EnableCache on V1, matching the doc; v1_ops.go:209 records the same constraint
 var ErrCacheWithPreset	ok	acor.go:437 rejects the combination rather than silently dropping the cache, as the doc states
-var ErrConcurrencyConflict	fixed	errors.go:18 said it is returned "when a conflict occurs" and to retry; retryOnConflict (v2_transaction.go:179-196) retries maxRetries times with backoff first, so one lost race never surfaces. Sentence now says retries are already spent; TestConflictSurfacesOnlyAfterRetriesAreSpent pins the count
-var ErrEmptyKeyword	fixed	errors.go:11 claimed it is returned for any empty keyword; the single-keyword path reports (0, nil) at redis_backed_ops.go:35 and v2_ops.go:81,89, and only batch.go:194,221,369,395 return it. Sentence now names the batch scope; TestEmptyKeywordIsNotAnErrorOutsideBatch pins both halves
-var ErrInvalidChunkSize	ok	returned for ChunkSize <= 0 at context_ops.go:105,131, both parallel entry points
+var ErrConcurrencyConflict	fixed	errors.go:24 said it is returned "when a conflict occurs" and to retry; retryOnConflict (v2_transaction.go:179-196) retries maxRetries times with backoff first, so one lost race never surfaces. Sentence now says retries are already spent; TestConflictSurfacesOnlyAfterRetriesAreSpent pins the count. The batch scope holds too: applyManyAtomic wraps its CAS in the same retryOnConflict (batch_atomic.go:43), and the exhausted conflict then lands in BatchResult.Failed (batch.go:126) or comes back wrapped (batch.go:172,320)
+var ErrEmptyKeyword	fixed	errors.go:11 claimed it is returned for any empty keyword; the single-keyword path reports (0, nil) at redis_backed_ops.go:20,56 and v2_ops.go:81,89, and only batch.go:162,187,311,335 return it. Sentence now names the batch scope; TestEmptyKeywordIsNotAnErrorOutsideBatch pins both halves
+var ErrInvalidChunkSize	ok	returned for ChunkSize <= 0 at context_ops.go:127,177, both parallel entry points
 var ErrInvalidName	ok	acor.go:423 and redis_backed.go:61 reject a name containing ':'
 var ErrMigrationInProg	ok	migration.go:116 when a migration lock is already held
 var ErrMigrationRequiresRedis	ok	migration.go:49, reached by both MigrateV1ToV2 and RollbackToV1 per migration.go:101,350
@@ -223,5 +223,5 @@ var ErrRedisClusterDB	ok	client.go:68 when DB > 0 under cluster mode
 var ErrRedisConflictingTopology	ok	client.go:47,53 for the conflicting-topology combinations
 var ErrRedisRingAddrs	ok	client.go:65 when ring mode has no shard address
 var ErrRedisSentinelAddrs	ok	client.go:56 when sentinel mode has no addresses
-var ErrSuggestRequiresRedis	ok	redis_backed_ops.go:221,225 — both suggest and suggestIndex in preset mode, as documented
+var ErrSuggestRequiresRedis	ok	redis_backed_ops.go:160,164 — both suggest and suggestIndex in preset mode, as documented
 var ErrV1ReadOnly	ok	v1_ops.go:54,61 refuse unconditionally in production; the writable path is a test-only fixture (test_helpers_test.go:117), so the doc holds for real callers

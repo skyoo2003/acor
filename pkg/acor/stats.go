@@ -39,7 +39,7 @@ type CacheStats struct {
 	// Whether a read whose Redis fetch failed lands here depends on the mode, because
 	// the mode decides which side of the fetch the counter sits on. Preset and V2 with
 	// EnableCache count the read before fetching, so a failure is a miss: it waited and
-	// came back without an automaton. Default V2 fetches first and consults the memo
+	// came back without an automaton. Default V2 and V1 fetch first and consult the memo
 	// only afterwards, so there a failed read moves neither counter — a burst of Redis
 	// errors shows up as reads that stopped happening, not as misses.
 	//

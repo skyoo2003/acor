@@ -5,8 +5,9 @@ package acor
 import (
 	"context"
 	"errors"
+	"io"
+	"log"
 	"reflect"
-	"sync"
 	"testing"
 )
 
@@ -17,30 +18,8 @@ import (
 //
 // Verdicts and citations live in api/v1-audit.txt.
 
-// recordingLogger captures what Debug writes, which is the whole point of the
-// corrected sentence: it goes to the Logger, not to stdout.
-type recordingLogger struct {
-	mu    sync.Mutex
-	lines int
-}
-
-func (l *recordingLogger) Printf(string, ...interface{}) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.lines++
-}
-
-func (l *recordingLogger) Println(...interface{}) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.lines++
-}
-
-func (l *recordingLogger) count() int {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.lines
-}
+// Debug's output is captured with recordingLogger from batch_rollback_test.go, which
+// already records every line the Logger is handed.
 
 // TestDebugWritesToLoggerNotStdout pins the correction to AhoCorasick.Debug, which
 // claimed to print "to stdout". It never did — it writes through the Logger, and the
@@ -50,8 +29,8 @@ func TestDebugWritesToLoggerNotStdout(t *testing.T) {
 	mr := createTestRedisServer(t)
 	defer mr.Close()
 
-	log := &recordingLogger{}
-	ac, err := Create(&AhoCorasickArgs{Addr: mr.Addr(), Name: "debug-target", Logger: log})
+	rec := &recordingLogger{}
+	ac, err := Create(&AhoCorasickArgs{Addr: mr.Addr(), Name: "debug-target", Logger: rec})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,15 +41,17 @@ func TestDebugWritesToLoggerNotStdout(t *testing.T) {
 	}
 
 	ac.Debug()
-	if log.count() == 0 {
+	if len(rec.recorded()) == 0 {
 		t.Fatal("Debug() wrote nothing to the configured Logger")
 	}
 }
 
 // TestDebugIsSilentWithoutALogger is the other half of the corrected sentence: the
 // default logger discards, so Debug on a plain instance produces no output at all.
-// With io.Discard behind it there is nothing to capture, so the assertion is that
-// the call completes — a caller seeing nothing is the documented outcome, not a bug.
+// Asserting on the sink rather than on captured bytes is what makes this a guard —
+// "the call completed" would still pass if Debug started writing to stdout, which is
+// exactly the claim being pinned. Swapping os.Stdout to capture it would race every
+// other test in the package.
 func TestDebugIsSilentWithoutALogger(t *testing.T) {
 	ac, mr := createAhoCorasick(t)
 	defer mr.Close()
@@ -80,6 +61,14 @@ func TestDebugIsSilentWithoutALogger(t *testing.T) {
 		t.Fatal(err)
 	}
 	ac.Debug()
+
+	std, ok := ac.logger.(*log.Logger)
+	if !ok {
+		t.Fatalf("default logger is %T, want the *log.Logger newLogger builds", ac.logger)
+	}
+	if std.Writer() != io.Discard {
+		t.Error("the default logger does not discard; Debug's godoc says it produces no output at all")
+	}
 }
 
 // TestInfoCarriesNoSchemaVersion pins the correction to AhoCorasick.Info, whose doc

@@ -663,6 +663,8 @@ func (ac *AhoCorasick) CacheStats() CacheStats {
 //     reports that case as ErrEmptyKeyword, this one does not
 //   - error if the operation fails
 //
+// On a V1 collection every call fails with ErrV1ReadOnly instead, an empty keyword
+// included: the read-only check comes before the keyword is looked at.
 // For V2 schema, this operation uses optimistic locking with automatic retries.
 func (ac *AhoCorasick) Add(keyword string) (int, error) {
 	return ac.ops.add(ac.ctx, keyword)
@@ -670,7 +672,8 @@ func (ac *AhoCorasick) Add(keyword string) (int, error) {
 
 // Remove removes a keyword from the Aho-Corasick automaton.
 // Returns the number of keywords removed (0 or 1) or an error. An empty or
-// whitespace-only keyword removes nothing and reports (0, nil); see Add.
+// whitespace-only keyword removes nothing and reports (0, nil); see Add, whose
+// V1 caveat applies here too.
 func (ac *AhoCorasick) Remove(keyword string) (int, error) {
 	return ac.ops.remove(ac.ctx, keyword)
 }
@@ -722,8 +725,10 @@ func (ac *AhoCorasick) SuggestIndex(input string) (map[string][]int, error) {
 // Logger the default logger discards everything, so Debug produces no output at all.
 // Set AhoCorasickArgs.Debug to send it to stdout, or supply a Logger.
 //
-// Only the original V1/V2 Redis-backed mode dumps anything. Preset mode is a no-op,
-// having no Redis trie state to read.
+// Only the original V1/V2 Redis-backed mode dumps anything. Preset mode is a no-op —
+// not for want of Redis trie state, which it keeps like V2 does, but because it reads
+// that state through its own engine and createPresetRedis leaves the storage handle
+// these dumps go through unset.
 func (ac *AhoCorasick) Debug() {
 	if ac.mode == modeOriginal && ac.schemaVersion == SchemaV2 {
 		ac.debugV2()

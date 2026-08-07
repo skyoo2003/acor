@@ -183,10 +183,11 @@ left to be discovered:
 - **Documented behavior.** Match ordering, `MatchKind` semantics, `FindSet`'s
   first-match order — no tool compares these *across versions*, and none can: the
   claim lives in prose. What is checked is that somebody looked. `api/v1-audit.txt`
-  carries one verdict per line of `api/v1.txt`, and CI fails when an entry has none,
-  so an unreviewed entry is a build failure rather than an omission nobody notices.
-  A verdict of `unaudited` is legal and counted; the tally prints on every run.
-  Whether each verdict is *right* is still review.
+  carries one verdict per entry of `api/v1.txt`, and CI fails when an entry has none,
+  so a *missing* verdict is a build failure rather than an omission nobody notices.
+  A verdict of `unaudited` is legal, so an unreviewed entry does not fail the build —
+  it is counted instead, and the tally prints on every run. Whether each verdict is
+  *right*, and whether its cited `file:line` still points where it did, is review.
 - **Cross-version Redis interop.** Tests pin the key names and hash field names, so a
   *rename* fails CI. They do not run an older ACOR against a newer one's data, so
   additive-only is verified as far as naming and no further.
