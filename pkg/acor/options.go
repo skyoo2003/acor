@@ -10,7 +10,8 @@ type BatchMode int
 const (
 	// BatchModeBestEffort continues processing on errors and returns partial results.
 	// Failed operations are recorded in BatchResult.Failed for later handling.
-	// This is the default mode when BatchOptions.Mode is nil.
+	// Being the zero value, it is what an unset BatchOptions.Mode selects, and what
+	// a nil *BatchOptions falls back to.
 	BatchModeBestEffort BatchMode = iota
 	// BatchModeTransactional stops and rolls back on the first error.
 	// All successfully added keywords are removed before returning the error.
@@ -20,8 +21,9 @@ const (
 
 // BatchOptions configures batch operation behavior for AddMany and RemoveMany.
 type BatchOptions struct {
-	// Mode determines how errors are handled during batch operations.
-	// Defaults to BatchModeBestEffort if nil.
+	// Mode determines how errors are handled during batch operations. It is a
+	// value, not a pointer, so it is never nil: unset means the zero value,
+	// BatchModeBestEffort. Passing a nil *BatchOptions selects the same mode.
 	Mode BatchMode
 }
 
@@ -58,13 +60,21 @@ type ParallelOptions struct {
 	Workers int
 	// ChunkSize is the target size of each text chunk in characters.
 	// Smaller chunks increase parallelism but may reduce accuracy at boundaries.
-	// Defaults to DefaultChunkSize (1000).
+	//
+	// Required when you build ParallelOptions yourself: it has no fallback, and a
+	// zero or negative value fails the call with ErrInvalidChunkSize rather than
+	// standing in DefaultChunkSize. Start from DefaultParallelOptions to get 1000.
 	ChunkSize int
-	// Boundary determines how chunks are split. Defaults to ChunkBoundaryWord.
+	// Boundary determines how chunks are split. The zero value is
+	// ChunkBoundaryWord, so leaving it unset splits on whitespace.
 	Boundary ChunkBoundary
 	// Overlap is the number of characters that overlap between adjacent chunks.
 	// Larger overlap improves accuracy for keywords spanning boundaries but increases work.
-	// Defaults to DefaultOverlap (50).
+	//
+	// Unset means zero overlap, not DefaultOverlap: only DefaultParallelOptions
+	// supplies 50. With no overlap a keyword straddling a chunk boundary is missed,
+	// so set it to at least your longest keyword or start from DefaultParallelOptions.
+	// A negative value is clamped to zero.
 	Overlap int
 }
 
@@ -97,6 +107,9 @@ type BatchResult struct {
 	Removed []string
 	// Failed contains keywords that could not be processed with their errors.
 	Failed []KeywordError
-	// Skipped contains keywords that were skipped (e.g., duplicates in input).
+	// Skipped contains keywords the batch did not have to write: duplicates within
+	// the input, and keywords the collection already held (or, for RemoveMany,
+	// already lacked). A batch whose keywords were all present therefore reports
+	// them all here with Added empty — that is success, not failure.
 	Skipped []string
 }

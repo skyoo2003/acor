@@ -110,6 +110,76 @@ func TestCacheStatsUncachedV2Rebuilds(t *testing.T) {
 	assertStats(t, ac.CacheStats(), 0, 2, 2)
 }
 
+// TestCacheStatsFailedFetchByMode pins the mode split CacheStats.Misses documents,
+// which is the whole reason that sentence names modes: the counter sits on a
+// different side of the Redis fetch in each. An operator reading a flat Misses line
+// during an outage is seeing a default-V2 instance, not a healthy one.
+func TestCacheStatsFailedFetchByMode(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       AhoCorasickArgs
+		wantMisses uint64
+	}{
+		// Fetches first, consults the memo afterwards, so the failure returns before
+		// either counter moves.
+		{"default V2", AhoCorasickArgs{}, 0},
+		// Counts before the fetch it is about to wait on, so the failure is a miss.
+		{"cached V2", AhoCorasickArgs{EnableCache: true}, 1},
+		{"preset", AhoCorasickArgs{Preset: PresetBalanced}, 1},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mr := createTestRedisServer(t)
+			// Closed mid-test, so Cleanup rather than defer; Close is idempotent and
+			// this is what covers the t.Fatal paths above that close.
+			t.Cleanup(mr.Close)
+			args := tc.args
+			args.Addr, args.Name = mr.Addr(), "stats-failed-fetch"
+			// MaxRetries -1 as in createAhoCorasick: the point of this test is the read
+			// that fails, and go-redis's default three retries with backoff spend over a
+			// second per subtest waiting to fail the same way.
+			args.MaxRetries, args.PoolSize = -1, 1
+			ac, err := Create(&args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = ac.Close() }()
+
+			if _, err := ac.Add("he"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := ac.Find("she"); err != nil {
+				t.Fatal(err)
+			}
+			before := ac.CacheStats()
+
+			// Both caching modes serve reads from local state until something drops it,
+			// so without this the dead server is never consulted and the read is a hit.
+			// Default V2 holds no cache to drop — it fetches on every call, which is
+			// exactly why its counters sit behind the fetch.
+			if rb, ok := ac.ops.(*redisBackedAC); ok {
+				rb.markStale()
+			} else if ac.cache != nil {
+				ac.cache.invalidate()
+			}
+			mr.Close()
+
+			if _, err := ac.Find("she"); err == nil {
+				t.Fatal("Find() succeeded against a closed server, want an error")
+			}
+
+			after := ac.CacheStats()
+			if got := after.Misses - before.Misses; got != tc.wantMisses {
+				t.Errorf("a failed fetch moved Misses by %d, want %d", got, tc.wantMisses)
+			}
+			if got := after.Hits - before.Hits; got != 0 {
+				t.Errorf("a failed fetch moved Hits by %d, want 0", got)
+			}
+		})
+	}
+}
+
 func TestCacheStatsCachedV2(t *testing.T) {
 	mr := createTestRedisServer(t)
 	defer mr.Close()

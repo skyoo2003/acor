@@ -15,10 +15,15 @@ type Z struct {
 	Member string
 }
 
-// KVStorage defines the interface for key-value storage operations.
-// This abstraction allows the Aho-Corasick automaton to work with different
-// storage backends. The primary implementation uses Redis, but mock
-// implementations can be used for testing.
+// KVStorage defines the interface for key-value storage operations. It lets the
+// Aho-Corasick automaton work against a storage abstraction rather than a Redis
+// client directly.
+//
+// Nothing on the public surface accepts or returns a KVStorage: the Redis-backed
+// implementation is the only one, and this package constructs it internally from
+// AhoCorasickArgs. An alternative implementation therefore cannot be supplied to
+// Create. The interface is exported so the contract the automaton relies on is
+// documented and frozen for v1, not so it can be substituted.
 //
 // All operations accept a context for cancellation and timeout support.
 type KVStorage interface {

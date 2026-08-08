@@ -38,7 +38,14 @@ func (l *recordingLogger) Printf(format string, args ...interface{}) {
 	l.mu.Unlock()
 }
 
-func (l *recordingLogger) Println(...interface{}) {}
+// Println records too, even though rollbackBatch only ever calls Printf: Debug's
+// dumps use both, and a no-op here would let TestDebugWritesToLoggerNotStdout pass
+// on the Printf lines alone while silently dropping half of what Debug wrote.
+func (l *recordingLogger) Println(args ...interface{}) {
+	l.mu.Lock()
+	l.lines = append(l.lines, fmt.Sprintln(args...))
+	l.mu.Unlock()
+}
 
 func (l *recordingLogger) recorded() []string {
 	l.mu.Lock()

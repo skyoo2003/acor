@@ -58,12 +58,14 @@ repos:
       # Catches an unrecorded public API change before it reaches a PR. Same
       # rewrite-then-diff shape as go-mod-tidy, so a failure leaves the corrected
       # api/v1.txt in the working tree ready to stage. apisnap itself is in the
-      # pattern because changing how a symbol renders changes the snapshot too.
+      # pattern because changing how a symbol renders changes the snapshot too, and
+      # api/v1-audit.txt because a commit that only edits the verdict record can
+      # break the same gate.
       - id: api-check
         name: public API surface
         entry: make api-check
         language: system
-        files: '(pkg/acor/.*\.go|tools/apisnap/.*\.go|api/v1\.txt)$'
+        files: '(pkg/acor/.*\.go|tools/apisnap/.*\.go|api/v1(-audit)?\.txt)$'
         pass_filenames: false
       - id: add-spdx-header
         name: Add SPDX license header

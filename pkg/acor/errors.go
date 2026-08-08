@@ -8,15 +8,32 @@ import (
 )
 
 var (
-	// ErrEmptyKeyword is returned when an empty or whitespace-only keyword is provided.
+	// ErrEmptyKeyword reports an empty or whitespace-only keyword inside a batch.
+	// AddMany and RemoveMany return it directly in BatchModeTransactional and record
+	// it in BatchResult.Failed in BatchModeBestEffort.
+	//
+	// The single-keyword Add and Remove do not return it: an empty keyword there is a
+	// no-op reporting (0, nil), because there is no partial batch to abort. Check the
+	// count rather than errors.Is on those two.
 	ErrEmptyKeyword = errors.New("keyword cannot be empty")
 	// ErrInvalidChunkSize is returned when ParallelOptions.ChunkSize is <= 0.
 	ErrInvalidChunkSize = errors.New("chunk size must be positive")
 	// ErrCacheRequiresV2 is returned when cache is enabled with V1 schema.
 	// Cache functionality requires V2 schema for Pub/Sub invalidation support.
 	ErrCacheRequiresV2 = errors.New("local cache requires V2 schema")
-	// ErrConcurrencyConflict is returned when an optimistic locking conflict
-	// occurs during a V2 write operation (Add/Remove). The caller should retry.
+	// ErrConcurrencyConflict is returned when a V2 write kept losing an optimistic
+	// locking race until its retries ran out. A single lost race does not surface: the
+	// write retries internally with backoff first, so seeing this means contention
+	// outlasted the whole ramp.
+	//
+	// Every V2 write path retries this way, batches included. AddMany and RemoveMany
+	// surface the exhausted conflict the way they surface any write error: wrapped in
+	// the returned error in BatchModeTransactional, recorded in BatchResult.Failed in
+	// BatchModeBestEffort. Use errors.Is rather than == either way.
+	//
+	// Retrying at the call site is therefore not a quick second attempt — the quick
+	// attempts already happened. Slow the writer down or reduce the number of
+	// concurrent writers to the collection.
 	ErrConcurrencyConflict = errors.New("concurrency conflict - please retry")
 	// ErrPresetRequiresRedis is returned when a Preset is specified without
 	// any Redis address.

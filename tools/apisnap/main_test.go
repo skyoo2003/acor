@@ -137,6 +137,96 @@ func TestTagRenameIsVisible(t *testing.T) {
 	}
 }
 
+// TestAuditProblems covers the ways the verdict record can stop being a record of
+// the surface. The uncited case is the one with the most to catch: a verdict
+// nobody can re-check reads as evidence without being any.
+func TestAuditProblems(t *testing.T) {
+	surface := []string{"const Answer = 42", "type Widget struct"}
+
+	tests := []struct {
+		name  string
+		audit string
+		want  string
+	}{
+		{
+			name:  "complete",
+			audit: "# header\nconst Answer = 42\tok\tconst.go:7\ntype Widget struct\tunaudited\n",
+		},
+		{
+			name:  "entry with no verdict",
+			audit: "const Answer = 42\tok\tconst.go:7\n",
+			want:  `no verdict for "type Widget struct"`,
+		},
+		{
+			name:  "verdict for an entry that is gone",
+			audit: "const Answer = 42\tok\tconst.go:7\ntype Widget struct\tunaudited\nfunc Removed()\tok\told.go:1\n",
+			want:  `"func Removed()" is not in api/v1.txt`,
+		},
+		{
+			name:  "verdict outside the vocabulary",
+			audit: "const Answer = 42\tprobably-fine\tconst.go:7\ntype Widget struct\tunaudited\n",
+			want:  `has verdict "probably-fine"`,
+		},
+		{
+			name:  "audited but uncited",
+			audit: "const Answer = 42\tok\tlooks right to me\ntype Widget struct\tunaudited\n",
+			want:  `with no file:line in its note`,
+		},
+		{
+			name:  "same entry judged twice",
+			audit: "const Answer = 42\tok\tconst.go:7\nconst Answer = 42\trisk\tconst.go:9\ntype Widget struct\tunaudited\n",
+			want:  "already has a verdict on line 1",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "v1-audit.txt")
+			if err := os.WriteFile(path, []byte(tc.audit), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			_, problems := auditProblems(surface, path)
+			if tc.want == "" {
+				if len(problems) > 0 {
+					t.Fatalf("a complete record was rejected: %v", problems)
+				}
+				return
+			}
+			if len(problems) == 0 {
+				t.Fatalf("no problem reported; want one mentioning %q", tc.want)
+			}
+			if !slices.ContainsFunc(problems, func(p string) bool { return strings.Contains(p, tc.want) }) {
+				t.Errorf("problems = %v, want one mentioning %q", problems, tc.want)
+			}
+		})
+	}
+}
+
+// TestAuditTallyCountsAudited pins what milestone 4 of the readiness PRD reads off
+// this gate: the split between reviewed and not. A record that miscounts is worse
+// than none, because the number is what the release decision rests on.
+func TestAuditTallyCountsAudited(t *testing.T) {
+	surface := []string{"const A = 1", "const B = 2", "const C = 3"}
+	audit := "const A = 1\tok\ta.go:1\nconst B = 2\tfixed\tb.go:2\nconst C = 3\tunaudited\n"
+
+	path := filepath.Join(t.TempDir(), "v1-audit.txt")
+	if err := os.WriteFile(path, []byte(audit), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	tally, problems := auditProblems(surface, path)
+	if len(problems) > 0 {
+		t.Fatalf("unexpected problems: %v", problems)
+	}
+	if tally["ok"] != 1 || tally["fixed"] != 1 || tally["unaudited"] != 1 || tally["risk"] != 0 {
+		t.Errorf("tally = %v, want 1 ok, 1 fixed, 0 risk, 1 unaudited", tally)
+	}
+	if got := tallyLine(tally); got != "1 ok, 1 fixed, 0 risk, 1 unaudited" {
+		t.Errorf("tallyLine = %q, want the verdicts in declared order", got)
+	}
+}
+
 func writeGo(t *testing.T, dir, name, body string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
