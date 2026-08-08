@@ -61,7 +61,7 @@ func (e *memEfficientEngine) buildFromKeywords(keywords map[string]struct{}) {
 			}
 			state = child
 		}
-		trie.out.own[state] = trie.out.assignID(kw)
+		trie.out.own[state] = trie.out.assign(trie.out.own[state], kw)
 	}
 
 	type queueEntry struct {

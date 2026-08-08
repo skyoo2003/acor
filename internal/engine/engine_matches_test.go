@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"unicode/utf8"
 )
@@ -160,6 +161,31 @@ func TestFindSetAcrossMatchSetSizes(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestFindSetSuffixNested pins FindSet on the input the collector's state dedup
+// exists for: every keyword is a suffix of the next, so a run of 'a's keeps
+// landing on the deepest state, whose output chain reports every keyword. The
+// answer must stay unique(Find) even though nearly every landing is a repeat.
+func TestFindSetSuffixNested(t *testing.T) {
+	kws := make(map[string]struct{})
+	kw := ""
+	for i := 0; i < 64; i++ {
+		kw += "a"
+		kws[kw] = struct{}{}
+	}
+	text := strings.Repeat("a", 256)
+	for _, p := range allPresets {
+		t.Run(p.String(), func(t *testing.T) {
+			e := New(p)
+			e.Build(kws)
+			want := uniqueInOrder(e.Find(text))
+			got := e.FindSet(text)
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("FindSet = %d keywords, want %d (unique Find order)", len(got), len(want))
+			}
+		})
 	}
 }
 

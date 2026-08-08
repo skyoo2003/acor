@@ -79,6 +79,33 @@ func benchTextDense(n int) string {
 	return sb.String()
 }
 
+// BenchmarkEngineFindSetSuffixNested keeps landing on the deepest state of a
+// suffix-nested dictionary, so nearly every character re-reports a 500-keyword
+// output chain. This is the case the collector's state dedup exists for:
+// without it the chain is rewalked per character (measured 40x on
+// Speed/Balanced).
+func BenchmarkEngineFindSetSuffixNested(b *testing.B) {
+	kws := make(map[string]struct{})
+	kw := ""
+	for i := 0; i < 500; i++ {
+		kw += "a"
+		kws[kw] = struct{}{}
+	}
+	text := strings.Repeat("a", 100_000)
+	for _, bp := range benchPresets {
+		e := New(bp.preset)
+		e.Build(kws)
+		b.Run(bp.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(text)))
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = e.FindSet(text)
+			}
+		})
+	}
+}
+
 func BenchmarkEngineFindSet(b *testing.B) {
 	for _, n := range []int{100, 1000} {
 		kws := benchKeywords(n)

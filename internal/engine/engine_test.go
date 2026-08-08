@@ -159,6 +159,31 @@ func TestOutputStorageStaysLinear(t *testing.T) {
 	}
 }
 
+// TestCollidingKeywordsCountOnce pins how distinct keywords that decode to the
+// same rune path land in the automaton. Invalid UTF-8 is an accepted input and
+// each invalid byte decodes to RuneError, so "\xff" and "\xfe" share one
+// terminal state: the last write wins and every preset counts one keyword.
+// Interning a second id for the same terminal would orphan a table entry and
+// skew Info().Keywords per preset.
+func TestCollidingKeywordsCountOnce(t *testing.T) {
+	kws := keywordSet("\xff", "\xfe")
+	for _, p := range allPresets {
+		t.Run(p.String(), func(t *testing.T) {
+			e := New(p)
+			e.Build(kws)
+			if got := e.Info().Keywords; got != 1 {
+				t.Errorf("Info().Keywords = %d, want 1", got)
+			}
+			// Which keyword wins depends on build iteration order; that it is
+			// exactly one of the two is the contract.
+			got := e.Find("\xff")
+			if len(got) != 1 || (got[0] != "\xff" && got[0] != "\xfe") {
+				t.Errorf("Find = %q, want exactly one of the colliding keywords", got)
+			}
+		})
+	}
+}
+
 func countAssigned(own []int32) int {
 	n := 0
 	for _, id := range own {

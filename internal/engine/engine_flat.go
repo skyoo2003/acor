@@ -99,7 +99,7 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 			}
 			state = child
 		}
-		nodes[state].ownID = outs.assignID(kw)
+		nodes[state].ownID = outs.assign(nodes[state].ownID, kw)
 	}
 
 	numStates := len(nodes)
