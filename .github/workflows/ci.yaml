@@ -124,6 +124,23 @@ jobs:
             awk -v c="$coverage" 'BEGIN { exit (c < 70) ? 1 : 0 }' \
               || { echo "::error::${mod} coverage ${coverage}% is below threshold 70%"; fail=1; }
           done
+          # A percentage cannot see a function nothing calls: pkg/acor was 89% green
+          # while four functions sat at exactly 0.0%. Reading them turned up one of
+          # each failure shape — rollbackRemoved was live error-recovery code no test
+          # drove, and the deferred-batch trio was unreachable from any configuration.
+          # Both are worse to discover after v1 freezes, so this is a gate rather than
+          # a measurement someone remembers to take.
+          #
+          # Scoped to pkg/acor by path prefix, and the prefix is load-bearing: the
+          # profile is built with -coverpkg=./..., so examples/, cmd/ and tools/ are
+          # in it and legitimately carry 0.0% functions.
+          uncovered=$(go tool cover -func=coverage.nogen.out \
+            | awk '$1 ~ /^github\.com\/skyoo2003\/acor\/pkg\/acor\// && $3 == "0.0%"')
+          if [ -n "$uncovered" ]; then
+            echo "$uncovered"
+            echo "::error::pkg/acor has functions at 0.0% coverage. Cover them, or delete them if nothing can reach them."
+            fail=1
+          fi
           exit $fail
       - name: Run fuzz testing
         if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
