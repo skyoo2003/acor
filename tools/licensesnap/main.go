@@ -17,9 +17,10 @@
 // files intact, so this project never redistributes them and owes no notice for
 // them. benchmarks/ never leaves the repository.
 //
-// The import graph is walked once per operating system in releaseGOOS, because
-// `go list` resolves build constraints against GOOS: a Windows-only import of a
-// module the Linux build never sees would otherwise ship unattributed.
+// The import graph is walked once per GOOS/GOARCH pair in the release matrix,
+// because `go list` resolves build constraints against both: a Windows-only or
+// arm64-only import of a module the linux/amd64 build never sees would
+// otherwise ship unattributed.
 //
 // License texts are copied byte-for-byte rather than summarized, because
 // reproducing the text is the obligation. PATENTS and NOTICE files are copied
@@ -95,12 +96,15 @@ var licenses = map[string]license{
 	"golang.org/x/sync":            {"BSD-3-Clause", "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"},
 }
 
-// releaseGOOS are the operating systems .goreleaser.yaml builds for. GOARCH is
-// pinned rather than swept: build tags select files within a module, not
-// different modules, so a module that appears on only one architecture is not a
-// thing that happens.
-// ponytail: sweep GOARCH here too if that ever stops being true.
-var releaseGOOS = []string{"darwin", "linux", "windows"}
+// releaseGOOS and releaseGOARCH mirror the build matrix in .goreleaser.yaml.
+// Their cross product is filtered through `go tool dist list`, which prunes the
+// same invalid pairs goreleaser skips (darwin/386, darwin/arm, windows/arm), so
+// the sweep covers exactly the targets that ship. GOARM is irrelevant here:
+// build constraints never select on it.
+var (
+	releaseGOOS   = []string{"darwin", "linux", "windows"}
+	releaseGOARCH = []string{"386", "amd64", "arm", "arm64"}
+)
 
 // licenseNames are the filenames a module may use for its license, in the order
 // they are tried. Upstream is inconsistent: go-redis and x/sync use LICENSE,
@@ -199,19 +203,29 @@ func run() error {
 // while miniredis and gopher-lua are direct requirements that do not, being
 // test-only.
 func modules() ([]module, error) {
+	valid, err := validTargets()
+	if err != nil {
+		return nil, err
+	}
+
 	seen := map[string]bool{}
 	var mods []module
 	for _, goos := range releaseGOOS {
-		found, err := listModules(goos)
-		if err != nil {
-			return nil, err
-		}
-		for _, m := range found {
-			if seen[m.path] {
+		for _, goarch := range releaseGOARCH {
+			if !valid[goos+"/"+goarch] {
 				continue
 			}
-			seen[m.path] = true
-			mods = append(mods, m)
+			found, listErr := listModules(goos, goarch)
+			if listErr != nil {
+				return nil, listErr
+			}
+			for _, m := range found {
+				if seen[m.path] {
+					continue
+				}
+				seen[m.path] = true
+				mods = append(mods, m)
+			}
 		}
 	}
 	if len(mods) == 0 {
@@ -232,17 +246,32 @@ func modules() ([]module, error) {
 	return mods, nil
 }
 
+// validTargets returns the GOOS/GOARCH pairs this Go toolchain can build, as
+// "goos/goarch" keys. Filtering the release matrix through it keeps the sweep
+// from handing `go list` a pair like darwin/386 that would fail outright.
+func validTargets() (map[string]bool, error) {
+	out, err := exec.CommandContext(context.Background(), "go", "tool", "dist", "list").Output()
+	if err != nil {
+		return nil, fmt.Errorf("go tool dist list: %w", err)
+	}
+	valid := map[string]bool{}
+	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
+		valid[line] = true
+	}
+	return valid, nil
+}
+
 // listModules returns the third-party modules the target binary links when built
-// for goos.
-func listModules(goos string) ([]module, error) {
+// for goos/goarch.
+func listModules(goos, goarch string) ([]module, error) {
 	const format = `{{if and .Module (not .Standard)}}{{.Module.Path}}	{{.Module.Version}}	{{.Module.Dir}}{{end}}`
 
 	cmd := exec.CommandContext(context.Background(), "go", "list", "-deps", "-f", format, target)
-	cmd.Env = append(os.Environ(), "GOOS="+goos, "GOARCH=amd64")
+	cmd.Env = append(os.Environ(), "GOOS="+goos, "GOARCH="+goarch)
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("go list -deps %s (GOOS=%s): %w", target, goos, err)
+		return nil, fmt.Errorf("go list -deps %s (GOOS=%s GOARCH=%s): %w", target, goos, goarch, err)
 	}
 
 	var mods []module
