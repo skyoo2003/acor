@@ -1,5 +1,5 @@
 kind: Added
-body: The `NOTICE` file now records the copyright notice and full license text of every third-party module linked into the `acor` binary, and ships inside the release archives and container images. `make license-check` regenerates it from the module graph and CI gates the result, so a dependency change cannot silently drop an attribution.
+body: '`NOTICE` now lists the copyright notice and full license text of every third-party module linked into the `acor` binary, and ships in the release archives and container images. `make license-check` regenerates it from the module graph and CI verifies the result, so a dependency change cannot silently drop an attribution.'
 time: 2026-08-06T08:13:35.87731+09:00
 custom:
     Issue: "199"

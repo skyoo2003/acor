@@ -1,5 +1,5 @@
 kind: Added
-body: CI now verifies the `retract [v1.0.0, v1.4.0]` block is still present in `go.mod`, which prevents a release from silently un-retracting the withdrawn version range.
+body: CI verifies that the `retract [v1.0.0, v1.4.0]` block is still present in `go.mod`, so a release cannot silently un-retract the withdrawn version range.
 time: 2026-08-06T05:06:27.479418+09:00
 custom:
     Issue: "203"
