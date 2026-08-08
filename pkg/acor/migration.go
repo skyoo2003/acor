@@ -74,7 +74,9 @@ func (ac *AhoCorasick) releaseMigrationLock() error {
 }
 
 // MigrateV1ToV2 migrates the collection from V1 schema to V2 schema.
-// V2 offers better performance and uses only 3 Redis keys instead of many.
+// V2 offers better performance and occupies at most 3 Redis keys instead of a
+// count that grows with the dictionary — see SchemaV2 for which of the three a
+// migrated collection actually ends up with.
 //
 // The migration process:
 //  1. Acquires a migration lock to prevent concurrent migrations
@@ -83,8 +85,14 @@ func (ac *AhoCorasick) releaseMigrationLock() error {
 //  4. Atomically swaps to V2 keys and optionally deletes V1 keys
 //  5. Releases the migration lock
 //
-// Use DryRun=true in opts to preview the migration without making changes.
+// Use DryRun=true in opts to preview the migration without writing anything.
 // The lock has a 5-minute TTL to handle client crashes.
+//
+// On success the instance switches to V2 operations and becomes writable, since
+// the read-only rule is V1's. It runs uncached: EnableCache is refused on a V1
+// instance (ErrCacheRequiresV2), so there is no cache to carry over and this
+// call does not start one. Create a new instance with EnableCache, or a Preset,
+// to read the migrated collection locally.
 //
 // Example:
 //
@@ -342,10 +350,23 @@ func (ac *AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, 
 
 // RollbackToV1 reverts the collection from V2 schema back to V1 schema.
 // This is only possible if the V1 keys were preserved during migration
-// (KeepOldKeys=true in MigrationOptions).
+// (KeepOldKeys=true in MigrationOptions). Without them it returns an error and
+// changes nothing.
 //
-// Note: This deletes V2 keys and switches the instance to use V1 operations.
-// Any keywords added after migration to V2 will be lost.
+// It deletes the V2 keys and switches the instance to V1 operations, which costs
+// more than the keywords:
+//
+//   - Any keywords added after the migration to V2 are lost. They live only in
+//     the V2 keys this deletes, and the preserved V1 keys predate them.
+//   - The collection becomes read-only. V1 takes no writes, so Add and Remove
+//     return ErrV1ReadOnly from here on, and the only ways forward are
+//     MigrateV1ToV2 again or Flush. Rollback is a way to read the old data with
+//     an old client, not a way to keep working on V1.
+//   - Local caching stops. The listener is shut down and the cache dropped,
+//     because V1 does not support one.
+//
+// Weigh it against simply not migrating: rolling back is not free and does not
+// restore the state the instance had before MigrateV1ToV2 ran.
 //
 // Returns ErrMigrationRequiresRedis when the instance was created with a Preset,
 // for the reason MigrateV1ToV2 documents.

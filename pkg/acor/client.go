@@ -47,9 +47,13 @@ func validateRedisTopology(args *AhoCorasickArgs, addrs []string, ringAddrs map[
 		return ErrRedisConflictingTopology
 	}
 
-	// Only ring can conflict: cluster is selected for more than one address but
-	// never alongside sentinel, so sentinel and cluster cannot both be asked for.
-	if len(ringAddrs) > 0 && (hasSentinel || len(addrs) > 1) {
+	// Only ring can conflict: sentinel and cluster are mutually exclusive by
+	// construction, since selectsCluster requires a blank MasterName. The cluster
+	// half tests args.Addrs rather than the merged addrs, so it agrees with
+	// selectsCluster: any non-empty Addrs means cluster, a one-element list
+	// included. Addr survives alongside RingAddrs because it never reaches
+	// args.Addrs — that combination is documented as Addr being ignored.
+	if len(ringAddrs) > 0 && (hasSentinel || len(args.Addrs) > 0) {
 		return ErrRedisConflictingTopology
 	}
 	if hasSentinel && len(args.Addrs) == 0 {

@@ -22,7 +22,17 @@ import (
 //   - nil or BatchModeBestEffort: continues on errors, returns partial results
 //   - BatchModeTransactional: rolls back on first error
 //
+// The two differ in what a caller gets back, not only in what reaches Redis.
+// Best-effort always returns a result and a nil error, recording each failure in
+// BatchResult.Failed. Transactional returns a nil *BatchResult with the error, so
+// there is nothing to inspect afterwards — including which keywords had been
+// written before the failure and were then undone.
+//
 // Duplicate keywords in the input are skipped and recorded in BatchResult.Skipped.
+// Duplicates are judged on the normalized keyword, so on a case-insensitive
+// collection — the default — "Foo" and "foo" are one keyword: the first is added
+// and the second reported as skipped. Keywords the collection already holds are
+// reported the same way, so Skipped covers both.
 //
 // Example:
 //
@@ -247,7 +257,12 @@ func (ac *AhoCorasick) rollbackBatch(ctx context.Context, keywords []string, op 
 //
 // The opts parameter controls error handling behavior, exactly as in AddMany:
 //   - nil or BatchModeBestEffort: continues on errors, returns partial results
-//   - BatchModeTransactional: re-adds what it removed on first error
+//   - BatchModeTransactional: re-adds what it removed on first error, and
+//     returns a nil *BatchResult with the error
+//
+// Duplicates are screened as in AddMany, on the normalized keyword. A keyword the
+// collection does not hold is not an error: it is reported in
+// BatchResult.Skipped, so a repeated RemoveMany is a no-op rather than a failure.
 //
 // Example:
 //
@@ -368,8 +383,9 @@ func (ac *AhoCorasick) removeManyTransactional(ctx context.Context, keywords []s
 // Find costs, and every text sees the same dictionary. Splitting a batch into
 // individual Find or FindParallel calls costs one read each instead.
 //
-// Note: If the same text appears multiple times in the input slice, only one result
-// entry will be stored (last occurrence wins).
+// Note: the result is keyed by text, so a text repeated in the input yields one
+// entry, and a caller cannot recover the input order or count from it. An error
+// abandons the whole batch — see FindManyContext.
 //
 // Example:
 //

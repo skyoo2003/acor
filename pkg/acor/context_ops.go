@@ -8,12 +8,14 @@ import (
 	matchengine "github.com/skyoo2003/acor/internal/engine"
 )
 
-// AddContext inserts a keyword with context for cancellation and timeout propagation.
+// AddContext inserts a keyword with context for cancellation and timeout
+// propagation. Return values and the empty-keyword case are as documented on Add.
 func (ac *AhoCorasick) AddContext(ctx context.Context, keyword string) (int, error) {
 	return ac.ops.add(ctx, keyword)
 }
 
-// RemoveContext removes a keyword with context for cancellation and timeout propagation.
+// RemoveContext removes a keyword with context for cancellation and timeout
+// propagation. Return values are as documented on Remove.
 func (ac *AhoCorasick) RemoveContext(ctx context.Context, keyword string) (int, error) {
 	return ac.ops.remove(ctx, keyword)
 }
@@ -28,27 +30,43 @@ func (ac *AhoCorasick) FindIndexContext(ctx context.Context, text string) (map[s
 	return ac.ops.findIndex(ctx, text)
 }
 
-// FlushContext removes all keywords with context for cancellation and timeout propagation.
+// FlushContext removes all keywords. On V2 and in Preset mode ctx carries
+// cancellation and timeout through to Redis.
+//
+// On a V1 collection ctx is accepted and ignored. A V1 flush deletes a key per
+// keyword and per output state, and abandoning that partway would leave a trie
+// that is neither the old one nor empty, so it runs on a fresh context bounded
+// by AhoCorasickArgs.RollbackTimeout instead. Passing an already-canceled ctx
+// flushes the collection anyway and returns nil. Size RollbackTimeout, not ctx,
+// to bound a V1 flush.
 func (ac *AhoCorasick) FlushContext(ctx context.Context) error {
 	return ac.ops.flush(ctx)
 }
 
-// InfoContext returns automaton statistics with context for cancellation and timeout propagation.
+// InfoContext returns automaton statistics. On V1 and V2 it reads Redis under
+// ctx. In Preset mode it reads the local engine, so there is nothing to cancel
+// and ctx is ignored — a canceled one still returns the statistics.
 func (ac *AhoCorasick) InfoContext(ctx context.Context) (*AhoCorasickInfo, error) {
 	return ac.ops.info(ctx)
 }
 
-// SuggestContext returns keyword suggestions with context for cancellation and timeout propagation.
+// SuggestContext returns keyword suggestions with context for cancellation and
+// timeout propagation. Preset mode returns ErrSuggestRequiresRedis: the local
+// automaton carries no prefix index, and preset mode keeps reads off Redis
+// rather than falling back to it behind the caller's back.
 func (ac *AhoCorasick) SuggestContext(ctx context.Context, input string) ([]string, error) {
 	return ac.ops.suggest(ctx, input)
 }
 
 // SuggestIndexContext returns keyword suggestions with indices with context.
+// Preset mode returns ErrSuggestRequiresRedis, as SuggestContext does.
 func (ac *AhoCorasick) SuggestIndexContext(ctx context.Context, input string) (map[string][]int, error) {
 	return ac.ops.suggestIndex(ctx, input)
 }
 
-// AddManyContext adds multiple keywords with context for cancellation and timeout propagation.
+// AddManyContext adds multiple keywords with context for cancellation and
+// timeout propagation. Modes, duplicate handling, and what a transactional
+// failure returns are as documented on AddMany.
 func (ac *AhoCorasick) AddManyContext(ctx context.Context, keywords []string, opts *BatchOptions) (*BatchResult, error) {
 	if opts == nil {
 		opts = &BatchOptions{Mode: BatchModeBestEffort}
@@ -67,7 +85,9 @@ func (ac *AhoCorasick) AddManyContext(ctx context.Context, keywords []string, op
 	return ac.addManyBestEffort(ctx, keywords, result)
 }
 
-// RemoveManyContext removes multiple keywords with context for cancellation and timeout propagation.
+// RemoveManyContext removes multiple keywords with context for cancellation and
+// timeout propagation. Modes and duplicate handling are as documented on
+// RemoveMany.
 func (ac *AhoCorasick) RemoveManyContext(ctx context.Context, keywords []string, opts *BatchOptions) (*BatchResult, error) {
 	if opts == nil {
 		opts = &BatchOptions{Mode: BatchModeBestEffort}
@@ -86,7 +106,10 @@ func (ac *AhoCorasick) RemoveManyContext(ctx context.Context, keywords []string,
 	return ac.removeManyBestEffort(ctx, keywords, result)
 }
 
-// FindManyContext searches for keywords in multiple texts with context.
+// FindManyContext searches for keywords in multiple texts with context. It
+// scans them one at a time in the order given and stops at the first error,
+// returning a nil map — the texts already scanned are discarded rather than
+// returned as a partial result. See FindMany for the map's shape.
 func (ac *AhoCorasick) FindManyContext(ctx context.Context, texts []string) (map[string][]string, error) {
 	results := make(map[string][]string, len(texts))
 

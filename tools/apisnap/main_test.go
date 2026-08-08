@@ -137,9 +137,26 @@ func TestTagRenameIsVisible(t *testing.T) {
 	}
 }
 
+// auditFixture writes the audit record plus a three-line const.go for its citations
+// to resolve against, and returns the record's path and the roots to look under.
+// The cited file is real so the resolution check is exercised rather than stubbed:
+// every citation in these cases either lands inside it or is meant not to.
+func auditFixture(t *testing.T, audit string) (path string, roots []string) {
+	t.Helper()
+	dir := t.TempDir()
+	writeGo(t, dir, "const.go", "package p\n\nconst Answer = 42\n")
+	path = filepath.Join(dir, "v1-audit.txt")
+	if err := os.WriteFile(path, []byte(audit), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path, []string{dir}
+}
+
 // TestAuditProblems covers the ways the verdict record can stop being a record of
 // the surface. The uncited case is the one with the most to catch: a verdict
-// nobody can re-check reads as evidence without being any.
+// nobody can re-check reads as evidence without being any. The two unresolvable
+// citations are next: a note pointing at a file that is gone, or past the end of
+// one that shrank, is how a record rots without anyone editing it.
 func TestAuditProblems(t *testing.T) {
 	surface := []string{"const Answer = 42", "type Widget struct"}
 
@@ -150,21 +167,21 @@ func TestAuditProblems(t *testing.T) {
 	}{
 		{
 			name:  "complete",
-			audit: "# header\nconst Answer = 42\tok\tconst.go:7\ntype Widget struct\tunaudited\n",
+			audit: "# header\nconst Answer = 42\tok\tconst.go:3\ntype Widget struct\tunaudited\n",
 		},
 		{
 			name:  "entry with no verdict",
-			audit: "const Answer = 42\tok\tconst.go:7\n",
+			audit: "const Answer = 42\tok\tconst.go:3\n",
 			want:  `no verdict for "type Widget struct"`,
 		},
 		{
 			name:  "verdict for an entry that is gone",
-			audit: "const Answer = 42\tok\tconst.go:7\ntype Widget struct\tunaudited\nfunc Removed()\tok\told.go:1\n",
+			audit: "const Answer = 42\tok\tconst.go:3\ntype Widget struct\tunaudited\nfunc Removed()\tok\tconst.go:1\n",
 			want:  `"func Removed()" is not in api/v1.txt`,
 		},
 		{
 			name:  "verdict outside the vocabulary",
-			audit: "const Answer = 42\tprobably-fine\tconst.go:7\ntype Widget struct\tunaudited\n",
+			audit: "const Answer = 42\tprobably-fine\tconst.go:3\ntype Widget struct\tunaudited\n",
 			want:  `has verdict "probably-fine"`,
 		},
 		{
@@ -174,19 +191,40 @@ func TestAuditProblems(t *testing.T) {
 		},
 		{
 			name:  "same entry judged twice",
-			audit: "const Answer = 42\tok\tconst.go:7\nconst Answer = 42\trisk\tconst.go:9\ntype Widget struct\tunaudited\n",
+			audit: "const Answer = 42\tok\tconst.go:1\nconst Answer = 42\trisk\tconst.go:3\ntype Widget struct\tunaudited\n",
 			want:  "already has a verdict on line 1",
+		},
+		{
+			name:  "cites a file that no longer exists",
+			audit: "const Answer = 42\tok\tmoved.go:1\ntype Widget struct\tunaudited\n",
+			want:  "cites moved.go, which is not a file under",
+		},
+		{
+			name:  "cites past the end of the file",
+			audit: "const Answer = 42\tok\tconst.go:99\ntype Widget struct\tunaudited\n",
+			want:  "cites const.go:99, but const.go has 3 lines",
+		},
+		{
+			// The start resolves and the end does not, which is what a shrinking file
+			// does to a span citation.
+			name:  "cites a range that runs past the end",
+			audit: "const Answer = 42\tok\tconst.go:1-99\ntype Widget struct\tunaudited\n",
+			want:  "cites const.go:99, but const.go has 3 lines",
+		},
+		{
+			// An unaudited entry carries no note, but a stale citation on one is still
+			// a stale citation, so the resolution check does not skip it.
+			name:  "unaudited entry with a rotted citation",
+			audit: "const Answer = 42\tok\tconst.go:1\ntype Widget struct\tunaudited\tsee gone.go:1\n",
+			want:  "cites gone.go, which is not a file under",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "v1-audit.txt")
-			if err := os.WriteFile(path, []byte(tc.audit), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			path, roots := auditFixture(t, tc.audit)
 
-			_, problems := auditProblems(surface, path)
+			_, problems := auditProblems(surface, path, roots)
 			if tc.want == "" {
 				if len(problems) > 0 {
 					t.Fatalf("a complete record was rejected: %v", problems)
@@ -208,14 +246,11 @@ func TestAuditProblems(t *testing.T) {
 // than none, because the number is what the release decision rests on.
 func TestAuditTallyCountsAudited(t *testing.T) {
 	surface := []string{"const A = 1", "const B = 2", "const C = 3"}
-	audit := "const A = 1\tok\ta.go:1\nconst B = 2\tfixed\tb.go:2\nconst C = 3\tunaudited\n"
+	audit := "const A = 1\tok\tconst.go:1\nconst B = 2\tfixed\tconst.go:2\nconst C = 3\tunaudited\n"
 
-	path := filepath.Join(t.TempDir(), "v1-audit.txt")
-	if err := os.WriteFile(path, []byte(audit), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	path, roots := auditFixture(t, audit)
 
-	tally, problems := auditProblems(surface, path)
+	tally, problems := auditProblems(surface, path, roots)
 	if len(problems) > 0 {
 		t.Fatalf("unexpected problems: %v", problems)
 	}

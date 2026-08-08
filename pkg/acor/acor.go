@@ -92,11 +92,13 @@
 //
 // # Schema Versions
 //
-// V2 (SchemaVersion: 2, default): Optimized schema consolidating data into 3 keys.
-// Recommended for every use case. Uses Lua scripts for atomic operations.
+// V2 (SchemaVersion: 2, default): Optimized schema consolidating a collection
+// into a fixed set of at most 3 keys, whatever the dictionary size. Recommended
+// for every use case. Uses Lua scripts for atomic operations.
 //
-// V1 (SchemaVersion: 1): Deprecated legacy schema using multiple Redis keys for each
-// prefix/suffix/output. Kept for existing collections only; migrate with
+// V1 (SchemaVersion: 1): Deprecated legacy schema spread over three fixed Redis keys
+// plus one per trie state carrying output and one per keyword, so the key count grows
+// with the dictionary. Kept for existing collections only; migrate with
 // MigrateV1ToV2. New collections should not select it.
 //
 // # Batch Operations
@@ -220,18 +222,38 @@ type Logger interface {
 //
 // # Redis Topology Selection
 //
-// The Redis topology is automatically determined based on which fields are set:
+// The Redis topology is automatically determined based on which fields are set,
+// in this order:
 //   - Ring: RingAddrs is set (map of shard names to addresses)
 //   - Sentinel: MasterName is set (Addrs used as sentinel addresses)
-//   - Cluster: Addrs has multiple entries (no MasterName)
-//   - Standalone: Addr is set (default: "localhost:6379")
+//   - Cluster: Addrs is set and MasterName is not — one address is enough
+//   - Standalone: Addr is set, or nothing is (default: "localhost:6379")
+//
+// Addrs is what distinguishes cluster from standalone, not how many entries it
+// has: a single-element Addrs builds a cluster client, while the same address in
+// Addr builds a standalone one. Setting both is rejected with
+// ErrRedisConflictingTopology rather than resolved by precedence, so the
+// topology can never be a surprise.
 type AhoCorasickArgs struct {
 	// Addr is the Redis server address for standalone mode (e.g., "localhost:6379").
-	// Ignored if Addrs or RingAddrs is set.
+	// Left empty, go-redis connects to localhost:6379.
+	//
+	// Ignored when RingAddrs is set. Setting it together with Addrs is not ignored
+	// but rejected: Create returns ErrRedisConflictingTopology, because the two
+	// select different topologies and silently dropping one would connect the
+	// caller somewhere they did not ask for.
 	Addr string
 	// Addrs is a list of Redis addresses. Used for:
 	//   - Sentinel mode: list of sentinel addresses (requires MasterName)
 	//   - Cluster mode: list of cluster node addresses
+	//
+	// Any non-empty Addrs without MasterName means cluster, including a list of
+	// one. To reach a single standalone server, use Addr. Setting it alongside
+	// RingAddrs is ErrRedisConflictingTopology for the same reason as Addr:
+	// two topologies were asked for and neither is dropped silently.
+	//
+	// Entries are trimmed and deduplicated; a list that leaves nothing after
+	// that is ErrRedisAddrs rather than a silent fallback to localhost.
 	Addrs []string
 	// MasterName specifies the master name for Sentinel mode.
 	// When set, Addrs is interpreted as sentinel addresses.
@@ -241,8 +263,16 @@ type AhoCorasickArgs struct {
 	RingAddrs map[string]string
 	// Password is the Redis authentication password (optional).
 	Password string
-	// DB is the Redis database number to select (0-15, default: 0).
-	// Not supported in cluster mode.
+	// DB is the Redis database number to select (default: 0). The valid range is
+	// whatever the server's own databases setting allows — 0-15 on a default
+	// Redis — and is not checked here; an out-of-range number surfaces as a
+	// connection error from Redis.
+	//
+	// Cluster mode has no database selection, so a non-zero DB with Addrs set is
+	// ErrRedisClusterDB at Create rather than a silently ignored field. One entry
+	// in Addrs is enough to select cluster, so a single-address list plus a DB
+	// fails where the same address in Addr would not. Ring, sentinel, and
+	// standalone all honor it.
 	DB int
 
 	// The following knobs tune connection resilience. They are passed straight
@@ -267,14 +297,19 @@ type AhoCorasickArgs struct {
 	// Name identifies the pattern collection. All keywords added to this instance
 	// are stored under this namespace in Redis. Required.
 	Name string
-	// Debug enables debug logging output to stdout.
+	// Debug sends the default logger's output to stdout. It has no effect when
+	// Logger is set: a custom logger replaces the default one entirely, so where
+	// its output goes is that implementation's business, not this field's.
 	Debug bool
-	// Logger provides a custom logger implementation. If nil and Debug is false,
-	// logging is disabled.
+	// Logger provides a custom logger implementation. It takes precedence over
+	// Debug. If nil and Debug is false, logging is disabled — the default logger
+	// writes to io.Discard.
 	Logger Logger
 	// SchemaVersion specifies the storage schema to use:
-	//   - 0 or 2: V2 schema (default, optimized, 3 keys)
+	//   - 0 or 2: V2 schema (default, optimized, at most 3 keys — see SchemaV2)
 	//   - 1: V1 schema (deprecated and read-only — see SchemaV1)
+	//
+	// Any other value is rejected by Create.
 	//
 	// Selecting 1 opens an existing V1 collection for reading and migration. Add and
 	// Remove return ErrV1ReadOnly, so a new V1 collection can never be populated.
@@ -303,10 +338,18 @@ type AhoCorasickArgs struct {
 	// and Turkish dotted/dotless i follow the default mapping. Pre-fold the
 	// keywords and text yourself if you need either.
 	CaseSensitive bool
-	// RollbackTimeout controls the timeout for V1 rollback operations when buildTrie
-	// fails after a keyword has been added. Defaults to 10 seconds if unset or zero.
-	// A fresh context with this timeout is used intentionally so that rollback can
-	// complete even if the caller's context is already canceled.
+	// RollbackTimeout bounds the V1 operations that deliberately run on a fresh
+	// context instead of the caller's, so that a multi-key change cannot be
+	// abandoned halfway and leave the trie inconsistent. Defaults to 10 seconds if
+	// unset or zero. Ignored by V2 and by Preset mode, which have no such path.
+	//
+	// On a V1 collection today that is Flush, which is why the field still matters
+	// even though V1 takes no writes: FlushContext runs under this timeout and not
+	// under the ctx passed to it. Raise it for a collection large enough that
+	// deleting its per-keyword keys takes longer than ten seconds.
+	//
+	// It also bounds the rollback that undoes a partial V1 add, a path only
+	// reachable through the pre-v1.5.0 writer that Add no longer exposes.
 	RollbackTimeout time.Duration
 
 	// Preset selects the architecture for the local match engine.
@@ -442,13 +485,17 @@ func CreateContext(ctx context.Context, args *AhoCorasickArgs) (*AhoCorasick, er
 	return createOriginal(ctx, args)
 }
 
+// newLogger builds the instance's Logger. A supplied Logger wins outright, which is
+// why it is checked first: Debug only ever steers the default logger, so building
+// and redirecting one that is about to be discarded is work for nobody. Both field
+// docs state this precedence.
 func newLogger(args *AhoCorasickArgs) Logger {
+	if args.Logger != nil {
+		return args.Logger
+	}
 	stdLogger := log.New(io.Discard, "ACOR: ", log.LstdFlags|log.Lshortfile)
 	if args.Debug {
 		stdLogger.SetOutput(os.Stdout)
-	}
-	if args.Logger != nil {
-		return args.Logger
 	}
 	return stdLogger
 }
