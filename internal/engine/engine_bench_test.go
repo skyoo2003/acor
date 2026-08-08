@@ -79,6 +79,36 @@ func benchTextDense(n int) string {
 	return sb.String()
 }
 
+// BenchmarkEngineFindSetMillion prices FindSet at the scale the hash-map dedup
+// exists for: past dedupHashMin the bitsets would cost ~262 KB zeroed per
+// matching query, where the maps cost only per unique hit. MemoryEfficient is
+// the preset documented for million-pattern dictionaries, so it is the one
+// measured.
+func BenchmarkEngineFindSetMillion(b *testing.B) {
+	kws := make(map[string]struct{}, 1_000_000)
+	for i := 0; i < 1_000_000; i++ {
+		kws[fmt.Sprintf("keyword%d", i)] = struct{}{}
+	}
+	e := New(PresetMemoryEfficient)
+	e.Build(kws)
+	for _, txt := range []struct {
+		name string
+		text string
+	}{
+		{"1match", "the quick keyword500000 fox"},
+		{"nomatch", "no hits in this text at all"},
+	} {
+		b.Run(txt.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(int64(len(txt.text)))
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = e.FindSet(txt.text)
+			}
+		})
+	}
+}
+
 // BenchmarkEngineFindSetSuffixNested keeps landing on the deepest state of a
 // suffix-nested dictionary, so nearly every character re-reports a 500-keyword
 // output chain. This is the case the collector's state dedup exists for:

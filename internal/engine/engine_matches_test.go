@@ -189,6 +189,57 @@ func TestFindSetSuffixNested(t *testing.T) {
 	}
 }
 
+// TestFindSetHashDedupFallback pins the collector's hash-map representation —
+// the one dictionaries past dedupHashMin get — against the same invariants the
+// bitset path is held to, by lowering the threshold so every dictionary
+// qualifies. Both representations must be interchangeable: same answer, same
+// first-match order, on repeated matches and on suffix-nested chains.
+func TestFindSetHashDedupFallback(t *testing.T) {
+	saved := dedupHashMin
+	dedupHashMin = 1
+	t.Cleanup(func() { dedupHashMin = saved })
+
+	for _, n := range []int{1, 33, 128} {
+		kws := make(map[string]struct{}, n)
+		var text string
+		for i := 0; i < n; i++ {
+			kw := fmt.Sprintf("kw%d", i)
+			kws[kw] = struct{}{}
+			text += kw + " " + kw + " "
+		}
+		for _, p := range allPresets {
+			t.Run(fmt.Sprintf("%dkw/%v", n, p), func(t *testing.T) {
+				e := New(p)
+				e.Build(kws)
+				want := uniqueInOrder(e.Find(text))
+				got := e.FindSet(text)
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("FindSet = %v, want %v (unique Find order)", got, want)
+				}
+			})
+		}
+	}
+
+	// Suffix-nested chains exercise the state-dedup layer specifically.
+	kws := make(map[string]struct{})
+	kw := ""
+	for i := 0; i < 64; i++ {
+		kw += "a"
+		kws[kw] = struct{}{}
+	}
+	text := strings.Repeat("a", 256)
+	for _, p := range allPresets {
+		t.Run("suffixNested/"+p.String(), func(t *testing.T) {
+			e := New(p)
+			e.Build(kws)
+			want := uniqueInOrder(e.Find(text))
+			if got := e.FindSet(text); !reflect.DeepEqual(got, want) {
+				t.Errorf("FindSet = %d keywords, want %d (unique Find order)", len(got), len(want))
+			}
+		})
+	}
+}
+
 // TestContainsAgreesWithFind pins the Contains specialization against Find on the
 // paths that differ between them: the ASCII byte scan, the multibyte rune scan,
 // and runes outside the alphabet.
