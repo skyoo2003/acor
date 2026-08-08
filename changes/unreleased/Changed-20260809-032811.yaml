@@ -1,5 +1,0 @@
-kind: Changed
-body: 'FindSet dedups by keyword id instead of by string: each engine state now carries a 4-byte pattern id with the keyword strings interned once, and the unique-set collector is a bitset test per state and per reported keyword — switching to hash maps sized by hits once the dictionary passes a million table slots, so a million-pattern query allocates 384 B instead of 262 KB. At 1000 keywords over match-dense text this makes FindSet 1.4-3.2x faster and cuts per-query allocations from 178 KB/44 to 35 KB/10; a suffix-nested dictionary over repeated text drops from 2 ms to 0.4 ms (Speed) and from 578 ms to 0.7 ms (MemoryEfficient). Sparse text is unchanged. No public API change.'
-time: 2026-08-09T03:28:11.595478+09:00
-custom:
-    Issue: "215"

@@ -1,5 +1,0 @@
-kind: Removed
-body: Removed `PresetUltimate`. It had been a deprecated alias for `PresetBalanced` since v0.11.0, so switching to `PresetBalanced` is a rename with identical behavior.
-time: 2026-08-05T23:53:00.416494+09:00
-custom:
-    Issue: "201"

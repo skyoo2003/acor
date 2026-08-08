@@ -1,5 +1,0 @@
-kind: Documentation
-body: Rewrote the monitoring page to separate the core library from the experimental `server/` module, and documented how to read the new cache statistics, including why `Rebuilds` does not equal `Misses` and why `LastInvalidationLag` includes clock skew.
-time: 2026-08-06T04:41:32.152243+09:00
-custom:
-    Issue: "202"
