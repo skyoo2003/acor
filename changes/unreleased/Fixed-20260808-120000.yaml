@@ -1,0 +1,5 @@
+kind: Fixed
+body: '`Create` now rejects `RingAddrs` together with `Addrs` instead of silently building a ring client and dropping `Addrs`. The guard tested the merged address list for more than one entry, which encoded the same "cluster needs multiple entries" belief the godoc audit corrected: a one-element `Addrs` beside `RingAddrs` slipped through and connected the caller to the ring shards they had not asked for, while a two-element list was already `ErrRedisConflictingTopology`. It now tests `Addrs` the way `selectsCluster` does, so both arities are rejected alike. `Addr` beside `RingAddrs` is still accepted with `Addr` ignored, as documented.'
+time: 2026-08-08T12:00:00.000000+09:00
+custom:
+    Issue: "211"

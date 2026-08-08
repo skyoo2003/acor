@@ -38,6 +38,7 @@ works today: [miniredis](https://github.com/alicebob/miniredis), an in-process
 Redis-compatible server. ACOR's own test suite uses it, so the behavior you test against
 is the behavior ACOR is tested against.
 
+<!-- doccheck -->
 ```go
 package example
 

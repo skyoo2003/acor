@@ -25,7 +25,7 @@ field AhoCorasickArgs.Debug bool	ok	acor.go:271; newLogger switches the default 
 field AhoCorasickArgs.DialTimeout time.Duration	ok	acor.go:280; carried into every topology through universalOptions (client.go:86) and the hand-built ring (client.go:100), so the shared 'all topologies' preamble holds for it
 field AhoCorasickArgs.EnableCache bool	ok	acor.go:283; both documented rejections fire at acor.go:437,503
 field AhoCorasickArgs.InvalidationPollInterval time.Duration	ok	acor.go:354; read only at redis_backed.go:91 and the poller starts only when > 0 (redis_backed.go:117), so 'disabled by default, Preset mode only' is accurate
-field AhoCorasickArgs.Logger Logger	ok	acor.go:273; a non-nil Logger wins over the default at acor.go:451
+field AhoCorasickArgs.Logger Logger	ok	acor.go:307; a non-nil Logger wins over the default at acor.go:494
 field AhoCorasickArgs.MasterName string	ok	acor.go:254; client.go:27-28 selects the failover client on a non-blank MasterName and client.go:55-57 requires Addrs with it, exactly as documented
 field AhoCorasickArgs.MaxRetries int	ok	acor.go:286; client.go:89,104. -1 disabling retries is go-redis's contract, not this package's
 field AhoCorasickArgs.Name string	ok	required per acor.go:268; rejected for ':' at acor.go:422
@@ -34,15 +34,15 @@ field AhoCorasickArgs.PoolSize int	ok	acor.go:289; client.go:90,105. go-redis ap
 field AhoCorasickArgs.Preset Preset	ok	acor.go:313; forces V2 and takes the preset branch at acor.go:427-439
 field AhoCorasickArgs.ReadTimeout time.Duration	ok	acor.go:282; client.go:87,102. -1 for no timeout is go-redis's own documented value, which the preamble defers to
 field AhoCorasickArgs.RingAddrs map[string]string	ok	acor.go:257; client.go:25-26 selects ring ahead of every other topology and normalizeRingAddrs (client.go:158-169) drops blank names or addresses, with ErrRedisRingAddrs at client.go:64-66
-field AhoCorasickArgs.RollbackTimeout time.Duration	fixed	acor.go:334 described only the V1 add rollback, a path Add can no longer reach (v1_ops.go:54). The reachable use is the V1 flush, which runs on a fresh context bounded by this value (v1_ops.go:223) and ignores the caller's. Doc now leads with that; TestV1FlushIgnoresItsContext pins the consequence
+field AhoCorasickArgs.RollbackTimeout time.Duration	fixed	acor.go:341 described only the V1 add rollback, a path Add can no longer reach (v1_ops.go:54). The reachable use is the V1 flush, which runs on a fresh context bounded by this value (v1_ops.go:223) and ignores the caller's. Doc now leads with that; TestV1FlushIgnoresItsContext pins the consequence
 field AhoCorasickArgs.SchemaVersion int	ok	acor.go:276; 0 or 2 select V2 and 1 opens V1 read-only, matching v1_ops.go:54,61
 field AhoCorasickArgs.SelfInvalidationCleanupInterval uint64	ok	acor.go:318; set for cached V2 at acor.go:548 and for preset at redis_backed.go:97, so 'applies to both' holds, and invalidation.go:32,56-59 supplies the documented 128 when zero
 field AhoCorasickArgs.WriteTimeout time.Duration	ok	acor.go:284; client.go:88,103, same passthrough as ReadTimeout
-field AhoCorasickInfo.Keywords int	ok	acor.go:398; the SCARD count at v1_ops.go:276, len(keywords) at v2_ops.go:126, and the engine's own count at redis_backed_ops.go:210 all mean stored keywords
-field AhoCorasickInfo.MemoryBytes int64	ok	acor.go:406; zero in V1/V2 and filled only from the engine at redis_backed_ops.go:213. See PresetMemoryEfficient for what the number can and cannot be compared against
-field AhoCorasickInfo.Nodes int	ok	acor.go:400; the prefix count at v1_ops.go:283 and v2_ops.go:127 and the engine state count at redis_backed_ops.go:211 agree - measured 10 for {he,her,hers,his,she} under all three presets and V2, so 'typically larger than Keywords' holds across modes
-field AhoCorasickInfo.Preset Preset	ok	acor.go:403; left zero (PresetNone) by v1_ops.go:289 and v2_ops.go:125, and presetFromEngine (preset.go:99-111) never returns PresetNone, so the documented split is exact
-field AhoCorasickInfo.TrieDepth int	ok	acor.go:409; same split as MemoryBytes, sourced at redis_backed_ops.go:214
+field AhoCorasickInfo.Keywords int	ok	acor.go:398; the SCARD count at v1_ops.go:276, len(keywords) at v2_ops.go:126, and the engine's own count at redis_backed_ops.go:149 all mean stored keywords
+field AhoCorasickInfo.MemoryBytes int64	ok	acor.go:406; zero in V1/V2 and filled only from the engine at redis_backed_ops.go:152. See PresetMemoryEfficient for what the number can and cannot be compared against
+field AhoCorasickInfo.Nodes int	ok	acor.go:400; the prefix count at v1_ops.go:283 and v2_ops.go:127 and the engine state count at redis_backed_ops.go:150 agree - measured 10 for {he,her,hers,his,she} under all three presets and V2, so 'typically larger than Keywords' holds across modes
+field AhoCorasickInfo.Preset Preset	ok	acor.go:403; left zero (PresetNone) by v1_ops.go:289 and v2_ops.go:125, and presetFromEngine (preset.go:98-110) never returns PresetNone, so the documented split is exact
+field AhoCorasickInfo.TrieDepth int	ok	acor.go:409; same split as MemoryBytes, sourced at redis_backed_ops.go:153
 field BatchOptions.Mode BatchMode	fixed	options.go:24 said it defaults "if nil", but BatchMode is an int and cannot be nil. Now distinguishes the zero value from a nil *BatchOptions; TestBatchModeZeroValueIsBestEffort pins both
 field BatchResult.Added []string	ok	appended only on a successful write, batch.go:131,149
 field BatchResult.Failed []KeywordError	ok	options.go:108; populated at batch.go:126,139 in best-effort mode only, which is what makes the two modes observably different — screenBatch fills it in both modes (batch.go:67), but transactional discards the result instead (batch.go:159,309)
@@ -108,7 +108,7 @@ method (*AhoCorasick) FindIndex(text string) (map[string][]int, error)	ok	acor.g
 method (*AhoCorasick) FindIndexContext(ctx context.Context, text string) (map[string][]int, error)	ok	context_ops.go:24; same paths as FindContext via ops.findIndex
 method (*AhoCorasick) FindIndexParallel(text string, opts *ParallelOptions) (map[string][]int, error)	ok	parallel.go:197; mergeIndexResults shifts by chunk offset, dedups through a set, and sorts, parallel.go:207-229 — matching "sorted slices of unique start indices"
 method (*AhoCorasick) FindIndexParallelContext(ctx context.Context, text string, opts *ParallelOptions) (map[string][]int, error)	ok	context_ops.go:150; mergeIndexResults at context_ops.go:168 maps chunk-local offsets back to absolute positions, so the indices are the whole text's
-method (*AhoCorasick) FindMany(texts []string) (map[string][]string, error)	fixed	batch.go:444 explained the map collision as 'last occurrence wins', which implies the order mattered; the same text yields the same matches, so the real consequence is that input order and count are unrecoverable. Reworded, with the all-or-nothing error behavior cross-referenced
+method (*AhoCorasick) FindMany(texts []string) (map[string][]string, error)	fixed	batch.go:386 explained the map collision as 'last occurrence wins', which implies the order mattered; the same text yields the same matches, so the real consequence is that input order and count are unrecoverable. Reworded, with the all-or-nothing error behavior cross-referenced
 method (*AhoCorasick) FindManyContext(ctx context.Context, texts []string) (map[string][]string, error)	fixed	context_ops.go:105 said only 'with context'; the loop at context_ops.go:109-117 scans sequentially and returns a nil map on the first error, discarding the texts already scanned. A caller could reasonably have expected partial results, so the behavior is now stated
 method (*AhoCorasick) FindMatches(text string, opts *MatchOptions) ([]Match, error)	ok	matches.go:80; delegates with a nil dst so the result is fresh, matches.go:98
 method (*AhoCorasick) FindMatchesAppend(dst []Match, text string, opts *MatchOptions) ([]Match, error)	ok	matches.go:92; empty text returns dst untouched (matches.go:102-110) and filtering is scoped to matches[base:] (matches.go:127,140), so earlier results are neither refiltered nor reordered
@@ -122,7 +122,7 @@ method (*AhoCorasick) FindStreamContext(ctx context.Context, r io.Reader, onMatc
 method (*AhoCorasick) Flush() error	ok	acor.go:695 delegates to ops.flush, which clears the keyword set and rebuilds empty at redis_backed_ops.go:134
 method (*AhoCorasick) FlushContext(ctx context.Context) error	fixed	context_ops.go:29 offered 'cancellation and timeout propagation' unqualified; v1Operations.flush discards ctx and runs on a fresh RollbackTimeout-bounded context (v1_ops.go:219-225), so a canceled ctx flushes the collection anyway. TestV1FlushIgnoresItsContext pins it
 method (*AhoCorasick) Info() (*AhoCorasickInfo, error)	fixed	acor.go:699 promised "the schema version" among what it returns; AhoCorasickInfo has no such field (acor.go:362). Doc now points at SchemaVersion instead; TestInfoCarriesNoSchemaVersion pins it
-method (*AhoCorasick) InfoContext(ctx context.Context) (*AhoCorasickInfo, error)	fixed	context_ops.go:42 promised the same propagation; preset mode reads the local engine and ignores ctx entirely (redis_backed_ops.go:205). Split by mode; pinned by TestSuggestIsUnavailableInPresetMode
+method (*AhoCorasick) InfoContext(ctx context.Context) (*AhoCorasickInfo, error)	fixed	context_ops.go:42 promised the same propagation; preset mode reads the local engine and ignores ctx entirely (redis_backed_ops.go:144). Split by mode; pinned by TestSuggestIsUnavailableInPresetMode
 method (*AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, error)	fixed	migration.go:76 was accurate on the five steps, the 5-minute lock TTL (migration.go:41) and the preset rejection (migration.go:47-52). Added what it leaves behind: the instance becomes writable V2 (migration.go:341) but uncached, since EnableCache is refused on a V1 instance at acor.go:534-537 and this call starts no listener
 method (*AhoCorasick) Remove(keyword string) (int, error)	fixed	acor.go:677 same omission as Add; empty keyword reports (0, nil) at v2_ops.go:89. Cross-reference added and pinned by the same test
 method (*AhoCorasick) RemoveContext(ctx context.Context, keyword string) (int, error)	ok	context_ops.go:13; same forwarding as AddContext, with the cross-reference to Remove added
@@ -131,20 +131,20 @@ method (*AhoCorasick) RemoveManyContext(ctx context.Context, keywords []string, 
 method (*AhoCorasick) RollbackToV1() error	fixed	migration.go:349 named only the keywords lost; the collection also becomes read-only, because ac.ops is swapped to v1Operations at migration.go:394 and its add refuses at v1_ops.go:54. The cache is dropped at migration.go:392-393. TestRollbackToV1LeavesTheCollectionReadOnly pins it
 method (*AhoCorasick) SchemaVersion() int	ok	acor.go:562 returns the stored version with no Redis I/O
 method (*AhoCorasick) Suggest(input string) ([]string, error)	ok	acor.go:710 delegates to ops.suggest; preset mode returns ErrSuggestRequiresRedis at redis_backed_ops.go:160
-method (*AhoCorasick) SuggestContext(ctx context.Context, input string) ([]string, error)	fixed	context_ops.go:49 omitted that preset mode cannot serve it at all - redis_backed_ops.go:220 returns ErrSuggestRequiresRedis, since the local automaton holds no prefix index. Added
+method (*AhoCorasick) SuggestContext(ctx context.Context, input string) ([]string, error)	fixed	context_ops.go:49 omitted that preset mode cannot serve it at all - redis_backed_ops.go:160 returns ErrSuggestRequiresRedis, since the local automaton holds no prefix index. Added
 method (*AhoCorasick) SuggestIndex(input string) (map[string][]int, error)	ok	acor.go:716 delegates to ops.suggestIndex; preset mode returns ErrSuggestRequiresRedis at redis_backed_ops.go:164
-method (*AhoCorasick) SuggestIndexContext(ctx context.Context, input string) (map[string][]int, error)	fixed	context_ops.go:57; same omission and same sentinel at redis_backed_ops.go:224
-method (*MigrationResult) Stats() map[string]interface{}	fixed	schema.go:127 offered 'migration statistics'; it returns 6 of the 13 fields (schema.go:136-143), omitting every outcome field, so a caller cannot tell success from a dry run or a failure by reading the map. Now documented as a projection with the six named
+method (*AhoCorasick) SuggestIndexContext(ctx context.Context, input string) (map[string][]int, error)	fixed	context_ops.go:57; same omission and same sentinel at redis_backed_ops.go:164
+method (*MigrationResult) Stats() map[string]interface{}	fixed	schema.go:127 offered 'migration statistics'; it returns 6 of the 13 fields (schema.go:128-135), omitting every outcome field, so a caller cannot tell success from a dry run or a failure by reading the map. Now documented as a projection with the six named
 method (*OperationError) Error() string	ok	errors.go:82; includes op, schema and cause, and adds the keyword only when set
 method (*OperationError) Unwrap() error	ok	errors.go:90 returns Err, so errors.Is and errors.As reach the cause as documented
 method (*RedisError) Error() string	ok	errors.go:104 formats op, key and cause
 method (*RedisError) Unwrap() error	ok	errors.go:109 returns Err, so errors.Is reaches the go-redis error
 method (Preset) String() string	fixed	preset.go:53 promised 'Unknown' for any value outside the set; Preset(-1) hits the presetDefault case at preset.go:64-65 and returns 'Default'. TestPresetStringNamesTheSentinel pins all six
-method Logger.Printf(format string, v ...interface{})	ok	satisfied by log.Logger and by the args-supplied logger, acor.go:446-454
-method Logger.Println(v ...interface{})	ok	same construction path, acor.go:446-454
-type AhoCorasick struct	ok	acor.go:331; instance state is mutex- or atomic-guarded (acor.go:337-358) and the concurrency claim is exercised under make race
+method Logger.Printf(format string, v ...interface{})	ok	satisfied by log.Logger and by the args-supplied logger, acor.go:492-501
+method Logger.Println(v ...interface{})	ok	same construction path, acor.go:492-501
+type AhoCorasick struct	ok	acor.go:379; instance state is mutex- or atomic-guarded (acor.go:380-400) and the concurrency claim is exercised under make race
 type AhoCorasickArgs struct	ok	acor.go:219; the documented topology precedence matches CreateContext (acor.go:418) and client.go:47-68, and Name is the only required field
-type AhoCorasickInfo struct	ok	acor.go:395; built by all three modes at v1_ops.go:289, v2_ops.go:125 and redis_backed_ops.go:209, and Info's own doc already points here for the per-mode split
+type AhoCorasickInfo struct	ok	acor.go:395; built by all three modes at v1_ops.go:289, v2_ops.go:125 and redis_backed_ops.go:148, and Info's own doc already points here for the per-mode split
 type BatchMode int	ok	options.go:7; two values, both dispatched at context_ops.go:64,83
 type BatchOptions struct	ok	options.go:22; consumed by AddMany/RemoveMany, batch.go
 type BatchResult struct	ok	options.go:101; the four slices partition a batch's outcome, batch.go:114-361
@@ -159,26 +159,26 @@ type MigrationOptions struct	ok	schema.go:40; every field is consumed by Migrate
 type MigrationResult struct	ok	schema.go:70; the JSON tags api/v1.txt records are unchanged, and the struct is only ever built by MigrateV1ToV2 at migration.go:133
 type OperationError struct	ok	errors.go:68; constructed by newOperationError (errors.go:111) and used at v2_ops.go:114 for unmarshal failures
 type ParallelOptions struct	ok	options.go:55; consumed by splitChunks and normalizeParallelOptions, parallel.go:19,89
-type Preset int	fixed	preset.go:18 named a 'feature set' trade-off; the three architectures differ only in speed and memory (preset.go:77-94), while the restrictions - no Suggest, no EnableCache, V2 only - come from preset mode itself at acor.go:454-465 and redis_backed_ops.go:220. Rewritten, and the create-time-only selection made explicit
+type Preset int	fixed	preset.go:18 named a 'feature set' trade-off; the three architectures differ only in speed and memory (preset.go:77-94), while the restrictions - no Suggest, no EnableCache, V2 only - come from preset mode itself at acor.go:454-465 and redis_backed_ops.go:160. Rewritten, and the create-time-only selection made explicit
 type RedisError struct	ok	errors.go:92; constructed by newRedisError (errors.go:115), used at v2_ops.go:108
-var ErrAlreadyV2	ok	migration.go:139 when the collection is already V2
+var ErrAlreadyV2	ok	migration.go:147 when the collection is already V2
 var ErrCacheRequiresV2	ok	acor.go:503 rejects EnableCache on V1, matching the doc; v1_ops.go:209 records the same constraint
-var ErrCacheWithPreset	ok	acor.go:437 rejects the combination rather than silently dropping the cache, as the doc states
+var ErrCacheWithPreset	ok	acor.go:479 rejects the combination rather than silently dropping the cache, as the doc states
 var ErrConcurrencyConflict	fixed	errors.go:24 said it is returned "when a conflict occurs" and to retry; retryOnConflict (v2_transaction.go:179-196) retries maxRetries times with backoff first, so one lost race never surfaces. Sentence now says retries are already spent; TestConflictSurfacesOnlyAfterRetriesAreSpent pins the count. The batch scope holds too: applyManyAtomic wraps its CAS in the same retryOnConflict (batch_atomic.go:43), and the exhausted conflict then lands in BatchResult.Failed (batch.go:126) or comes back wrapped (batch.go:172,320)
 var ErrEmptyKeyword	fixed	errors.go:11 claimed it is returned for any empty keyword; the single-keyword path reports (0, nil) at redis_backed_ops.go:20,56 and v2_ops.go:81,89, and only batch.go:162,187,311,335 return it. Sentence now names the batch scope; TestEmptyKeywordIsNotAnErrorOutsideBatch pins both halves
 var ErrInvalidChunkSize	ok	returned for ChunkSize <= 0 at context_ops.go:127,177, both parallel entry points
 var ErrInvalidName	ok	acor.go:423 and redis_backed.go:61 reject a name containing ':'
-var ErrMigrationInProg	ok	migration.go:116 when a migration lock is already held
+var ErrMigrationInProg	ok	migration.go:124 when a migration lock is already held
 var ErrMigrationRequiresRedis	ok	migration.go:49, reached by both MigrateV1ToV2 and RollbackToV1 per migration.go:101,350
 var ErrNilArgs	ok	acor.go:420 and redis_backed.go:58 guard both construction paths
-var ErrNoDataToMigrate	ok	migration.go:147 when no V1 data is present
-var ErrPresetRequiresRedis	ok	acor.go:429 when hasAnyRedisConfig is false
-var ErrPresetRequiresV2	ok	acor.go:432 when SchemaVersion is SchemaV1
-var ErrRedisAddrs	ok	client.go:62 when Addrs holds no usable address
-var ErrRedisAlreadyClosed	ok	acor.go:611 via closeOnce, so the second Close returns it as documented
-var ErrRedisClusterDB	ok	client.go:68 when DB > 0 under cluster mode
+var ErrNoDataToMigrate	ok	migration.go:155 when no V1 data is present
+var ErrPresetRequiresRedis	ok	acor.go:471 when hasAnyRedisConfig is false
+var ErrPresetRequiresV2	ok	acor.go:474 when SchemaVersion is SchemaV1
+var ErrRedisAddrs	ok	client.go:66 when Addrs holds no usable address
+var ErrRedisAlreadyClosed	ok	acor.go:657 via closeOnce, so the second Close returns it as documented
+var ErrRedisClusterDB	ok	client.go:72 when DB > 0 under cluster mode
 var ErrRedisConflictingTopology	ok	client.go:47,53 for the conflicting-topology combinations
-var ErrRedisRingAddrs	ok	client.go:65 when ring mode has no shard address
-var ErrRedisSentinelAddrs	ok	client.go:56 when sentinel mode has no addresses
+var ErrRedisRingAddrs	ok	client.go:69 when ring mode has no shard address
+var ErrRedisSentinelAddrs	ok	client.go:60 when sentinel mode has no addresses
 var ErrSuggestRequiresRedis	ok	redis_backed_ops.go:160,164 — both suggest and suggestIndex in preset mode, as documented
 var ErrV1ReadOnly	ok	v1_ops.go:54,61 refuse unconditionally in production; the writable path is a test-only fixture (test_helpers_test.go:117), so the doc holds for real callers

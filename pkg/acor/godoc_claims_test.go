@@ -94,7 +94,7 @@ func TestDebugIsIgnoredWhenALoggerIsSet(t *testing.T) {
 
 	// Everything went to the custom Logger. Had Debug won, or added a second sink,
 	// this logger would not be the only one receiving.
-	if custom.count() == 0 {
+	if len(custom.recorded()) == 0 {
 		t.Error("the custom Logger received nothing; Debug must not replace or bypass it")
 	}
 }
@@ -293,6 +293,24 @@ func TestAddrIsRejectedWithAddrsAndIgnoredWithRing(t *testing.T) {
 		t.Fatalf("Addr with RingAddrs = %v, want success with Addr ignored", err)
 	}
 	_ = ac.Close()
+}
+
+// TestAddrsWithRingAddrsIsRejectedAtEitherArity is the other half of "one address
+// is still cluster". Addrs beside RingAddrs asks for two topologies, so it is
+// ErrRedisConflictingTopology however long the list is. The guard used to test the
+// merged address list for len > 1, which let a one-element Addrs through and built
+// a ring client against shards the caller never named.
+func TestAddrsWithRingAddrsIsRejectedAtEitherArity(t *testing.T) {
+	mr := createTestRedisServer(t)
+	defer mr.Close()
+
+	ring := map[string]string{"s": mr.Addr()}
+	for _, addrs := range [][]string{{mr.Addr()}, {mr.Addr(), mr.Addr() + "9"}} {
+		_, err := Create(&AhoCorasickArgs{Addrs: addrs, RingAddrs: ring, Name: "ring-and-addrs"})
+		if !errors.Is(err, ErrRedisConflictingTopology) {
+			t.Errorf("Addrs %v with RingAddrs = %v, want ErrRedisConflictingTopology", addrs, err)
+		}
+	}
 }
 
 // TestPresetStringNamesTheSentinel pins the correction to Preset.String, which

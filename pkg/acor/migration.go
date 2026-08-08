@@ -74,7 +74,9 @@ func (ac *AhoCorasick) releaseMigrationLock() error {
 }
 
 // MigrateV1ToV2 migrates the collection from V1 schema to V2 schema.
-// V2 offers better performance and uses only 3 Redis keys instead of many.
+// V2 offers better performance and occupies at most 3 Redis keys instead of a
+// count that grows with the dictionary — see SchemaV2 for which of the three a
+// migrated collection actually ends up with.
 //
 // The migration process:
 //  1. Acquires a migration lock to prevent concurrent migrations

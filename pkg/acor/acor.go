@@ -96,8 +96,9 @@
 // into a fixed set of at most 3 keys, whatever the dictionary size. Recommended
 // for every use case. Uses Lua scripts for atomic operations.
 //
-// V1 (SchemaVersion: 1): Deprecated legacy schema using multiple Redis keys for each
-// prefix/suffix/output. Kept for existing collections only; migrate with
+// V1 (SchemaVersion: 1): Deprecated legacy schema spread over three fixed Redis keys
+// plus one per trie state carrying output and one per keyword, so the key count grows
+// with the dictionary. Kept for existing collections only; migrate with
 // MigrateV1ToV2. New collections should not select it.
 //
 // # Batch Operations
@@ -247,9 +248,12 @@ type AhoCorasickArgs struct {
 	//   - Cluster mode: list of cluster node addresses
 	//
 	// Any non-empty Addrs without MasterName means cluster, including a list of
-	// one. To reach a single standalone server, use Addr. Entries are trimmed and
-	// deduplicated; a list that leaves nothing after that is ErrRedisAddrs rather
-	// than a silent fallback to localhost.
+	// one. To reach a single standalone server, use Addr. Setting it alongside
+	// RingAddrs is ErrRedisConflictingTopology for the same reason as Addr:
+	// two topologies were asked for and neither is dropped silently.
+	//
+	// Entries are trimmed and deduplicated; a list that leaves nothing after
+	// that is ErrRedisAddrs rather than a silent fallback to localhost.
 	Addrs []string
 	// MasterName specifies the master name for Sentinel mode.
 	// When set, Addrs is interpreted as sentinel addresses.
@@ -481,13 +485,17 @@ func CreateContext(ctx context.Context, args *AhoCorasickArgs) (*AhoCorasick, er
 	return createOriginal(ctx, args)
 }
 
+// newLogger builds the instance's Logger. A supplied Logger wins outright, which is
+// why it is checked first: Debug only ever steers the default logger, so building
+// and redirecting one that is about to be discarded is work for nobody. Both field
+// docs state this precedence.
 func newLogger(args *AhoCorasickArgs) Logger {
+	if args.Logger != nil {
+		return args.Logger
+	}
 	stdLogger := log.New(io.Discard, "ACOR: ", log.LstdFlags|log.Lshortfile)
 	if args.Debug {
 		stdLogger.SetOutput(os.Stdout)
-	}
-	if args.Logger != nil {
-		return args.Logger
 	}
 	return stdLogger
 }
