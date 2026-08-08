@@ -13,11 +13,11 @@ import (
 // docs/content/reference/benchmarks.md.
 //
 // This counts *round trips*, not commands. A pipeline carrying N commands is
-// one round trip, so TxPipelined and Pipeliner.Exec each add 1 regardless of
+// one round trip, so TxPipelined and pipeliner.Exec each add 1 regardless of
 // how many commands were queued. Counting commands instead would inflate every
 // published number in the direction that flatters us.
 //
-// Counting is backend-independent: it wraps the KVStorage seam, not the wire,
+// Counting is backend-independent: it wraps the kvStorage seam, not the wire,
 // so miniredis and a real server must report identical counts. That is what
 // makes these claims structural rather than incidental to a benchmark host.
 
@@ -42,7 +42,7 @@ func (c *rttCounter) reset()     { c.n.Store(0) }
 func countRTT(tb testing.TB, ac *AhoCorasick) *rttCounter {
 	tb.Helper()
 	c := &rttCounter{}
-	wrap := func(s KVStorage) KVStorage {
+	wrap := func(s kvStorage) kvStorage {
 		if s == nil {
 			return nil
 		}
@@ -75,11 +75,11 @@ func countRTT(tb testing.TB, ac *AhoCorasick) *rttCounter {
 
 // countingStorage counts one round trip per storage call.
 //
-// Every method is implemented explicitly rather than embedding KVStorage: if
+// Every method is implemented explicitly rather than embedding kvStorage: if
 // the interface gains a method, this fails to compile instead of quietly
 // passing the new call through uncounted.
 type countingStorage struct {
-	inner KVStorage
+	inner kvStorage
 	c     *rttCounter
 }
 
@@ -128,7 +128,7 @@ func (s *countingStorage) SIsMember(ctx context.Context, key, member string) (bo
 	return s.inner.SIsMember(ctx, key, member)
 }
 
-func (s *countingStorage) ZAdd(ctx context.Context, key string, members ...*Z) error {
+func (s *countingStorage) ZAdd(ctx context.Context, key string, members ...*zMember) error {
 	s.c.add()
 	return s.inner.ZAdd(ctx, key, members...)
 }
@@ -170,7 +170,7 @@ func (s *countingStorage) Exists(ctx context.Context, keys ...string) (int64, er
 
 // TxPipelined is one round trip for the whole transaction, however many
 // commands the callback queues.
-func (s *countingStorage) TxPipelined(ctx context.Context, fn func(Pipeliner) error) error {
+func (s *countingStorage) TxPipelined(ctx context.Context, fn func(pipeliner) error) error {
 	s.c.add()
 	return s.inner.TxPipelined(ctx, fn)
 }
@@ -182,7 +182,7 @@ func (s *countingStorage) SetNX(ctx context.Context, key string, value interface
 
 // Pipeline buffers locally and costs nothing until Exec, which is where the
 // round trip is counted.
-func (s *countingStorage) Pipeline() Pipeliner {
+func (s *countingStorage) Pipeline() pipeliner {
 	return &countingPipeliner{inner: s.inner.Pipeline(), c: s.c}
 }
 
@@ -191,7 +191,7 @@ func (s *countingStorage) Publish(ctx context.Context, channel string, message i
 	return s.inner.Publish(ctx, channel, message)
 }
 
-func (s *countingStorage) Subscribe(ctx context.Context, channels ...string) Subscription {
+func (s *countingStorage) Subscribe(ctx context.Context, channels ...string) subscription {
 	s.c.add()
 	return s.inner.Subscribe(ctx, channels...)
 }
@@ -202,7 +202,7 @@ func (s *countingStorage) Close() error { return s.inner.Close() }
 // countingPipeliner counts the single round trip that Exec performs. Queuing
 // commands costs nothing.
 type countingPipeliner struct {
-	inner Pipeliner
+	inner pipeliner
 	c     *rttCounter
 }
 
@@ -214,11 +214,11 @@ func (p *countingPipeliner) HSet(ctx context.Context, key string, values ...inte
 	return p.inner.HSet(ctx, key, values...)
 }
 
-func (p *countingPipeliner) HGetAll(ctx context.Context, key string) StringMapResult {
+func (p *countingPipeliner) HGetAll(ctx context.Context, key string) stringMapResult {
 	return p.inner.HGetAll(ctx, key)
 }
 
-func (p *countingPipeliner) ZAdd(ctx context.Context, key string, members ...*Z) error {
+func (p *countingPipeliner) ZAdd(ctx context.Context, key string, members ...*zMember) error {
 	return p.inner.ZAdd(ctx, key, members...)
 }
 
@@ -233,6 +233,6 @@ func (p *countingPipeliner) Exec(ctx context.Context) error {
 
 // Compile-time proof the wrappers still satisfy the interfaces they stand in for.
 var (
-	_ KVStorage = (*countingStorage)(nil)
-	_ Pipeliner = (*countingPipeliner)(nil)
+	_ kvStorage = (*countingStorage)(nil)
+	_ pipeliner = (*countingPipeliner)(nil)
 )

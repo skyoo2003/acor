@@ -55,29 +55,29 @@ func TestIsSelfEcho_RoundTripsGeneratedID(t *testing.T) {
 	}
 }
 
-// stubSubscription is a Subscription whose message channel the test drives.
+// stubSubscription is a subscription whose message channel the test drives.
 type stubSubscription struct {
-	msgCh      chan PubSubMessage
+	msgCh      chan pubSubMessage
 	receiveErr error
 	closed     chan struct{}
 }
 
 func newStubSubscription() *stubSubscription {
-	return &stubSubscription{msgCh: make(chan PubSubMessage), closed: make(chan struct{}, 1)}
+	return &stubSubscription{msgCh: make(chan pubSubMessage), closed: make(chan struct{}, 1)}
 }
 
 func (s *stubSubscription) Receive(context.Context) error { return s.receiveErr }
-func (s *stubSubscription) Channel() <-chan PubSubMessage { return s.msgCh }
+func (s *stubSubscription) Channel() <-chan pubSubMessage { return s.msgCh }
 func (s *stubSubscription) Close() error                  { s.closed <- struct{}{}; return nil }
 
 // stubSubStorage only supports Subscribe; the embedded nil interface panics if
 // subscribeInvalidations ever reaches for another method.
 type stubSubStorage struct {
-	KVStorage
-	sub Subscription
+	kvStorage
+	sub subscription
 }
 
-func (s stubSubStorage) Subscribe(context.Context, ...string) Subscription { return s.sub }
+func (s stubSubStorage) Subscribe(context.Context, ...string) subscription { return s.sub }
 
 func TestSubscribeInvalidations_DeliversPayloads(t *testing.T) {
 	sub := newStubSubscription()
@@ -89,12 +89,12 @@ func TestSubscribeInvalidations_DeliversPayloads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("subscribeInvalidations failed: %v", err)
 	}
-	// Closing the stub Subscription does not close its channel, so the listener
+	// Closing the stub subscription does not close its channel, so the listener
 	// goroutine only exits via stopCh.
 	t.Cleanup(func() { close(stopCh) })
 	defer func() { _ = pubsub.Close() }()
 
-	sub.msgCh <- PubSubMessage{Payload: "coll:msg-1"}
+	sub.msgCh <- pubSubMessage{Payload: "coll:msg-1"}
 
 	select {
 	case payload := <-got:
@@ -117,7 +117,7 @@ func TestSubscribeInvalidations_ReceiveErrorClosesSubscription(t *testing.T) {
 		t.Fatalf("got error %v, want %v", err, wantErr)
 	}
 	if pubsub != nil {
-		t.Error("expected nil Subscription on Receive error")
+		t.Error("expected nil subscription on Receive error")
 	}
 	select {
 	case <-sub.closed:
@@ -156,13 +156,13 @@ func TestSubscribeInvalidations_StopsOnContextCancel(t *testing.T) {
 // its unbuffered message channel only completes while it is still selecting.
 // A live goroutine may deliver one more message before it notices the stop
 // signal (select picks a ready case at random), so retry until a send blocks.
-func assertListenerStopped(t *testing.T, msgCh chan PubSubMessage) {
+func assertListenerStopped(t *testing.T, msgCh chan pubSubMessage) {
 	t.Helper()
 
 	const attempts = 20
 	for i := 0; i < attempts; i++ {
 		select {
-		case msgCh <- PubSubMessage{Payload: "coll:msg-1"}:
+		case msgCh <- pubSubMessage{Payload: "coll:msg-1"}:
 		case <-time.After(100 * time.Millisecond):
 			return
 		}

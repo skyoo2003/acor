@@ -5,213 +5,91 @@ weight: 1
 
 # Custom Storage
 
-`acor.KVStorage` abstracts ACOR's storage operations.
+**ACOR does not support custom storage backends.** Redis is the only backend, and
+`Create()` always builds it. This page explains why the interface you may have seen in
+older releases is gone, and what to do instead for the case it was usually reached for:
+testing.
 
-> **Not yet pluggable.** `Create()` always builds ACOR's built-in Redis storage;
-> there is currently no public constructor that accepts a custom `KVStorage`.
-> The interface is exported for mocking/testing, and pluggable backends are
-> planned for a future release. This page documents the interface you would
-> implement once that lands. For an in-memory Redis in tests today, use
-> miniredis (see below).
+## What changed in v1.5.0
 
-## Overview
+Through `v1.4.0` the package exported a `KVStorage` interface, along with `Pipeliner`,
+`Subscription`, `StringMapResult`, `PubSubMessage`, and `Z`. They were exported in
+anticipation of pluggable backends.
 
-ACOR uses the `KVStorage` interface to abstract storage operations. Once
-pluggable backends are supported, this abstraction will allow custom backends for:
+They are unexported as of `v1.5.0`, for two reasons:
 
-- In-memory storage (testing)
-- Alternative databases
-- Custom caching layers
+- **Nothing could be plugged in.** No public constructor accepted a `KVStorage`, and no
+  public function returned one. You could name the interface and write an
+  implementation, but there was no way to hand it to ACOR — so the capability the
+  interface implied never existed.
+- **Freezing it would have blocked the feature it was for.** The
+  [compatibility policy](../../reference/compatibility/) forbids adding a method to an
+  exported interface inside `v1`. `KVStorage` has 23 methods; had `v1.5.0` frozen it, a
+  future backend needing one more operation would have had nowhere to put it for the
+  rest of the `v1` line.
 
-## KVStorage Interface
+Leaving the shape unfrozen is what keeps pluggable storage possible. Publishing an
+interface later is an addition, which `v1` allows; growing a frozen one is not.
 
-```go
-type KVStorage interface {
-    Get(ctx context.Context, key string) (string, error)
-    Set(ctx context.Context, key string, value interface{}) error
-    HGetAll(ctx context.Context, key string) (map[string]string, error)
-    HSet(ctx context.Context, key string, values ...interface{}) error
-    SAdd(ctx context.Context, key string, members ...interface{}) error
-    SMembers(ctx context.Context, key string) ([]string, error)
-    SRem(ctx context.Context, key string, members ...interface{}) error
-    SCard(ctx context.Context, key string) (int64, error)
-    SIsMember(ctx context.Context, key, member string) (bool, error)
-    ZAdd(ctx context.Context, key string, members ...*Z) error
-    ZRange(ctx context.Context, key string, start, stop int64) ([]string, error)
-    ZRank(ctx context.Context, key, member string) (int64, error)
-    ZScore(ctx context.Context, key, member string) (float64, error)
-    ZCard(ctx context.Context, key string) (int64, error)
-    ZRem(ctx context.Context, key string, members ...interface{}) error
-    Del(ctx context.Context, keys ...string) error
-    Exists(ctx context.Context, keys ...string) (int64, error)
-    TxPipelined(ctx context.Context, fn func(Pipeliner) error) error
-    SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error)
-    Pipeline() Pipeliner
-    Publish(ctx context.Context, channel string, message interface{}) error
-    Subscribe(ctx context.Context, channels ...string) Subscription
-    Close() error
-}
-```
+## Testing without Redis
 
-The `Z`, `Pipeliner`, `StringMapResult`, `Subscription`, and `PubSubMessage`
-types referenced above belong to the `acor` package (use `acor.KVStorage`,
-`acor.Z`, etc.) and are covered by the
-[compatibility policy](../../reference/compatibility/). They are documented in
-[Helper Types](#helper-types) below.
-
-## Example: In-Memory Storage
+This is what the interface was most often reached for, and it has a better answer that
+works today: [miniredis](https://github.com/alicebob/miniredis), an in-process
+Redis-compatible server. ACOR's own test suite uses it, so the behavior you test against
+is the behavior ACOR is tested against.
 
 ```go
-package main
+package example
 
 import (
-    "context"
-    "fmt"
-    "sync"
+    "testing"
 
+    "github.com/alicebob/miniredis/v2"
     "github.com/skyoo2003/acor/pkg/acor"
 )
 
-type MemoryStorage struct {
-    mu     sync.RWMutex
-    data   map[string]string
-    sets   map[string]map[string]struct{}
-    hashes map[string]map[string]string
-    zsets  map[string]map[string]float64
-}
-
-func NewMemoryStorage() *MemoryStorage {
-    return &MemoryStorage{
-        data:   make(map[string]string),
-        sets:   make(map[string]map[string]struct{}),
-        hashes: make(map[string]map[string]string),
-        zsets:  make(map[string]map[string]float64),
-    }
-}
-
-func (m *MemoryStorage) Get(ctx context.Context, key string) (string, error) {
-    m.mu.RLock()
-    defer m.mu.RUnlock()
-    return m.data[key], nil
-}
-
-func (m *MemoryStorage) Set(ctx context.Context, key string, value interface{}) error {
-    m.mu.Lock()
-    defer m.mu.Unlock()
-    s, ok := value.(string)
-    if !ok {
-        return fmt.Errorf("unsupported value type: %T", value)
-    }
-    m.data[key] = s
-    return nil
-}
-
-func (m *MemoryStorage) SAdd(ctx context.Context, key string, members ...interface{}) error {
-    m.mu.Lock()
-    defer m.mu.Unlock()
-    if m.sets[key] == nil {
-        m.sets[key] = make(map[string]struct{})
-    }
-    for _, member := range members {
-        s, ok := member.(string)
-        if !ok {
-            return fmt.Errorf("unsupported member type: %T", member)
-        }
-        m.sets[key][s] = struct{}{}
-    }
-    return nil
-}
-
-func (m *MemoryStorage) SMembers(ctx context.Context, key string) ([]string, error) {
-    m.mu.RLock()
-    defer m.mu.RUnlock()
-    var members []string
-    for member := range m.sets[key] {
-        members = append(members, member)
-    }
-    return members, nil
-}
-
-// Implement remaining methods...
-
-func (m *MemoryStorage) Close() error {
-    return nil
-}
-```
-
-## Using Custom Storage
-
-Currently, ACOR uses Redis internally. Custom storage support is planned for future releases.
-
-For testing, use miniredis which provides a Redis-compatible in-memory implementation:
-
-```go
-import (
-    "testing"
-    "github.com/alicebob/miniredis/v2"
-    "github.com/go-redis/redis/v8"
-)
-
 func TestWithMiniredis(t *testing.T) {
-    mr, err := miniredis.Run()
+    mr := miniredis.RunT(t)
+
+    ac, err := acor.Create(&acor.AhoCorasickArgs{
+        Addr: mr.Addr(),
+        Name: "test-collection",
+    })
     if err != nil {
         t.Fatal(err)
     }
-    defer mr.Close()
+    defer func() { _ = ac.Close() }()
 
-    client := redis.NewClient(&redis.Options{
-        Addr: mr.Addr(),
-    })
-    defer client.Close()
+    if _, err := ac.Add("hello"); err != nil {
+        t.Fatal(err)
+    }
 
-    // Use client with ACOR
+    matches, err := ac.Find("hello world")
+    if err != nil {
+        t.Fatal(err)
+    }
+    if len(matches) != 1 || matches[0] != "hello" {
+        t.Fatalf("Find() = %v, want [hello]", matches)
+    }
 }
 ```
 
-## Pipeliner Interface
+`miniredis` covers the commands ACOR issues, including the Lua scripts the V2 schema
+uses for atomic writes. To exercise Pub/Sub-driven cache invalidation across instances,
+point two instances at the same miniredis address.
 
-For transaction support, implement `Pipeliner`:
+## Reducing Redis traffic
 
-```go
-type Pipeliner interface {
-    SAdd(ctx context.Context, key string, members ...interface{}) error
-    HSet(ctx context.Context, key string, values ...interface{}) error
-    HGetAll(ctx context.Context, key string) StringMapResult
-    ZAdd(ctx context.Context, key string, members ...*Z) error
-    Del(ctx context.Context, keys ...string) error
-    Exec(ctx context.Context) error
-}
-```
+If the reason for a custom backend was to avoid Redis round trips on reads rather than
+to replace Redis, that is already available without one:
 
-## Helper Types
+- **`Preset`** serves reads from a local automaton and touches Redis only on writes and
+  invalidations. See [Presets](../../guides/presets/).
+- **`EnableCache`** caches trie data locally and invalidates over Pub/Sub.
 
-These types are referenced by `KVStorage` and `Pipeliner` and are declared in the
-`acor` package alongside it.
+`CacheStats()` reports whether either is working — hit rate, rebuild cost, and
+invalidation lag — without any Redis I/O of its own.
 
-`Z` — a sorted set member (score + value):
+## Navigation
 
-```go
-type Z struct {
-    Score  float64
-    Member string
-}
-```
-
-`StringMapResult` — a deferred result from a pipelined `HGetAll`; call `Val()`
-after the pipeline's `Exec`:
-
-```go
-type StringMapResult interface {
-    Val() map[string]string
-}
-```
-
-`Subscription` — a pub/sub subscription returned by `Subscribe`:
-
-```go
-type Subscription interface {
-    Receive(ctx context.Context) error
-    Channel() <-chan PubSubMessage
-    Close() error
-}
-```
+← [Extending](../)

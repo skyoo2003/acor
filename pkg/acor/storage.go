@@ -7,26 +7,29 @@ import (
 	"time"
 )
 
-// Z represents a sorted set member with score, compatible with Redis ZSET operations.
-type Z struct {
+// zMember represents a sorted set member with score, compatible with Redis ZSET operations.
+type zMember struct {
 	// Score is the numeric score for ordering in the sorted set.
 	Score float64
 	// Member is the string value stored in the sorted set.
 	Member string
 }
 
-// KVStorage defines the interface for key-value storage operations. It lets the
+// kvStorage defines the interface for key-value storage operations. It lets the
 // Aho-Corasick automaton work against a storage abstraction rather than a Redis
 // client directly.
 //
-// Nothing on the public surface accepts or returns a KVStorage: the Redis-backed
-// implementation is the only one, and this package constructs it internally from
-// AhoCorasickArgs. An alternative implementation therefore cannot be supplied to
-// Create. The interface is exported so the contract the automaton relies on is
-// documented and frozen for v1, not so it can be substituted.
+// It is unexported deliberately. It was public through v1.4.0 and was withdrawn
+// before v1.5.0 froze the surface, because nothing on that surface ever accepted
+// or returned one: a caller could name the interface but never supply an
+// implementation. Freezing it would also have capped the pluggable-backend work it
+// was exported for — compatibility.md forbids adding a method to an exported
+// interface inside v1, so a backend needing one more operation would have had
+// nowhere to put it. Unexported, the shape stays free until that feature can
+// choose it, and publishing an interface later is an addition v1 allows.
 //
 // All operations accept a context for cancellation and timeout support.
-type KVStorage interface {
+type kvStorage interface {
 	// Get retrieves a string value by key. Returns redis.Nil error if key doesn't exist.
 	Get(ctx context.Context, key string) (string, error)
 	// Set stores a value at the given key with no expiration.
@@ -46,7 +49,7 @@ type KVStorage interface {
 	// SIsMember checks if a member exists in a set.
 	SIsMember(ctx context.Context, key, member string) (bool, error)
 	// ZAdd adds members with scores to a sorted set.
-	ZAdd(ctx context.Context, key string, members ...*Z) error
+	ZAdd(ctx context.Context, key string, members ...*zMember) error
 	// ZRange returns members in a sorted set by index range.
 	ZRange(ctx context.Context, key string, start, stop int64) ([]string, error)
 	// ZRank returns the index of a member in a sorted set.
@@ -62,57 +65,58 @@ type KVStorage interface {
 	// Exists checks if one or more keys exist. Returns the count of existing keys.
 	Exists(ctx context.Context, keys ...string) (int64, error)
 	// TxPipelined executes commands in a transaction pipeline.
-	TxPipelined(ctx context.Context, fn func(Pipeliner) error) error
+	TxPipelined(ctx context.Context, fn func(pipeliner) error) error
 	// SetNX sets a value only if the key does not exist. Returns true if the key was set.
 	SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error)
 	// Pipeline returns a non-transactional pipeline for batching commands.
-	Pipeline() Pipeliner
+	Pipeline() pipeliner
 	// Publish sends a message to a pub/sub channel.
 	Publish(ctx context.Context, channel string, message interface{}) error
-	// Subscribe subscribes to pub/sub channels and returns a Subscription.
-	Subscribe(ctx context.Context, channels ...string) Subscription
+	// Subscribe subscribes to pub/sub channels and returns a subscription.
+	Subscribe(ctx context.Context, channels ...string) subscription
 	// Close closes the storage connection.
 	Close() error
 }
 
-// StringMapResult represents a deferred string map result from a pipeline
-// HGetAll operation. Exposed as an interface so custom Pipeliner backends can
-// return their own deferred result type.
-type StringMapResult interface {
+// stringMapResult represents a deferred string map result from a pipeline
+// HGetAll operation. An interface rather than a concrete type so a pipeliner
+// implementation can return its own deferred result; see kvStorage on why none
+// but the Redis one exists today.
+type stringMapResult interface {
 	// Val returns the map result. Must be called after Exec on the pipeline.
 	Val() map[string]string
 }
 
-// PubSubMessage represents a message received from a pub/sub subscription.
-type PubSubMessage struct {
+// pubSubMessage represents a message received from a pub/sub subscription.
+type pubSubMessage struct {
 	// Channel is the name of the pub/sub channel the message was published to.
 	Channel string
 	// Payload is the content of the message.
 	Payload string
 }
 
-// Subscription defines the interface for a pub/sub subscription.
-type Subscription interface {
+// subscription defines the interface for a pub/sub subscription.
+type subscription interface {
 	// Receive waits for a subscription confirmation from the server.
 	Receive(ctx context.Context) error
 	// Channel returns a channel that delivers incoming messages.
-	Channel() <-chan PubSubMessage
+	Channel() <-chan pubSubMessage
 	// Close closes the subscription and releases resources.
 	Close() error
 }
 
-// Pipeliner defines the interface for pipelined Redis operations.
+// pipeliner defines the interface for pipelined Redis operations.
 // Commands are buffered and sent together for efficiency.
-type Pipeliner interface {
+type pipeliner interface {
 	// SAdd adds members to a set in the pipeline.
 	SAdd(ctx context.Context, key string, members ...interface{}) error
 	// HSet sets hash fields in the pipeline.
 	HSet(ctx context.Context, key string, values ...interface{}) error
 	// HGetAll retrieves all field-value pairs from a hash in the pipeline.
 	// Returns a deferred result that can be read after Exec is called.
-	HGetAll(ctx context.Context, key string) StringMapResult
+	HGetAll(ctx context.Context, key string) stringMapResult
 	// ZAdd adds sorted set members in the pipeline.
-	ZAdd(ctx context.Context, key string, members ...*Z) error
+	ZAdd(ctx context.Context, key string, members ...*zMember) error
 	// Del deletes keys in the pipeline.
 	Del(ctx context.Context, keys ...string) error
 	// Exec executes all commands in the pipeline.

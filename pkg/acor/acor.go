@@ -22,10 +22,9 @@
 // as documented. v1.5.0 is the first supported v1 release. Three conditions apply to
 // calling code: construct AhoCorasickArgs, MatchOptions, BatchOptions, ParallelOptions,
 // and MigrationOptions with field names, since those structs gain fields in minor
-// releases; do not expect Logger, KVStorage, StringMapResult, Subscription, or
-// Pipeliner to gain methods, since they will not inside v1; and do not dot-import this
-// package, since a name added in a minor release can then collide with a declaration of
-// your own.
+// releases; do not expect Logger — the one interface callers implement — to gain
+// methods, since it will not inside v1; and do not dot-import this package, since a
+// name added in a minor release can then collide with a declaration of your own.
 //
 // The full policy — including the on-Redis format rules that make mixed-version fleets
 // safe, and what the promise excludes — is at
@@ -339,7 +338,7 @@ type AhoCorasick struct {
 	cancel        context.CancelFunc
 	name          string
 	logger        Logger
-	storage       KVStorage             // DI: all Redis ops go through this
+	storage       kvStorage             // DI: all Redis ops go through this
 	ops           operations            // Strategy: V1 or V2 implementation
 	redisClient   redis.UniversalClient // kept for migration.go (out of scope)
 	buildTrieHook func(string) error
@@ -350,7 +349,7 @@ type AhoCorasick struct {
 
 	cache     *trieCache
 	stats     *cacheStats
-	pubsub    Subscription
+	pubsub    subscription
 	stopCh    chan struct{}
 	closeOnce sync.Once
 	mode      backendMode
@@ -582,7 +581,7 @@ func (ac *AhoCorasick) init(ctx context.Context) error {
 	}
 
 	prefixKey := prefixKey(ac.name)
-	member := &Z{
+	member := &zMember{
 		Score:  initScore,
 		Member: "",
 	}

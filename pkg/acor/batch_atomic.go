@@ -35,7 +35,7 @@ var (
 
 // applyManyAtomic runs the shared V2 snapshot-plan-CAS loop. afterCommit is used
 // by preset mode to install the committed snapshot in its local engine.
-func applyManyAtomic(ctx context.Context, storage KVStorage, client redis.UniversalClient, name string,
+func applyManyAtomic(ctx context.Context, storage kvStorage, client redis.UniversalClient, name string,
 	keywords []string, clearOutputs bool,
 	plan func(*trieSnapshot, []string) (map[string][]string, []string),
 	afterCommit func(*trieSnapshot, int64)) ([]string, error) {

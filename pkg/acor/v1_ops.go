@@ -23,7 +23,7 @@ var _ operations = (*v1Operations)(nil)
 // gotoNode, failNode, collectOutputs, appendMatchedIndexes) which are methods
 // on *AhoCorasick. This is a temporary bridge until trie.go is refactored in T15.
 type v1Operations struct {
-	storage         KVStorage
+	storage         kvStorage
 	name            string
 	logger          Logger
 	ac              *AhoCorasick // for trie.go helper access (temporary, cleaned up in T15)

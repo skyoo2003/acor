@@ -30,7 +30,7 @@ func TestRTTCounterCountsPipelineAsOneRoundTrip(t *testing.T) {
 	c := countRTT(t, ac)
 	c.reset()
 
-	err := ac.storage.TxPipelined(ac.ctx, func(pipe Pipeliner) error {
+	err := ac.storage.TxPipelined(ac.ctx, func(pipe pipeliner) error {
 		pipe.HSet(ac.ctx, "rtt-guard", "a", "1")
 		pipe.HSet(ac.ctx, "rtt-guard", "b", "2")
 		pipe.HSet(ac.ctx, "rtt-guard", "c", "3")

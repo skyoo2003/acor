@@ -185,9 +185,9 @@ func foreignInvalidation(payload, name string, skip *selfSkipSet, stats *cacheSt
 // subscribeInvalidations subscribes to the collection's invalidation channel and
 // calls onMessage for every payload received, until stopCh is closed, ctx is
 // canceled, or the subscription channel closes. The caller closes the returned
-// Subscription to release the connection.
-func subscribeInvalidations(ctx context.Context, storage KVStorage, name string,
-	stopCh <-chan struct{}, onMessage func(payload string)) (Subscription, error) {
+// subscription to release the connection.
+func subscribeInvalidations(ctx context.Context, storage kvStorage, name string,
+	stopCh <-chan struct{}, onMessage func(payload string)) (subscription, error) {
 	pubsub := storage.Subscribe(ctx, invalidateChannelPrefix+name)
 	if err := pubsub.Receive(ctx); err != nil {
 		_ = pubsub.Close()
