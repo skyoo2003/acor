@@ -133,13 +133,13 @@ func TestOutputStorageStaysLinear(t *testing.T) {
 		t.Run(fmt.Sprintf("%dkw", n), func(t *testing.T) {
 			se := newSpeedEngine()
 			se.buildFromKeywords(kws)
-			if got := countNonEmpty(se.own); got != n {
+			if got := countAssigned(se.out.own); got != n {
 				t.Errorf("speedEngine stored %d keyword entries, want %d", got, n)
 			}
 
 			be := newBalancedEngine(defaultBandDepth)
 			be.buildFromKeywords(kws)
-			if got := countNonEmpty(be.banded.dat.own); got != n {
+			if got := countAssigned(be.banded.dat.out.own); got != n {
 				t.Errorf("balancedEngine stored %d keyword entries, want %d", got, n)
 			}
 
@@ -159,10 +159,10 @@ func TestOutputStorageStaysLinear(t *testing.T) {
 	}
 }
 
-func countNonEmpty(own []string) int {
+func countAssigned(own []int32) int {
 	n := 0
-	for _, kw := range own {
-		if kw != "" {
+	for _, id := range own {
+		if id != 0 {
 			n++
 		}
 	}

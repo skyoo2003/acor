@@ -2,8 +2,6 @@
 
 package engine
 
-import "unicode/utf8"
-
 // mapNode is a trie node using Go maps for children (sparse representation).
 type mapNode struct {
 	children map[rune]int
@@ -14,10 +12,9 @@ type mapNode struct {
 // mapTrie is a trie backed by a slice of mapNodes.
 type mapTrie struct {
 	nodes []mapNode
-	// own and outLink use the same output-chain representation as the flat and
-	// double-array tries, so all engines share the matching helpers.
-	own     []string
-	outLink []int32
+	// out uses the same output representation as the flat and double-array
+	// tries, so all engines share the matching helpers.
+	out outputs
 }
 
 // Compile-time check that memEfficientEngine satisfies matchEngine.
@@ -28,10 +25,6 @@ var _ matchEngine = (*memEfficientEngine)(nil)
 type memEfficientEngine struct {
 	trie  mapTrie
 	bloom *bloomFilter
-	// asciiOnly reports whether every keyword is pure ASCII, which lets runeLen take
-	// a keyword's byte length instead of rescanning it. This engine has no
-	// alphabetCoder to carry the flag, so it derives it at build time.
-	asciiOnly bool
 }
 
 func newMemEfficientEngine() *memEfficientEngine {
@@ -43,12 +36,11 @@ func (e *memEfficientEngine) buildFromKeywords(keywords map[string]struct{}) {
 		nodes: []mapNode{
 			{children: make(map[rune]int), depth: 0},
 		},
-		own:     []string{""},
-		outLink: []int32{outNone},
+		out: outputs{own: []int32{0}, outLink: []int32{outNone}},
 	}
 
 	for kw := range keywords {
-		// An empty keyword would end at the root, where own == "" already means "no
+		// An empty keyword would end at the root, where own == 0 already means "no
 		// keyword". The public API rejects empty keywords; skipping keeps this engine
 		// correct on its own.
 		if kw == "" {
@@ -64,12 +56,12 @@ func (e *memEfficientEngine) buildFromKeywords(keywords map[string]struct{}) {
 					children: make(map[rune]int),
 					depth:    trie.nodes[state].depth + 1,
 				})
-				trie.own = append(trie.own, "")
-				trie.outLink = append(trie.outLink, outNone)
+				trie.out.own = append(trie.out.own, 0)
+				trie.out.outLink = append(trie.out.outLink, outNone)
 			}
 			state = child
 		}
-		trie.own[state] = kw
+		trie.out.own[state] = trie.out.assignID(kw)
 	}
 
 	type queueEntry struct {
@@ -109,25 +101,16 @@ func (e *memEfficientEngine) buildFromKeywords(keywords map[string]struct{}) {
 			// Link to the nearest keyword-carrying state on the failure path instead
 			// of copying its outputs in. fail is strictly shallower and this BFS
 			// visits by depth, so its outLink is already final.
-			if trie.own[fail] != "" {
-				trie.outLink[child] = int32(fail) //nolint:gosec // G115: node ids index a slice built above.
+			if trie.out.own[fail] != 0 {
+				trie.out.outLink[child] = int32(fail) //nolint:gosec // G115: node ids index a slice built above.
 			} else {
-				trie.outLink[child] = trie.outLink[fail]
+				trie.out.outLink[child] = trie.out.outLink[fail]
 			}
 		}
 	}
 
 	e.trie = trie
 	e.bloom = buildFirstRuneBloom(keywords)
-
-	e.asciiOnly = true
-	for kw := range keywords {
-		// A keyword is pure ASCII exactly when its byte length equals its rune count.
-		if len(kw) != utf8.RuneCountInString(kw) {
-			e.asciiOnly = false
-			break
-		}
-	}
 }
 
 func (e *memEfficientEngine) find(text string) []string {
@@ -154,10 +137,42 @@ func (e *memEfficientEngine) find(text string) []string {
 			state = e.trie.nodes[state].fail
 		}
 
-		matched = appendOutputChain(matched, state, e.trie.own, e.trie.outLink)
+		matched = e.trie.out.appendChain(matched, state)
 	}
 
 	return matched
+}
+
+// findSet reports which keywords appear, without one entry per occurrence. The
+// dedup bookkeeping lives in setCollector, shared with the other engines.
+func (e *memEfficientEngine) findSet(text string) []string {
+	if len(e.trie.nodes) <= 1 {
+		return []string{}
+	}
+
+	var c setCollector
+	state := 0
+
+	for _, ch := range text {
+		if e.bloom.skipAtRoot(state == 0, ch) {
+			continue
+		}
+
+		for {
+			if next, ok := e.trie.nodes[state].children[ch]; ok {
+				state = next
+				break
+			}
+			if state == 0 {
+				break
+			}
+			state = e.trie.nodes[state].fail
+		}
+
+		c.collectChain(&e.trie.out, state)
+	}
+
+	return c.result()
 }
 
 func (e *memEfficientEngine) findIndex(text string) map[string][]int {
@@ -187,7 +202,7 @@ func (e *memEfficientEngine) findIndex(text string) map[string][]int {
 		}
 
 		runeIndex++
-		indexOutputChain(matched, state, runeIndex, e.trie.own, e.trie.outLink, e.asciiOnly)
+		e.trie.out.indexChain(matched, state, runeIndex)
 	}
 
 	return matched
@@ -221,7 +236,7 @@ func (e *memEfficientEngine) matchString(text string, emit func(keyword string, 
 		}
 
 		runeIndex++
-		if !emitOutputChain(state, runeIndex, e.trie.own, e.trie.outLink, e.asciiOnly, emit) {
+		if !e.trie.out.emitChain(state, runeIndex, emit) {
 			return
 		}
 	}
@@ -257,7 +272,7 @@ func (e *memEfficientEngine) matchStream(next func() (rune, bool), emit func(key
 		}
 
 		runeIndex++
-		if !emitOutputChain(state, runeIndex, e.trie.own, e.trie.outLink, e.asciiOnly, emit) {
+		if !e.trie.out.emitChain(state, runeIndex, emit) {
 			return
 		}
 	}
@@ -265,25 +280,12 @@ func (e *memEfficientEngine) matchStream(next func() (rune, bool), emit func(key
 
 func (e *memEfficientEngine) info() *InMemoryInfo {
 	return &InMemoryInfo{
-		Keywords:    countUniqueOutputs(e.trie.own),
+		Keywords:    e.trie.out.keywordCount(),
 		Nodes:       len(e.trie.nodes),
 		Preset:      PresetMemoryEfficient,
 		MemoryBytes: e.estimateMemory(),
 		TrieDepth:   trieMaxDepth(e.trie.nodes),
 	}
-}
-
-// countUniqueOutputs counts the nodes that terminate a keyword. Each keyword is
-// reached by exactly one path and so fills exactly one own slot, and the build
-// input is a set, so nothing needs deduplication.
-func countUniqueOutputs(own []string) int {
-	n := 0
-	for _, kw := range own {
-		if kw != "" {
-			n++
-		}
-	}
-	return n
 }
 
 func trieMaxDepth(nodes []mapNode) int {
@@ -304,7 +306,7 @@ func (e *memEfficientEngine) estimateMemory() int64 {
 			size += 24
 		}
 	}
-	size += int64(len(e.trie.own))*16 + int64(len(e.trie.outLink))*4
+	size += e.trie.out.memoryBytes()
 	if e.bloom != nil {
 		size += e.bloom.memoryBytes()
 	}

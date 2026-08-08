@@ -133,12 +133,11 @@ func TestFindSetNoMatches(t *testing.T) {
 	}
 }
 
-// TestFindSetAcrossDedupThreshold pins FindSet against Find on both sides of
-// dedupLinearMax, so the handoff from linear scanning to hash maps cannot change
-// the answer or its order. A text matching well over the threshold is the case
-// the linear path is not meant to serve.
-func TestFindSetAcrossDedupThreshold(t *testing.T) {
-	for _, n := range []int{1, dedupLinearMax - 1, dedupLinearMax, dedupLinearMax + 1, 4 * dedupLinearMax} {
+// TestFindSetAcrossMatchSetSizes pins FindSet against Find from a single match
+// to well past any small-set fast path, so the shared dedup (a bitset over
+// keyword ids; see setCollector) cannot change the answer or its order.
+func TestFindSetAcrossMatchSetSizes(t *testing.T) {
+	for _, n := range []int{1, 31, 32, 33, 128} {
 		kws := make(map[string]struct{}, n)
 		var text string
 		for i := 0; i < n; i++ {

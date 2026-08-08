@@ -17,14 +17,8 @@ type doubleArrayTrie struct {
 	base  []int32
 	check []int32
 	fail  []int32
-	// own[s] is the keyword ending at s, or "" for none, and outLink[s] chains to
-	// the next keyword-carrying state along the failure path (outNone at the end).
-	// They replace an eagerly merged [][]string, which copied each state's whole
-	// suffix output list into every state failing to it: O(n^2) on a suffix-nested
-	// dictionary, where 500 keywords produced 125,250 entries against the chain's
-	// 500.
-	own     []string
-	outLink []int32
+	// out maps matching states to the keywords they report; see outputs.
+	out outputs
 	// hasOutput[s] reports whether s or its output chain carries a keyword. Banded
 	// states pack the same fact into their transition entry, so this array serves
 	// the states below the band — the majority once keywords run longer than
@@ -87,7 +81,7 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 	dat.depth = make([]int32, datInitialCap)
 	dat.cap = datInitialCap
 	dat.size = datRootPos + 1
-	dat.own, dat.outLink = nil, nil
+	dat.out = outputs{}
 	// Reset with the arrays: Build reconstructs the automaton, so a rebuild from
 	// shorter keywords must not keep the old maximum.
 	dat.trieDepth = 0
@@ -111,7 +105,7 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 	tmpChildren[0] = make(map[rune]int)
 
 	for kw := range keywords {
-		// An empty keyword would end at the root, where own == "" already means "no
+		// An empty keyword would end at the root, where own == 0 already means "no
 		// keyword". The public API rejects empty keywords; skipping keeps this trie
 		// correct on its own.
 		if kw == "" {
@@ -174,10 +168,10 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 			datPos[childID] = pos
 
 			if kw, ok := tmpOwn[childID]; ok && kw != "" {
-				for pos >= len(dat.own) {
-					dat.own = append(dat.own, "")
+				for pos >= len(dat.out.own) {
+					dat.out.own = append(dat.out.own, 0)
 				}
-				dat.own[pos] = kw
+				dat.out.own[pos] = dat.out.assignID(kw)
 			}
 
 			if pos >= dat.size {
@@ -193,22 +187,22 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 	dat.fail = dat.fail[:dat.size]
 	dat.depth = dat.depth[:dat.size]
 
-	if len(dat.own) < dat.size {
-		newOwn := make([]string, dat.size)
-		copy(newOwn, dat.own)
-		dat.own = newOwn
+	if len(dat.out.own) < dat.size {
+		newOwn := make([]int32, dat.size)
+		copy(newOwn, dat.out.own)
+		dat.out.own = newOwn
 	}
 
-	dat.outLink = make([]int32, dat.size)
-	for s := range dat.outLink {
-		dat.outLink[s] = outNone
+	dat.out.outLink = make([]int32, dat.size)
+	for s := range dat.out.outLink {
+		dat.out.outLink[s] = outNone
 	}
 	dat.computeFailLinks()
 
 	// Derived after the fail links, which fill the output chain.
 	dat.hasOutput = make([]bool, dat.size)
 	for s := 0; s < dat.size; s++ {
-		dat.hasOutput[s] = dat.own[s] != "" || dat.outLink[s] != outNone
+		dat.hasOutput[s] = dat.out.own[s] != 0 || dat.out.outLink[s] != outNone
 	}
 }
 
@@ -273,10 +267,10 @@ func (dat *doubleArrayTrie) computeFailLinks() {
 			// Link to the nearest keyword-carrying state on the failure path instead
 			// of copying its outputs in. The fail target is strictly shallower and
 			// this BFS visits by depth, so its outLink is already final.
-			if f := int(dat.fail[next]); dat.own[f] != "" {
-				dat.outLink[next] = int32(f) //nolint:gosec // G115: DAT state ids use int32 throughout.
+			if f := int(dat.fail[next]); dat.out.own[f] != 0 {
+				dat.out.outLink[next] = int32(f) //nolint:gosec // G115: DAT state ids use int32 throughout.
 			} else {
-				dat.outLink[next] = dat.outLink[f]
+				dat.out.outLink[next] = dat.out.outLink[f]
 			}
 		}
 	}
@@ -311,8 +305,7 @@ func (dat *doubleArrayTrie) followFailByCode(state, code int) int {
 
 func (dat *doubleArrayTrie) memoryBytes() int64 {
 	mem := int64(len(dat.base)+len(dat.check)+len(dat.fail)+len(dat.depth)) * 4
-	mem += int64(len(dat.own)) * 16 // string header per state
-	mem += int64(len(dat.outLink)) * 4
+	mem += dat.out.memoryBytes()
 	mem += int64(len(dat.hasOutput)) // one bool per state
 	return mem
 }
@@ -320,16 +313,3 @@ func (dat *doubleArrayTrie) memoryBytes() int64 {
 // maxDepth reports the deepest trie level from the value recorded during the
 // build, since depth itself is released once the band is chosen.
 func (dat *doubleArrayTrie) maxDepth() int { return dat.trieDepth }
-
-// keywordCount counts the states that terminate a keyword. Each keyword is
-// reached by exactly one path and so fills exactly one own slot, and the build
-// input is a set, so nothing needs deduplication.
-func (dat *doubleArrayTrie) keywordCount() int {
-	n := 0
-	for _, kw := range dat.own {
-		if kw != "" {
-			n++
-		}
-	}
-	return n
-}

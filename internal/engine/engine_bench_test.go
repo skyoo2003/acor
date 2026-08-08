@@ -68,3 +68,40 @@ func benchmarkEngine(b *testing.B, findIndex bool) {
 
 func BenchmarkEngineFind(b *testing.B)      { benchmarkEngine(b, false) }
 func BenchmarkEngineFindIndex(b *testing.B) { benchmarkEngine(b, true) }
+
+// benchTextDense matches n distinct keywords twice each, putting the load on
+// FindSet's dedup rather than the scan; the sparse texts above match only two.
+func benchTextDense(n int) string {
+	var sb strings.Builder
+	for i := 0; i < n; i++ {
+		fmt.Fprintf(&sb, "keyword%d keyword%d ", i, i)
+	}
+	return sb.String()
+}
+
+func BenchmarkEngineFindSet(b *testing.B) {
+	for _, n := range []int{100, 1000} {
+		kws := benchKeywords(n)
+		texts := []struct {
+			name string
+			text string
+		}{
+			{"sparse", strings.Repeat(benchTextASCII, 40)},
+			{"dense", benchTextDense(n)},
+		}
+		for _, bp := range benchPresets {
+			e := New(bp.preset)
+			e.Build(kws)
+			for _, txt := range texts {
+				b.Run(fmt.Sprintf("%dkw/%s/%s", n, bp.name, txt.name), func(b *testing.B) {
+					b.ReportAllocs()
+					b.SetBytes(int64(len(txt.text)))
+					b.ResetTimer()
+					for i := 0; i < b.N; i++ {
+						_ = e.FindSet(txt.text)
+					}
+				})
+			}
+		}
+	}
+}

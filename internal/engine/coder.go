@@ -33,19 +33,6 @@ func (c *alphabetCoder) build(runes []rune) {
 	}
 }
 
-// runeLen returns kw's length in runes, used to derive a match's start offset
-// from its end offset.
-//
-// When the alphabet is ASCII-only every keyword is pure ASCII, so its byte length
-// is its rune length. Skipping utf8.RuneCountInString here is worth 9% on
-// matchString over 1000 ASCII keywords, since it runs once per emitted match.
-func runeLen(kw string, asciiOnly bool) int {
-	if asciiOnly {
-		return len(kw)
-	}
-	return utf8.RuneCountInString(kw)
-}
-
 // codeByte resolves a raw byte to its alphabet index. Valid only when asciiOnly
 // is set: a byte >= utf8.RuneSelf then belongs to a rune outside the alphabet, so
 // reporting it absent matches what the rune path does.
