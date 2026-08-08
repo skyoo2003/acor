@@ -1,5 +1,5 @@
 kind: Fixed
-body: Fixed a lost update in preset mode. A single `Add` or `Remove` rebuilt the local automaton from an incrementally maintained keyword set instead of the snapshot it had just committed, then cleared the stale flag and advanced the local version, so a keyword written by a peer disappeared from local `Find` results and was never refetched because the instance now looked up to date. Single writes now apply the committed snapshot, the path batch writes already used.
+body: Fixed a lost update in Preset mode. A single `Add` or `Remove` rebuilt the local automaton from an incrementally maintained keyword set instead of the snapshot it had just committed, then cleared the stale flag and advanced the local version, so a keyword written by a peer disappeared from local `Find` results and was never refetched because the instance looked up to date. Single writes now apply the committed snapshot, as batch writes already did.
 time: 2026-08-08T03:39:39.188751+09:00
 custom:
     Issue: "207"

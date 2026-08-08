@@ -1,5 +1,5 @@
 kind: Removed
-body: Removed `acor.InMemoryInfo`, a field-for-field duplicate of `AhoCorasickInfo` that no exported function accepted or returned. It could only appear in code that never called it
+body: Removed `acor.InMemoryInfo`, a field-for-field duplicate of `AhoCorasickInfo` that no exported function accepted or returned.
 time: 2026-08-05T23:22:48.000553+09:00
 custom:
     Issue: "201"

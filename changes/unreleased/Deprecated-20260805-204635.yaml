@@ -1,10 +1,5 @@
 kind: Deprecated
-body: >-
-  Retracted `v1.0.0`-`v1.4.0`. Their tags were deleted long ago, but the module
-  proxy caches versions permanently, so `go get github.com/skyoo2003/acor` still
-  resolved to `v1.4.0` instead of the supported line. This release is the first
-  supported v1, which is why the numbering jumps from v0.11.x. Existing pins to a
-  retracted version keep building and report it on `go list -m -u`
+body: 'Retracted `v1.0.0`-`v1.4.0`. Their tags were deleted long ago, but the module proxy caches versions permanently, so `go get github.com/skyoo2003/acor` still resolved to `v1.4.0` instead of the supported line. This release is the first supported v1, which is why the numbering jumps from v0.11.x. Existing pins to a retracted version keep building and are reported by `go list -m -u`.'
 time: 2026-08-05T20:46:35.000000+09:00
 custom:
     Issue: "198"
