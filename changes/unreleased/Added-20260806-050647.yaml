@@ -1,5 +1,0 @@
-kind: Added
-body: CI checks the public API surface of `pkg/acor` against a committed snapshot (`api/v1.txt`), so a breaking change must be recorded in the diff that introduces it. `make api-check` runs the same check locally.
-time: 2026-08-06T05:06:47.198788+09:00
-custom:
-    Issue: "203"

@@ -1,5 +1,0 @@
-kind: Changed
-body: 'V1 collections are now read-only. `Add` and `Remove` return the new `ErrV1ReadOnly` sentinel; `Find`, `FindIndex`, `Suggest`, `Info`, `Flush`, and `MigrateV1ToV2` are unchanged, so an existing V1 collection can still be read and converted in place. Creating a collection with `SchemaVersion: SchemaV1` yields one that can never gain a keyword. Batch calls report the refusal per keyword in `BatchResult.Failed`, as they do for any per-keyword failure. This removes the cost of keeping two write paths correct; the V1 read path remains for the whole v1 line and is removed no earlier than v2.'
-time: 2026-08-05T23:53:00.423252+09:00
-custom:
-    Issue: "201"
