@@ -99,8 +99,9 @@ var licenses = map[string]license{
 // releaseGOOS and releaseGOARCH mirror the build matrix in .goreleaser.yaml.
 // Their cross product is filtered through `go tool dist list`, which prunes the
 // same invalid pairs goreleaser skips (darwin/386, darwin/arm, windows/arm), so
-// the sweep covers exactly the targets that ship. GOARM is irrelevant here:
-// build constraints never select on it.
+// the sweep covers exactly the targets that ship. listModules also pins cgo and
+// architecture feature levels to the release values, including GOARM=7 because
+// linux/arm/6 is excluded from the release.
 var (
 	releaseGOOS   = []string{"darwin", "linux", "windows"}
 	releaseGOARCH = []string{"386", "amd64", "arm", "arm64"}
@@ -267,7 +268,15 @@ func listModules(goos, goarch string) ([]module, error) {
 	const format = `{{if and .Module (not .Standard)}}{{.Module.Path}}	{{.Module.Version}}	{{.Module.Dir}}{{end}}`
 
 	cmd := exec.CommandContext(context.Background(), "go", "list", "-deps", "-f", format, target)
-	cmd.Env = append(os.Environ(), "GOOS="+goos, "GOARCH="+goarch)
+	cmd.Env = append(os.Environ(),
+		"GOOS="+goos,
+		"GOARCH="+goarch,
+		"CGO_ENABLED=0",
+		"GO386=sse2",
+		"GOAMD64=v1",
+		"GOARM=7",
+		"GOARM64=v8.0",
+	)
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {

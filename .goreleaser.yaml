@@ -21,9 +21,10 @@ builds:
   # with whatever the user downloaded.
   ldflags:
   - -s -w -X main.version={{ .Version }}
-  # Mirrored by releaseGOOS/releaseGOARCH in tools/licensesnap/main.go: `go list`
-  # resolves imports against GOOS and GOARCH, so a target added here without
-  # being added there ships that platform's modules unattributed.
+  # Mirrored by releaseGOOS/releaseGOARCH and listModules' pinned release
+  # environment in tools/licensesnap/main.go: `go list` resolves imports against
+  # GOOS, GOARCH, cgo, and architecture feature tags, so changes here must be
+  # reflected there or a release could ship modules unattributed.
   goos:
   - darwin
   - linux
