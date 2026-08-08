@@ -71,6 +71,11 @@ type InMemoryInfo struct {
 type matchEngine interface {
 	buildFromKeywords(keywords map[string]struct{})
 	find(text string) []string
+	// findSet is find without one entry per occurrence: each keyword once, in
+	// first-match order. Every engine dedups during its own scan (see
+	// setCollector), skipping the per-occurrence slice a generic wrapper would
+	// build and throw away.
+	findSet(text string) []string
 	findIndex(text string) map[string][]int
 	// matchStream pulls runes from next until it returns ok=false, emitting every
 	// match (overlaps included) to emit in scan order. It stops early if emit

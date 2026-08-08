@@ -154,7 +154,7 @@ func (e *balancedEngine) find(text string) []string {
 	// for a filter, and preallocating made that path allocate for nothing.
 	var matched []string
 	collect := func(state int) bool {
-		matched = appendOutputChain(matched, state, dat.own, dat.outLink)
+		matched = dat.out.appendChain(matched, state)
 		return true
 	}
 
@@ -168,12 +168,7 @@ func (e *balancedEngine) find(text string) []string {
 }
 
 // findSet reports which keywords appear, without one entry per occurrence. The
-// dedup bookkeeping lives in setCollector, shared with speedEngine; see it for
-// why the small case scans instead of hashing.
-//
-// Skipping the per-occurrence slice makes this 1.8x faster than Engine.FindSet's
-// generic matchString path at 1000 keywords over a 2.5 KB text (3,434 vs 6,347 ns
-// ASCII; 3,427 vs 7,045 multibyte).
+// dedup bookkeeping lives in setCollector, shared with the other engines.
 func (e *balancedEngine) findSet(text string) []string {
 	dat := e.banded.dat
 	if dat.size <= datRootPos+1 {
@@ -182,7 +177,7 @@ func (e *balancedEngine) findSet(text string) []string {
 
 	var c setCollector
 	e.scan(text, func(state int) bool {
-		collectOutputChain(&c, state, dat.own, dat.outLink)
+		c.collectChain(&dat.out, state)
 		return true
 	})
 	return c.result()
@@ -268,7 +263,7 @@ func (e *balancedEngine) findIndex(text string) map[string][]int {
 		if !out {
 			continue
 		}
-		indexOutputChain(matched, state, runeIndex, dat.own, dat.outLink, dat.asciiOnly)
+		dat.out.indexChain(matched, state, runeIndex)
 	}
 
 	return matched
@@ -297,7 +292,7 @@ func (e *balancedEngine) matchString(text string, emit func(keyword string, star
 		next, hasOut := bd.step(state, code)
 		state = next
 		runeIndex++
-		if hasOut && !emitOutputChain(state, runeIndex, dat.own, dat.outLink, dat.asciiOnly, emit) {
+		if hasOut && !dat.out.emitChain(state, runeIndex, emit) {
 			return
 		}
 	}
@@ -331,7 +326,7 @@ func (e *balancedEngine) matchStream(next func() (rune, bool), emit func(keyword
 		if !hasOut {
 			continue
 		}
-		if !emitOutputChain(state, runeIndex, dat.own, dat.outLink, dat.asciiOnly, emit) {
+		if !dat.out.emitChain(state, runeIndex, emit) {
 			return
 		}
 	}
@@ -346,7 +341,7 @@ func (e *balancedEngine) info() *InMemoryInfo {
 	mem += int64(len(e.banded.band)) * 4
 	mem += int64(len(e.banded.bandOff)) * 4
 	return &InMemoryInfo{
-		Keywords:    dat.keywordCount(),
+		Keywords:    dat.out.keywordCount(),
 		Nodes:       dat.size - datRootPos,
 		Preset:      e.preset,
 		MemoryBytes: mem,

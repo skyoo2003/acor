@@ -3,16 +3,8 @@
 package engine
 
 import (
-	"slices"
 	"strings"
 )
-
-// setFinder is the optional specialization behind Engine.FindSet. It is separate
-// from matchEngine so an engine with no cheaper way to answer a set query is not
-// forced to reimplement the generic one.
-type setFinder interface {
-	findSet(text string) []string
-}
 
 // container is the optional specialization behind Engine.Contains. Routing a
 // presence check through matchString was the most expensive of the cheap
@@ -29,108 +21,6 @@ type container interface {
 // appends on text that does match; sizing it to the dictionary would allocate far
 // more than a single scan needs.
 const findResultHint = 8
-
-// dedupLinearMax is the match-set size at which setCollector stops deduping by
-// linear scan and switches to hash maps. Below it the scan wins: two maps cost two
-// allocations up front and a string hash per hit, and a content filter typically
-// finds a handful of keywords per document. On 1000 keywords over a 640 B text,
-// linear scanning took findSet from 1,295 to 700 ns and 5 allocations to 3.
-//
-// ponytail: linear dedup is O(k^2) in the unique-match count k. Past the threshold
-// the maps take over, so match-dense text does not pay the quadratic. Pattern-id
-// outputs would remove the trade-off by making dedup an integer index test.
-const dedupLinearMax = 32
-
-// setCollector folds matched states into the unique keyword set behind FindSet,
-// preserving first-match order.
-//
-// State dedup comes first because a state's keyword set is fixed: landing on it
-// again can add nothing new. Keyword dedup is still needed on top because distinct
-// states' output chains overlap, since every state whose failure path reaches a
-// keyword reports it.
-//
-// It is a struct with methods rather than closures over local variables so it
-// stays on the stack; a closure capturing the slice would be boxed on the heap.
-type setCollector struct {
-	out        []string
-	seenStates []int32
-	seen       map[string]struct{}
-	seenState  map[int32]struct{}
-}
-
-// addState records a matching state and reports whether it is new. A state's
-// keyword set is fixed, so landing there again adds nothing and the caller can
-// skip walking its output chain.
-func (c *setCollector) addState(state int) bool {
-	if c.seenState != nil {
-		if _, done := c.seenState[int32(state)]; done { //nolint:gosec // G115: speed is packing-bounded; DAT state ids are int32.
-			return false
-		}
-		c.seenState[int32(state)] = struct{}{} //nolint:gosec // G115: as above.
-		return true
-	}
-
-	if slices.Contains(c.seenStates, int32(state)) { //nolint:gosec // G115: as above.
-		return false
-	}
-	c.seenStates = append(c.seenStates, int32(state)) //nolint:gosec // G115: as above.
-	if len(c.seenStates) > dedupLinearMax {
-		c.promote()
-	}
-	return true
-}
-
-// addKeyword records a single keyword. It is the entry point for engines that
-// report keywords without a state id (the generic matchString path).
-func (c *setCollector) addKeyword(kw string) {
-	if c.seen != nil {
-		if _, dup := c.seen[kw]; dup {
-			return
-		}
-		c.seen[kw] = struct{}{}
-		c.out = append(c.out, kw)
-		return
-	}
-	if slices.Contains(c.out, kw) {
-		return
-	}
-	if c.out == nil {
-		// Take the whole starting capacity at the first hit instead of letting
-		// append regrow 1,2,4,8, exactly as find does.
-		c.out = make([]string, 0, findResultHint)
-	}
-	c.out = append(c.out, kw)
-	if len(c.out) > dedupLinearMax {
-		c.promote()
-	}
-}
-
-// promote moves the linear state into hash maps once the match set is large enough
-// that rescanning it per hit costs more than hashing. out keeps its order.
-func (c *setCollector) promote() {
-	if c.seen != nil {
-		return
-	}
-	c.seen = make(map[string]struct{}, len(c.out)*2)
-	for _, kw := range c.out {
-		c.seen[kw] = struct{}{}
-	}
-	c.seenState = make(map[int32]struct{}, len(c.seenStates)*2)
-	for _, s := range c.seenStates {
-		c.seenState[s] = struct{}{}
-	}
-	c.seenStates = nil
-}
-
-// result returns the unique keywords in first-match order. Like Find it is never
-// nil, and a zero-length literal costs no allocation, so text that matched
-// nothing stays allocation-free.
-func (c *setCollector) result() []string {
-	if c.out == nil {
-		return []string{}
-	}
-	return c.out
-}
 
 // Engine is the exported handle to an in-memory Aho-Corasick match engine.
 // It wraps the preset-selected internal implementation so callers outside this
@@ -197,22 +87,7 @@ func (e *Engine) Contains(text string) bool {
 // appear" have to fold that into a set themselves. Doing it during the scan skips
 // the per-occurrence slice, which on match-dense text is most of the work.
 func (e *Engine) FindSet(text string) []string {
-	// An engine that can answer this without positions does so directly; the
-	// generic path below pays for a match span and a closure call per occurrence,
-	// all of which a set query throws away.
-	if sf, ok := e.impl.(setFinder); ok {
-		return sf.findSet(text)
-	}
-
-	// The collector stays unallocated until something matches: text matching nothing
-	// is the common case for a filter, and it should not pay for the bookkeeping of
-	// a hit that never happened.
-	var c setCollector
-	e.impl.matchString(text, func(keyword string, _, _ int) bool {
-		c.addKeyword(keyword)
-		return true
-	})
-	return c.result()
+	return e.impl.findSet(text)
 }
 
 // Stream pulls runes from next (rune-global offsets accumulate across calls) and

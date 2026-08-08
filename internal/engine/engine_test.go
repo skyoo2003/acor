@@ -133,13 +133,13 @@ func TestOutputStorageStaysLinear(t *testing.T) {
 		t.Run(fmt.Sprintf("%dkw", n), func(t *testing.T) {
 			se := newSpeedEngine()
 			se.buildFromKeywords(kws)
-			if got := countNonEmpty(se.own); got != n {
+			if got := countAssigned(se.out.own); got != n {
 				t.Errorf("speedEngine stored %d keyword entries, want %d", got, n)
 			}
 
 			be := newBalancedEngine(defaultBandDepth)
 			be.buildFromKeywords(kws)
-			if got := countNonEmpty(be.banded.dat.own); got != n {
+			if got := countAssigned(be.banded.dat.out.own); got != n {
 				t.Errorf("balancedEngine stored %d keyword entries, want %d", got, n)
 			}
 
@@ -159,10 +159,35 @@ func TestOutputStorageStaysLinear(t *testing.T) {
 	}
 }
 
-func countNonEmpty(own []string) int {
+// TestCollidingKeywordsCountOnce pins how distinct keywords that decode to the
+// same rune path land in the automaton. Invalid UTF-8 is an accepted input and
+// each invalid byte decodes to RuneError, so "\xff" and "\xfe" share one
+// terminal state: the last write wins and every preset counts one keyword.
+// Interning a second id for the same terminal would orphan a table entry and
+// skew Info().Keywords per preset.
+func TestCollidingKeywordsCountOnce(t *testing.T) {
+	kws := keywordSet("\xff", "\xfe")
+	for _, p := range allPresets {
+		t.Run(p.String(), func(t *testing.T) {
+			e := New(p)
+			e.Build(kws)
+			if got := e.Info().Keywords; got != 1 {
+				t.Errorf("Info().Keywords = %d, want 1", got)
+			}
+			// Which keyword wins depends on build iteration order; that it is
+			// exactly one of the two is the contract.
+			got := e.Find("\xff")
+			if len(got) != 1 || (got[0] != "\xff" && got[0] != "\xfe") {
+				t.Errorf("Find = %q, want exactly one of the colliding keywords", got)
+			}
+		})
+	}
+}
+
+func countAssigned(own []int32) int {
 	n := 0
-	for _, kw := range own {
-		if kw != "" {
+	for _, id := range own {
+		if id != 0 {
 			n++
 		}
 	}
