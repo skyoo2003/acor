@@ -10,6 +10,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/skyoo2003/acor/server/internal/httpx"
 )
 
 const (
@@ -31,27 +33,17 @@ func HTTPMiddleware(tracer *Tracer) func(http.Handler) http.Handler {
 			)
 			defer span.End()
 
-			wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+			wrapped := httpx.WrapResponseWriter(w)
 			next.ServeHTTP(wrapped, r.WithContext(ctx))
 
 			span.SetAttributes(
-				attribute.Int("http.status_code", wrapped.statusCode),
+				attribute.Int("http.status_code", wrapped.Status()),
 			)
-			if wrapped.statusCode >= errorStatusCodeThreshold {
-				span.SetStatus(codes.Error, http.StatusText(wrapped.statusCode))
+			if wrapped.Status() >= errorStatusCodeThreshold {
+				span.SetStatus(codes.Error, http.StatusText(wrapped.Status()))
 			} else {
 				span.SetStatus(codes.Ok, "")
 			}
 		})
 	}
-}
-
-type responseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (rw *responseWriter) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
 }
