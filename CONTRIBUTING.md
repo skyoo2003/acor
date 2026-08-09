@@ -54,8 +54,11 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 ### Prerequisites
 
 - Go >= 1.25 (CI builds and tests on 1.25 and 1.26)
-- Redis or Valkey (for integration tests). CI runs against `redis:8` and
-  `valkey/valkey:8`; older versions are untested rather than unsupported
+- Redis >= 3.0, or Valkey >= 7.2 (for integration tests) — the same floor stated in
+  [`README.md`](README.md) and the
+  [installation guide](docs/content/getting-started/installation.md). CI exercises
+  `redis:8` and `valkey/valkey:8` only, so anything older is supported but not
+  covered by a build
 - golangci-lint (for linting)
 - pre-commit (optional, for git hooks)
 
@@ -153,12 +156,14 @@ cover:
 
 | Target | What it gates |
 | ------------- | ------------------------------------------------------------- |
-| `docs-verify` | Compiles the Go examples in `README.md` and `docs/content/**`. A broken snippet fails the build |
+| `docs-verify` | Compiles the Go blocks in `README.md` and `docs/content/**` that opt in with a `<!-- doccheck -->` or `<!-- doccheck:server -->` marker — 22 of the 91 Go fences today. An unmarked block is never compiled, so add the marker when you add an example that should not be allowed to rot |
 | `api-check` | Rewrites `api/v1.txt` and fails on the diff, so an unrecorded change to the public API cannot merge. See [`api/README.md`](api/README.md) |
 | `tidy-check` | Runs `go mod tidy` across all three modules and fails on the diff. Not part of `all` — it runs as a pre-commit hook |
 
-`make setup` installs these as pre-commit hooks, so they run before the commit rather
-than in review.
+`make setup` installs `lint`, `test`, `build`, `tidy-check`, `license-check`, and
+`api-check` as pre-commit hooks, along with an SPDX-header check, so they run before the
+commit rather than in review. **`docs-verify` is not among them** — a broken example is
+caught by `make all` or by CI, not by the hook.
 
 ### Third-Party Notices
 
@@ -273,7 +278,10 @@ pre-fills it when you open the PR. It is deliberately not copied here: a second 
 a second thing to keep in sync, and this one had already drifted out of step with the
 template.
 
-`make all` runs every check on that list in one command.
+`make all` covers the automated entries on that list — tests, vet, lint, build, and the
+repository gates — in one command. The rest are judgement calls no target can make for
+you: whether the documentation needs updating, whether the change warrants a changelog
+fragment, and whether the commit messages read as they should.
 
 ## Questions?
 
