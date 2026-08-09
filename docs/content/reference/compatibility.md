@@ -201,6 +201,11 @@ left to be discovered:
   that shipped in `v1.4.0`. A non-`unaudited` verdict has to cite the `file:line`
   the behavior was read at, which is what stops a future pass from marking a line
   reviewed without reviewing it.
+
+  Those verdicts still describe the code as shipped. `v1.5.1` changed no entry of
+  the surface they were measured against: `git diff v1.5.0 v1.5.1 -- api/v1.txt` is
+  empty, and the release touched only `LICENSE`, `server/LICENSE`, and the changelog —
+  no Go file at all.
 - **Cross-version Redis interop.** Tests pin the key names and hash field names, so a
   *rename* fails CI. They do not run an older ACOR against a newer one's data, so
   additive-only is verified as far as naming and no further.

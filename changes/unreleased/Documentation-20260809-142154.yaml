@@ -1,0 +1,5 @@
+kind: Documentation
+body: Corrected the docs site's install instructions, which pinned `@v0.10.0` — a release predating both `v0.11.0`'s breaking changes and the entire `v1` line. A reader following the site instead of the README installed nine-month-old code. All four snippets now use `@latest`, matching `README.md`. Also recorded that `v1.5.1` changed no entry of the frozen `v1` surface (`git diff v1.5.0 v1.5.1 -- api/v1.txt` is empty), so the compatibility page's audit verdicts still describe the code as shipped, and de-hardcoded the release verification walkthrough so it stops naming a specific version.
+time: 2026-08-09T14:21:54.629932+09:00
+custom:
+    Issue: "224"
