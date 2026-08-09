@@ -1,0 +1,5 @@
+kind: Documentation
+body: 'The CLI now has its own section on the documentation site. Its usage — batch modes, the four matching shapes, the whole-word caveat for scripts without inter-word boundaries, parallel chunking, and preset selection — had been filed under a heading called `CLI Installation` on the Getting Started page, where a reader looking for the CLI had no reason to open it; that prose moved unchanged. The new section index adds what it never carried: the nineteen commands grouped by what they do, and the caveat already stated on the compatibility page that the CLI''s flags, output format, and exit codes sit outside the `v1` promise. The site''s landing page had also fallen behind the site: its hero named two of the three public entry points, and its card grid linked five of the seven sections. Both now match what the site contains.'
+time: 2026-08-09T22:10:35.80236+09:00
+custom:
+    Issue: "229"
