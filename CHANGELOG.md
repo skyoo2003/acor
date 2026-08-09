@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v1.5.1](https://github.com/skyoo2003/acor/releases/tag/v1.5.1) - 2026-08-09
+
+### Fixed
+
+* Restored the verbatim Apache-2.0 text in `LICENSE`, so pkg.go.dev detects the license instead of reporting `License: UNKNOWN` and hiding the package documentation behind "Documentation not displayed due to license restrictions". The committed text had drifted from the canonical wording in three places — `submitted to the Licensor`, `received by the Licensor`, and `excluding any notices` — and the `APPENDIX` section had been dropped. pkg.go.dev matches the file against a fixed pattern with `github.com/google/licensecheck`, so a single substituted word breaks the match and the coverage falls under the 75% threshold the site requires. `server/` is a separate module whose zip does not carry the parent directory's files, so it gets its own copy as a regular file: the module zip builder skips symlinks, and a link would have left that module unlicensed. Per-version license data is immutable, so v1.5.0 stays `UNKNOWN`; this takes effect from the next tag. ([#217](https://github.com/skyoo2003/acor/issues/217))
 ## [v1.5.0](https://github.com/skyoo2003/acor/releases/tag/v1.5.0) - 2026-08-09
 
 ### Added
@@ -38,6 +43,7 @@ All notable changes to this project will be documented in this file.
 
 * Documented the v1 compatibility promise: the exported API of `pkg/acor`, its documented behavior, sentinel error identity, and additive-only changes to the on-Redis V2 format are covered for every `v1.x.y` release, so mixed-version fleets stay safe during a rolling deploy. The CLI contract, the experimental `acor/server` module, and `internal/...` are excluded. Callers must construct option structs with field names and must not dot-import the package, and the five exported interfaces gain no methods within v1. ([#200](https://github.com/skyoo2003/acor/issues/200))
 * Rewrote the monitoring page to separate the core library from the experimental `server/` module, and documented how to read the new cache statistics, including why `Rebuilds` does not equal `Misses` and why `LastInvalidationLag` includes clock skew. ([#202](https://github.com/skyoo2003/acor/issues/202))
+
 ## [v0.11.0](https://github.com/skyoo2003/acor/releases/tag/v0.11.0) - 2026-08-05
 
 ### Added
