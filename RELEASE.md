@@ -171,11 +171,11 @@ release whose `go.mod` carries them. Two rules when editing this:
   actionable sentence.
 
 After tagging a release that carries the block, verify from a scratch module
-outside this repo:
+outside this repo, with `vX.Y.Z` standing for the tag just pushed:
 
 ```sh
-curl -s https://proxy.golang.org/github.com/skyoo2003/acor/@v/v1.5.0.info
-go list -m github.com/skyoo2003/acor@latest     # want v1.5.0
+curl -s https://proxy.golang.org/github.com/skyoo2003/acor/@v/vX.Y.Z.info
+go list -m github.com/skyoo2003/acor@latest     # want vX.Y.Z
 go list -m -versions github.com/skyoo2003/acor  # v1.0.0-v1.4.0 must be gone
 ```
 
