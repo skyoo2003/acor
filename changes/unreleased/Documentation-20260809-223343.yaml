@@ -1,0 +1,5 @@
+kind: Documentation
+body: The README no longer restates the documentation site's section index. Its `## Documentation` heading carried a seven-bullet list naming every site section with repo-relative paths, duplicating the seven cards on the site's landing page — and that duplicate had already drifted, pointing at a `#cli-installation` anchor that moved when the CLI got its own section. It is now one paragraph and one link to the site, merged with the pkg.go.dev sentence that followed it. Every removed target remains reachable from the landing page.
+time: 2026-08-09T22:33:43.059489+09:00
+custom:
+    Issue: "230"
