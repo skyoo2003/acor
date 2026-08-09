@@ -76,10 +76,16 @@ Every failure returns `{"error":"<message>"}` with `Content-Type: application/js
 | `400` | The body is not valid JSON | `{"error":"unexpected EOF"}` — the message comes from `encoding/json` and is not a stable string |
 | `400` | The body holds more than one JSON value | `{"error":"request body must contain only a single JSON value"}` |
 | `405` | Wrong method for the path | `{"error":"method not allowed"}` |
-| `413` | The body exceeds 1 MiB | `{"error":"request body must not be larger than 1048576 bytes"}` |
+| `413` | Reading the body reaches the 1 MiB cap | `{"error":"request body must not be larger than 1048576 bytes"}` |
 | `500` | Any error from the underlying collection | `{"error":"<the error's own text>"}` |
 | `404` | No such path | **`text/plain`**, body `404 page not found` |
 | `301` | The path needs canonicalizing (`/v1//info`) | **`text/html`**, Go's `Moved Permanently` page |
+
+The body is read as it is decoded, so whichever fault surfaces first is the one you get. A
+body over 1 MiB that is *also* malformed comes back as the `400`, because the decoder
+reaches the bad byte before the reader reaches the cap. `413` means the cap is what stopped
+it, not that every oversized body is reported that way — nothing short of reading the whole
+body could promise the latter, and reading it is what the cap exists to avoid.
 
 Two of these deserve more than a table row.
 

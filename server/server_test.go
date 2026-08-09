@@ -574,20 +574,34 @@ func TestHTTPHandlerRejectsOversizedBodies(t *testing.T) {
 }
 
 func TestHTTPHandlerRejectsTrailingJSONValue(t *testing.T) {
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/add",
-		strings.NewReader(`{"keyword":"x"}{"keyword":"y"}`))
-	NewHTTPHandler(&fakeService{}).ServeHTTP(rec, req)
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"second_json_value", `{"keyword":"x"}{"keyword":"y"}`},
+		// Oversized, but the decoder reaches the bad byte before the reader
+		// reaches the cap, so the trailing-content error wins over the 413.
+		{"malformed_trailing_content_past_the_cap", `{"keyword":"x"}x` + strings.Repeat(" ", maxRequestBodyBytes)},
+	}
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected status 400, got %d", rec.Code)
-	}
-	var body ErrorResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		t.Fatal(err)
-	}
-	if body.Error != "request body must contain only a single JSON value" {
-		t.Fatalf("unexpected error %q", body.Error)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/add",
+				strings.NewReader(tt.body))
+			NewHTTPHandler(&fakeService{}).ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected status 400, got %d", rec.Code)
+			}
+			var body ErrorResponse
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if body.Error != "request body must contain only a single JSON value" {
+				t.Fatalf("unexpected error %q", body.Error)
+			}
+		})
 	}
 }
 
