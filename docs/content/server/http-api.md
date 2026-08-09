@@ -99,6 +99,9 @@ Both are rejected and neither reaches the collection, so this is a reporting inc
 rather than a hole in the cap. Do not write a client that branches on `413` to detect
 "too large".
 
+Tracked as [#226](https://github.com/skyoo2003/acor/issues/226); this section goes away when
+both branches report `413`.
+
 ### Every collection error is a `500`
 
 There is no error taxonomy. The handler passes any non-nil error from the collection
