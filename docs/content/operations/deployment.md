@@ -142,7 +142,9 @@ services:
 
 > `server/health` belongs to the experimental `acor/server` module, which is
 > versioned separately and not covered by the core compatibility promise. See
-> [Monitoring](../monitoring/) for what that means for your `go.mod`.
+> [Server](../../server/) for what that means for your `go.mod`, and
+> [Running a Server](../../server/running/) for this wiring alongside the HTTP
+> and gRPC APIs.
 
 The `server/health` package registers Kubernetes-compatible endpoints on an
 `http.ServeMux`:
@@ -151,6 +153,7 @@ The `server/health` package registers Kubernetes-compatible endpoints on an
 - `/readyz` — readiness; runs every registered `Checker` and returns `503` if
   any checker reports as unhealthy.
 
+<!-- doccheck:server -->
 ```go
 package main
 

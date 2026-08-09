@@ -56,4 +56,8 @@ func main() {
     <strong>Operations</strong>
     <span>Deploy, monitor, and troubleshoot ACOR.</span>
   </a>
+  <a class="doc-card" href="server/">
+    <strong>Server</strong>
+    <span>Serve a collection over HTTP or gRPC.</span>
+  </a>
 </div>
