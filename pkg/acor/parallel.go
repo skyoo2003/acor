@@ -5,7 +5,7 @@ package acor
 import (
 	"context"
 	"runtime"
-	"sort"
+	"slices"
 	"unicode"
 
 	"golang.org/x/sync/errgroup"
@@ -223,7 +223,7 @@ func mergeIndexResults(chunks []chunk, perChunk []map[string][]int) map[string][
 		for idx := range indices {
 			sorted = append(sorted, idx)
 		}
-		sort.Ints(sorted)
+		slices.Sort(sorted)
 		result[keyword] = sorted
 	}
 	return result

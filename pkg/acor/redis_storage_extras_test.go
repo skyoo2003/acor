@@ -5,79 +5,10 @@ package acor
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 )
-
-func TestRedisStorageSetNX(t *testing.T) {
-	const testValue = "value"
-
-	mr := miniredis.RunT(t)
-	defer mr.Close()
-
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer func() { _ = client.Close() }()
-
-	store := newRedisStorage(client)
-	ctx := context.Background()
-
-	t.Run("sets new key successfully", func(t *testing.T) {
-		ok, err := store.SetNX(ctx, "test-key", testValue, 10*time.Second)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !ok {
-			t.Fatal("expected SetNX to return true for new key")
-		}
-
-		got, err := store.Get(ctx, "test-key")
-		if err != nil {
-			t.Fatalf("Get() error: %v", err)
-		}
-		if got != testValue {
-			t.Errorf("Get() = %q, want %q", got, testValue)
-		}
-	})
-
-	t.Run("returns false when key already exists", func(t *testing.T) {
-		ok, err := store.SetNX(ctx, "test-key", "value2", 10*time.Second)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if ok {
-			t.Fatal("expected SetNX to return false for existing key")
-		}
-
-		got, err := store.Get(ctx, "test-key")
-		if err != nil {
-			t.Fatalf("Get() error: %v", err)
-		}
-		if got != testValue {
-			t.Errorf("Get() = %q, want %q", got, testValue)
-		}
-	})
-
-	t.Run("succeeds after key expires", func(t *testing.T) {
-		mr.FastForward(11 * time.Second)
-		ok, err := store.SetNX(ctx, "test-key", "value3", 10*time.Second)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !ok {
-			t.Fatal("expected SetNX to return true after expiration")
-		}
-
-		got, err := store.Get(ctx, "test-key")
-		if err != nil {
-			t.Fatalf("Get() error: %v", err)
-		}
-		if got != "value3" {
-			t.Errorf("Get() = %q, want %q", got, "value3")
-		}
-	})
-}
 
 func TestRedisPipelinerDel(t *testing.T) {
 	mr := miniredis.RunT(t)
@@ -89,10 +20,10 @@ func TestRedisPipelinerDel(t *testing.T) {
 	ctx := context.Background()
 
 	store := newRedisStorage(client)
-	if err := store.Set(ctx, "key1", "val1"); err != nil {
+	if err := client.Set(ctx, "key1", "val1", 0).Err(); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Set(ctx, "key2", "val2"); err != nil {
+	if err := client.Set(ctx, "key2", "val2", 0).Err(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -268,7 +199,7 @@ func TestRedisStorageExists(t *testing.T) {
 		t.Errorf("expected 0 existing, got %d", count)
 	}
 
-	if setErr := store.Set(ctx, "key1", "val"); setErr != nil {
+	if setErr := client.Set(ctx, "key1", "val", 0).Err(); setErr != nil {
 		t.Fatal(setErr)
 	}
 

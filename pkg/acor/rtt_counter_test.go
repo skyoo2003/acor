@@ -6,7 +6,6 @@ import (
 	"context"
 	"sync/atomic"
 	"testing"
-	"time"
 )
 
 // Round-trip counting for the performance claims published in README.md and
@@ -81,16 +80,6 @@ func countRTT(tb testing.TB, ac *AhoCorasick) *rttCounter {
 type countingStorage struct {
 	inner kvStorage
 	c     *rttCounter
-}
-
-func (s *countingStorage) Get(ctx context.Context, key string) (string, error) {
-	s.c.add()
-	return s.inner.Get(ctx, key)
-}
-
-func (s *countingStorage) Set(ctx context.Context, key string, value interface{}) error {
-	s.c.add()
-	return s.inner.Set(ctx, key, value)
 }
 
 func (s *countingStorage) HGetAll(ctx context.Context, key string) (map[string]string, error) {
@@ -173,11 +162,6 @@ func (s *countingStorage) Exists(ctx context.Context, keys ...string) (int64, er
 func (s *countingStorage) TxPipelined(ctx context.Context, fn func(pipeliner) error) error {
 	s.c.add()
 	return s.inner.TxPipelined(ctx, fn)
-}
-
-func (s *countingStorage) SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error) {
-	s.c.add()
-	return s.inner.SetNX(ctx, key, value, expiration)
 }
 
 // Pipeline buffers locally and costs nothing until Exec, which is where the

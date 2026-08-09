@@ -54,7 +54,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -261,7 +260,7 @@ func auditProblems(entries []string, path string, roots []string) (tally map[str
 			problems = append(problems, fmt.Sprintf("%s: %q is not in %s; the entry was removed or the line is misspelled", path, entry, snapFile))
 		}
 	}
-	sort.Strings(problems)
+	slices.Sort(problems)
 	return tally, problems
 }
 
@@ -301,7 +300,7 @@ func snapshot(dir string) ([]string, error) {
 		lines = append(lines, declLines(f)...)
 	}
 
-	sort.Strings(lines)
+	slices.Sort(lines)
 	return dedupe(lines), nil
 }
 

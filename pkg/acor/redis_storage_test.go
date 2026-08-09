@@ -39,21 +39,6 @@ func TestRedisStorageOperations(t *testing.T) {
 	storage := newRedisStorage(client)
 	ctx := context.Background()
 
-	t.Run("Set and Get", func(t *testing.T) {
-		err := storage.Set(ctx, "key", "value")
-		if err != nil {
-			t.Fatalf("Set() error = %v", err)
-		}
-
-		got, err := storage.Get(ctx, "key")
-		if err != nil {
-			t.Fatalf("Get() error = %v", err)
-		}
-		if got != "value" {
-			t.Errorf("Get() = %q, want %q", got, "value")
-		}
-	})
-
 	t.Run("SAdd and SMembers", func(t *testing.T) {
 		err := storage.SAdd(ctx, "set", "member1", "member2")
 		if err != nil {
@@ -100,7 +85,7 @@ func TestRedisStorageOperations(t *testing.T) {
 	})
 
 	t.Run("Del", func(t *testing.T) {
-		err := storage.Set(ctx, "delkey", "value")
+		err := client.Set(ctx, "delkey", "value", 0).Err()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -110,7 +95,7 @@ func TestRedisStorageOperations(t *testing.T) {
 			t.Fatalf("Del() error = %v", err)
 		}
 
-		_, err = storage.Get(ctx, "delkey")
+		_, err = client.Get(ctx, "delkey").Result()
 		if err == nil {
 			t.Error("Get() should fail for deleted key")
 		}
