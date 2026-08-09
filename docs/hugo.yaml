@@ -39,6 +39,9 @@ menu:
     - name: Server
       url: /server/
       weight: 5
+    - name: CLI
+      url: /cli/
+      weight: 6
     - name: Extending
       url: /extending/
-      weight: 6
+      weight: 7
