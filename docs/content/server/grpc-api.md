@@ -51,6 +51,11 @@ message MatchIndexesResponse {
 
 A Go client reads `resp.GetMatches()["redis"].GetPositions()`.
 
+**Positions are rune offsets, not byte offsets**, and `SuggestIndex` always answers `[0]`
+because it matches the input as a prefix rather than searching for it. Both behaviors come
+from the collection, not the transport, so they are identical on both surfaces —
+[the HTTP page works through them with examples](../http-api/).
+
 ## Errors
 
 Every error from the collection becomes `codes.Internal` with the error's own text as the
@@ -74,7 +79,20 @@ There is no `buf.yaml` or `protoc` configuration in this repository. Two options
   ```
 
 - **Other languages** run their own `protoc`/`buf` against `acor.proto`. It has no imports
-  beyond proto3 itself, so a bare `protoc --<lang>_out` on the single file is enough.
+  beyond proto3 itself, so the single file is the whole input — but `--<lang>_out` alone
+  generates only the **message** types. The service stub needs that language's gRPC plugin
+  as a second output flag:
+
+  ```sh
+  # Python: --python_out gives acor_pb2.py only; the stub needs grpcio-tools.
+  python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. acor.proto
+
+  # C++/Java/etc. take the plugin the same way:
+  protoc -I. --cpp_out=. --grpc_out=. --plugin=protoc-gen-grpc=$(which grpc_cpp_plugin) acor.proto
+  ```
+
+  Omit the gRPC flag and you get the eight request/response messages with nothing able to
+  call the eight RPCs.
 
 ## Constructors
 
@@ -104,10 +122,16 @@ Passing `Health` registers the standard `grpc.health.v1.Health` service, so
 `grpc_health_probe` and Kubernetes gRPC probes work without extra code. Behavior worth
 knowing before you set a probe interval:
 
-- **Status is polled, not computed per request**, every 5 seconds. An HTTP `/readyz` probe
-  runs your checkers on each request; a gRPC health probe reads the last poll. Expect up to
-  five seconds of staleness, and do not set a probe period shorter than that expecting
-  finer resolution.
+- **Status is polled, not computed per request.** An HTTP `/readyz` probe runs your checkers
+  on each request; a gRPC health probe reads whatever the last poll left behind. Probing
+  more often than every 5 seconds buys no extra resolution.
+- **The 5-second tick is not a staleness bound.** The poller calls `checker.Check()`
+  inline, so the clock for the next tick effectively starts when the previous check
+  *returns*. A checker that takes 30 seconds makes the status at least that stale, and one
+  that hangs makes it stale indefinitely — the same blocked goroutine also cannot act on
+  context cancellation, so shutdown stops marking the server `NOT_SERVING`. Give every
+  checker its own deadline; the example in [Running a Server](../running/) uses a
+  2-second `context.WithTimeout` for exactly this reason.
 - **Both the overall server (`""`) and `acor.server.v1.Acor` are tracked**, and they carry
   the same status.
 - **A nil checker reports `SERVING`** — an unconfigured health service is indistinguishable

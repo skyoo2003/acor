@@ -49,12 +49,21 @@ import (
 	"github.com/skyoo2003/acor/server/health"
 )
 
-// redisChecker reports whether the collection can still reach Redis. Info() is
-// the cheapest call that does real I/O, which is what readiness has to prove.
+// redisChecker reports whether the collection can still reach Redis.
+//
+// Info() is the only exported call that proves the Redis path works, but it is
+// not free: on V2 it HGETALLs the trie hash and unmarshals the whole keyword
+// and prefix arrays just to count them, so its cost grows with the dictionary.
+// See "Readiness costs what Info() costs" below before pointing a probe at it.
+//
+// The timeout is not tidiness. Check() runs inline in both probe paths, so a
+// checker that blocks blocks the prober.
 type redisChecker struct{ ac *acor.AhoCorasick }
 
 func (c redisChecker) Check() health.CheckResult {
-	if _, err := c.ac.Info(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := c.ac.InfoContext(ctx); err != nil {
 		return health.CheckResult{Status: health.StatusUnhealthy, Details: err.Error()}
 	}
 	return health.CheckResult{Status: health.StatusHealthy}
@@ -79,9 +88,15 @@ func main() {
 	mux.Handle("/", server.NewHTTPHandler(ac)) // /v1/*
 
 	srv := &http.Server{
-		Addr:              ":8080",
-		Handler:           mux,
+		Addr:    ":8080",
+		Handler: mux,
+		// ReadHeaderTimeout alone leaves the body unbounded in time: a client
+		// that sends good headers and then trickles bytes holds a goroutine
+		// indefinitely. The 1 MiB cap bounds size, not duration.
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	go func() {
@@ -138,6 +153,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/skyoo2003/acor/pkg/acor"
 	"github.com/skyoo2003/acor/server"
@@ -188,7 +204,20 @@ func main() {
 
 	go func() {
 		<-ctx.Done()
-		srv.GracefulStop()
+		// GracefulStop waits for every in-flight RPC with no deadline, and
+		// grpc.health.v1.Watch is a stream that stays open: the health server's
+		// Shutdown only pushes NOT_SERVING to watchers, it does not close them.
+		// One connected watcher would otherwise block shutdown forever.
+		stopped := make(chan struct{})
+		go func() {
+			srv.GracefulStop()
+			close(stopped)
+		}()
+		select {
+		case <-stopped:
+		case <-time.After(15 * time.Second):
+			srv.Stop()
+		}
 	}()
 
 	log.Println("gRPC listening on", lis.Addr())
@@ -205,6 +234,31 @@ same server with no observability at all.
 Prometheus metrics registered here are *collected* but not *exposed* — gRPC has no
 `/metrics` endpoint. Serve `promhttp.Handler()` on a separate HTTP listener; see
 [Operations → Monitoring](../../operations/monitoring/).
+
+## Readiness costs what `Info()` costs
+
+`Info()` is the only exported call that touches Redis and returns quickly *on a small
+collection*, which is why it is the readiness check here. It is not a ping. On the default
+V2 schema it runs `HGETALL` against the trie hash and JSON-unmarshals the complete keyword
+and prefix arrays in order to return their two lengths, so its cost and its allocations
+scale with the whole dictionary.
+
+Two things multiply that:
+
+- **`/readyz` runs the checkers on every request**, and it is unauthenticated.
+- **The gRPC health poller runs them every 5 seconds**, whether or not anyone is probing.
+
+On a large dictionary that is significant Redis traffic and garbage, generated hardest
+exactly when the service is already struggling. If that describes your collection, check
+liveness with a direct `redis.Client.Ping` against the same address instead — that is a
+`PING`, not a dictionary scan — and accept that it proves connectivity rather than
+collection health.
+
+The 2-second timeout is load-bearing either way. `HealthChecker.Check` calls every
+registered checker inline, and the gRPC poller calls `Check` inline on its ticker, so one
+checker that hangs stalls every later poll **and** the poller's response to context
+cancellation. A checker without its own deadline turns a slow Redis into a stuck health
+service.
 
 ## What you still have to decide
 

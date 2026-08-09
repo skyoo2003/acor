@@ -6,8 +6,9 @@ weight: 2
 # HTTP API
 
 `server.NewHTTPHandler(service)` returns an `http.Handler` serving nine routes. Every
-response is JSON with `Content-Type: application/json`, with exactly one exception noted
-under [Errors](#errors).
+response the handler itself produces is JSON with `Content-Type: application/json`; the
+exceptions are the two `ServeMux`-level responses noted under
+[Not every response is JSON](#not-every-response-is-json).
 
 > **The `acor/server` module is experimental.** These paths and shapes are **not covered by
 > the core module's compatibility promise** and can change in any release. See the
@@ -25,13 +26,40 @@ See [Running a Server](../running/) for the `main` that mounts this handler.
 | `POST` | `/v1/find` | `{"input":"..."}` | `{"matches":["..."]}` |
 | `POST` | `/v1/find-index` | `{"input":"..."}` | `{"matches":{"kw":[0,12]}}` |
 | `POST` | `/v1/suggest` | `{"input":"..."}` | `{"matches":["..."]}` |
-| `POST` | `/v1/suggest-index` | `{"input":"..."}` | `{"matches":{"kw":[0,12]}}` |
+| `POST` | `/v1/suggest-index` | `{"input":"..."}` | `{"matches":{"kw":[0]}}` — always `[0]`, see below |
 | `GET` | `/v1/info` | — | `{"keywords":3,"nodes":7}` |
 | `POST` | `/v1/flush` | — | `{"status":"ok"}` |
 
 `count` is how many keywords the operation actually changed, so a second `add` of the same
-keyword answers `{"count":0}`. In `*-index`, each value is the list of **start offsets** at
-which that keyword matched.
+keyword answers `{"count":0}`.
+
+### Offsets are rune offsets, and the two `*-index` routes do not mean the same thing
+
+`/v1/find-index` returns, per keyword, the positions where it matched. Those positions are
+counted in **runes, not bytes**:
+
+```sh
+curl -sX POST localhost:8080/v1/find-index -d '{"input":"한글 레디스 and redis"}'
+# {"matches":{"redis":[11],"레디스":[3]}}
+```
+
+`레디스` starts at byte 10 and rune 3; `redis` starts at byte 20 and rune 11. The response
+gives 3 and 11. A client that slices the original string by these numbers must count
+runes — Go `[]rune`, Python `str` indices, Rust `chars()`. JavaScript needs care in both
+directions, because its string indices are UTF-16 code units: `[...s]` gives code points,
+and anything outside the BMP counts as two units under `.slice()`.
+
+`/v1/suggest-index` looks like the same shape but is not. `Suggest` matches the input as a
+*prefix* of each keyword, so every match starts at the beginning by construction and the
+implementation assigns exactly `[0]` to every suggestion. It never reports a second
+position:
+
+```sh
+curl -sX POST localhost:8080/v1/suggest-index -d '{"input":"red"}'
+# {"matches":{"redis":[0]}}
+```
+
+Treat it as "these keywords start with your input", not as a position list.
 
 `/v1/flush` takes no request body and does not read one if you send it. It deletes every
 key in the collection.
@@ -48,11 +76,28 @@ Every failure returns `{"error":"<message>"}` with `Content-Type: application/js
 | `400` | The body is not valid JSON | `{"error":"unexpected EOF"}` — the message comes from `encoding/json` and is not a stable string |
 | `400` | The body holds more than one JSON value | `{"error":"request body must contain only a single JSON value"}` |
 | `405` | Wrong method for the path | `{"error":"method not allowed"}` |
-| `413` | Body larger than 1 MiB | `{"error":"request body must not be larger than 1048576 bytes"}` |
+| `413` | The **first** JSON value in the body exceeds 1 MiB | `{"error":"request body must not be larger than 1048576 bytes"}` |
 | `500` | Any error from the underlying collection | `{"error":"<the error's own text>"}` |
 | `404` | No such path | **`text/plain`**, body `404 page not found` |
+| `301` | The path needs canonicalizing (`/v1//info`) | **`text/html`**, Go's `Moved Permanently` page |
 
-Two of these deserve more than a table row.
+Three of these deserve more than a table row.
+
+### `413` is not guaranteed for every oversized body
+
+The size cap is applied by `http.MaxBytesReader`, but the handler only translates
+`*http.MaxBytesError` into a `413` on the **first** decode. It then does a second decode to
+reject trailing content, and that branch reports only the generic single-value error. So
+whether an oversized body is a `413` or a `400` depends on *where* it crosses the line:
+
+| Body | Status |
+| ---- | ------ |
+| A single JSON value larger than 1 MiB | `413` |
+| A small JSON value followed by padding that pushes the total past 1 MiB | `400 request body must contain only a single JSON value` |
+
+Both are rejected and neither reaches the collection, so this is a reporting inconsistency
+rather than a hole in the cap. Do not write a client that branches on `413` to detect
+"too large".
 
 ### Every collection error is a `500`
 
@@ -63,13 +108,27 @@ error — comes back as `500 {"error":"v1 collection is read-only"}`, not as a `
 
 If your client needs to tell "retry this" from "fix your request", it has to match on the
 message text, and message text is not part of any promise. Treat `5xx` here as
-*something went wrong*, not as *the server is unhealthy*, and use `/readyz` for the latter.
+*something went wrong*, not as *the server is unhealthy*.
 
-### The 404 is the only non-JSON response
+For the latter, use `/readyz` — but note that **`/readyz` is not part of this handler**.
+`NewHTTPHandler` and `NewHTTPServer` register only the routes in the table above, so
+requesting `/readyz` from either gets the `404`. The route exists only if you mount
+`health.RegisterHTTPHandlers` on an outer mux yourself, as
+[Running a Server](../running/) does.
 
-An unmatched path is answered by Go's `http.ServeMux` default, not by ACOR, so it is
-`text/plain` and its body is `404 page not found`. A client that unconditionally parses
-responses as JSON will fail on a typo'd path in a way it will not fail on any other error.
+### Not every response is JSON
+
+Two cases are answered by Go's `http.ServeMux` before ACOR's handler sees them, and neither
+is JSON:
+
+- **`404 page not found`** — `text/plain`, for a path that matches nothing.
+- **`301 Moved Permanently`** — `text/html`, for a path that needs canonicalizing.
+  `/v1//info`, `/v1/./info`, and `/v1/../v1/info` all redirect to `/v1/info`.
+
+A client that unconditionally parses responses as JSON breaks on both. The redirect is the
+worse of the two: a client that follows redirects automatically may downgrade the `POST`
+to a `GET` and then receive a `405`, turning a doubled slash into a confusing method error.
+Normalize paths before sending.
 
 ## What the server does not check
 
