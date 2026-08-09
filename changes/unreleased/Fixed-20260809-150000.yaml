@@ -1,5 +1,0 @@
-kind: Fixed
-body: 'The observability HTTP middlewares no longer misreport which optional interfaces a handler''s `http.ResponseWriter` supports. All three — logging, metrics, and tracing — wrap the writer to record the status code a handler wrote, and each carried its own copy of that wrapper. Wrapping hides the optional interfaces the original satisfied, so a handler doing `w.(http.Flusher)` saw the wrapper instead. The copies had drifted: logging and metrics forwarded `Hijack` and `Flush` unconditionally, tracing not at all, so with tracing enabled server-sent events stopped flushing and a websocket upgrade failed outright. Unconditional forwarding is the opposite error — HTTP/2 has no `Hijack`, so the assertion succeeded and the call then failed. The three copies are now one in `server/internal/httpx`, which forwards only what the writer underneath actually implements and exposes `Unwrap` so `http.ResponseController` reaches the rest. `server/internal/` is import-restricted to the server module, so no exported symbol changed.'
-time: 2026-08-09T15:00:00.000000+09:00
-custom:
-    Issue: "222"
