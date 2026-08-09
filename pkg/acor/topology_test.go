@@ -278,7 +278,7 @@ func TestStorageAdapterMethods(t *testing.T) {
 	})
 
 	t.Run("Exists", func(t *testing.T) {
-		_ = storage.Set(ctx, "existskey", "value")
+		_ = client.Set(ctx, "existskey", "value", 0).Err()
 		count, err := storage.Exists(ctx, "existskey")
 		if err != nil {
 			t.Errorf("Exists() error: %v", err)
@@ -320,13 +320,13 @@ func TestStorageDel(t *testing.T) {
 	storage := newRedisStorage(client)
 	ctx := context.Background()
 
-	_ = storage.Set(ctx, "delkey", "value")
+	_ = client.Set(ctx, "delkey", "value", 0).Err()
 
 	if delErr := storage.Del(ctx, "delkey"); delErr != nil {
 		t.Errorf("Del() error: %v", delErr)
 	}
 
-	_, err = storage.Get(ctx, "delkey")
+	_, err = client.Get(ctx, "delkey").Result()
 	if err == nil {
 		t.Error("Get() should fail for deleted key")
 	}

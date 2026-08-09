@@ -2,10 +2,7 @@
 
 package acor
 
-import (
-	"context"
-	"time"
-)
+import "context"
 
 // zMember represents a sorted set member with score, compatible with Redis ZSET operations.
 type zMember struct {
@@ -30,10 +27,6 @@ type zMember struct {
 //
 // All operations accept a context for cancellation and timeout support.
 type kvStorage interface {
-	// Get retrieves a string value by key. Returns redis.Nil error if key doesn't exist.
-	Get(ctx context.Context, key string) (string, error)
-	// Set stores a value at the given key with no expiration.
-	Set(ctx context.Context, key string, value interface{}) error
 	// HGetAll retrieves all field-value pairs from a hash.
 	HGetAll(ctx context.Context, key string) (map[string]string, error)
 	// HSet sets multiple field-value pairs in a hash.
@@ -66,8 +59,6 @@ type kvStorage interface {
 	Exists(ctx context.Context, keys ...string) (int64, error)
 	// TxPipelined executes commands in a transaction pipeline.
 	TxPipelined(ctx context.Context, fn func(pipeliner) error) error
-	// SetNX sets a value only if the key does not exist. Returns true if the key was set.
-	SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error)
 	// Pipeline returns a non-transactional pipeline for batching commands.
 	Pipeline() pipeliner
 	// Publish sends a message to a pub/sub channel.

@@ -11,6 +11,22 @@ import (
 	"unicode/utf8"
 )
 
+// stringRuneSource adapts a string to the rune-pull source matchStream expects.
+// strings.Reader.ReadRune decodes exactly like a range loop (invalid UTF-8 yields
+// RuneError), which makes it useful for testing Stream against a string. The match
+// entry points deliberately do not route through it: that indirect call per rune is
+// what matchString exists to avoid, so it lives here rather than beside Engine.
+func stringRuneSource(s string) func() (rune, bool) {
+	rd := strings.NewReader(s)
+	return func() (rune, bool) {
+		r, _, err := rd.ReadRune()
+		if err != nil {
+			return 0, false
+		}
+		return r, true
+	}
+}
+
 // match is the test's own record of what MatchString emitted. The engine reports a
 // keyword and its span as arguments and declares no match type of its own — that
 // type belongs to the public acor package.

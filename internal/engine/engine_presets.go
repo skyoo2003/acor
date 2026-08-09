@@ -14,6 +14,9 @@ func newMatchEngine(preset Preset) matchEngine {
 		return newSpeedEngine()
 	case PresetMemoryEfficient:
 		return newMemEfficientEngine()
+	// Listed explicitly rather than folded into default: the exhaustive linter
+	// requires every Preset value to appear. default then covers only values no
+	// Preset constant names, for which Balanced is the documented fallback.
 	case PresetNone, PresetBalanced, PresetDefault:
 		return newBalancedEngine(defaultBandDepth)
 	default:

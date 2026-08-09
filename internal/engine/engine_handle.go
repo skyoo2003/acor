@@ -2,10 +2,6 @@
 
 package engine
 
-import (
-	"strings"
-)
-
 // container is the optional specialization behind Engine.Contains. Routing a
 // presence check through matchString was the most expensive of the cheap
 // operations: it missed the byte-scan fast path on ASCII text and reported a match
@@ -95,22 +91,6 @@ func (e *Engine) FindSet(text string) []string {
 // It lets callers scan an io.Reader without materializing the whole input.
 func (e *Engine) Stream(next func() (rune, bool), emit func(keyword string, start, end int) bool) {
 	e.impl.matchStream(next, emit)
-}
-
-// stringRuneSource adapts a string to the rune-pull source matchStream expects.
-// strings.Reader.ReadRune decodes exactly like a range loop (invalid UTF-8 yields
-// RuneError), which makes it useful for testing Stream against a string. The match
-// entry points no longer route through it: that indirect call per rune is what
-// matchString exists to avoid.
-func stringRuneSource(s string) func() (rune, bool) {
-	rd := strings.NewReader(s)
-	return func() (rune, bool) {
-		r, _, err := rd.ReadRune()
-		if err != nil {
-			return 0, false
-		}
-		return r, true
-	}
 }
 
 // Info returns statistics about the built automaton.

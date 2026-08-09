@@ -39,6 +39,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -47,7 +48,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -243,7 +244,7 @@ func modules() ([]module, error) {
 	}
 	mods = append(mods, goMod)
 
-	sort.Slice(mods, func(i, j int) bool { return mods[i].path < mods[j].path })
+	slices.SortFunc(mods, func(a, b module) int { return cmp.Compare(a.path, b.path) })
 	return mods, nil
 }
 

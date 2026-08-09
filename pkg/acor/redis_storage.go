@@ -5,7 +5,6 @@ package acor
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -17,14 +16,6 @@ type redisStorage struct {
 // newRedisStorage returns a kvStorage backed by the given Redis client.
 func newRedisStorage(client redis.UniversalClient) kvStorage {
 	return &redisStorage{client: client}
-}
-
-func (s *redisStorage) Get(ctx context.Context, key string) (string, error) {
-	return s.client.Get(ctx, key).Result()
-}
-
-func (s *redisStorage) Set(ctx context.Context, key string, value interface{}) error {
-	return s.client.Set(ctx, key, value, 0).Err()
 }
 
 func (s *redisStorage) HGetAll(ctx context.Context, key string) (map[string]string, error) {
@@ -96,10 +87,6 @@ func (s *redisStorage) TxPipelined(ctx context.Context, fn func(pipeliner) error
 		return fn(&redisPipeliner{pipe: pipe})
 	})
 	return err
-}
-
-func (s *redisStorage) SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error) {
-	return s.client.SetNX(ctx, key, value, expiration).Result()
 }
 
 func (s *redisStorage) Pipeline() pipeliner {

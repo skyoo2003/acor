@@ -1,0 +1,5 @@
+kind: Changed
+body: 'Dropped three unreachable methods from the internal `kvStorage` seam — `Get`, `Set`, and `SetNX` — along with their `redisStorage` implementations. No production path called any of them: `MigrateV1ToV2` takes its lock through `redisClient.SetNX` directly, so the seam''s copy was never on a code path, and `Get`/`Set` only ever appeared in tests exercising themselves. The tests that used them as fixture setup now write through the go-redis client they already hold, so what they assert (`Del`, `Exists`) is unchanged. `kvStorage` is unexported and was withdrawn from the public surface before v1.5.0 froze it, so `api/v1.txt` is untouched. Also moved `stringRuneSource` into the engine test file that is its only caller, and replaced the deprecated `sort.Ints`/`sort.Strings`/`sort.Slice` with `slices.Sort`/`slices.SortFunc`; the generated `api/v1.txt` and `NOTICE` come back byte-identical.'
+time: 2026-08-09T13:00:00.000000+09:00
+custom:
+    Issue: "220"
