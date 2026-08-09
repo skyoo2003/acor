@@ -376,43 +376,41 @@ func parseArgs(args []string) (*acor.AhoCorasickArgs, *commandOptions, []string,
 	}, commandOpts, fs.Args(), nil
 }
 
-func parsePreset(raw string) (acor.Preset, error) {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "none":
-		return acor.PresetNone, nil
-	case "speed":
-		return acor.PresetSpeed, nil
-	case "balanced":
-		return acor.PresetBalanced, nil
-	case "memory-efficient":
-		return acor.PresetMemoryEfficient, nil
-	default:
-		return acor.PresetNone, fmt.Errorf("unknown preset %q", raw)
+// The string-valued flags each map onto a library enum. The names live in maps
+// rather than in four switch statements that differed only in which enum they
+// returned and which word the error used.
+var (
+	presetNames = map[string]acor.Preset{
+		"none":             acor.PresetNone,
+		"speed":            acor.PresetSpeed,
+		"balanced":         acor.PresetBalanced,
+		"memory-efficient": acor.PresetMemoryEfficient,
 	}
-}
+	batchModeNames = map[string]acor.BatchMode{
+		"best-effort":   acor.BatchModeBestEffort,
+		"transactional": acor.BatchModeTransactional,
+	}
+	boundaryNames = map[string]acor.ChunkBoundary{
+		"word":     acor.ChunkBoundaryWord,
+		"sentence": acor.ChunkBoundarySentence,
+		"line":     acor.ChunkBoundaryLine,
+	}
+	matchKindNames = map[string]acor.MatchKind{
+		"overlapping":      acor.MatchKindOverlapping,
+		"leftmost-longest": acor.MatchKindLeftmostLongest,
+	}
+)
 
-func parseBatchMode(raw string) (acor.BatchMode, error) {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "best-effort":
-		return acor.BatchModeBestEffort, nil
-	case "transactional":
-		return acor.BatchModeTransactional, nil
-	default:
-		return acor.BatchModeBestEffort, fmt.Errorf("unknown batch mode %q", raw)
+// parseEnum resolves one flag value against its name table. what is the noun the
+// error uses, so an unknown value reads as "unknown preset \"quick\"" rather than
+// naming the Go type. An unparseable value returns the zero enum, which every
+// caller discards along with the error.
+func parseEnum[T any](raw, what string, names map[string]T) (T, error) {
+	if v, ok := names[strings.ToLower(strings.TrimSpace(raw))]; ok {
+		return v, nil
 	}
-}
-
-func parseBoundary(raw string) (acor.ChunkBoundary, error) {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "word":
-		return acor.ChunkBoundaryWord, nil
-	case "sentence":
-		return acor.ChunkBoundarySentence, nil
-	case "line":
-		return acor.ChunkBoundaryLine, nil
-	default:
-		return acor.ChunkBoundaryWord, fmt.Errorf("unknown boundary %q", raw)
-	}
+	var zero T
+	return zero, fmt.Errorf("unknown %s %q", what, raw)
 }
 
 // enumOptions holds the flags that map a string onto a library enum. They are
@@ -425,19 +423,19 @@ type enumOptions struct {
 }
 
 func parseEnumOptions(config *commandConfig) (*enumOptions, error) {
-	preset, err := parsePreset(config.preset)
+	preset, err := parseEnum(config.preset, "preset", presetNames)
 	if err != nil {
 		return nil, err
 	}
-	batchMode, err := parseBatchMode(config.batchMode)
+	batchMode, err := parseEnum(config.batchMode, "batch mode", batchModeNames)
 	if err != nil {
 		return nil, err
 	}
-	boundary, err := parseBoundary(config.boundary)
+	boundary, err := parseEnum(config.boundary, "boundary", boundaryNames)
 	if err != nil {
 		return nil, err
 	}
-	matchKind, err := parseMatchKind(config.matchKind)
+	matchKind, err := parseEnum(config.matchKind, "match kind", matchKindNames)
 	if err != nil {
 		return nil, err
 	}
@@ -447,17 +445,6 @@ func parseEnumOptions(config *commandConfig) (*enumOptions, error) {
 		boundary:  boundary,
 		matchKind: matchKind,
 	}, nil
-}
-
-func parseMatchKind(raw string) (acor.MatchKind, error) {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "overlapping":
-		return acor.MatchKindOverlapping, nil
-	case "leftmost-longest":
-		return acor.MatchKindLeftmostLongest, nil
-	default:
-		return acor.MatchKindOverlapping, fmt.Errorf("unknown match kind %q", raw)
-	}
 }
 
 func validateNumericOptions(config *commandConfig) error {
