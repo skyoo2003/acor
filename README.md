@@ -87,16 +87,12 @@ multi-instance invalidation safety.
 
 ## Documentation
 
-- [Getting started and Redis topologies](docs/content/getting-started/quick-start.md)
-- [Matching and streaming API](docs/content/reference/api.md)
-- [Compatibility](docs/content/reference/compatibility.md) — what the `v1` line promises
-- [Batch operations](docs/content/guides/batch-operations.md) and [parallel matching](docs/content/guides/parallel-matching.md)
-- [Schema V2 and migration](docs/content/reference/schema-v2.md) and [benchmarks](docs/content/reference/benchmarks.md)
-- [Deployment](docs/content/operations/deployment.md), [monitoring](docs/content/operations/monitoring.md), and [troubleshooting](docs/content/operations/troubleshooting.md)
-- [The `acor` CLI](docs/content/cli/_index.md) — nineteen commands over the same collection
-
-Browse the [full documentation](https://skyoo2003.github.io/acor/) or the
-[Go API reference](https://pkg.go.dev/github.com/skyoo2003/acor/pkg/acor).
+Everything past this point lives on the
+[documentation site](https://skyoo2003.github.io/acor/): Redis topologies, the matching and
+streaming API, batch and parallel guides, the schema-V2 migration and benchmarks, deployment
+and troubleshooting, the `acor` CLI, the experimental server module, and what the `v1` line
+promises. Package signatures are on
+[pkg.go.dev](https://pkg.go.dev/github.com/skyoo2003/acor/pkg/acor).
 
 ## Project
 
