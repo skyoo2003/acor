@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/skyoo2003/acor/server/internal/httpx"
 )
 
 type metricsMockHijackResponseWriter struct {
@@ -35,7 +37,7 @@ func (m *metricsMockFlushResponseWriter) Flush() {
 func TestMetricsResponseWriterHijack(t *testing.T) {
 	t.Run("supported", func(t *testing.T) {
 		inner := &metricsMockHijackResponseWriter{}
-		rw := &responseWriter{ResponseWriter: inner, statusCode: http.StatusOK}
+		rw := httpx.WrapResponseWriter(inner)
 		conn, br, err := rw.Hijack()
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -50,7 +52,7 @@ func TestMetricsResponseWriterHijack(t *testing.T) {
 
 	t.Run("not supported", func(t *testing.T) {
 		inner := httptest.NewRecorder()
-		rw := &responseWriter{ResponseWriter: inner, statusCode: http.StatusOK}
+		rw := httpx.WrapResponseWriter(inner)
 		_, _, err := rw.Hijack()
 		if err == nil {
 			t.Error("expected error when hijack not supported")
@@ -61,7 +63,7 @@ func TestMetricsResponseWriterHijack(t *testing.T) {
 func TestMetricsResponseWriterFlush(t *testing.T) {
 	t.Run("supported", func(t *testing.T) {
 		inner := &metricsMockFlushResponseWriter{}
-		rw := &responseWriter{ResponseWriter: inner, statusCode: http.StatusOK}
+		rw := httpx.WrapResponseWriter(inner)
 		rw.Flush()
 		if !inner.flushed {
 			t.Error("expected flushed to be true")
@@ -70,7 +72,7 @@ func TestMetricsResponseWriterFlush(t *testing.T) {
 
 	t.Run("not supported", func(t *testing.T) {
 		inner := httptest.NewRecorder()
-		rw := &responseWriter{ResponseWriter: inner, statusCode: http.StatusOK}
+		rw := httpx.WrapResponseWriter(inner)
 		rw.Flush()
 	})
 }

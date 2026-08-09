@@ -1,0 +1,5 @@
+kind: Fixed
+body: 'The tracing HTTP middleware no longer strips `http.Hijacker` and `http.Flusher` from the handlers it wraps. All three observability middlewares — logging, metrics, and tracing — wrap the `http.ResponseWriter` to record the status code a handler wrote, and each carried its own copy of that wrapper. The copies had drifted: logging and metrics forwarded `Hijack` and `Flush` to the original writer, tracing did not. Wrapping hides the optional interfaces the original satisfied, so with tracing enabled a handler doing `w.(http.Flusher)` saw the wrapper instead — server-sent events stopped flushing and a websocket upgrade failed outright, and only when tracing was on. The three copies are now one in `server/internal/httpx`, which forwards both. `server/internal/` is import-restricted to the server module, so no exported symbol changed.'
+time: 2026-08-09T15:00:00.000000+09:00
+custom:
+    Issue: "222"

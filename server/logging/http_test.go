@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/skyoo2003/acor/server/internal/httpx"
 )
 
 type mockHijackResponseWriter struct {
@@ -35,7 +37,7 @@ func (m *mockFlushResponseWriter) Flush() {
 func TestResponseWriterHijack(t *testing.T) {
 	t.Run("supported", func(t *testing.T) {
 		inner := &mockHijackResponseWriter{}
-		rw := &responseWriter{ResponseWriter: inner, statusCode: http.StatusOK}
+		rw := httpx.WrapResponseWriter(inner)
 		conn, br, err := rw.Hijack()
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -50,7 +52,7 @@ func TestResponseWriterHijack(t *testing.T) {
 
 	t.Run("not supported", func(t *testing.T) {
 		inner := httptest.NewRecorder()
-		rw := &responseWriter{ResponseWriter: inner, statusCode: http.StatusOK}
+		rw := httpx.WrapResponseWriter(inner)
 		_, _, err := rw.Hijack()
 		if err == nil {
 			t.Error("expected error when hijack not supported")
@@ -61,7 +63,7 @@ func TestResponseWriterHijack(t *testing.T) {
 func TestResponseWriterFlush(t *testing.T) {
 	t.Run("supported", func(t *testing.T) {
 		inner := &mockFlushResponseWriter{}
-		rw := &responseWriter{ResponseWriter: inner, statusCode: http.StatusOK}
+		rw := httpx.WrapResponseWriter(inner)
 		rw.Flush()
 		if !inner.flushed {
 			t.Error("expected flushed to be true")
@@ -70,7 +72,7 @@ func TestResponseWriterFlush(t *testing.T) {
 
 	t.Run("not supported", func(t *testing.T) {
 		inner := httptest.NewRecorder()
-		rw := &responseWriter{ResponseWriter: inner, statusCode: http.StatusOK}
+		rw := httpx.WrapResponseWriter(inner)
 		rw.Flush()
 	})
 }
