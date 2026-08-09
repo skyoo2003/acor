@@ -106,36 +106,6 @@ func createAhoCorasickV1(t *testing.T) (*AhoCorasick, *miniredis.Miniredis) {
 	return v1Writable(t, ac), mr
 }
 
-// v1WritableOps re-opens the V1 write path for fixtures. Add and Remove return
-// ErrV1ReadOnly in every build, so a populated V1 collection can only be produced by
-// the writer that path used to reach; routing fixtures back through it keeps these
-// tests reading and migrating data in the real V1 layout instead of an
-// approximation of it.
-//
-// It is declared in a _test.go file, so no production binary contains a way to reach
-// the V1 writer. TestV1WritesAreClosed covers the closed path itself.
-type v1WritableOps struct{ *v1Operations }
-
-func (o v1WritableOps) add(ctx context.Context, keyword string) (int, error) {
-	return o.writeKeyword(ctx, keyword)
-}
-
-func (o v1WritableOps) remove(ctx context.Context, keyword string) (int, error) {
-	return o.deleteKeyword(ctx, keyword)
-}
-
-// v1Writable swaps ac's operations for the fixture-writable variant and returns ac,
-// so a test that builds its own V1 args can stay a one-liner.
-func v1Writable(t testing.TB, ac *AhoCorasick) *AhoCorasick {
-	t.Helper()
-	ops, ok := ac.ops.(*v1Operations)
-	if !ok {
-		t.Fatalf("v1Writable: not a V1 instance (%T)", ac.ops)
-	}
-	ac.ops = v1WritableOps{ops}
-	return ac
-}
-
 func createAhoCorasickWithSchema(t *testing.T, schemaVersion int) (*AhoCorasick, *miniredis.Miniredis) {
 	t.Helper()
 

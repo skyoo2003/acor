@@ -42,12 +42,14 @@ func setupV1WithError(t *testing.T) *AhoCorasick {
 	}
 	// Writable: these tests assert how the V1 writer reports Redis failures, which
 	// the closed Add/Remove can no longer surface.
-	ac.ops = v1WritableOps{&v1Operations{
-		storage: storage,
-		name:    "test",
-		logger:  log.New(io.Discard, "", 0),
-		ac:      ac,
-	}}
+	ac.ops = &v1WritableOps{
+		v1Operations: &v1Operations{
+			storage: storage,
+			name:    "test",
+			logger:  log.New(io.Discard, "", 0),
+		},
+		ac: ac,
+	}
 
 	mr.Close()
 

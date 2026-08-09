@@ -17,16 +17,14 @@ import (
 // Compile-time check that v1Operations satisfies the operations interface.
 var _ operations = (*v1Operations)(nil)
 
-// v1Operations implements the operations interface for the V1 schema.
-// It holds all dependencies needed for V1 Aho-Corasick operations.
-// The ac field provides access to trie.go helper methods (buildTrie, pruneTrie,
-// gotoNode, failNode, collectOutputs, appendMatchedIndexes) which are methods
-// on *AhoCorasick. This is a temporary bridge until trie.go is refactored in T15.
+// v1Operations implements the operations interface for the V1 schema, which is
+// read-only: add and remove refuse, and what remains is the read, suggest, info,
+// and flush path. The writer that used to sit behind add lives in
+// v1_fixture_test.go, so no production binary carries a way to write V1.
 type v1Operations struct {
 	storage         kvStorage
 	name            string
 	logger          Logger
-	ac              *AhoCorasick // for trie.go helper access (temporary, cleaned up in T15)
 	caseSensitive   bool
 	rollbackTimeout time.Duration
 	engines         engineMemo
@@ -60,109 +58,6 @@ func (o *v1Operations) add(context.Context, string) (int, error) {
 // of it.
 func (o *v1Operations) remove(context.Context, string) (int, error) {
 	return 0, ErrV1ReadOnly
-}
-
-// writeKeyword is the V1 writer that releases before v1.5.0 reached through add.
-// Nothing in production calls it: it is retained so tests can build a V1 collection
-// the way an older release did, which is the only way one can exist now. Seeding
-// through a hand-written fixture instead would duplicate the trie-building
-// algorithm, and a divergent copy would let the read and migration paths pass
-// against data that is not actually V1.
-func (o *v1Operations) writeKeyword(ctx context.Context, keyword string) (int, error) {
-	keyword = strings.TrimSpace(keyword)
-	if !o.caseSensitive {
-		keyword = strings.ToLower(keyword)
-	}
-	if keyword == "" {
-		return 0, nil
-	}
-
-	keywordKey := keywordKey(o.name)
-
-	exists, err := o.storage.SIsMember(ctx, keywordKey, keyword)
-	if err != nil {
-		return 0, newRedisError("SISMEMBER", keywordKey, err)
-	}
-	if exists {
-		return 0, nil
-	}
-
-	if err := o.storage.SAdd(ctx, keywordKey, keyword); err != nil {
-		return 0, newRedisError("SADD", keywordKey, err)
-	}
-	o.logger.Println(fmt.Sprintf(`Add(%s) > SADD {"key": "%s", "member": "%s"}`, keyword, keywordKey, keyword))
-
-	if err := o.ac.buildTrieWithContext(ctx, keyword); err != nil {
-		// Intentionally use a fresh context for rollback — the caller's ctx may be
-		// canceled (timeout, etc.), but we still need to clean up the partially
-		// added keyword to avoid leaving the trie in an inconsistent state.
-		rollbackCtx, cancel := context.WithTimeout(context.Background(), o.rollbackTimeout)
-		defer cancel()
-		if _, rollbackErr := o.deleteKeyword(rollbackCtx, keyword); rollbackErr != nil {
-			return 0, newOperationError("add", SchemaV1, fmt.Errorf("build trie: %w; rollback keyword: %v", err, rollbackErr))
-		}
-		return 0, newOperationError("add", SchemaV1, err)
-	}
-
-	return 1, nil
-}
-
-// deleteKeyword is writeKeyword's counterpart: the V1 deleter that remove used to
-// expose. It stays reachable for writeKeyword's own rollback and for tests.
-func (o *v1Operations) deleteKeyword(_ context.Context, keyword string) (int, error) {
-	keyword = strings.TrimSpace(keyword)
-	if !o.caseSensitive {
-		keyword = strings.ToLower(keyword)
-	}
-	if keyword == "" {
-		return 0, nil
-	}
-
-	// Use a detached context so remove completes atomically even if the caller's
-	// context is canceled (e.g., via RemoveContext). Without this, a canceled
-	// context could leave the trie in a partially-removed inconsistent state
-	// (e.g., outputs removed from nodes but keyword still in the keyword set).
-	removeCtx, cancel := context.WithTimeout(context.Background(), o.rollbackTimeout)
-	defer cancel()
-	ctx := removeCtx
-
-	kKey := keywordKey(o.name)
-	exists, err := o.storage.SIsMember(ctx, kKey, keyword)
-	if err != nil {
-		return 0, newRedisError("SISMEMBER", kKey, err)
-	}
-	if !exists {
-		return 0, nil
-	}
-
-	nodeKey := nodeKey(o.name, keyword)
-	nodes, err2 := o.storage.SMembers(ctx, nodeKey)
-	if err2 != nil {
-		return 0, newRedisError("SMEMBERS", nodeKey, err2)
-	}
-	for _, node := range nodes {
-		oKey := outputKey(o.name, node)
-		if sremErr := o.storage.SRem(ctx, oKey, keyword); sremErr != nil {
-			return 0, newRedisError("SREM", oKey, sremErr)
-		}
-		o.logger.Println(fmt.Sprintf("Remove(%s) > SREM key(%s)", keyword, oKey))
-	}
-
-	if delErr := o.storage.Del(ctx, nodeKey); delErr != nil {
-		return 0, newRedisError("DEL", nodeKey, delErr)
-	}
-	o.logger.Println(fmt.Sprintf("Remove(%s) > DEL key(%s)", keyword, nodeKey))
-
-	if pruneErr := o.ac.pruneTrieWithContext(ctx, keyword); pruneErr != nil {
-		return 0, newOperationError("remove", SchemaV1, pruneErr)
-	}
-
-	if sremErr := o.storage.SRem(ctx, kKey, keyword); sremErr != nil {
-		return 0, newRedisError("SREM", kKey, sremErr)
-	}
-	o.logger.Println(fmt.Sprintf("Remove(%s) > SREM key(%s) members(%s)", keyword, kKey, keyword))
-
-	return 1, nil
 }
 
 // find scans text with the automaton loadEngine builds from the keyword set,

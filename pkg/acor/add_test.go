@@ -369,12 +369,12 @@ func TestAddRollsBackPartialTrieWrites(t *testing.T) {
 	defer func() { _ = ac.Flush() }()
 
 	hookErr := errors.New("forced build trie failure")
-	ac.buildTrieHook = func(prefix string) error {
+	setV1BuildTrieHook(t, ac, func(prefix string) error {
 		if prefix == testKeywordHE {
 			return hookErr
 		}
 		return nil
-	}
+	})
 
 	addedCount, err := ac.Add(testKeywordHE)
 	if !errors.Is(err, hookErr) {
@@ -384,7 +384,7 @@ func TestAddRollsBackPartialTrieWrites(t *testing.T) {
 		t.Fatalf("expected add count to be zero on rollback, got %d", addedCount)
 	}
 
-	ac.buildTrieHook = nil
+	clearV1BuildTrieHook(t, ac)
 
 	results, err := ac.Find(testKeywordHE)
 	if err != nil {
@@ -414,12 +414,12 @@ func TestAddFailedReAddKeepsExistingKeywordState(t *testing.T) {
 	}
 
 	hookErr := errors.New("forced buildTrie failure")
-	ac.buildTrieHook = func(prefix string) error {
+	setV1BuildTrieHook(t, ac, func(prefix string) error {
 		if prefix == "hi" {
 			return hookErr
 		}
 		return nil
-	}
+	})
 
 	addedCount, err := ac.Add("hi")
 	if !errors.Is(err, hookErr) {
@@ -429,7 +429,7 @@ func TestAddFailedReAddKeepsExistingKeywordState(t *testing.T) {
 		t.Fatalf("expected add count to be zero, got %d", addedCount)
 	}
 
-	ac.buildTrieHook = nil
+	clearV1BuildTrieHook(t, ac)
 
 	results, err := ac.Find(testKeywordHE)
 	if err != nil {
