@@ -1,0 +1,5 @@
+kind: Changed
+body: 'Collapsed the CLI''s four string-to-enum flag parsers — `-preset`, `-batch-mode`, `-boundary`, and `-match-kind` — onto one generic `parseEnum` plus a name table each. The four functions were the same `switch` over `strings.ToLower(strings.TrimSpace(raw))`, differing only in which library enum they returned and which noun their error used, so adding a value meant editing a switch and adding a fifth flag meant copying the whole shape again. Accepted values, case-insensitive matching, and the error wording (`unknown preset "quick"`, and the same for batch mode, boundary, and match kind) are unchanged. The single-use `command*` constants were left alone: only 8 of the 19 have one caller, and inlining those while the other 11 stay named would leave the file less consistent than either end.'
+time: 2026-08-09T16:00:00.000000+09:00
+custom:
+    Issue: "223"
