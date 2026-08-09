@@ -66,6 +66,28 @@ message text, which is not part of any promise.
 No RPC returns `InvalidArgument`, `NotFound`, or `FailedPrecondition` — a write to a V1
 read-only collection is `Internal`, not `FailedPrecondition`.
 
+## Deadlines do not cancel the work
+
+**A client deadline or a disconnect ends the RPC, not the Redis operation behind it.**
+`Service` declares no context on any method (`server/grpc.go` calls
+`s.service.Add(req.GetKeyword())`), and `(*AhoCorasick).Add` runs against the collection's
+own long-lived context, not the caller's. The request context is accepted by each adapter
+and discarded.
+
+The consequence to plan for: a client that gives up on `Add`, `Remove`, or `Flush` and sees
+`DeadlineExceeded` or `Canceled` has **not** prevented the write. It may already have
+landed, or land shortly after. `Flush` deletes every key in the collection, and abandoning
+the call does not call it off.
+
+- Do not treat a timeout as "it did not happen". Re-read with `Info` or `Find` before
+  retrying anything that mutates.
+- Client-side retries on timeout can double-apply. `Add` and `Remove` are idempotent by
+  keyword, so a repeat is harmless there; a retried `Flush` is a second flush.
+- Setting a short deadline does not shed load on the server. The Redis work continues at
+  full cost after the client is gone.
+
+The [HTTP API](../http-api/) behaves identically — same `Service` interface, same discard.
+
 ## Generating a client
 
 There is no `buf.yaml` or `protoc` configuration in this repository. Two options:
@@ -125,13 +147,17 @@ knowing before you set a probe interval:
 - **Status is polled, not computed per request.** An HTTP `/readyz` probe runs your checkers
   on each request; a gRPC health probe reads whatever the last poll left behind. Probing
   more often than every 5 seconds buys no extra resolution.
-- **The 5-second tick is not a staleness bound.** The poller calls `checker.Check()`
-  inline, so the clock for the next tick effectively starts when the previous check
-  *returns*. A checker that takes 30 seconds makes the status at least that stale, and one
-  that hangs makes it stale indefinitely — the same blocked goroutine also cannot act on
-  context cancellation, so shutdown stops marking the server `NOT_SERVING`. Give every
-  checker its own deadline; the example in [Running a Server](../running/) uses a
-  2-second `context.WithTimeout` for exactly this reason.
+- **The 5-second tick bounds neither staleness nor load.** The poller calls
+  `checker.Check()` inline on a single long-lived `time.Ticker`. That ticker keeps ticking
+  while a check is blocked, and its channel buffers one tick, so a check that overruns the
+  interval is followed *immediately* by the next one rather than after a fresh 5-second
+  gap. A checker that takes 30 seconds therefore makes the status at least 30 seconds stale
+  **and** polls back-to-back for as long as it stays slow — the opposite of the breather
+  the interval suggests, and it lands on Redis hardest when Redis is already the slow part.
+  A checker that hangs outright is worse: the blocked goroutine cannot act on context
+  cancellation either, so shutdown stops marking the server `NOT_SERVING`. Give every
+  checker its own deadline; the examples in [Running a Server](../running/) use a 2-second
+  `context.WithTimeout` for exactly this.
 - **Both the overall server (`""`) and `acor.server.v1.Acor` are tracked**, and they carry
   the same status.
 - **A nil `Health` field means no health service at all.** The constructor only registers

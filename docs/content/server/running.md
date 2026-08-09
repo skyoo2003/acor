@@ -251,7 +251,10 @@ scale with the whole dictionary.
 Two things multiply that:
 
 - **`/readyz` runs the checkers on every request**, and it is unauthenticated.
-- **The gRPC health poller runs them every 5 seconds**, whether or not anyone is probing.
+- **The gRPC health poller runs them every 5 seconds**, whether or not anyone is probing —
+  and *more* often than that once a check gets slow. The poller's `time.Ticker` keeps
+  ticking while `Check` is blocked and buffers one tick, so an overrunning check is followed
+  immediately by the next. Slow checks are not throttled; they compound.
 
 On a large dictionary that is significant Redis traffic and garbage, generated hardest
 exactly when the service is already struggling. If that describes your collection, make the

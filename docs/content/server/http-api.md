@@ -133,6 +133,27 @@ worse of the two: a client that follows redirects automatically may downgrade th
 to a `GET` and then receive a `405`, turning a doubled slash into a confusing method error.
 Normalize paths before sending.
 
+## Disconnecting does not cancel the work
+
+**A client timeout or a dropped connection ends the request, not the Redis operation behind
+it.** Each handler passes `r.Context()` into its adapter and the adapter discards it
+(`server/server.go:96` and its siblings take `_ context.Context`); `Service` declares no
+context on any method, and `(*AhoCorasick).Add` runs against the collection's own
+long-lived context rather than the caller's.
+
+So a client that gives up on `/v1/add`, `/v1/remove`, or `/v1/flush` has **not** prevented
+the write. It may already have landed, or land shortly after. `/v1/flush` deletes every key
+in the collection, and hanging up does not call it off.
+
+- Do not read a timeout as "it did not happen". Re-read with `/v1/info` or `/v1/find`
+  before retrying anything that mutates.
+- Retrying on timeout can double-apply. `add` and `remove` are idempotent by keyword, so a
+  repeat is harmless; a retried `flush` is a second flush.
+- A short client timeout sheds no server load. The Redis work continues at full cost after
+  the client is gone.
+
+The [gRPC API](../grpc-api/) behaves identically — same `Service` interface, same discard.
+
 ## What the server does not check
 
 - **Request `Content-Type` is ignored.** Any value is accepted as long as the body parses
