@@ -76,31 +76,18 @@ Every failure returns `{"error":"<message>"}` with `Content-Type: application/js
 | `400` | The body is not valid JSON | `{"error":"unexpected EOF"}` — the message comes from `encoding/json` and is not a stable string |
 | `400` | The body holds more than one JSON value | `{"error":"request body must contain only a single JSON value"}` |
 | `405` | Wrong method for the path | `{"error":"method not allowed"}` |
-| `413` | The **first** JSON value in the body exceeds 1 MiB | `{"error":"request body must not be larger than 1048576 bytes"}` |
+| `413` | Reading the body reaches the 1 MiB cap | `{"error":"request body must not be larger than 1048576 bytes"}` |
 | `500` | Any error from the underlying collection | `{"error":"<the error's own text>"}` |
 | `404` | No such path | **`text/plain`**, body `404 page not found` |
 | `301` | The path needs canonicalizing (`/v1//info`) | **`text/html`**, Go's `Moved Permanently` page |
 
-Three of these deserve more than a table row.
+The body is read as it is decoded, so whichever fault surfaces first is the one you get. A
+body over 1 MiB that is *also* malformed comes back as the `400`, because the decoder
+reaches the bad byte before the reader reaches the cap. `413` means the cap is what stopped
+it, not that every oversized body is reported that way — nothing short of reading the whole
+body could promise the latter, and reading it is what the cap exists to avoid.
 
-### `413` is not guaranteed for every oversized body
-
-The size cap is applied by `http.MaxBytesReader`, but the handler only translates
-`*http.MaxBytesError` into a `413` on the **first** decode. It then does a second decode to
-reject trailing content, and that branch reports only the generic single-value error. So
-whether an oversized body is a `413` or a `400` depends on *where* it crosses the line:
-
-| Body | Status |
-| ---- | ------ |
-| A single JSON value larger than 1 MiB | `413` |
-| A small JSON value followed by padding that pushes the total past 1 MiB | `400 request body must contain only a single JSON value` |
-
-Both are rejected and neither reaches the collection, so this is a reporting inconsistency
-rather than a hole in the cap. Do not write a client that branches on `413` to detect
-"too large".
-
-Tracked as [#226](https://github.com/skyoo2003/acor/issues/226); this section goes away when
-both branches report `413`.
+Two of these deserve more than a table row.
 
 ### Every collection error is a `500`
 

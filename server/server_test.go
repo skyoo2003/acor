@@ -7,9 +7,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/skyoo2003/acor/pkg/acor"
@@ -532,6 +534,72 @@ func TestHTTPHandlerFindErrors(t *testing.T) {
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusInternalServerError {
 				t.Fatalf("expected status 500, got %d", resp.StatusCode)
+			}
+		})
+	}
+}
+
+func TestHTTPHandlerRejectsOversizedBodies(t *testing.T) {
+	oversize := strings.Repeat("z", maxRequestBodyBytes+1)
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"oversized_json_value", `{"keyword":"` + oversize + `"}`},
+		{"small_value_padded_past_the_cap", `{"keyword":"x"}` + strings.Repeat(" ", maxRequestBodyBytes+1)},
+	}
+
+	want := fmt.Sprintf("request body must not be larger than %d bytes", maxRequestBodyBytes)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Served in-process: a real server closes the connection mid-upload,
+			// which surfaces on the client as a write error rather than the status.
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/add", strings.NewReader(tt.body))
+			NewHTTPHandler(&fakeService{}).ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusRequestEntityTooLarge {
+				t.Fatalf("expected status 413, got %d (%s)", rec.Code, rec.Body.String())
+			}
+			var body ErrorResponse
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if body.Error != want {
+				t.Fatalf("unexpected error %q, want %q", body.Error, want)
+			}
+		})
+	}
+}
+
+func TestHTTPHandlerRejectsTrailingJSONValue(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"second_json_value", `{"keyword":"x"}{"keyword":"y"}`},
+		// Oversized, but the decoder reaches the bad byte before the reader
+		// reaches the cap, so the trailing-content error wins over the 413.
+		{"malformed_trailing_content_past_the_cap", `{"keyword":"x"}x` + strings.Repeat(" ", maxRequestBodyBytes)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/add",
+				strings.NewReader(tt.body))
+			NewHTTPHandler(&fakeService{}).ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected status 400, got %d", rec.Code)
+			}
+			var body ErrorResponse
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if body.Error != "request body must contain only a single JSON value" {
+				t.Fatalf("unexpected error %q", body.Error)
 			}
 		})
 	}

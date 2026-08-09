@@ -1,0 +1,5 @@
+kind: Fixed
+body: The HTTP handler now reports `413 Request Entity Too Large` for every request body over the 1 MiB cap. Previously a body whose first JSON value fit under the cap but which exceeded it overall came back as `400 request body must contain only a single JSON value`, which made `413` unusable as a client-side signal for "too large".
+time: 2026-08-09T23:29:10.184957+09:00
+custom:
+    Issue: "231"
