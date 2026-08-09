@@ -384,8 +384,7 @@ type AhoCorasick struct {
 	storage       kvStorage             // DI: all Redis ops go through this
 	ops           operations            // Strategy: V1 or V2 implementation
 	redisClient   redis.UniversalClient // kept for migration.go (out of scope)
-	buildTrieHook func(string) error
-	schemaVersion int // kept for SchemaVersion() and migration.go
+	schemaVersion int                   // kept for SchemaVersion() and migration.go
 
 	rollbackTimeout time.Duration
 	caseSensitive   bool
@@ -679,7 +678,6 @@ func (ac *AhoCorasick) newV1Ops() operations {
 		storage:         ac.storage,
 		name:            ac.name,
 		logger:          ac.logger,
-		ac:              ac,
 		caseSensitive:   ac.caseSensitive,
 		rollbackTimeout: ac.rollbackTimeout,
 		engines:         engineMemo{stats: ac.stats},
@@ -784,6 +782,14 @@ func (ac *AhoCorasick) Debug() {
 		ac.debugV1()
 		return
 	}
+}
+
+// outputWithContext reads the keywords a V1 trie state reports. It is the last
+// survivor of the per-state V1 walk: debugV1 below dumps every state's outputs,
+// and the rest of that walk moved to v1_fixture_test.go with the writer it
+// served (V1 takes no writes since v1.5.0 — see ErrV1ReadOnly).
+func (ac *AhoCorasick) outputWithContext(ctx context.Context, inState string) ([]string, error) {
+	return ac.storage.SMembers(ctx, outputKey(ac.name, inState))
 }
 
 func (ac *AhoCorasick) debugV1() {

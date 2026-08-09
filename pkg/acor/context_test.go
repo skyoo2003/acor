@@ -40,7 +40,7 @@ func TestGoWithContext(t *testing.T) {
 		t.Errorf("expected empty state for non-existent prefix, got %s", nextState)
 	}
 
-	if buildErr := ac.buildTrieWithContext(ctx, "ab"); buildErr != nil {
+	if buildErr := ac.buildTrieWithContext(ctx, "ab", nil); buildErr != nil {
 		t.Fatal(buildErr)
 	}
 
@@ -131,7 +131,7 @@ func TestBuildTrieWithContext(t *testing.T) {
 
 	ctx := context.Background()
 
-	if buildErr := ac.buildTrieWithContext(ctx, "test"); buildErr != nil {
+	if buildErr := ac.buildTrieWithContext(ctx, "test", nil); buildErr != nil {
 		t.Errorf("buildTrieWithContext failed: %v", buildErr)
 	}
 

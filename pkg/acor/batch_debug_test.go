@@ -118,7 +118,6 @@ func TestDebugV1WithNoData(t *testing.T) {
 		ops: &v1Operations{
 			storage: newRedisStorage(client),
 			name:    "test",
-			ac:      nil,
 		},
 	}
 
@@ -141,7 +140,6 @@ func TestDebugV1WithClosedRedis(t *testing.T) {
 		ops: &v1Operations{
 			storage: newRedisStorage(client),
 			name:    "test",
-			ac:      nil,
 		},
 	}
 

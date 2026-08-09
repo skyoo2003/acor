@@ -56,7 +56,7 @@ func countRTT(tb testing.TB, ac *AhoCorasick) *rttCounter {
 		o.storage = wrap(o.storage)
 	case *v1Operations:
 		o.storage = wrap(o.storage)
-	case v1WritableOps:
+	case *v1WritableOps:
 		// The fixture-writable V1 wrapper shares the embedded v1Operations, so
 		// wrapping its storage counts the same round trips.
 		o.storage = wrap(o.storage)

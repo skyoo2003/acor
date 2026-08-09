@@ -281,7 +281,7 @@ func TestV1EngineStillMemoized(t *testing.T) {
 		t.Fatalf("Add() error: %v", err)
 	}
 
-	o, ok := ac.ops.(v1WritableOps)
+	o, ok := ac.ops.(*v1WritableOps)
 	if !ok {
 		t.Fatalf("expected v1WritableOps, got %T", ac.ops)
 	}

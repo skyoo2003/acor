@@ -93,13 +93,12 @@ func TestAddManyTransactionalRollbackOnError(t *testing.T) {
 	defer func() { _ = ac.Close() }()
 	defer func() { _ = ac.Flush() }()
 
-	ac.buildTrieHook = func(prefix string) error {
+	setV1BuildTrieHook(t, ac, func(prefix string) error {
 		if prefix == "her" {
 			return errors.New("forced failure")
 		}
 		return nil
-	}
-	defer func() { ac.buildTrieHook = nil }()
+	})
 
 	keywords := []string{"he", "her", "him"}
 	_, err := ac.AddMany(keywords, &BatchOptions{Mode: BatchModeTransactional})
@@ -107,7 +106,7 @@ func TestAddManyTransactionalRollbackOnError(t *testing.T) {
 		t.Fatal("expected error on transactional batch")
 	}
 
-	ac.buildTrieHook = nil
+	clearV1BuildTrieHook(t, ac)
 
 	results, err := ac.Find("he")
 	if err != nil {
