@@ -3,79 +3,16 @@
 package metrics
 
 import (
-	"bufio"
 	"context"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/skyoo2003/acor/server/internal/httpx"
 )
 
-type metricsMockHijackResponseWriter struct {
-	http.ResponseWriter
-	hijacked bool
-}
-
-func (m *metricsMockHijackResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	m.hijacked = true
-	return nil, nil, nil
-}
-
-type metricsMockFlushResponseWriter struct {
-	http.ResponseWriter
-	flushed bool
-}
-
-func (m *metricsMockFlushResponseWriter) Flush() {
-	m.flushed = true
-}
-
-func TestMetricsResponseWriterHijack(t *testing.T) {
-	t.Run("supported", func(t *testing.T) {
-		inner := &metricsMockHijackResponseWriter{}
-		rw := httpx.WrapResponseWriter(inner)
-		conn, br, err := rw.Hijack()
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if conn != nil || br != nil {
-			t.Error("expected nil conn and br from mock")
-		}
-		if !inner.hijacked {
-			t.Error("expected hijacked to be true")
-		}
-	})
-
-	t.Run("not supported", func(t *testing.T) {
-		inner := httptest.NewRecorder()
-		rw := httpx.WrapResponseWriter(inner)
-		_, _, err := rw.Hijack()
-		if err == nil {
-			t.Error("expected error when hijack not supported")
-		}
-	})
-}
-
-func TestMetricsResponseWriterFlush(t *testing.T) {
-	t.Run("supported", func(t *testing.T) {
-		inner := &metricsMockFlushResponseWriter{}
-		rw := httpx.WrapResponseWriter(inner)
-		rw.Flush()
-		if !inner.flushed {
-			t.Error("expected flushed to be true")
-		}
-	})
-
-	t.Run("not supported", func(t *testing.T) {
-		inner := httptest.NewRecorder()
-		rw := httpx.WrapResponseWriter(inner)
-		rw.Flush()
-	})
-}
+// The Hijack and Flush forwarding these tests used to cover now lives in one
+// place, and is tested there: server/internal/httpx/responsewriter_test.go.
 
 func TestNormalizePath(t *testing.T) {
 	tests := []struct {

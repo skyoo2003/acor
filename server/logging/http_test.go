@@ -3,79 +3,16 @@
 package logging
 
 import (
-	"bufio"
 	"bytes"
 	"context"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/skyoo2003/acor/server/internal/httpx"
 )
 
-type mockHijackResponseWriter struct {
-	http.ResponseWriter
-	hijacked bool
-}
-
-func (m *mockHijackResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	m.hijacked = true
-	return nil, nil, nil
-}
-
-type mockFlushResponseWriter struct {
-	http.ResponseWriter
-	flushed bool
-}
-
-func (m *mockFlushResponseWriter) Flush() {
-	m.flushed = true
-}
-
-func TestResponseWriterHijack(t *testing.T) {
-	t.Run("supported", func(t *testing.T) {
-		inner := &mockHijackResponseWriter{}
-		rw := httpx.WrapResponseWriter(inner)
-		conn, br, err := rw.Hijack()
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if conn != nil || br != nil {
-			t.Error("expected nil conn and br from mock")
-		}
-		if !inner.hijacked {
-			t.Error("expected hijacked to be true")
-		}
-	})
-
-	t.Run("not supported", func(t *testing.T) {
-		inner := httptest.NewRecorder()
-		rw := httpx.WrapResponseWriter(inner)
-		_, _, err := rw.Hijack()
-		if err == nil {
-			t.Error("expected error when hijack not supported")
-		}
-	})
-}
-
-func TestResponseWriterFlush(t *testing.T) {
-	t.Run("supported", func(t *testing.T) {
-		inner := &mockFlushResponseWriter{}
-		rw := httpx.WrapResponseWriter(inner)
-		rw.Flush()
-		if !inner.flushed {
-			t.Error("expected flushed to be true")
-		}
-	})
-
-	t.Run("not supported", func(t *testing.T) {
-		inner := httptest.NewRecorder()
-		rw := httpx.WrapResponseWriter(inner)
-		rw.Flush()
-	})
-}
+// The Hijack and Flush forwarding these tests used to cover now lives in one
+// place, and is tested there: server/internal/httpx/responsewriter_test.go.
 
 func TestHTTPMiddleware(t *testing.T) {
 	buf := &bytes.Buffer{}
