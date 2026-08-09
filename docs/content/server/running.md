@@ -162,10 +162,15 @@ import (
 	"github.com/skyoo2003/acor/server/metrics"
 )
 
+// The deadline matters more here than on the HTTP side: the gRPC health
+// poller calls Check() inline on its ticker, so a checker that blocks stalls
+// every later poll and the poller's own response to cancellation.
 type redisChecker struct{ ac *acor.AhoCorasick }
 
 func (c redisChecker) Check() health.CheckResult {
-	if _, err := c.ac.Info(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := c.ac.InfoContext(ctx); err != nil {
 		return health.CheckResult{Status: health.StatusUnhealthy, Details: err.Error()}
 	}
 	return health.CheckResult{Status: health.StatusHealthy}
@@ -249,10 +254,16 @@ Two things multiply that:
 - **The gRPC health poller runs them every 5 seconds**, whether or not anyone is probing.
 
 On a large dictionary that is significant Redis traffic and garbage, generated hardest
-exactly when the service is already struggling. If that describes your collection, check
-liveness with a direct `redis.Client.Ping` against the same address instead — that is a
-`PING`, not a dictionary scan — and accept that it proves connectivity rather than
+exactly when the service is already struggling. If that describes your collection, make the
+**readiness** check a direct `redis.Client.Ping` against the same address instead — that is
+a `PING`, not a dictionary scan — and accept that it proves connectivity rather than
 collection health.
+
+Keep it out of liveness either way. `/healthz` answers "is this process alive", and nothing
+about Redis belongs in that answer: a Redis outage would fail every replica's liveness probe
+at once and have the orchestrator restart all of them, which cannot repair Redis and drops
+whatever the processes were still serving. Redis reachability is a readiness signal —
+take me out of the load balancer — not a restart signal.
 
 The 2-second timeout is load-bearing either way. `HealthChecker.Check` calls every
 registered checker inline, and the gRPC poller calls `Check` inline on its ticker, so one

@@ -134,8 +134,12 @@ knowing before you set a probe interval:
   2-second `context.WithTimeout` for exactly this reason.
 - **Both the overall server (`""`) and `acor.server.v1.Acor` are tracked**, and they carry
   the same status.
-- **A nil checker reports `SERVING`** — an unconfigured health service is indistinguishable
-  from a healthy one.
+- **A nil `Health` field means no health service at all.** The constructor only registers
+  `grpc.health.v1` when the field is set (`server/grpc.go:77`), so leaving it nil makes a
+  probe fail with `UNIMPLEMENTED`, not `SERVING`. To get a health service that always
+  answers `SERVING`, pass an empty `health.NewChecker()` rather than nil — the
+  nil-*checker*-means-`SERVING` rule lives inside `RegisterGRPCHealthServer` and is only
+  reachable by calling that function yourself.
 - **The `ctx` you pass to `NewGRPCServerWithObservability` bounds the poller.** Cancel it
   and the server is marked `NOT_SERVING`, which is what lets a load balancer drain
   connections before `GracefulStop` finishes.

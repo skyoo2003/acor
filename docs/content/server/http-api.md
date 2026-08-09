@@ -43,7 +43,7 @@ curl -sX POST localhost:8080/v1/find-index -d '{"input":"한글 레디스 and re
 # {"matches":{"redis":[11],"레디스":[3]}}
 ```
 
-`레디스` starts at byte 10 and rune 3; `redis` starts at byte 20 and rune 11. The response
+`레디스` starts at rune 3 but byte 7; `redis` starts at rune 11 but byte 21. The response
 gives 3 and 11. A client that slices the original string by these numbers must count
 runes — Go `[]rune`, Python `str` indices, Rust `chars()`. JavaScript needs care in both
 directions, because its string indices are UTF-16 code units: `[...s]` gives code points,
@@ -107,7 +107,7 @@ both branches report `413`.
 There is no error taxonomy. The handler passes any non-nil error from the collection
 straight to a `500`, so a client mistake and a Redis outage are indistinguishable by status
 code. Writing to a V1 collection — which the core rejects with `ErrV1ReadOnly`, a caller
-error — comes back as `500 {"error":"v1 collection is read-only"}`, not as a `4xx`.
+error — comes back as `500 {"error":"V1 collections are read-only; migrate with MigrateV1ToV2"}`, not as a `4xx`.
 
 If your client needs to tell "retry this" from "fix your request", it has to match on the
 message text, and message text is not part of any promise. Treat `5xx` here as
