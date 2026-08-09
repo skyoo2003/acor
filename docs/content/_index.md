@@ -1,7 +1,7 @@
 ---
 title: ACOR Documentation
 hero_title: Aho-Corasick on Redis, with one API across multiple topologies.
-hero_text: ACOR is a Go library and CLI for storing and querying Aho-Corasick patterns in Redis. It supports standalone Redis, Sentinel, Cluster, and Ring deployments through the same Create API.
+hero_text: ACOR stores and queries Aho-Corasick patterns in Redis, and reaches you three ways — a Go library, an acor CLI, and an experimental server module speaking HTTP and gRPC. All three drive the same collection, across standalone Redis, Sentinel, Cluster, and Ring.
 ---
 
 ## Getting Started
@@ -59,5 +59,13 @@ func main() {
   <a class="doc-card" href="server/">
     <strong>Server</strong>
     <span>Serve a collection over HTTP or gRPC.</span>
+  </a>
+  <a class="doc-card" href="cli/">
+    <strong>CLI</strong>
+    <span>Drive a collection from the shell, nineteen commands.</span>
+  </a>
+  <a class="doc-card" href="extending/">
+    <strong>Extending</strong>
+    <span>Why Redis is the only backend, and how to test without one.</span>
   </a>
 </div>

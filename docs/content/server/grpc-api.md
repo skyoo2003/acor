@@ -172,4 +172,4 @@ knowing before you set a probe interval:
 
 ## Navigation
 
-← [HTTP API](../http-api/) | [Extending](../../extending/) →
+← [HTTP API](../http-api/) | [CLI](../../cli/) →

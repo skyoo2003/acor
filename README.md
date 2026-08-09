@@ -93,7 +93,7 @@ multi-instance invalidation safety.
 - [Batch operations](docs/content/guides/batch-operations.md) and [parallel matching](docs/content/guides/parallel-matching.md)
 - [Schema V2 and migration](docs/content/reference/schema-v2.md) and [benchmarks](docs/content/reference/benchmarks.md)
 - [Deployment](docs/content/operations/deployment.md), [monitoring](docs/content/operations/monitoring.md), and [troubleshooting](docs/content/operations/troubleshooting.md)
-- [CLI installation](docs/content/getting-started/installation.md#cli-installation)
+- [The `acor` CLI](docs/content/cli/_index.md) — nineteen commands over the same collection
 
 Browse the [full documentation](https://skyoo2003.github.io/acor/) or the
 [Go API reference](https://pkg.go.dev/github.com/skyoo2003/acor/pkg/acor).

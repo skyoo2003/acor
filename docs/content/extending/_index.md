@@ -1,6 +1,6 @@
 ---
 title: "Extending"
-weight: 6
+weight: 7
 ---
 
 # Extending
@@ -13,4 +13,4 @@ Extend ACOR with custom functionality.
 
 ## Navigation
 
-← [Server](../server/)
+← [CLI](../cli/)

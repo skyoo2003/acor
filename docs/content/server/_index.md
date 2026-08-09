@@ -41,4 +41,4 @@ serve, so they live together under
 
 ## Navigation
 
-← [Operations](../operations/) | [Extending](../extending/) →
+← [Operations](../operations/) | [CLI](../cli/) →
