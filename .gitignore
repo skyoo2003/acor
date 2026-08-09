@@ -48,6 +48,12 @@ Thumbs.db
 /.doccheck/
 /server/.doccheck/
 
+# Hugo build output. CI builds the site in its own runner, so these only ever
+# appear when someone runs `hugo` locally to preview a docs change — and 33
+# generated pages are one `git add -A` from being committed.
+/docs/public/
+/docs/.hugo_build.lock
+
 # licensesnap scratch file. `make license-check` removes it on failure, but a
 # Ctrl-C during the three cross-GOOS `go list` calls leaves it behind, and an
 # untracked half-written NOTICE is one `git add -A` from being committed.

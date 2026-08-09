@@ -15,4 +15,4 @@ Operational guides for running ACOR in production.
 
 ## Navigation
 
-← [Reference](../reference/) | [Extending](../extending/) →
+← [Reference](../reference/) | [Server](../server/) →

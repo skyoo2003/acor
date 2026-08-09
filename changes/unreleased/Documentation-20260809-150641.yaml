@@ -1,0 +1,5 @@
+kind: Documentation
+body: 'Documented the experimental `acor/server` module, which had no section on the docs site: its eight `/v1/*` HTTP endpoints and its entire gRPC service (`acor.server.v1.Acor`) appeared nowhere, and neither did the wiring needed to serve them. A new top-level Server section covers running a server, the HTTP API, and the gRPC API. ACOR ships no server binary — `server/` is a library with no `main.go` — so "Running a Server" is a complete, copy-pasteable `main` for each protocol, both compile-gated by `doccheck`. The error contracts are documented as they behave rather than as they ought to: every collection failure flattens to HTTP 500 or gRPC `codes.Internal`, an oversized body is a 413 or a 400 depending on where it crosses the cap, and both the 404 and the path-canonicalizing 301 come back as non-JSON. Match offsets are recorded as rune offsets, and `SuggestIndex` as always answering `[0]`. Also enabled `doccheck` on the deployment guide''s health-check example, which had never been compiled.'
+time: 2026-08-09T15:06:41.18741+09:00
+custom:
+    Issue: "225"

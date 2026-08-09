@@ -36,6 +36,9 @@ menu:
     - name: Operations
       url: /operations/
       weight: 4
+    - name: Server
+      url: /server/
+      weight: 5
     - name: Extending
       url: /extending/
-      weight: 5
+      weight: 6
