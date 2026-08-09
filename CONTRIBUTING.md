@@ -53,8 +53,12 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 
 ### Prerequisites
 
-- Go >= 1.25
-- Redis >= 6.0 (for integration tests)
+- Go >= 1.25 (CI builds and tests on 1.25 and 1.26)
+- Redis >= 3.0, or Valkey >= 7.2 (for integration tests) — the same floor stated in
+  [`README.md`](README.md) and the
+  [installation guide](docs/content/getting-started/installation.md). CI exercises
+  `redis:8` and `valkey/valkey:8` only, so anything older is supported but not
+  covered by a build
 - golangci-lint (for linting)
 - pre-commit (optional, for git hooks)
 
@@ -146,7 +150,20 @@ make fuzz
 make all
 ```
 
-This runs vet, lint, test, build, docs-verify, and license-check.
+This runs, in order, `vet`, `lint`, `test`, `build`, `docs-verify`, `license-check`,
+and `api-check` (`Makefile:8`). Three of those gate things the sections above do not
+cover:
+
+| Target | What it gates |
+| ------------- | ------------------------------------------------------------- |
+| `docs-verify` | Compiles the Go blocks in `README.md` and `docs/content/**` that opt in with a `<!-- doccheck -->` or `<!-- doccheck:server -->` marker — 22 of the 91 Go fences today. An unmarked block is never compiled, so add the marker when you add an example that should not be allowed to rot |
+| `api-check` | Rewrites `api/v1.txt` and fails on the diff, so an unrecorded change to the public API cannot merge. See [`api/README.md`](api/README.md) |
+| `tidy-check` | Runs `go mod tidy` across all three modules and fails on the diff. Not part of `all` — it runs as a pre-commit hook |
+
+`make setup` installs `lint`, `test`, `build`, `tidy-check`, `license-check`, and
+`api-check` as pre-commit hooks, along with an SPDX-header check, so they run before the
+commit rather than in review. **`docs-verify` is not among them** — a broken example is
+caught by `make all` or by CI, not by the hook.
 
 ### Third-Party Notices
 
@@ -157,6 +174,17 @@ make license-check
 Regenerates `NOTICE` from the modules linked into the `acor` binary and fails if
 the committed file is out of date. Adding a dependency fails this target until
 its license is read by hand and recorded in `tools/licensesnap/main.go`.
+
+### Changelog Fragment
+
+```sh
+changie new
+```
+
+Writes a YAML fragment under `changes/unreleased/`. Commit it alongside your change —
+it is what becomes the release note. Skip it for internal-only changes (CI, tests,
+refactors); the [PR template](.github/PULL_REQUEST_TEMPLATE.md) states that rule, and
+[RELEASE.md](RELEASE.md) covers what happens to fragments when a release is cut.
 
 ### Cleaning
 
@@ -224,7 +252,7 @@ Types:
 
 ## Pull Requests
 
-1. Create a feature branch from `master`:
+1. Create a feature branch from `main`:
    ```sh
    git checkout -b feature/my-feature
    ```
@@ -236,7 +264,7 @@ Types:
    git push origin feature/my-feature
    ```
 
-4. Open a Pull Request against the `master` branch
+4. Open a Pull Request against the `main` branch
 
 5. Ensure all CI checks pass
 
@@ -244,11 +272,16 @@ Types:
 
 ### PR Checklist
 
-- [ ] Tests pass (`make test`)
-- [ ] Linting passes (`make lint`)
-- [ ] Build succeeds (`make build`)
-- [ ] Documentation updated if needed
-- [ ] Commit messages follow guidelines
+The checklist lives in
+[`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md), and GitHub
+pre-fills it when you open the PR. It is deliberately not copied here: a second copy is
+a second thing to keep in sync, and this one had already drifted out of step with the
+template.
+
+`make all` covers the automated entries on that list — tests, vet, lint, build, and the
+repository gates — in one command. The rest are judgement calls no target can make for
+you: whether the documentation needs updating, whether the change warrants a changelog
+fragment, and whether the commit messages read as they should.
 
 ## Questions?
 
