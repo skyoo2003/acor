@@ -53,8 +53,9 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 
 ### Prerequisites
 
-- Go >= 1.25
-- Redis >= 6.0 (for integration tests)
+- Go >= 1.25 (CI builds and tests on 1.25 and 1.26)
+- Redis or Valkey (for integration tests). CI runs against `redis:8` and
+  `valkey/valkey:8`; older versions are untested rather than unsupported
 - golangci-lint (for linting)
 - pre-commit (optional, for git hooks)
 
@@ -146,7 +147,18 @@ make fuzz
 make all
 ```
 
-This runs vet, lint, test, build, docs-verify, and license-check.
+This runs, in order, `vet`, `lint`, `test`, `build`, `docs-verify`, `license-check`,
+and `api-check` (`Makefile:8`). Three of those gate things the sections above do not
+cover:
+
+| Target | What it gates |
+| ------------- | ------------------------------------------------------------- |
+| `docs-verify` | Compiles the Go examples in `README.md` and `docs/content/**`. A broken snippet fails the build |
+| `api-check` | Rewrites `api/v1.txt` and fails on the diff, so an unrecorded change to the public API cannot merge. See [`api/README.md`](api/README.md) |
+| `tidy-check` | Runs `go mod tidy` across all three modules and fails on the diff. Not part of `all` — it runs as a pre-commit hook |
+
+`make setup` installs these as pre-commit hooks, so they run before the commit rather
+than in review.
 
 ### Third-Party Notices
 
@@ -157,6 +169,17 @@ make license-check
 Regenerates `NOTICE` from the modules linked into the `acor` binary and fails if
 the committed file is out of date. Adding a dependency fails this target until
 its license is read by hand and recorded in `tools/licensesnap/main.go`.
+
+### Changelog Fragment
+
+```sh
+changie new
+```
+
+Writes a YAML fragment under `changes/unreleased/`. Commit it alongside your change —
+it is what becomes the release note. Skip it for internal-only changes (CI, tests,
+refactors); the [PR template](.github/PULL_REQUEST_TEMPLATE.md) states that rule, and
+[RELEASE.md](RELEASE.md) covers what happens to fragments when a release is cut.
 
 ### Cleaning
 
@@ -224,7 +247,7 @@ Types:
 
 ## Pull Requests
 
-1. Create a feature branch from `master`:
+1. Create a feature branch from `main`:
    ```sh
    git checkout -b feature/my-feature
    ```
@@ -236,7 +259,7 @@ Types:
    git push origin feature/my-feature
    ```
 
-4. Open a Pull Request against the `master` branch
+4. Open a Pull Request against the `main` branch
 
 5. Ensure all CI checks pass
 
@@ -244,11 +267,13 @@ Types:
 
 ### PR Checklist
 
-- [ ] Tests pass (`make test`)
-- [ ] Linting passes (`make lint`)
-- [ ] Build succeeds (`make build`)
-- [ ] Documentation updated if needed
-- [ ] Commit messages follow guidelines
+The checklist lives in
+[`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md), and GitHub
+pre-fills it when you open the PR. It is deliberately not copied here: a second copy is
+a second thing to keep in sync, and this one had already drifted out of step with the
+template.
+
+`make all` runs every check on that list in one command.
 
 ## Questions?
 
