@@ -298,21 +298,27 @@ func decodeRequest(w http.ResponseWriter, r *http.Request, v interface{}) bool {
 
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(v); err != nil {
-		var mbe *http.MaxBytesError
-		if errors.As(err, &mbe) {
-			writeJSON(w, http.StatusRequestEntityTooLarge,
-				&ErrorResponse{Error: fmt.Sprintf("request body must not be larger than %d bytes", mbe.Limit)})
-		} else {
-			writeJSON(w, http.StatusBadRequest, &ErrorResponse{Error: err.Error()})
-		}
+		writeDecodeError(w, err, err.Error())
 		return false
 	}
-	if err := dec.Decode(new(interface{})); err != io.EOF {
-		writeJSON(w, http.StatusBadRequest,
-			&ErrorResponse{Error: "request body must contain only a single JSON value"})
+	if err := dec.Decode(new(interface{})); !errors.Is(err, io.EOF) {
+		writeDecodeError(w, err, "request body must contain only a single JSON value")
 		return false
 	}
 	return true
+}
+
+// writeDecodeError reports err as 413 when the body size cap is what tripped, and
+// as 400 carrying fallback otherwise. Either decode in decodeRequest can hit the
+// cap, so both route through here.
+func writeDecodeError(w http.ResponseWriter, err error, fallback string) {
+	var mbe *http.MaxBytesError
+	if errors.As(err, &mbe) {
+		writeJSON(w, http.StatusRequestEntityTooLarge,
+			&ErrorResponse{Error: fmt.Sprintf("request body must not be larger than %d bytes", mbe.Limit)})
+		return
+	}
+	writeJSON(w, http.StatusBadRequest, &ErrorResponse{Error: fallback})
 }
 
 func decodeKeywordRequest(w http.ResponseWriter, r *http.Request) (*KeywordRequest, bool) {
