@@ -78,6 +78,19 @@ jobs:
             go.sum
             server/go.sum
             benchmarks/go.sum
+      # Runs before lint because a stale manifest is what lint reports as
+      # "no go files to analyze", which names neither the module nor the fix.
+      # server/ and benchmarks/ replace the core with ../, so a Dependabot bump
+      # to the root alone moves their build list and leaves their own manifests
+      # behind — that is PR #233, where all six jobs failed on it. pre-commit
+      # runs this same target, but Dependabot pushes through the API and never
+      # runs the hooks, so the hook cannot be the gate for the case that needs one.
+      #
+      # Pinned to one leg: the check is a git diff of generated text, so it is
+      # platform- and version-independent.
+      - name: Check module manifests are tidy
+        if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
+        run: make tidy-check
       - name: Execute golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # golangci-lint-action v9.3.0
         with:
