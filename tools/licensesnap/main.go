@@ -95,6 +95,9 @@ var licenses = map[string]license{
 	"github.com/redis/go-redis/v9": {"BSD-2-Clause", "a3a7dff87da3927db65cb4c87b1cfbc96ca2755704461a485d457be7ae300a86"},
 	"go.uber.org/atomic":           {"MIT", "edbb5a4d165ac69376c765b551c0662ff42bea87e1f1eda85f42ac90c34b09d0"},
 	"golang.org/x/sync":            {"BSD-3-Clause", "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"},
+	// Linked as of go-redis v9.22.0, which imports golang.org/x/sys/cpu. Same Go
+	// Authors LICENSE text as x/sync, hence the same digest.
+	"golang.org/x/sys": {"BSD-3-Clause", "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"},
 }
 
 // releaseGOOS and releaseGOARCH mirror the build matrix in .goreleaser.yaml.
