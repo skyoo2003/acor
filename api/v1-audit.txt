@@ -24,7 +24,7 @@ field AhoCorasickArgs.DB int	fixed	acor.go:262 gave '0-15' as if checked; nothin
 field AhoCorasickArgs.Debug bool	ok	acor.go:271; newLogger switches the default logger to stdout at acor.go:448
 field AhoCorasickArgs.DialTimeout time.Duration	ok	acor.go:280; carried into every topology through universalOptions (client.go:86) and the hand-built ring (client.go:100), so the shared 'all topologies' preamble holds for it
 field AhoCorasickArgs.EnableCache bool	ok	acor.go:283; both documented rejections fire at acor.go:437,503
-field AhoCorasickArgs.InvalidationPollInterval time.Duration	ok	acor.go:354; read only at redis_backed.go:91 and the poller starts only when > 0 (redis_backed.go:117), so 'disabled by default, Preset mode only' is accurate
+field AhoCorasickArgs.InvalidationPollInterval time.Duration	ok	redis_backed.go:372 reads only version and marks stale; the next search reloads. Disabled by default, Preset only; failures mean the interval cannot bound freshness.
 field AhoCorasickArgs.Logger Logger	ok	acor.go:307; a non-nil Logger wins over the default at acor.go:494
 field AhoCorasickArgs.MasterName string	ok	acor.go:254; client.go:27-28 selects the failover client on a non-blank MasterName and client.go:55-57 requires Addrs with it, exactly as documented
 field AhoCorasickArgs.MaxRetries int	ok	acor.go:286; client.go:89,104. -1 disabling retries is go-redis's contract, not this package's
@@ -51,8 +51,10 @@ field BatchResult.Skipped []string	fixed	options.go:110 gave only "duplicates in
 field CacheStats.Hits uint64	ok	stats.go:21; re-verdicted after #206, which landed the one-read-per-call behavior the sentence now describes. FindParallelContext, FindIndexParallelContext and FindManyContext each call loadEngine exactly once (context_ops.go:143,188,111), and hit/miss are recorded only inside loadEngine (v2_ops.go:274,282, redis_backed.go:230,239, engine_memo.go:43,46), so writes, Suggest and Info record nothing. TestCacheStatsCountsOneReadPerCall (stats_test.go:61) pins it
 field CacheStats.LastInvalidationLag time.Duration	ok	stats.go:74; recordInvalidationLag drops only negatives (stats.go:143) per TestCacheStatsDiscardsNegativeLag, and the listener-only modes match invalidation.go:192
 field CacheStats.Misses uint64	fixed	stats.go:35 claimed a failed Redis fetch is always a miss; true for preset (redis_backed.go:239) and cached V2 (v2_ops.go:282), false for default V2, which fetches at v2_ops.go:260 and only then reaches the counter. Sentence now names the split; TestCacheStatsFailedFetchByMode pins all three modes
-field CacheStats.RebuildDuration time.Duration	ok	stats.go:62; timeRebuild (stats.go:165) wraps build alone — the Redis fetch happens before it at v2_ops.go:260 and the lock is taken before it at engine_memo.go:40, matching both exclusions
-field CacheStats.Rebuilds uint64	ok	stats.go:50; starts at 1 in Preset per TestCacheStatsPreset (stats_test.go:214), and coalesced misses share one build at engine_memo.go:39-47, which is the documented Misses-Rebuilds gap
+field CacheStats.PresetPollFailures uint64	ok	redis_backed.go:372 records failed version reads; TestPresetPollVersionOnlyAndRecovery verifies version-only polling, errors and recovery.
+field CacheStats.PresetReloadFailures uint64	ok	redis_backed.go:297 records once per shared failed job, excluding cancellation; TestPresetReloadFailureSharedAndRetry verifies one failure for two waiting requests.
+field CacheStats.RebuildDuration time.Duration	ok	redis_backed.go:177 times only engine construction in Preset, excluding Redis reads, materialization and publication. Other modes retain their existing timed callbacks.
+field CacheStats.Rebuilds uint64	ok	redis_backed.go:177 counts every Preset engine build, including rejected generations. Construction starts at one; shared misses coalesce, local writes also rebuild.
 field KeywordError.Error error	ok	options.go:97; carries ErrEmptyKeyword or the write error, batch.go:69,126,141
 field KeywordError.Keyword string	ok	options.go:95; set from the offending keyword, batch.go:68,126,140
 field Match.End int	ok	matches.go:25; exclusive, indexed at matches.go:327 with an m.End >= len bound
@@ -82,17 +84,18 @@ field OperationError.Err error	ok	errors.go:77; the wrapped cause, returned by U
 field OperationError.Keyword string	ok	errors.go:73; left empty by newOperationError, which is why Error has the two-branch format at errors.go:83
 field OperationError.Op string	ok	errors.go:71; set from the op argument, errors.go:112
 field OperationError.Schema int	ok	errors.go:75; carries the schema constant passed in, e.g. SchemaV2 at v2_ops.go:114
+field ParallelOptions.AutoOverlap bool	ok	parallel.go:243 extends right by max(Overlap, longest rune length minus one); context_ops.go:170 filters owned starts and preserves chunk order. TestAutoOverlapSerialParity verifies Unicode and long keywords.
 field ParallelOptions.Boundary ChunkBoundary	ok	options.go:68; the zero value is ChunkBoundaryWord (options.go:37), so unset does split on whitespace
 field ParallelOptions.ChunkSize int	fixed	options.go:61 promised a DefaultChunkSize fallback; normalizeParallelOptions (parallel.go:89-104) never sets it and context_ops.go:127,177 reject <= 0 with ErrInvalidChunkSize, so the documented default was an error return. TestParallelOptionsHaveNoImpliedDefaults pins it
-field ParallelOptions.Overlap int	fixed	options.go:71 promised DefaultOverlap; parallel.go:96-102 only clamps negatives, leaving an unset Overlap at 0 and silently missing boundary-straddling keywords. Same test pins it
-field ParallelOptions.Workers int	ok	options.go:58; parallel.go:93-95 substitutes runtime.NumCPU() when <= 0, exactly as documented
+field ParallelOptions.Overlap int	ok	parallel.go:90 copies options and clamps negative overlap to zero. Legacy splitting is unchanged; AutoOverlap treats it as a minimum right extension.
+field ParallelOptions.Workers int	ok	parallel.go:90 copies options and replaces nonpositive Workers with runtime.NumCPU without mutating the caller.
 field RedisError.Err error	ok	errors.go:99; the client error, returned by Unwrap at errors.go:109
 field RedisError.Key string	ok	errors.go:97; the key involved, v2_ops.go:108
 field RedisError.Op string	ok	errors.go:95; the Redis verb, e.g. "HGETALL" at v2_ops.go:108
 func Create(args *AhoCorasickArgs) (*AhoCorasick, error)	ok	acor.go:403 delegates to CreateContext with context.Background, and the documented error cases are the guards at acor.go:420-437 and client.go:47-68
 func CreateContext(ctx context.Context, args *AhoCorasickArgs) (*AhoCorasick, error)	ok	acor.go:418; ctx governs setup only, and the background listener runs on an internal context per acor.go:476
 func DefaultMigrationOptions() *MigrationOptions	ok	schema.go:64 names DryRun=false, KeepOldKeys=false, Progress=nil; the body returns the zero value at schema.go:67, which is exactly those three
-func DefaultParallelOptions() *ParallelOptions	ok	options.go:83 returns exactly the four documented values, and is the only source of them
+func DefaultParallelOptions() *ParallelOptions	ok	options.go:88 supplies CPU workers, 1000 rune chunks, word boundary, overlap 50 and AutoOverlap false.
 method (*AhoCorasick) Add(keyword string) (int, error)	fixed	acor.go:654 listed only "added" and "already exists" for a 0 return; an empty keyword also returns (0, nil) at redis_backed_ops.go:20 and v2_ops.go:81. Case added; TestEmptyKeywordIsNotAnErrorOutsideBatch pins it
 method (*AhoCorasick) AddContext(ctx context.Context, keyword string) (int, error)	ok	context_ops.go:7 forwards to the same ops.add that Add uses (acor.go:701), so ctx reaches Redis in V2 and preset mode; cross-reference to Add's return values added
 method (*AhoCorasick) AddMany(keywords []string, opts *BatchOptions) (*BatchResult, error)	fixed	batch.go:45 said 'duplicate keywords are skipped', which reads as exact duplicates; screening is on the normalized form (batch.go:110-114), so 'Foo' and 'foo' are one keyword on a case-insensitive collection. Also added that a transactional failure returns a nil *BatchResult (batch.go:204,214). TestBatchDuplicatesAreJudgedNormalized pins both
@@ -132,8 +135,8 @@ method (*AhoCorasick) RollbackToV1() error	fixed	migration.go:349 named only the
 method (*AhoCorasick) SchemaVersion() int	ok	acor.go:562 returns the stored version with no Redis I/O
 method (*AhoCorasick) Suggest(input string) ([]string, error)	ok	acor.go:710 delegates to ops.suggest; preset mode returns ErrSuggestRequiresRedis at redis_backed_ops.go:160
 method (*AhoCorasick) SuggestContext(ctx context.Context, input string) ([]string, error)	fixed	context_ops.go:49 omitted that preset mode cannot serve it at all - redis_backed_ops.go:160 returns ErrSuggestRequiresRedis, since the local automaton holds no prefix index. Added
-method (*AhoCorasick) SuggestIndex(input string) (map[string][]int, error)	ok	acor.go:716 delegates to ops.suggestIndex; preset mode returns ErrSuggestRequiresRedis at redis_backed_ops.go:164
-method (*AhoCorasick) SuggestIndexContext(ctx context.Context, input string) (map[string][]int, error)	fixed	context_ops.go:57; same omission and same sentinel at redis_backed_ops.go:164
+method (*AhoCorasick) SuggestIndex(input string) (map[string][]int, error)	ok	acor.go:716 delegates to ops.suggestIndex; preset mode returns ErrSuggestRequiresRedis at redis_backed_ops.go:159
+method (*AhoCorasick) SuggestIndexContext(ctx context.Context, input string) (map[string][]int, error)	fixed	context_ops.go:57; same omission and same sentinel at redis_backed_ops.go:159
 method (*MigrationResult) Stats() map[string]interface{}	fixed	schema.go:127 offered 'migration statistics'; it returns 6 of the 13 fields (schema.go:128-135), omitting every outcome field, so a caller cannot tell success from a dry run or a failure by reading the map. Now documented as a projection with the six named
 method (*OperationError) Error() string	ok	errors.go:82; includes op, schema and cause, and adds the keyword only when set
 method (*OperationError) Unwrap() error	ok	errors.go:90 returns Err, so errors.Is and errors.As reach the cause as documented

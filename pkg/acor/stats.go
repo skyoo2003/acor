@@ -18,6 +18,12 @@ import (
 // from or written to Redis, so a peer instance's activity is invisible: scrape each
 // instance separately rather than expecting a fleet-wide total.
 type CacheStats struct {
+	// PresetReloadFailures counts failed shared reload jobs, once per job.
+	// Request cancellation is excluded. Zero outside Preset mode.
+	PresetReloadFailures uint64
+	// PresetPollFailures counts failed version polls, excluding cancellation.
+	// Zero outside Preset mode or when polling is disabled.
+	PresetPollFailures uint64
 	// Hits is the number of reads served from the local automaton without rebuilding
 	// it.
 	//
@@ -48,7 +54,8 @@ type CacheStats struct {
 	// means.
 	Misses uint64
 	// Rebuilds is the number of automaton builds. It starts at 1 in Preset mode, which
-	// builds once during Create before any read.
+	// builds once during Create before any read. Preset builds discarded by a
+	// generation conflict or cancellation are included: their build cost was paid.
 	//
 	// It is deliberately not equal to Misses in either direction. Concurrent misses
 	// coalesce onto one build, so Misses-Rebuilds is the work that coalescing saved;
@@ -60,14 +67,15 @@ type CacheStats struct {
 	// wraps to something near 2^64 instead of going negative.
 	Rebuilds uint64
 	// RebuildDuration is the total time spent building automatons, excluding the Redis
-	// fetch and the wait for the lock that serializes rebuilds. The brief cache write
-	// lock a finished build takes to publish itself is included.
+	// fetch and synchronization waits before building. Preset times the engine build
+	// alone, excluding its later publication lock; cache modes may also include
+	// the brief publication step performed inside their timed build callback.
 	// RebuildDuration/Rebuilds is the mean cost of one rebuild — what a write to a
 	// large collection makes every reader pay.
 	//
 	// Where decoding the fetched payload lands differs by mode. A default V2 instance
 	// parses inside the memoized build, so the decode counts here; Preset materializes
-	// its keyword set in applyReload before rebuildEngine starts timing, so there it
+	// its keyword set in prepareSnapshot before the build timer starts, so there it
 	// does not. Read the mean against itself over time rather than across two
 	// differently configured instances.
 	RebuildDuration time.Duration
@@ -103,11 +111,13 @@ type cacheStats struct {
 	// types guarantee 8-byte alignment on 386/arm (both released by goreleaser, where a
 	// misaligned 64-bit atomic panics) instead of leaving it to field order, for the
 	// same reason selfSkipSet.publishCount uses one.
-	hits         atomic.Uint64
-	misses       atomic.Uint64
-	rebuilds     atomic.Uint64
-	rebuildNanos atomic.Int64
-	lastLagNanos atomic.Int64
+	presetReloadFailures atomic.Uint64
+	presetPollFailures   atomic.Uint64
+	hits                 atomic.Uint64
+	misses               atomic.Uint64
+	rebuilds             atomic.Uint64
+	rebuildNanos         atomic.Int64
+	lastLagNanos         atomic.Int64
 }
 
 func (s *cacheStats) hit() {
@@ -151,11 +161,13 @@ func (s *cacheStats) snapshot() CacheStats {
 		return CacheStats{}
 	}
 	return CacheStats{
-		Hits:                s.hits.Load(),
-		Misses:              s.misses.Load(),
-		Rebuilds:            s.rebuilds.Load(),
-		RebuildDuration:     time.Duration(s.rebuildNanos.Load()),
-		LastInvalidationLag: time.Duration(s.lastLagNanos.Load()),
+		PresetReloadFailures: s.presetReloadFailures.Load(),
+		PresetPollFailures:   s.presetPollFailures.Load(),
+		Hits:                 s.hits.Load(),
+		Misses:               s.misses.Load(),
+		Rebuilds:             s.rebuilds.Load(),
+		RebuildDuration:      time.Duration(s.rebuildNanos.Load()),
+		LastInvalidationLag:  time.Duration(s.lastLagNanos.Load()),
 	}
 }
 
@@ -169,4 +181,15 @@ func timeRebuild[T any](s *cacheStats, build func() (T, error)) (T, error) {
 		s.recordRebuild(time.Since(start))
 	}
 	return out, err
+}
+
+func (s *cacheStats) reloadFailure() {
+	if s != nil {
+		s.presetReloadFailures.Add(1)
+	}
+}
+func (s *cacheStats) pollFailure() {
+	if s != nil {
+		s.presetPollFailures.Add(1)
+	}
 }

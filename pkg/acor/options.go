@@ -76,6 +76,11 @@ type ParallelOptions struct {
 	// so set it to at least your longest keyword or start from DefaultParallelOptions.
 	// A negative value is clamped to zero.
 	Overlap int
+	// AutoOverlap protects every boundary using the loaded dictionary’s longest
+	// keyword. Base chunks do not overlap; their right search ranges extend by
+	// max(Overlap, longest keyword rune length - 1). Default false preserves
+	// legacy splitting. Keywords longer than ChunkSize are supported.
+	AutoOverlap bool
 }
 
 // DefaultParallelOptions returns parallel processing options with sensible defaults:

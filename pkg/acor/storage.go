@@ -27,6 +27,8 @@ type zMember struct {
 //
 // All operations accept a context for cancellation and timeout support.
 type kvStorage interface {
+	// HGet retrieves one hash field. A missing field returns redis.Nil.
+	HGet(ctx context.Context, key, field string) (string, error)
 	// HGetAll retrieves all field-value pairs from a hash.
 	HGetAll(ctx context.Context, key string) (map[string]string, error)
 	// HSet sets multiple field-value pairs in a hash.

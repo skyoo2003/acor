@@ -51,6 +51,8 @@ field BatchResult.Skipped []string
 field CacheStats.Hits uint64
 field CacheStats.LastInvalidationLag time.Duration
 field CacheStats.Misses uint64
+field CacheStats.PresetPollFailures uint64
+field CacheStats.PresetReloadFailures uint64
 field CacheStats.RebuildDuration time.Duration
 field CacheStats.Rebuilds uint64
 field KeywordError.Error error
@@ -82,6 +84,7 @@ field OperationError.Err error
 field OperationError.Keyword string
 field OperationError.Op string
 field OperationError.Schema int
+field ParallelOptions.AutoOverlap bool
 field ParallelOptions.Boundary ChunkBoundary
 field ParallelOptions.ChunkSize int
 field ParallelOptions.Overlap int

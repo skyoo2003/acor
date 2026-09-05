@@ -33,9 +33,8 @@ you run ACOR as a service, not to instrument your own process.
 
 ## Core library: cache statistics
 
-`CacheStats()` answers the three questions that decide whether ACOR is behaving: how
-often reads avoid Redis, how much a peer's write costs every reader, and how fast
-invalidations propagate. It does no Redis I/O, so scraping it on a timer is cheap.
+`CacheStats()` reports how often reads avoid Redis, rebuild cost, invalidation lag,
+and Preset refresh failures. It does no Redis I/O, so scraping it on a timer is cheap.
 
 <!-- doccheck -->
 ```go
@@ -61,6 +60,24 @@ Wire those three into whatever you already run — a Prometheus collector, an OT
 meter, a log line. ACOR deliberately depends on no metrics library, so the choice
 stays yours.
 
+### Preset refresh failures
+
+Track increases in `PresetReloadFailures` and `PresetPollFailures` alongside search
+errors. A shared failed reload increments the first counter once, even when many
+requests receive the error. A failed version poll increments the second counter;
+its next tick retries. Request cancellation is excluded from both counters.
+These counters remain zero outside Preset mode, and polling is disabled by default.
+
+A failed reload retains the previous engine but returns an error to the search;
+it does not serve that engine as a fallback. Each waiting request responds to its
+own context cancellation without canceling other waiters. All waiters leaving or
+`Close` cancels the shared job. Redis reads and engine builds run outside the
+state lock, and snapshots overtaken by local state changes are rejected.
+
+Polling reads only the version field. It detects missed invalidations after a
+successful poll; the next search must then fetch and build the full dictionary.
+The configured interval is not an upper bound on staleness during failures.
+
 ### Reading the numbers
 
 - **The counters are per instance and per process.** Nothing is aggregated through
@@ -68,7 +85,7 @@ stays yours.
 - **`Rebuilds` will not equal `Misses`.** Concurrent misses coalesce onto one build, so
   `Misses - Rebuilds` is what that coalescing saved; local writes rebuild off the read
   path and push the count the other way. In `Preset` mode `Rebuilds` starts at 1, from
-  the build during `Create`. Both counters are `uint64`, so check `Misses > Rebuilds`
+  the build during `Create`; builds discarded after a generation conflict also count. Both counters are `uint64`, so check `Misses > Rebuilds`
   before subtracting — a write-heavy instance is routinely the other way round, and the
   difference wraps to roughly 1.8e19 rather than going negative.
 - **One scanning call is one read, whatever it scans over.** `FindParallel`,

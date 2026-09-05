@@ -30,9 +30,10 @@ func main() {
 
 	largeText := "foo bar baz "
 	matches, err := ac.FindParallel(largeText, &acor.ParallelOptions{
-		Workers:   4,
-		Boundary:  acor.ChunkBoundaryWord,
-		ChunkSize: 1000,
+		Workers:     4,
+		Boundary:    acor.ChunkBoundaryWord,
+		ChunkSize:   1000,
+		AutoOverlap: true,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to find parallel: %v\n", err)

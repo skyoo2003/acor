@@ -197,3 +197,7 @@ func (p *redisPipeliner) Exec(ctx context.Context) error {
 	_, err := p.pipe.Exec(ctx)
 	return err
 }
+
+func (s *redisStorage) HGet(ctx context.Context, key, field string) (string, error) {
+	return s.client.HGet(ctx, key, field).Result()
+}

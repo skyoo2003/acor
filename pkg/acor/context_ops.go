@@ -156,8 +156,6 @@ func (ac *AhoCorasick) FindParallelContext(ctx context.Context, text string, opt
 		return []string{}, nil
 	}
 
-	chunks := splitChunks(text, opts)
-
 	// One engine for the whole call, not one per chunk. Each ops.find reloaded it,
 	// so an N-chunk text cost N round trips where serial Find costs one at any
 	// input size — the fixed read cost V2 is built around (#205). Loading once also
@@ -166,6 +164,13 @@ func (ac *AhoCorasick) FindParallelContext(ctx context.Context, text string, opt
 	eng, err := ac.ops.loadEngine(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	var chunks []chunk
+	if opts.AutoOverlap {
+		chunks = splitAutoChunks(text, opts, eng.MaxKeywordRunes())
+	} else {
+		chunks = splitChunks(text, opts)
 	}
 
 	perChunk, err := scanChunks(ctx, chunks, opts.Workers, func(ctx context.Context, c chunk) ([]string, error) {
@@ -181,6 +186,20 @@ func (ac *AhoCorasick) FindParallelContext(ctx context.Context, text string, opt
 		// dedupPreservingOrder below. On match-dense text that per-occurrence slice
 		// is most of the scan's allocation, and it is accumulated across every chunk
 		// before the dedup runs.
+		if opts.AutoOverlap {
+			matches := make([]string, 0)
+			seen := make(map[string]struct{})
+			eng.MatchString(normalizeText(c.text, ac.caseSensitive), func(keyword string, start, _ int) bool {
+				if start < c.ownedRunes {
+					if _, exists := seen[keyword]; !exists {
+						seen[keyword] = struct{}{}
+						matches = append(matches, keyword)
+					}
+				}
+				return true
+			})
+			return matches, nil
+		}
 		return eng.FindSet(normalizeText(c.text, ac.caseSensitive)), nil
 	})
 	if err != nil {
@@ -205,17 +224,32 @@ func (ac *AhoCorasick) FindIndexParallelContext(ctx context.Context, text string
 		return map[string][]int{}, nil
 	}
 
-	chunks := splitChunks(text, opts)
-
 	// One engine for the whole call; see FindParallelContext.
 	eng, err := ac.ops.loadEngine(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	var chunks []chunk
+	if opts.AutoOverlap {
+		chunks = splitAutoChunks(text, opts, eng.MaxKeywordRunes())
+	} else {
+		chunks = splitChunks(text, opts)
+	}
+
 	perChunk, err := scanChunks(ctx, chunks, opts.Workers, func(ctx context.Context, c chunk) (map[string][]int, error) {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
+		}
+		if opts.AutoOverlap {
+			matches := make(map[string][]int)
+			eng.MatchString(normalizeText(c.text, ac.caseSensitive), func(keyword string, start, _ int) bool {
+				if start < c.ownedRunes {
+					matches[keyword] = append(matches[keyword], start)
+				}
+				return true
+			})
+			return matches, nil
 		}
 		return eng.FindIndex(normalizeText(c.text, ac.caseSensitive)), nil
 	})

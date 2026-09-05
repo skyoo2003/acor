@@ -462,3 +462,14 @@ const (
     ChunkBoundaryLine                           // Split at newlines
 )
 ```
+
+## Parallel Boundary Protection and Preset Refresh
+
+`ParallelOptions.AutoOverlap` (default `false`) enables dictionary-aware right
+extensions for each base chunk. It protects keywords longer than `ChunkSize`
+without additional Redis reads. Results use the existing parallel order and rune
+positions. See [parallel matching](../../guides/parallel-matching/).
+
+`CacheStats.PresetReloadFailures` and `CacheStats.PresetPollFailures` are cumulative
+`uint64` counters. Shared reload failures count once per job; cancellations are
+excluded. They remain zero in other modes. See [Preset refresh](../../guides/redis-backed-engine/#invalidation-safety).

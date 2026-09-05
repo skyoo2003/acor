@@ -110,6 +110,14 @@ info, err := ac.Info()              // (*AhoCorasickInfo, error)
 ac.Flush()
 ```
 
+## Refresh and Cancellation
+
+Stale reads share a reload but respond independently to request cancellation.
+A failed reload returns a search error and is retried by a later request. Optional
+version polling helps recover from missed Pub/Sub messages; its interval does not
+guarantee freshness during failures. See [invalidation safety](../redis-backed-engine/#invalidation-safety)
+for the refresh lifecycle and failure counters.
+
 ## Next Steps
 
 - [Redis-Backed Engine](../redis-backed-engine/) - Redis persistence details

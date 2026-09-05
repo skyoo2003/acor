@@ -130,11 +130,7 @@ func (ac *redisBackedAC) flush(ctx context.Context) error {
 		return err
 	}
 
-	ac.mu.Lock()
-	ac.keywordSet = make(map[string]struct{})
-	ac.rebuildEngine()
-	ac.stale = false
-	ac.mu.Unlock()
+	ac.applyCommittedWrite(&trieSnapshot{}, 0)
 
 	ac.publishInvalidate(ctx)
 	return nil
