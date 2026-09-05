@@ -72,11 +72,7 @@ func readTrieSnapshot(ctx context.Context, storage kvStorage, name string) (*tri
 			return nil, newOperationError("unmarshal", SchemaV2, err)
 		}
 	}
-	if v, ok := trieData[fieldVersion]; ok {
-		if err := json.Unmarshal([]byte(v), &snap.Version); err != nil {
-			snap.Version = 0
-		}
-	}
+	snap.Version = parseTrieVersion(trieData[fieldVersion])
 
 	return snap, nil
 }
@@ -247,4 +243,24 @@ func (o *v2Operations) tryRemoveV2(ctx context.Context, keyword string) (int, er
 
 	o.publishInvalidate(ctx)
 	return 1, nil
+}
+
+// parseTrieVersion preserves the snapshot semantics: absent or malformed is zero.
+func parseTrieVersion(value string) int64 {
+	var version int64
+	if err := json.Unmarshal([]byte(value), &version); err != nil {
+		return 0
+	}
+	return version
+}
+
+func readTrieVersion(ctx context.Context, storage kvStorage, name string) (int64, error) {
+	value, err := storage.HGet(ctx, trieKey(name), fieldVersion)
+	if errors.Is(err, redis.Nil) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, newRedisError("HGET", trieKey(name), err)
+	}
+	return parseTrieVersion(value), nil
 }

@@ -14,6 +14,7 @@ import (
 type chunk struct {
 	text       string
 	textOffset int
+	ownedRunes int
 }
 
 func splitChunks(text string, opts *ParallelOptions) []chunk {
@@ -90,6 +91,8 @@ func normalizeParallelOptions(opts *ParallelOptions) *ParallelOptions {
 	if opts == nil {
 		return DefaultParallelOptions()
 	}
+	normalized := *opts
+	opts = &normalized
 	if opts.Workers <= 0 {
 		opts.Workers = runtime.NumCPU()
 	}
@@ -157,10 +160,13 @@ func scanChunks[T any](ctx context.Context, chunks []chunk, workers int, scan fu
 // most once regardless of how many times or in how many chunks it occurs. (Find
 // reports every occurrence; FindParallel reports a set.)
 //
-// Limitation: a keyword longer than opts.Overlap that straddles a chunk boundary
-// can be missed, since it fits in no single chunk. Set Overlap to at least your
-// longest expected keyword length, or use FindStream (which never splits a match)
-// when this matters.
+// With AutoOverlap enabled, every boundary is protected using the loaded
+// dictionary, including keywords longer than ChunkSize. Results retain chunk
+// order, then first-match scan order within each chunk.
+//
+// Limitation with AutoOverlap disabled: a keyword longer than opts.Overlap that straddles a chunk boundary
+// can be missed, since it fits in no single chunk. Enable AutoOverlap or use
+// FindStream (which never splits a match) when this matters.
 //
 // Example:
 //
@@ -183,9 +189,11 @@ func (ac *AhoCorasick) FindParallel(text string, opts *ParallelOptions) ([]strin
 // Due to chunk overlap, matches at chunk boundaries may have duplicate indices
 // that are automatically deduplicated.
 //
-// Limitation: like FindParallel, a keyword longer than opts.Overlap that straddles
-// a chunk boundary can be missed. Set Overlap to at least your longest expected
-// keyword length.
+// Enable AutoOverlap to protect all boundaries, including keywords longer than
+// ChunkSize. Positions are rune offsets in the original text.
+//
+// Limitation with AutoOverlap disabled: a keyword longer than opts.Overlap that straddles
+// a chunk boundary can be missed. Enable AutoOverlap to protect these matches.
 //
 // Example:
 //
@@ -227,4 +235,24 @@ func mergeIndexResults(chunks []chunk, perChunk []map[string][]int) map[string][
 		result[keyword] = sorted
 	}
 	return result
+}
+
+// splitAutoChunks assigns each start position to exactly one base chunk.
+func splitAutoChunks(text string, opts *ParallelOptions, longest int) []chunk {
+	runes := []rune(text)
+	extension := max(opts.Overlap, longest-1)
+	chunks := make([]chunk, 0)
+	for start := 0; start < len(runes); {
+		end := start + min(opts.ChunkSize, len(runes)-start)
+		if end < len(runes) {
+			boundary := findBoundary(runes, end, opts.Boundary, opts.ChunkSize/defaultMaxBacktrackDivisor)
+			if boundary > start {
+				end = boundary
+			}
+		}
+		searchEnd := end + min(extension, len(runes)-end)
+		chunks = append(chunks, chunk{text: string(runes[start:searchEnd]), textOffset: start, ownedRunes: end - start})
+		start = end
+	}
+	return chunks
 }

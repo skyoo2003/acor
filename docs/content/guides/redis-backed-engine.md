@@ -35,13 +35,13 @@ Instance A ──Find()──▶ local engine (0 RTT)
 - **Writes**: V2 Lua scripts with optimistic locking (up to 3 retries with backoff)
 - **Reads**: Local preset-optimized automaton — no Redis I/O
 - **Invalidation**: Redis Pub/Sub notifies all instances on mutation
-- **Degraded mode**: If reload fails, the last-good engine continues serving reads
+- **Reload failures**: The previous engine is retained, but the waiting search returns an error. A later search retries the reload.
 
 ## Invalidation Safety
 
 Redis Pub/Sub is best effort. In a multi-instance deployment, set
-`InvalidationPollInterval` to bound how long a dropped invalidation can leave a
-local preset engine stale:
+`InvalidationPollInterval` to recover from dropped invalidations after a successful
+version poll and reload:
 
 <!-- doccheck -->
 ```go
@@ -55,7 +55,23 @@ _ = args
 ```
 
 The zero value disables polling. Polling only applies to Preset mode; normal
-invalidation still uses Pub/Sub.
+invalidation still uses Pub/Sub. Each poll reads only the existing `version` hash
+field; a changed version marks the engine stale, and the next search reads the
+full snapshot. The interval is not a freshness upper bound: Redis failures, query
+latency, and rebuild time can delay recovery. This mode provides eventual refresh,
+not strong consistency or a guarantee of fresh results during an outage.
+
+Concurrent stale reads share a reload, while each request independently observes
+its own context cancellation. Canceling one waiter leaves the others running.
+The instance lifetime owns the job; all waiters leaving or `Close` cancels it.
+Redis reads and engine builds run outside the state lock. A generation check
+rejects and retries snapshots overtaken by local writes or invalidations.
+
+`CacheStats().PresetReloadFailures` counts failed shared jobs once per job;
+`PresetPollFailures` counts failed version polls. Cancellation is excluded.
+Both counters are cumulative per instance and remain zero outside Preset mode.
+Monitor these counters alongside application search errors; a retained previous
+engine does not turn a failed reload into a successful response.
 
 ## Quick Start
 

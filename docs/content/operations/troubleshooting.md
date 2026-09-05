@@ -146,13 +146,17 @@ _ = args
 disconnected subscriber can miss an invalidation.
 
 **Solution:** In multi-instance deployments, set
-`InvalidationPollInterval` to the maximum acceptable staleness window:
+`InvalidationPollInterval` to retry version checks periodically:
 
 ```go
 args.InvalidationPollInterval = 30 * time.Second
 ```
 
-The option is disabled by default and ignored outside Preset mode.
+The option is disabled by default and ignored outside Preset mode. The interval
+is not a freshness bound: recovery requires a successful version poll and a
+successful reload on the next search. Inspect `CacheStats().PresetPollFailures`
+and `PresetReloadFailures` when updates remain invisible. Reload errors are
+returned to searches; the retained engine is not automatically served as fallback.
 
 ## Performance Issues
 

@@ -102,9 +102,21 @@ func (ac *redisBackedAC) removeManyAtomic(ctx context.Context, keywords []string
 // already folded this write into snap.Keywords.
 func (ac *redisBackedAC) applyCommittedWrite(snap *trieSnapshot, newVersion int64) {
 	ac.mu.Lock()
-	ac.applyReload(snap)
-	ac.localVersion = newVersion
+	ac.generation++
+	generation := ac.generation
+	ac.stale = true
 	ac.mu.Unlock()
+	keywords, engine := ac.prepareSnapshot(snap)
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+	// A later write, invalidation, or completed reload owns the newer state.
+	if ac.generation != generation {
+		return
+	}
+	ac.keywordSet = keywords
+	ac.engine = engine
+	ac.localVersion = newVersion
+	ac.stale = false
 }
 
 // --- V2 mode ---

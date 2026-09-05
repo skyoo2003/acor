@@ -2,6 +2,8 @@
 
 package engine
 
+import "unicode/utf8"
+
 // container is the optional specialization behind Engine.Contains. Routing a
 // presence check through matchString was the most expensive of the cheap
 // operations: it missed the byte-scan fast path on ASCII text and reported a match
@@ -23,7 +25,8 @@ const findResultHint = 8
 // package can build and query the automaton without depending on the concrete
 // engine types (which stay unexported).
 type Engine struct {
-	impl matchEngine
+	impl            matchEngine
+	maxKeywordRunes int
 }
 
 // New returns an Engine backed by the implementation selected for preset.
@@ -33,6 +36,10 @@ func New(preset Preset) *Engine {
 
 // Build (re)constructs the automaton from the given keyword set.
 func (e *Engine) Build(keywords map[string]struct{}) {
+	e.maxKeywordRunes = 0
+	for keyword := range keywords {
+		e.maxKeywordRunes = max(e.maxKeywordRunes, utf8.RuneCountInString(keyword))
+	}
 	e.impl.buildFromKeywords(keywords)
 }
 
@@ -97,3 +104,6 @@ func (e *Engine) Stream(next func() (rune, bool), emit func(keyword string, star
 func (e *Engine) Info() *InMemoryInfo {
 	return e.impl.info()
 }
+
+// MaxKeywordRunes returns the longest keyword length in runes.
+func (e *Engine) MaxKeywordRunes() int { return e.maxKeywordRunes }

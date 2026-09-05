@@ -1,6 +1,19 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## Unreleased — next minor release
+
+### Added
+
+* Opt-in `ParallelOptions.AutoOverlap` protects matches across all chunk boundaries, including keywords longer than a chunk, using one engine snapshot per call.
+* `CacheStats.PresetReloadFailures` and `PresetPollFailures` report cumulative refresh failures, excluding cancellation.
+
+### Fixed
+
+* Preset reload waiters respond independently to cancellation. Shared jobs stop when all waiters leave or the instance closes. Snapshot fetching and engine building run outside the state lock; generation checks reject obsolete reloads after writes or invalidation.
+* Preset polling reads only the existing version field. Failed refreshes still return search errors and retry on later requests; polling is disabled by default and provides no outage freshness bound.
+* Parallel options are copied before normalization. Existing behavior remains the default. No Redis schema change or data migration is required.
+
 ## [v1.5.2](https://github.com/skyoo2003/acor/releases/tag/v1.5.2) - 2026-08-09
 
 ### Changed

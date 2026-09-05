@@ -220,3 +220,8 @@ var (
 	_ kvStorage = (*countingStorage)(nil)
 	_ pipeliner = (*countingPipeliner)(nil)
 )
+
+func (s *countingStorage) HGet(ctx context.Context, key, field string) (string, error) {
+	s.c.add()
+	return s.inner.HGet(ctx, key, field)
+}

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	redis "github.com/redis/go-redis/v9"
-	"golang.org/x/sync/singleflight"
 
 	matchengine "github.com/skyoo2003/acor/internal/engine"
 )
@@ -40,14 +39,23 @@ type redisBackedAC struct {
 
 	stats *cacheStats
 
-	selfSkip    selfSkipSet
-	reloadGroup singleflight.Group
-	pubsub      subscription
-	stopCh      chan struct{}
-	ctx         context.Context
-	cancel      context.CancelFunc
-	closeOnce   sync.Once
-	closed      int32
+	selfSkip   selfSkipSet
+	reload     *presetReload
+	generation uint64
+	pubsub     subscription
+	stopCh     chan struct{}
+	ctx        context.Context
+	cancel     context.CancelFunc
+	closeOnce  sync.Once
+	closed     int32
+}
+
+// presetReload is protected by mu; closing done publishes err to its waiters.
+type presetReload struct {
+	done    chan struct{}
+	cancel  context.CancelFunc
+	waiters int
+	err     error
 }
 
 // newRedisBacked creates a Redis-backed Aho-Corasick engine. It loads the
@@ -164,31 +172,16 @@ func buildEngine(preset Preset, keywordSet map[string]struct{}) *matchengine.Eng
 	return e
 }
 
-// rebuildEngine replaces the engine from the current keyword set and records the
-// build. Every build in this mode routes through here, not just the reload path: a
-// single-keyword write and a flush rebuild directly, and a build the counters miss
-// inflates the mean rebuild cost that a write is supposed to explain.
-//
-// The timing covers the build alone. The Redis round trip that fetched the keywords
-// happened in the caller, and folding it in would report the network as build time.
-//
-// Caller holds ac.mu.
-func (ac *redisBackedAC) rebuildEngine() {
-	start := time.Now()
-	engine := buildEngine(ac.preset, ac.keywordSet)
-	ac.stats.recordRebuild(time.Since(start))
-	ac.engine = engine
-}
-
-func (ac *redisBackedAC) applyReload(snap *trieSnapshot) {
-	keywordSet := make(map[string]struct{}, len(snap.Keywords))
+// prepareSnapshot builds an immutable engine without holding the state lock.
+func (ac *redisBackedAC) prepareSnapshot(snap *trieSnapshot) (map[string]struct{}, *matchengine.Engine) {
+	keywords := make(map[string]struct{}, len(snap.Keywords))
 	for _, kw := range snap.Keywords {
-		keywordSet[kw] = struct{}{}
+		keywords[kw] = struct{}{}
 	}
-	ac.keywordSet = keywordSet
-	ac.rebuildEngine()
-	ac.localVersion = snap.Version
-	ac.stale = false
+	start := time.Now()
+	engine := buildEngine(ac.preset, keywords)
+	ac.stats.recordRebuild(time.Since(start))
+	return keywords, engine
 }
 
 // loadEngine returns an immutable engine snapshot for the current keyword set,
@@ -205,55 +198,114 @@ func (ac *redisBackedAC) loadEngine(ctx context.Context) (*matchengine.Engine, e
 	return e, nil
 }
 
+// reloadFromRedis fetches and builds outside the state lock. A local write or
+// invalidation during either phase makes the snapshot ineligible for installation.
 func (ac *redisBackedAC) reloadFromRedis(ctx context.Context) error {
-	snap, err := readTrieSnapshot(ctx, ac.storage, ac.name)
-	if err != nil {
-		return err
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		ac.mu.RLock()
+		generation := ac.generation
+		ac.mu.RUnlock()
+		snap, err := readTrieSnapshot(ctx, ac.storage, ac.name)
+		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		keywords, engine := ac.prepareSnapshot(snap)
+		ac.mu.Lock()
+		if err := ctx.Err(); err != nil {
+			ac.mu.Unlock()
+			return err
+		}
+		if ac.generation != generation {
+			ac.mu.Unlock()
+			continue
+		}
+		ac.engine = engine
+		ac.keywordSet = keywords
+		ac.localVersion = snap.Version
+		ac.stale = false
+		ac.generation++
+		ac.mu.Unlock()
+		return nil
 	}
-
-	ac.mu.Lock()
-	defer ac.mu.Unlock()
-	ac.applyReload(snap)
-	return nil
 }
 
 func (ac *redisBackedAC) markStale() {
 	ac.mu.Lock()
 	ac.stale = true
+	ac.generation++
 	ac.mu.Unlock()
 }
 
 func (ac *redisBackedAC) ensureValid(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	ac.mu.RLock()
-	if !ac.stale {
-		ac.mu.RUnlock()
+	valid := !ac.stale
+	ac.mu.RUnlock()
+	if valid {
 		ac.stats.hit()
 		return nil
 	}
-	ac.mu.RUnlock()
-
-	// Counted before the singleflight, not inside it: this read found stale state and
-	// waits for a rebuild whether or not it performs one. Readers coalesced onto
-	// another goroutine's reload therefore still count as misses, which is what makes
-	// Misses-Rebuilds the work the coalescing saved.
+	ac.mu.Lock()
+	if !ac.stale {
+		ac.mu.Unlock()
+		ac.stats.hit()
+		return nil
+	}
 	ac.stats.miss()
+	work := ac.reload
+	if work == nil {
+		workCtx, cancel := context.WithCancel(ac.ctx) //nolint:gosec // Ownership transfers to work; completion or the final waiter calls cancel.
+		work = &presetReload{done: make(chan struct{}), cancel: cancel}
+		ac.reload = work
+		go ac.runReload(workCtx, work)
+	}
+	work.waiters++
+	ac.mu.Unlock()
 
-	_, err, _ := ac.reloadGroup.Do("reload", func() (interface{}, error) {
-		ac.mu.Lock()
-		defer ac.mu.Unlock()
-
-		if !ac.stale {
-			return nil, nil
+	select {
+	case <-ctx.Done():
+	case <-ac.ctx.Done():
+	case <-work.done:
+	}
+	ac.mu.Lock()
+	work.waiters--
+	if work.waiters == 0 {
+		work.cancel()
+		if ac.reload == work {
+			ac.reload = nil
 		}
+	}
+	ac.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := ac.ctx.Err(); err != nil {
+		return err
+	}
+	return work.err
+}
 
-		snap, err := readTrieSnapshot(ctx, ac.storage, ac.name)
-		if err != nil {
-			return nil, err
-		}
-		ac.applyReload(snap)
-		return nil, nil
-	})
-	return err
+func (ac *redisBackedAC) runReload(ctx context.Context, work *presetReload) {
+	err := ac.reloadFromRedis(ctx)
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+	if err != nil && ctx.Err() == nil {
+		ac.stats.reloadFailure()
+	}
+	work.err = err
+	if ac.reload == work {
+		ac.reload = nil
+	}
+	close(work.done)
+	work.cancel()
 }
 
 // --- Pub/Sub ---
@@ -295,7 +347,8 @@ func (ac *redisBackedAC) handleInvalidation(stats *cacheStats, payload string) {
 // startPoller runs a background safety net for missed Pub/Sub invalidations:
 // every pollInterval it compares the stored collection version against the local
 // one and marks the engine stale on any difference, so a dropped invalidation
-// self-heals within one interval instead of persisting until the next local write.
+// can recover on a subsequent successful poll and reload. The interval is not
+// a freshness bound during failures.
 func (ac *redisBackedAC) startPoller() {
 	go func() {
 		ticker := time.NewTicker(ac.pollInterval)
@@ -316,15 +369,20 @@ func (ac *redisBackedAC) startPoller() {
 // pollVersion marks the engine stale if Redis holds a version other than the one
 // last loaded locally. A transient read error is ignored; the next tick retries.
 func (ac *redisBackedAC) pollVersion() {
-	snap, err := readTrieSnapshot(ac.ctx, ac.storage, ac.name)
+	version, err := readTrieVersion(ac.ctx, ac.storage, ac.name)
 	if err != nil {
+		if ac.ctx.Err() == nil {
+			ac.stats.pollFailure()
+		}
 		return
 	}
-	ac.mu.RLock()
-	changed := snap.Version != ac.localVersion
-	ac.mu.RUnlock()
-	if changed {
-		ac.markStale()
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+	// Repeated polls must not invalidate a reload already in progress. Otherwise
+	// a build slower than the poll interval could be retried forever.
+	if version != ac.localVersion && !ac.stale {
+		ac.stale = true
+		ac.generation++
 	}
 }
 

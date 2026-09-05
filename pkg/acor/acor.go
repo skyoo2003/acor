@@ -360,10 +360,12 @@ type AhoCorasickArgs struct {
 
 	// InvalidationPollInterval enables a background safety net for the Preset
 	// engine: every interval it compares the collection's stored version against
-	// the local one and reloads if they differ. Cross-instance invalidation is
+	// the local one and marks the engine stale if they differ; the next read
+	// reloads it. Only the version field is fetched by a poll. Invalidation is
 	// normally driven by best-effort Redis Pub/Sub, which has no delivery
 	// guarantee — a dropped message leaves a node serving stale data until the
-	// next local write. This poll bounds that staleness to the interval.
+	// next local write. Recovery requires a successful poll and reload, so the
+	// interval is not a freshness bound, especially during Redis failures.
 	//
 	// Disabled by default (zero). Recommended for multi-instance deployments
 	// (e.g. 30 * time.Second). Only applies to Preset mode; ignored otherwise.
