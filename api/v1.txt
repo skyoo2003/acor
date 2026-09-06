@@ -55,6 +55,13 @@ field CacheStats.PresetPollFailures uint64
 field CacheStats.PresetReloadFailures uint64
 field CacheStats.RebuildDuration time.Duration
 field CacheStats.Rebuilds uint64
+field DictionaryDiff.Added []string
+field DictionaryDiff.Removed []string
+field DictionaryDiff.Retained []string
+field DictionaryDiff.Version Version
+field DictionaryPage.Keywords []string
+field DictionaryPage.NextCursor string
+field DictionaryPage.Version Version
 field KeywordError.Error error
 field KeywordError.Keyword string
 field Match.End int
@@ -89,13 +96,64 @@ field ParallelOptions.Boundary ChunkBoundary
 field ParallelOptions.ChunkSize int
 field ParallelOptions.Overlap int
 field ParallelOptions.Workers int
+field PruneResult.Chunks int
+field PruneResult.Generations int
 field RedisError.Err error
 field RedisError.Key string
 field RedisError.Op string
+field RewriteOptions.MaxCandidates int
+field RewriteOptions.MaxInputBytes int
+field RewriteOptions.MaxMatches int
+field RewriteOptions.MaxOutputBytes int
+field RewriteOptions.WholeWord bool
+field RewriteOptions.WordRune func(rune) bool
+field RewriteResult.Matches []SourceMatch
+field RewriteResult.Text string
+field ScanOptions.Kind MatchKind
+field ScanOptions.MaxCandidates int
+field ScanOptions.MaxInputBytes int
+field ScanOptions.MaxMatches int
+field ScanOptions.WholeWord bool
+field ScanOptions.WordRune func(rune) bool
+field ScanResult.Matches []SourceMatch
+field ScanResult.Truncated bool
+field SourceMatch.ByteEnd int
+field SourceMatch.ByteStart int
+field SourceMatch.End int
+field SourceMatch.Keyword string
+field SourceMatch.Start int
+field SourceMatch.Text string
+field V2CopyOptions.RejectEmpty bool
+field V2CopyResult.Checksum string
+field V2CopyResult.Count int
+field V2CopyResult.SourceVersion string
+field V2CopyResult.Write *WriteResult
+field VersionedOptions.CaseSensitive bool
+field VersionedOptions.LeaseDuration time.Duration
+field VersionedOptions.LeaseRefresh time.Duration
+field VersionedOptions.PollInterval time.Duration
+field VersionedOptions.Preset Preset
+field VersionedOptions.Redis AhoCorasickArgs
+field VersionedOptions.RefreshDebounce time.Duration
+field VersionedStatus.ActiveVersion Version
+field VersionedStatus.BuildDuration time.Duration
+field VersionedStatus.BuildStarted time.Time
+field VersionedStatus.Building bool
+field VersionedStatus.CompletedBuilds uint64
+field VersionedStatus.DownloadedBuckets int
+field VersionedStatus.LastError string
+field VersionedStatus.ReusedBuckets int
+field VersionedStatus.ServingVersion Version
+field WriteResult.Added int
+field WriteResult.OperationID string
+field WriteResult.PreviousVersion Version
+field WriteResult.Removed int
+field WriteResult.Version Version
 func Create(args *AhoCorasickArgs) (*AhoCorasick, error)
 func CreateContext(ctx context.Context, args *AhoCorasickArgs) (*AhoCorasick, error)
 func DefaultMigrationOptions() *MigrationOptions
 func DefaultParallelOptions() *ParallelOptions
+func OpenVersioned(ctx context.Context, opts *VersionedOptions) (*VersionedCollection, error)
 method (*AhoCorasick) Add(keyword string) (int, error)
 method (*AhoCorasick) AddContext(ctx context.Context, keyword string) (int, error)
 method (*AhoCorasick) AddMany(keywords []string, opts *BatchOptions) (*BatchResult, error)
@@ -126,12 +184,15 @@ method (*AhoCorasick) Flush() error
 method (*AhoCorasick) FlushContext(ctx context.Context) error
 method (*AhoCorasick) Info() (*AhoCorasickInfo, error)
 method (*AhoCorasick) InfoContext(ctx context.Context) (*AhoCorasickInfo, error)
+method (*AhoCorasick) MaskText(ctx context.Context, text string, mask rune, opts *RewriteOptions) (*RewriteResult, error)
 method (*AhoCorasick) MigrateV1ToV2(opts *MigrationOptions) (*MigrationResult, error)
 method (*AhoCorasick) Remove(keyword string) (int, error)
 method (*AhoCorasick) RemoveContext(ctx context.Context, keyword string) (int, error)
 method (*AhoCorasick) RemoveMany(keywords []string, opts *BatchOptions) (*BatchResult, error)
 method (*AhoCorasick) RemoveManyContext(ctx context.Context, keywords []string, opts *BatchOptions) (*BatchResult, error)
+method (*AhoCorasick) ReplaceText(ctx context.Context, text, replacement string, opts *RewriteOptions) (*RewriteResult, error)
 method (*AhoCorasick) RollbackToV1() error
+method (*AhoCorasick) Scan(ctx context.Context, text string, opts *ScanOptions) (*ScanResult, error)
 method (*AhoCorasick) SchemaVersion() int
 method (*AhoCorasick) Suggest(input string) ([]string, error)
 method (*AhoCorasick) SuggestContext(ctx context.Context, input string) ([]string, error)
@@ -142,6 +203,35 @@ method (*OperationError) Error() string
 method (*OperationError) Unwrap() error
 method (*RedisError) Error() string
 method (*RedisError) Unwrap() error
+method (*Snapshot) Close(ctx context.Context) error
+method (*Snapshot) Count() int
+method (*Snapshot) Diff(ctx context.Context, target []string) (*DictionaryDiff, error)
+method (*Snapshot) List(ctx context.Context, cursor string, limit int) (*DictionaryPage, error)
+method (*Snapshot) Version() Version
+method (*VersionedCollection) Add(ctx context.Context, expected Version, word string) (*WriteResult, error)
+method (*VersionedCollection) AddMany(ctx context.Context, expected Version, words []string) (*WriteResult, error)
+method (*VersionedCollection) Close() error
+method (*VersionedCollection) Contains(ctx context.Context, text string) (bool, error)
+method (*VersionedCollection) CopyV2(ctx context.Context, source string, expected Version, opts *V2CopyOptions) (*V2CopyResult, error)
+method (*VersionedCollection) Find(ctx context.Context, text string) ([]string, error)
+method (*VersionedCollection) FindBatch(ctx context.Context, texts []string) ([][]string, error)
+method (*VersionedCollection) FindIndex(ctx context.Context, text string) (map[string][]int, error)
+method (*VersionedCollection) FindIndexParallel(ctx context.Context, text string, opts *ParallelOptions) (map[string][]int, error)
+method (*VersionedCollection) FindMatches(ctx context.Context, text string, opts *MatchOptions) ([]Match, error)
+method (*VersionedCollection) FindParallel(ctx context.Context, text string, opts *ParallelOptions) ([]string, error)
+method (*VersionedCollection) FindSet(ctx context.Context, text string) ([]string, error)
+method (*VersionedCollection) FindStream(ctx context.Context, r io.Reader, onMatch func(Match) bool) error
+method (*VersionedCollection) MaskText(ctx context.Context, text string, mask rune, opts *RewriteOptions) (*RewriteResult, error)
+method (*VersionedCollection) Prune(ctx context.Context) (*PruneResult, error)
+method (*VersionedCollection) Remove(ctx context.Context, expected Version, word string) (*WriteResult, error)
+method (*VersionedCollection) RemoveMany(ctx context.Context, expected Version, words []string) (*WriteResult, error)
+method (*VersionedCollection) Replace(ctx context.Context, expected Version, words []string) (*WriteResult, error)
+method (*VersionedCollection) ReplaceText(ctx context.Context, text, replacement string, opts *RewriteOptions) (*RewriteResult, error)
+method (*VersionedCollection) ResolveOperation(ctx context.Context, id string) (*WriteResult, error)
+method (*VersionedCollection) Scan(ctx context.Context, text string, opts *ScanOptions) (*ScanResult, error)
+method (*VersionedCollection) Snapshot(ctx context.Context) (*Snapshot, error)
+method (*VersionedCollection) Status() VersionedStatus
+method (*VersionedCollection) WaitForVersion(ctx context.Context, version Version) error
 method (Preset) String() string
 method Logger.Printf(format string, v ...interface{})
 method Logger.Println(v ...interface{})
@@ -153,6 +243,8 @@ type BatchOptions struct
 type BatchResult struct
 type CacheStats struct
 type ChunkBoundary int
+type DictionaryDiff struct
+type DictionaryPage struct
 type KeywordError struct
 type Logger interface
 type Match struct
@@ -163,18 +255,40 @@ type MigrationResult struct
 type OperationError struct
 type ParallelOptions struct
 type Preset int
+type PruneResult struct
 type RedisError struct
+type RewriteOptions struct
+type RewriteResult struct
+type ScanOptions struct
+type ScanResult struct
+type Snapshot struct
+type SourceMatch struct
+type V2CopyOptions struct
+type V2CopyResult struct
+type Version string
+type VersionedCollection struct
+type VersionedOptions struct
+type VersionedStatus struct
+type WriteResult struct
 var ErrAlreadyV2
 var ErrCacheRequiresV2
 var ErrCacheWithPreset
+var ErrCasePolicy
+var ErrCommitUnknown
 var ErrConcurrencyConflict
 var ErrEmptyKeyword
+var ErrInputLimit
 var ErrInvalidChunkSize
 var ErrInvalidName
+var ErrInvalidVersion
+var ErrLeaseExpired
+var ErrMaintenance
+var ErrMatchLimit
 var ErrMigrationInProg
 var ErrMigrationRequiresRedis
 var ErrNilArgs
 var ErrNoDataToMigrate
+var ErrOutputLimit
 var ErrPresetRequiresRedis
 var ErrPresetRequiresV2
 var ErrRedisAddrs
@@ -183,5 +297,8 @@ var ErrRedisClusterDB
 var ErrRedisConflictingTopology
 var ErrRedisRingAddrs
 var ErrRedisSentinelAddrs
+var ErrScanWorkLimit
 var ErrSuggestRequiresRedis
 var ErrV1ReadOnly
+var ErrVersionedClosed
+var ErrVersionedCorrupt

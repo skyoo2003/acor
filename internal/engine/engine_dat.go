@@ -11,6 +11,7 @@ import "slices"
 // Position 0 is unused (sentinel); root is at position 1. This avoids the
 // ambiguity where check[pos]=0 could mean either "empty" or "parent is state 0".
 type doubleArrayTrie struct {
+	guard *buildGuard
 	// base, check and fail are int32 rather than int: three arrays cost 12 bytes per
 	// state instead of 24. Overflowing int32 would need over 8 GiB of double-array,
 	// so the allocation fails first.
@@ -70,6 +71,7 @@ func (dat *doubleArrayTrie) expand() {
 
 func (dat *doubleArrayTrie) ensureCapacity(needed int) {
 	for needed >= dat.cap {
+		dat.guard.check()
 		dat.expand()
 	}
 }
@@ -88,12 +90,14 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 
 	runeSet := make(map[rune]struct{})
 	for kw := range keywords {
+		dat.guard.check()
 		for _, ch := range kw {
 			runeSet[ch] = struct{}{}
 		}
 	}
 	dat.runes = make([]rune, 0, len(runeSet))
 	for r := range runeSet {
+		dat.guard.check()
 		dat.runes = append(dat.runes, r)
 	}
 	slices.Sort(dat.runes)
@@ -105,6 +109,7 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 	tmpChildren[0] = make(map[rune]int)
 
 	for kw := range keywords {
+		dat.guard.check()
 		// An empty keyword would end at the root, where own == 0 already means "no
 		// keyword". The public API rejects empty keywords; skipping keeps this trie
 		// correct on its own.
@@ -113,6 +118,7 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 		}
 		cur := 0
 		for _, ch := range kw {
+			dat.guard.check()
 			if _, ok := tmpChildren[cur][ch]; !ok {
 				if tmpChildren[cur] == nil {
 					tmpChildren[cur] = make(map[rune]int)
@@ -139,6 +145,7 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 	queue = append(queue, 0)
 
 	for len(queue) > 0 {
+		dat.guard.check()
 		parent := queue[0]
 		queue = queue[1:]
 
@@ -149,6 +156,7 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 
 		codes := make([]int, 0, len(children))
 		for ch := range children {
+			dat.guard.check()
 			codes = append(codes, dat.index[ch])
 		}
 
@@ -156,6 +164,7 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 		dat.base[datPos[parent]] = int32(base) //nolint:gosec // G115: see the int32 note on the fields.
 
 		for ch, childID := range children {
+			dat.guard.check()
 			code := dat.index[ch]
 			pos := base + code
 			dat.ensureCapacity(pos + 1)
@@ -169,6 +178,7 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 
 			if kw, ok := tmpOwn[childID]; ok && kw != "" {
 				for pos >= len(dat.out.own) {
+					dat.guard.check()
 					dat.out.own = append(dat.out.own, 0)
 				}
 				dat.out.own[pos] = dat.out.assignID(kw)
@@ -195,6 +205,7 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 
 	dat.out.outLink = make([]int32, dat.size)
 	for s := range dat.out.outLink {
+		dat.guard.check()
 		dat.out.outLink[s] = outNone
 	}
 	dat.computeFailLinks()
@@ -202,6 +213,7 @@ func (dat *doubleArrayTrie) buildFromKeywords(keywords map[string]struct{}) { //
 	// Derived after the fail links, which fill the output chain.
 	dat.hasOutput = make([]bool, dat.size)
 	for s := 0; s < dat.size; s++ {
+		dat.guard.check()
 		dat.hasOutput[s] = dat.out.own[s] != 0 || dat.out.outLink[s] != outNone
 	}
 }
@@ -212,6 +224,7 @@ func (dat *doubleArrayTrie) findBase(codes []int) int {
 	}
 	minCode := codes[0]
 	for _, c := range codes[1:] {
+		dat.guard.check()
 		if c < minCode {
 			minCode = c
 		}
@@ -219,8 +232,10 @@ func (dat *doubleArrayTrie) findBase(codes []int) int {
 
 	// Start from a base that places minCode at position datRootPos+1 (skip sentinel).
 	for base := (datRootPos + 1) - minCode; ; base++ {
+		dat.guard.check()
 		conflict := false
 		for _, code := range codes {
+			dat.guard.check()
 			pos := base + code
 			if pos >= dat.cap {
 				dat.expand()
@@ -245,6 +260,7 @@ func (dat *doubleArrayTrie) computeFailLinks() {
 
 	// Root's direct children: check[pos] == datRootPos.
 	for i := datRootPos + 1; i < dat.size; i++ {
+		dat.guard.check()
 		if dat.check[i] == datRootPos {
 			dat.fail[i] = datRootPos
 			queue = append(queue, i)
@@ -253,10 +269,12 @@ func (dat *doubleArrayTrie) computeFailLinks() {
 	dat.fail[datRootPos] = datRootPos
 
 	for len(queue) > 0 {
+		dat.guard.check()
 		state := queue[0]
 		queue = queue[1:]
 
 		for code := range dat.runes {
+			dat.guard.check()
 			next := dat.gotoStateByCode(state, code)
 			if next == 0 {
 				continue

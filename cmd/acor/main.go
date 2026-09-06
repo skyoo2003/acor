@@ -42,6 +42,7 @@ Commands:
   migrate [options]
   migrate-rollback
   schema-version
+  dictionary list|diff|replace|status|copy-v2|prune [options]
   version
 
 Options:
@@ -219,6 +220,9 @@ func runWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer,
 	}
 
 	command := remaining[0]
+	if command == "dictionary" {
+		return dispatchDictionary(config, commandOpts, remaining[1:], stdin, stdout, stderr)
+	}
 	runner, argMode, err := commandHandler(command)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err.Error())

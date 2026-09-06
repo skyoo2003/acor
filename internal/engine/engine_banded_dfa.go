@@ -69,6 +69,7 @@ func (bd *bandedDFA) buildDFABand() {
 	alphaSize := len(dat.runes)
 	bd.bandOff = make([]int32, dat.size)
 	for s := range bd.bandOff {
+		dat.guard.check()
 		bd.bandOff[s] = bandNotBanded
 	}
 
@@ -87,11 +88,13 @@ func (bd *bandedDFA) buildDFABand() {
 	bd.band = make([]int32, rows*alphaSize)
 	off := int32(0)
 	for s := datRootPos; s < dat.size; s++ {
+		dat.guard.check()
 		if !inBand(dat, s, bd.bandDepth) {
 			continue
 		}
 		bd.bandOff[s] = off
 		for ai := range dat.runes {
+			dat.guard.check()
 			next := dat.followFailByCode(s, ai)
 			bd.band[off+int32(ai)] = packState(next, next < len(dat.hasOutput) && dat.hasOutput[next]) //nolint:gosec // G115: ai < alphaSize, bounded above.
 		}
@@ -116,6 +119,7 @@ func inBand(dat *doubleArrayTrie, s, bandDepth int) bool {
 func bandRows(dat *doubleArrayTrie, bandDepth int) int {
 	rows := 0
 	for s := datRootPos; s < dat.size; s++ {
+		dat.guard.check()
 		if inBand(dat, s, bandDepth) {
 			rows++
 		}

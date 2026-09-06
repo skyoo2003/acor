@@ -1,0 +1,24 @@
+Exploratory run: local source build, default prefetch, Valkey 9.1.2.
+The final successful matrix uses prefetch-batch-max-size=0.
+
+=== VALKEY BUG REPORT START: Cut & paste starting from here ===
+36656:M 06 Sep 2026 02:57:50.531 # valkey 9.1.2 crashed by signal: 11, si_code: 2
+36656:M 06 Sep 2026 02:57:50.531 # Accessing address: 0x222c6c6c756e3a22
+36656:M 06 Sep 2026 02:57:50.531 # Crashed running the instruction at: 0x104e047ec
+
+------ STACK TRACE ------
+EIP:
+0   valkey-server                       0x0000000104e047ec hashtableIncrementalFindStep + 200
+
+Backtrace:
+0   libsystem_platform.dylib            0x000000018cd2b744 _sigtramp + 56
+1   valkey-server                       0x0000000104e4fe30 prefetchCommandQueueKeys + 476
+2   valkey-server                       0x0000000104e4fe30 prefetchCommandQueueKeys + 476
+3   valkey-server                       0x0000000104e4e25c processInputBuffer + 660
+4   valkey-server                       0x0000000104e4d7b8 readQueryFromClient + 176
+5   valkey-server                       0x0000000104edf68c connSocketEventHandler + 180
+6   valkey-server                       0x0000000104d7e790 aeProcessEvents + 364
+7   valkey-server                       0x0000000104edcb60 main + 3348
+8   dyld                                0x000000018c963e00 start + 6992
+
+------ STACK TRACE DONE ------

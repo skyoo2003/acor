@@ -26,6 +26,7 @@ var _ matchEngine = (*speedEngine)(nil)
 // speedEngine implements matchEngine using a flat array trie with Full DFA
 // transitions and compact alphabet mapping. Used by PresetSpeed.
 type speedEngine struct {
+	guard *buildGuard
 	// dfa is the transition table flattened to state*alphaSize+alphabetIndex. A
 	// [][]int cost the scan a slice-header load and two bounds checks per
 	// character, where one flat []int32 costs a single indexed load. Each entry
@@ -58,12 +59,14 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 
 	runeSet := make(map[rune]struct{})
 	for kw := range keywords {
+		e.guard.check()
 		for _, ch := range kw {
 			runeSet[ch] = struct{}{}
 		}
 	}
 	e.alphabet = make([]rune, 0, len(runeSet))
 	for r := range runeSet {
+		e.guard.check()
 		e.alphabet = append(e.alphabet, r)
 	}
 	slices.Sort(e.alphabet)
@@ -74,11 +77,13 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 	}
 	sortedKw := make([]string, 0, len(keywords))
 	for kw := range keywords {
+		e.guard.check()
 		sortedKw = append(sortedKw, kw)
 	}
 	slices.Sort(sortedKw)
 	outs := outputs{}
 	for _, kw := range sortedKw {
+		e.guard.check()
 		// An empty keyword would end at the root, where ownID == 0 already means
 		// "no keyword". The public API rejects empty keywords; skipping keeps this
 		// engine correct on its own.
@@ -87,6 +92,7 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 		}
 		state := 0
 		for _, ch := range kw {
+			e.guard.check()
 			child, ok := nodes[state].gotoMap[ch]
 			if !ok {
 				child = len(nodes)
@@ -119,6 +125,7 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 			child int
 		}, 0, len(gotoMap))
 		for ch, child := range gotoMap {
+			e.guard.check()
 			pairs = append(pairs, struct {
 				ch    rune
 				child int
@@ -134,16 +141,19 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 	}
 
 	for _, pair := range sortedChildren(nodes[0].gotoMap) {
+		e.guard.check()
 		nodes[pair.child].fail = 0
 		queue = append(queue, pair.child)
 	}
 
 	for len(queue) > 0 {
+		e.guard.check()
 		state := queue[0]
 		queue = queue[1:]
 		bfsOrder = append(bfsOrder, state)
 
 		for _, pair := range sortedChildren(nodes[state].gotoMap) {
+			e.guard.check()
 			ch := pair.ch
 			child := pair.child
 			queue = append(queue, child)
@@ -154,6 +164,7 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 			// fail link at itself (e.g. keywords {a,aa,aaa}), corrupting the DFA.
 			fail := nodes[state].fail
 			for fail != 0 {
+				e.guard.check()
 				if _, ok := nodes[fail].gotoMap[ch]; ok {
 					break
 				}
@@ -179,6 +190,7 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 	outs.own = make([]int32, numStates)
 	outs.outLink = make([]int32, numStates)
 	for i := range nodes {
+		e.guard.check()
 		outs.own[i] = nodes[i].ownID
 		outs.outLink[i] = nodes[i].outLink
 	}
@@ -194,6 +206,7 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 	}
 
 	for ai, r := range e.alphabet {
+		e.guard.check()
 		if child, ok := nodes[0].gotoMap[r]; ok {
 			e.dfa[ai] = enc(child)
 		} else {
@@ -207,9 +220,11 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 	// so a fail link can point to a higher-id row that is still all zeros, which
 	// silently drops matches.
 	for _, s := range bfsOrder {
+		e.guard.check()
 		row := s * alphaSize
 		failRow := nodes[s].fail * alphaSize
 		for ai, r := range e.alphabet {
+			e.guard.check()
 			if child, ok := nodes[s].gotoMap[r]; ok {
 				e.dfa[row+ai] = enc(child)
 			} else {
@@ -223,6 +238,7 @@ func (e *speedEngine) buildFromKeywords(keywords map[string]struct{}) { //nolint
 	// so a rebuild from shorter keywords must report the shorter depth.
 	e.trieDepth = 0
 	for i := range nodes {
+		e.guard.check()
 		if nodes[i].depth > e.trieDepth {
 			e.trieDepth = nodes[i].depth
 		}

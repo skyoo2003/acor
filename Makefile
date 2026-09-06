@@ -88,6 +88,7 @@ lint-fix:
 fuzz:
 	@go test -fuzz=FuzzFind -fuzztime=30s ./pkg/acor
 	@go test -fuzz=FuzzAdd -fuzztime=30s ./pkg/acor
+	@go test -fuzz=FuzzScanLeftmostParity -fuzztime=30s ./pkg/acor
 
 # Timing evidence for docs/content/reference/benchmarks.md. Set
 # ACOR_INTEGRATION_ADDR to also run the real-server benchmarks; without it only
@@ -108,3 +109,8 @@ bench-module:
 race:
 	@go test -race ./...
 	@cd server && go test -race ./...
+
+# Full V3 matrix on a disposable endpoint; results include environment and seed.
+.PHONY: bench-v3
+bench-v3:
+	@sh scripts/benchmark-v3.sh
