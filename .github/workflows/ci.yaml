@@ -26,6 +26,10 @@ on:
       # The snapshot itself: a PR that edits only this file is a PR that records
       # an API change, which is precisely the case the gate must not skip.
       - "api/v1.txt"
+      # The release build config, paired with the "Verify the release build"
+      # step below. Without both, a change here merges unbuilt: that is how
+      # `main: cmd/acor/main.go` survived until it failed the v1.6.0 tag build.
+      - ".goreleaser.yaml"
   pull_request:
     branches:
       - main
@@ -51,6 +55,10 @@ on:
       # The snapshot itself: a PR that edits only this file is a PR that records
       # an API change, which is precisely the case the gate must not skip.
       - "api/v1.txt"
+      # The release build config, paired with the "Verify the release build"
+      # step below. Without both, a change here merges unbuilt: that is how
+      # `main: cmd/acor/main.go` survived until it failed the v1.6.0 tag build.
+      - ".goreleaser.yaml"
 
 permissions:
   contents: read
@@ -163,6 +171,23 @@ jobs:
           go test -fuzz=FuzzScanLeftmostParity -fuzztime=30s ./pkg/acor
       - name: Run build
         run: make build
+      # `make build` is not a gate on the release: it builds ./cmd/acor while
+      # GoReleaser builds whatever .goreleaser.yaml names, and for v1.6.0 those
+      # were different things — a file path that compiled main.go alone and
+      # dropped dictionary.go, failing only once the tag was pushed. This runs
+      # the release's own builder, so the release path is gated where every
+      # other generated artifact already is: in the PR, not at the tag.
+      #
+      # build, not release: no publishing, no tokens, and --single-target keeps
+      # it to the host platform, which is enough to catch a config that cannot
+      # compile. Pinned to one leg for the same reason as the checks below.
+      - name: Verify the release build
+        if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94  # goreleaser-action v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: build --snapshot --clean --single-target
       - name: Verify documentation examples compile
         run: make docs-verify
       # Pinned to one matrix leg: the check is a git diff of generated text, so it
