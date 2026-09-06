@@ -5,14 +5,6 @@ weight: 4
 
 # Operations
 
-Operational guides for running ACOR in production.
-
-## Sections
-
-- [Deployment](deployment/) - Deploy ACOR in various environments
-- [Monitoring](monitoring/) - Monitor ACOR performance
-- [Troubleshooting](troubleshooting/) - Diagnose and fix issues
-
-## Navigation
-
-← [Reference](../reference/) | [Server](../server/) →
+- [Deployment](deployment/) — topologies, Kubernetes, Docker Compose, health endpoints
+- [Monitoring](monitoring/) — cache statistics, and the `server/*` metrics, logs, and traces
+- [Troubleshooting](troubleshooting/) — the errors you are most likely to hit, and their fixes

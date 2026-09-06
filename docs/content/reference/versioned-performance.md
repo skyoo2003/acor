@@ -3,50 +3,49 @@ title: "V3 performance and acceptance report"
 description: "Reproducible million-keyword measurements on Redis and Valkey."
 ---
 
-This is the archived R1 baseline. See [R2/R3 comparison](../r2-r3-performance/)
-for the subsequent implementation and measurements.
+# V3 performance and acceptance report
 
-Measured on 2026-09-06. The final matrix completed **36 runs**: Redis and Valkey,
-three dictionary sizes, three deterministic distributions, two repetitions each.
-The separate million-entry safety scenario passed on both configured servers.
-These are measurements of one environment, not throughput or memory guarantees.
+The archived R1 baseline. For the implementation and measurements that followed, see the
+[R2/R3 comparison](../r2-r3-performance/).
 
-## Environment and methodology
+Measured 2026-09-06. The final matrix completed **36 runs**: Redis and Valkey × three
+dictionary sizes × three deterministic distributions × two repetitions. The separate
+million-entry safety scenario passed on both servers. These are measurements of one
+environment, not throughput or memory guarantees.
+
+## Environment and method
 
 - Apple M4, 10 logical CPUs, 16 GiB RAM; macOS 26.5.2, Darwin 25.5.0, arm64.
 - Go 1.26.7; Redis 8.10.1; source-built Valkey 9.1.2.
-- Standalone TCP on localhost; RDB snapshots and AOF disabled. No production
-  durability or cross-node network overhead is included.
-- MemoryEfficient engine; 50 ms version polling for the measurement (the library
-  default is 30 seconds); five-minute leases renewed every minute.
-- Separate Go process per size/distribution/repetition; two complete repetitions.
-  This was a developer workstation, with some development checks running on the
-  host. Treat the ranges as baseline observations, not isolated microbenchmark
-  confidence intervals. Each server ran one scale workload at a time.
-- Fixed seed 20260906. Shared: `shared-prefix-%08d`. Diverse: a random 12-bit hex
-  prefix plus a unique eight-digit index. Korean: `한국어-%04x-키워드-%08d`, using a
-  random 16-bit prefix. Full replacement appends `-x` to every keyword.
+- Standalone TCP on localhost; RDB snapshots and AOF disabled — no production durability
+  or cross-node network overhead is included.
+- MemoryEfficient engine; 50 ms version polling for measurement (the library default is 30
+  seconds); five-minute leases renewed every minute.
+- A separate Go process per size/distribution/repetition, two complete repetitions, on a
+  developer workstation with some development checks running on the host. Treat the ranges
+  as baseline observations, not isolated microbenchmark confidence intervals. Each server
+  ran one scale workload at a time.
+- Fixed seed 20260906. Shared: `shared-prefix-%08d`. Diverse: a random 12-bit hex prefix
+  plus a unique eight-digit index. Korean: `한국어-%04x-키워드-%08d` with a random 16-bit
+  prefix. Full replacement appends `-x` to every keyword.
 
-**Valkey qualification:** an exploratory run of the local Valkey 9.1.2 build with
-its default prefetch setting exited with SIGSEGV in `hashtableIncrementalFindStep`
-via `prefetchCommandQueueKeys`. The final successful Valkey matrix used
-`prefetch-batch-max-size 0`. This report does not establish support for that local
-build's default configuration. The stack excerpt is preserved in
-`benchmarks/results/v3-20260906-valkey-crash.txt`; the library returned an error
-when the server disappeared. The root cause has not been established.
-
-The Valkey source archive SHA-256 was
-`19c23908e7d57e8d91ef85b41f5646307582f10f4f0fb999bbf89ed24ec9c983`
-(tag 9.1.2), built with `make -j4 valkey-server`. Prefetch was disabled using its
-existing configuration option, without modifying server source.
+**Valkey qualification.** An exploratory run of the local Valkey 9.1.2 build with its
+default prefetch setting exited with SIGSEGV in `hashtableIncrementalFindStep` via
+`prefetchCommandQueueKeys`. The final successful Valkey matrix used
+`prefetch-batch-max-size 0`, so this report does **not** establish support for that build's
+default configuration. The stack excerpt is in
+`benchmarks/results/v3-20260906-valkey-crash.txt`; the library returned an error when the
+server disappeared, and the root cause has not been established. The Valkey source archive
+SHA-256 was `19c23908e7d57e8d91ef85b41f5646307582f10f4f0fb999bbf89ed24ec9c983` (tag
+9.1.2), built with `make -j4 valkey-server`. Prefetch was disabled through its existing
+configuration option, without modifying server source.
 
 ## Initial load and startup
 
-All table cells show the minimum–maximum across two runs. Load-ready is elapsed
-from Replace to the local engine serving its version. Startup opens a new
-collection instance against the existing dictionary and builds its first engine.
-Peak RSS is the process lifetime high-water mark across the entire run, including
-subsequent changes, rather than only initial load.
+Cells show minimum–maximum across two runs. Load-ready is elapsed from `Replace` to the
+local engine serving its version. Startup opens a new collection instance against the
+existing dictionary and builds its first engine. Peak RSS is the process lifetime
+high-water mark across the entire run, including subsequent changes.
 
 | Server | Keywords | Distribution | Load-ready (s) | Startup (s) | Peak RSS (GiB) |
 |---|---:|---|---:|---:|---:|
@@ -71,11 +70,11 @@ subsequent changes, rather than only initial load.
 
 ## Million-keyword changes
 
-Commit below includes normalization, bucket reads/preparation, manifest storage,
-and final pointer commit. Ready also includes notification/polling and engine
-rebuilding. Their difference is the calling instance's serving-version lag;
-fleet-wide simultaneous activation is not asserted. Unchanged buckets are reused,
-but every changed generation still rebuilds its entire local engine.
+Commit covers normalization, bucket reads and preparation, manifest storage, and the final
+pointer commit. Ready adds notification/polling and engine rebuilding; their difference is
+the calling instance's serving-version lag, and fleet-wide simultaneous activation is not
+asserted. Unchanged buckets are reused, but every changed generation still rebuilds its
+entire local engine.
 
 | Server | Distribution | Add 1 commit / ready (s) | Add 1,000 ready (s) | Add 1% ready (s) | Full replace ready (s) |
 |---|---|---:|---:|---:|---:|
@@ -86,19 +85,18 @@ but every changed generation still rebuilds its entire local engine.
 | valkey | diverse | 0.005–0.007 / 2.33–2.40 | 2.42–2.60 | 3.03–3.54 | 4.08–4.33 |
 | valkey | korean | 0.005–0.005 / 2.90–3.40 | 4.03–4.38 | 3.98–4.49 | 6.78–7.31 |
 
-The JSON report also includes removals of 1, 1,000 and 1%, and identical Replace.
-At 100,000 entries, 1,000 and 1% are the same count and are measured as two
-successive add/remove cycles. Identical Replace still reads and compares buckets;
-it does not create a generation or rebuild the engine.
+The JSON report also covers removals of 1, 1,000 and 1%, and identical `Replace`. At
+100,000 entries, 1,000 and 1% are the same count and are measured as two successive
+add/remove cycles. Identical `Replace` still reads and compares buckets; it creates no
+generation and rebuilds no engine.
 
-## Search during replacement and retained storage
+## Search during replacement, and retained storage
 
-Search sampling uses a short string assembled from three dictionary keywords, at
-approximately one-millisecond intervals while a write and its engine refresh run.
-The timer includes that small string construction and the Find call. The old
-engine continues serving until replacement; initial load starts with an empty
-engine. These figures are not a general text-search throughput benchmark. The
-following cells summarize full replacement at one million keywords.
+Search sampling uses a short string assembled from three dictionary keywords, taken at
+roughly one-millisecond intervals while a write and its engine refresh run. The timer
+includes that string construction and the `Find` call. The old engine keeps serving until
+replacement; initial load starts with an empty engine. These are not general text-search
+throughput figures. The cells summarize full replacement at one million keywords.
 
 | Server | Distribution | Search p50 / p95 / p99 (µs) | Redis before prune (MiB) | Redis after prune (MiB) |
 |---|---|---:|---:|---:|
@@ -109,49 +107,47 @@ following cells summarize full replacement at one million keywords.
 | valkey | diverse | 2.50–2.71 / 3.96–5.46 / 12.33–14.38 | 66.82–66.82 | 23.25–23.26 |
 | valkey | korean | 3.04–3.04 / 11.62–14.00 / 25.04–29.92 | 134.78–134.78 | 43.99–43.99 |
 
-Redis memory is server-wide `used_memory`, including server overhead, receipts,
-script cache, and retained manifests/chunks. The pruning measurement artificially
-ages inactive generation registry timestamps beyond 24 hours; the active
-generation remains protected. Actual retention is tested separately. Network byte
-counters in the JSON include both writes and engine downloads/polling, as well as
-protocol and measurement overhead; they are not just payload keyword bytes.
+Redis memory is server-wide `used_memory`, including server overhead, receipts, script
+cache, and retained manifests and chunks. The pruning measurement artificially ages
+inactive generation registry timestamps beyond 24 hours; the active generation stays
+protected, and actual retention is tested separately. Network byte counters in the JSON
+include writes, engine downloads, polling, protocol, and measurement overhead — not just
+payload keyword bytes.
 
 ## Acceptance evidence
 
 - The 36 scale runs completed initial loading, reopening, all paginated entries,
-  naive-reference search comparison, no-op/full replacements, 1/1,000/1% additions
-  and removals, WaitForVersion and explicit pruning.
-- `TestVersionedMillionSafety` passed on both configured real servers: one of two
-  writers using the same million-entry expected version won; the other conflicted.
-  A pinned million-entry snapshot remained readable across commit and Prune,
-  contained no competing-generation keywords, and was collected only after close.
-- Unit/race tests compare existing V2 engine search results with V3 for Korean,
-  multilingual, nested/overlapping, case-sensitive and stream-boundary cases.
-  Concurrent batch scans preserve a single engine generation.
-- Fault injection covers chunk preparation errors, abandoned prepared generations,
-  lost commit responses and delayed retries, dropped Pub/Sub, failed engine loads,
-  reconnect, lease expiry, and a stale pruning fence. These are deterministic
-  simulations; they are not a production failover or forced-OS-process-kill test.
-- Chunk-write instrumentation confirms an identical dictionary writes no chunks
-  and a single change writes only its affected bucket. The final Lua commit only
-  checks fixed keys, writes a receipt/marker and swaps the pointer; it does not
-  parse a manifest or iterate keywords.
-- Root and server race suites, root/server lint, all-module vet, benchmark-module
-  tests, API snapshot/audit, documentation compilation, unchanged module manifests
-  and license attribution passed. FuzzFind and FuzzAdd ran for 30 seconds each;
-  V3 normalization fuzzing ran for 10 seconds. No production acor function remained
-  at zero coverage in the normal test suite.
+  naive-reference search comparison, no-op and full replacements, 1/1,000/1% additions and
+  removals, `WaitForVersion`, and explicit pruning.
+- `TestVersionedMillionSafety` passed on both real servers: of two writers using the same
+  million-entry expected version, one won and the other conflicted. A pinned million-entry
+  snapshot stayed readable across commit and `Prune`, contained no competing-generation
+  keywords, and was collected only after close.
+- Unit and race tests compare V2 and V3 search results for Korean, multilingual,
+  nested/overlapping, case-sensitive, and stream-boundary cases. Concurrent batch scans
+  preserve a single engine generation.
+- Fault injection covers chunk preparation errors, abandoned prepared generations, lost
+  commit responses and delayed retries, dropped Pub/Sub, failed engine loads, reconnect,
+  lease expiry, and a stale pruning fence. These are deterministic simulations, not a
+  production failover or forced process-kill test.
+- Chunk-write instrumentation confirms an identical dictionary writes no chunks and a
+  single change writes only its affected bucket. The final Lua commit checks fixed keys,
+  writes a receipt and marker, and swaps the pointer — it parses no manifest and iterates
+  no keywords.
+- Root and server race suites, root/server lint, all-module vet, benchmark-module tests,
+  API snapshot/audit, documentation compilation, unchanged module manifests, and license
+  attribution passed. FuzzFind and FuzzAdd ran 30 seconds each; V3 normalization fuzzing
+  ran 10 seconds. No production `acor` function remained at zero coverage in the normal
+  test suite.
 
-No real Cluster/Sentinel failover matrix or production persistence recovery was
-run for V3 here. All collection keys use one hash tag and the existing connection
-implementations; do not interpret standalone measurements as multi-node results.
-R2 incremental download reuse and build-memory/cancellation improvements, and R3
-result limits/masking/replacement, remain follow-up roadmap work.
+No real Cluster/Sentinel failover matrix or production persistence recovery was run for V3
+here. All collection keys use one hash tag and the existing connection implementations —
+do not read standalone measurements as multi-node results.
 
 ## Reproduce
 
-Use a disposable server with the same persistence, preset and polling settings.
-From the repository root:
+Use a disposable server with the same persistence, preset, and polling settings. From the
+repository root:
 
 ```sh
 ACOR_V3_SCALE_ADDR=127.0.0.1:6379 \
@@ -159,11 +155,10 @@ ACOR_V3_SCALE_OUTPUT=/tmp/acor-v3-redis \
 ACOR_V3_SCALE_REPEATS=2 make bench-v3
 ```
 
-Repeat against Valkey with `prefetch-batch-max-size 0`, using a separate output
-directory. `scripts/benchmark-v3.sh` compiles one test binary and starts a fresh
-process for every size/distribution, then runs the million-entry safety scenario.
-It removes only its uniquely named collection keys, never FLUSHDB. Do not run
-another workload on the same endpoint during measurements: Redis memory/network
-counters are server-wide. The raw operation summaries, environment strings,
-startup/prune measurements and source hashes for this report are in
-`benchmarks/results/v3-20260906.json`.
+Repeat against Valkey with `prefetch-batch-max-size 0` and a separate output directory.
+`scripts/benchmark-v3.sh` compiles one test binary, starts a fresh process for every
+size/distribution, then runs the million-entry safety scenario. It removes only its own
+uniquely named collection keys, never `FLUSHDB`. Do not run another workload on the same
+endpoint during measurement — Redis memory and network counters are server-wide. Raw
+operation summaries, environment strings, startup/prune measurements, and source hashes
+are in `benchmarks/results/v3-20260906.json`.

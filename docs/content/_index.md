@@ -46,11 +46,11 @@ func main() {
   </a>
   <a class="doc-card" href="guides/">
     <strong>Guides</strong>
-    <span>Use batch, parallel, and Redis-backed engines.</span>
+    <span>Batch, parallel, and preset-optimized engines.</span>
   </a>
   <a class="doc-card" href="reference/">
-    <strong>API Reference</strong>
-    <span>Review public APIs and storage schemas.</span>
+    <strong>Reference</strong>
+    <span>Public API, storage schemas, and measurements.</span>
   </a>
   <a class="doc-card" href="operations/">
     <strong>Operations</strong>
@@ -62,7 +62,7 @@ func main() {
   </a>
   <a class="doc-card" href="cli/">
     <strong>CLI</strong>
-    <span>Drive a collection from the shell, twenty commands.</span>
+    <span>Drive a collection from the shell.</span>
   </a>
   <a class="doc-card" href="extending/">
     <strong>Extending</strong>

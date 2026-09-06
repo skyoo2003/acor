@@ -18,27 +18,21 @@ the middleware that makes either observable.
 > directive, so without a pin you get whichever core version the server module's `require`
 > names.
 
-## ACOR ships no server binary
+## There is no server binary
 
-There is no `acor-server` to install, and no image to pull. `acor/server` is a library: it
-hands you an `http.Handler`, a `*grpc.Server`, and middleware, and **you** write the `main`
-that wires them to a collection and listens.
+No `acor-server` to install, no image to pull. `acor/server` is a library — it hands you an
+`http.Handler`, a `*grpc.Server`, and middleware, and **you** write the `main` that wires
+them to a collection and listens.
 
-That is a deliberate consequence of the module being experimental — a published binary is a
-contract, and this module does not offer one yet. What it offers instead is that the wiring
-is about forty lines, and [Running a Server](running/) is those forty lines, complete and
-copy-pasteable.
+That follows from the module being experimental: a published binary is a contract, and this
+module does not offer one yet. What it offers instead is that the wiring is about forty
+lines, and [Running a Server](running/) is those forty lines, complete and copy-pasteable.
 
 ## Sections
 
-- [Running a Server](running/) - Wire a collection to HTTP or gRPC, with readiness checks and clean shutdown
-- [HTTP API](http-api/) - The nine JSON endpoints, their request and response shapes, and every error they return
-- [gRPC API](grpc-api/) - The `acor.server.v1.Acor` service, its eight RPCs, and the observability constructors
+- [Running a Server](running/) — the `main` for each protocol, with readiness checks and clean shutdown
+- [HTTP API](http-api/) — nine JSON endpoints, their shapes, and every error they return
+- [gRPC API](grpc-api/) — the `acor.server.v1.Acor` service and the observability constructors
 
 Metrics, structured logging, and tracing are configured the same way whichever protocol you
-serve, so they live together under
-[Operations → Monitoring](../operations/monitoring/).
-
-## Navigation
-
-← [Operations](../operations/) | [CLI](../cli/) →
+serve, so they live in [Operations → Monitoring](../operations/monitoring/).

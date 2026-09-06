@@ -5,70 +5,28 @@ weight: 1
 
 # Installation
 
-## Prerequisites
+Requires **Go 1.25+** and **Redis 3.0+** or **Valkey 7.2+**.
 
-- **Go**: Version 1.25 or later
-- **Redis**: Version 3.0 or later, **or Valkey**: Version 7.2 or later
+ACOR speaks RESP through [go-redis v9](https://github.com/redis/go-redis), so any
+Redis- or Valkey-compatible server works. RESP3 is negotiated on connect and falls back
+to RESP2 on servers older than `HELLO`.
 
-ACOR uses the standard RESP protocol via [go-redis v9](https://github.com/redis/go-redis) and works with any Redis- or Valkey-compatible server. RESP3 is negotiated on connect and falls back to RESP2 automatically on servers that predate the `HELLO` command.
-
-## Install the Package
+## Library
 
 ```bash
 go get github.com/skyoo2003/acor/pkg/acor@latest
 ```
 
-## Verify Installation
+Verify it with the [Quick Start](../quick-start/) program.
 
-Create a test file to verify ACOR is installed correctly:
-
-```go
-package main
-
-import (
-    "fmt"
-    "github.com/skyoo2003/acor/pkg/acor"
-)
-
-func main() {
-    args := &acor.AhoCorasickArgs{
-        Addr: "localhost:6379",
-        Name: "test",
-    }
-
-    ac, err := acor.Create(args)
-    if err != nil {
-        panic(err)
-    }
-    defer ac.Close()
-
-    fmt.Println("ACOR installed successfully!")
-}
-```
-
-## CLI Installation
-
-Install the command-line tool:
+## CLI
 
 ```bash
 go install github.com/skyoo2003/acor/cmd/acor@latest
+
+acor --help     # command list and every flag's default
+acor version    # needs no Redis; prints `dev` for a locally built binary
 ```
 
-Verify the CLI:
-
-```bash
-acor --help
-acor version
-```
-
-`acor version` needs no Redis and prints the version stamped at release build
-time (`dev` for a locally built binary).
-
-That is the whole of installing it. What the nineteen commands do — option ordering, batch
-modes, the four matching shapes, parallel chunking, and when the local cache earns its
-memory — is the [CLI](../../cli/) section.
-
-## Next Steps
-
-- [Quick Start](../quick-start/) - Build your first application
-- [Guides](../../guides/) - Learn about batch operations and parallel matching
+What the commands do — option ordering, batch modes, matching shapes, parallel chunking,
+the local cache — is the [CLI](../../cli/) section.

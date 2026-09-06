@@ -5,13 +5,8 @@ weight: 1
 
 # Batch Operations
 
-ACOR supports batch operations for better performance when working with multiple keywords.
-
-## Overview
-
-Batch operations reduce network round-trips by grouping multiple operations together.
-
-## Adding Multiple Keywords
+`AddMany` and `RemoveMany` commit a whole batch in one transaction — two round trips
+regardless of batch size, against one per keyword for a loop over `Add`.
 
 <!-- doccheck -->
 ```go
@@ -26,52 +21,31 @@ fmt.Printf("Added: %d, Failed: %d, Skipped: %d\n",
     len(result.Added), len(result.Failed), len(result.Skipped))
 ```
 
-## Batch Modes
+`nil` options mean best-effort, which is also what `BatchOptions` with no `Mode` selects.
 
-### Transactional
+## Modes
 
-Rolls back all changes if any error occurs:
+| Mode | On a per-keyword failure |
+| ---- | ------------------------ |
+| `BatchModeBestEffort` (default) | Commits the rest; failures land in `result.Failed`, and the call still returns success |
+| `BatchModeTransactional` | Rolls the whole batch back and returns an error |
 
-```go
-result, err := ac.AddMany(keywords, &acor.BatchOptions{
-    Mode: acor.BatchModeTransactional,
-})
-```
-
-### BestEffort
-
-Continues on errors and returns partial results:
+Inspect what best-effort dropped:
 
 ```go
-result, err := ac.AddMany(keywords, &acor.BatchOptions{
-    Mode: acor.BatchModeBestEffort,
-})
-```
-
-## Removing Multiple Keywords
-
-<!-- doccheck -->
-```go
-result, err := ac.RemoveMany([]string{"he", "her"}, nil)
-if err != nil {
-    panic(err)
+for _, ke := range result.Failed {
+    fmt.Printf("%q failed: %v\n", ke.Keyword, ke.Error)
 }
-fmt.Printf("Removed: %d\n", len(result.Removed))
 ```
 
-`nil` options mean best-effort, the same default `AddMany` uses. Pass options to
-control the batch mode:
+`result.Skipped` holds duplicate adds and absent removes — not errors. Field-by-field
+shapes for `BatchResult` and `KeywordError` are in the
+[API reference](../../reference/api/#batchresult).
 
-<!-- doccheck -->
-```go
-result, err := ac.RemoveMany([]string{"he", "her"}, &acor.BatchOptions{
-    Mode: acor.BatchModeTransactional,
-})
-_ = result
-_ = err
-```
+## Scanning many texts
 
-## Finding Matches in Multiple Texts
+`FindMany` loads the automaton once and scans every text against that one snapshot, so it
+costs the same round trip as a single `Find`. The result is keyed by the input text.
 
 <!-- doccheck -->
 ```go
@@ -86,37 +60,8 @@ for text, matches := range results {
 }
 ```
 
-## Batch Result Structure
+## Sizing
 
-```go
-type BatchResult struct {
-    Added   []string       // Keywords successfully added
-    Removed []string       // Keywords successfully removed
-    Failed  []KeywordError // Keywords that could not be processed, with their errors
-    Skipped []string       // Keywords skipped (e.g. duplicates in the input)
-}
-
-type KeywordError struct {
-    Keyword string // The keyword that caused the error
-    Error   error  // The error that occurred while processing it
-}
-```
-
-Inspect failures in `BatchModeBestEffort`:
-
-```go
-for _, ke := range result.Failed {
-    fmt.Printf("%q failed: %v\n", ke.Keyword, ke.Error)
-}
-```
-
-## Performance Tips
-
-1. Use batch sizes between 100-1000 keywords
-2. Use `BatchModeTransactional` when data consistency is critical
-3. Use `BatchModeBestEffort` when partial success is acceptable
-
-## Next Steps
-
-- [Parallel Matching](../parallel-matching/) - Process large texts efficiently
-- [API Reference](../../reference/api/) - Complete API documentation
+100–1,000 keywords per batch is the useful range: below it the transaction overhead
+dominates, above it the single Lua commit grows large enough to block Redis noticeably.
+Measured costs are on the [benchmarks page](../../reference/benchmarks/#bulk-load-addmany).

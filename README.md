@@ -9,32 +9,32 @@
 [![License](https://img.shields.io/github/license/skyoo2003/acor.svg)](LICENSE)
 [![Sponsor](https://img.shields.io/badge/sponsor-GitHub-pink)](https://github.com/sponsors/skyoo2003)
 
-ACOR stores a shared Aho-Corasick pattern dictionary in Redis and exposes it
-through a Go library and CLI. Multiple application instances can update the
-same dictionary at runtime while preset engines serve matches from local memory.
+ACOR keeps one Aho-Corasick dictionary in Redis and reaches it from a Go library, a CLI,
+and an experimental server module. Every application instance shares that dictionary,
+updates it at runtime, and matches against a local copy with no Redis I/O on the hot path.
 
-Typical uses include content filtering, keyword extraction, intrusion detection,
-search highlighting, and real-time text classification.
+Typical uses: content filtering, keyword extraction, intrusion detection, search
+highlighting, real-time text classification.
 
 ## Highlights
 
-- **Shared state** — every application instance uses the same Redis-backed dictionary
+- **Shared state** — every instance reads the same Redis-backed dictionary
 - **Runtime updates** — Pub/Sub invalidation, with optional polling for missed messages
-- **Fast reads** — preset engines match locally without Redis I/O on the hot path
-- **Flexible deployment** — standalone Redis, Sentinel, Cluster, Ring, and Valkey
-- **Complete matching API** — occurrences, positions, sets, streams, batches, and parallel matching
+- **Fast reads** — preset engines match locally, 0 round trips
+- **Topologies** — standalone Redis, Sentinel, Cluster, Ring, and Valkey
+- **Full matching API** — occurrences, positions, sets, streams, batches, parallel scans
 
-## Installation
+## Install
 
-ACOR requires Go 1.25 or newer and Redis 3.0 or newer, or Valkey 7.2 or newer.
+Requires Go 1.25+ and Redis 3.0+ or Valkey 7.2+.
 
 ```sh
 go get github.com/skyoo2003/acor/pkg/acor@latest
 ```
 
-## Quick Start
+## Quick start
 
-Start Redis locally, then create a matcher:
+Start Redis locally, then:
 
 <!-- doccheck -->
 ```go
@@ -69,10 +69,9 @@ func main() {
 }
 ```
 
-New collections use the optimized V2 Redis schema by default. `PresetBalanced`
-is the recommended starting point when reads should run locally.
+New collections use the optimized V2 Redis schema.
 
-## Choosing a Preset
+## Choosing a preset
 
 | Goal | Preset |
 | ---- | ------ |
@@ -80,18 +79,25 @@ is the recommended starting point when reads should run locally.
 | Highest matching throughput | `PresetSpeed` |
 | Lowest memory usage | `PresetMemoryEfficient` |
 
-Redis remains the source of truth for every preset. See the
-[preset guide](docs/content/guides/preset-engine.md) for trade-offs and the
-[Redis-backed engine guide](docs/content/guides/redis-backed-engine.md) for
-multi-instance invalidation safety.
+Redis stays the source of truth for every preset. Trade-offs are in the
+[preset guide](docs/content/guides/preset-engine.md); multi-instance invalidation is in the
+[Redis-backed engine guide](docs/content/guides/redis-backed-engine.md).
+
+## Large dictionaries (V3)
+
+`OpenVersioned` opens a separate V3 collection with leased snapshots, expected-version
+writes, and background engine replacement. V1/V2 APIs are unaffected. See the
+[V3 guide](docs/content/reference/versioned.md), its
+[performance report](docs/content/reference/versioned-performance.md), and
+[bounded text processing](docs/content/reference/text-processing.md) for `Scan`,
+`MaskText`, and `ReplaceText`.
 
 ## Documentation
 
-Everything past this point lives on the
-[documentation site](https://skyoo2003.github.io/acor/): Redis topologies, the matching and
-streaming API, batch and parallel guides, the schema-V2 migration and benchmarks, deployment
-and troubleshooting, the `acor` CLI, the experimental server module, and what the `v1` line
-promises. Package signatures are on
+The [documentation site](https://skyoo2003.github.io/acor/) covers Redis topologies, the
+matching and streaming API, batch and parallel guides, the V2 schema and benchmarks,
+deployment and troubleshooting, the `acor` CLI, the experimental server module, and what
+the `v1` line promises. Package signatures are on
 [pkg.go.dev](https://pkg.go.dev/github.com/skyoo2003/acor/pkg/acor).
 
 ## Project
@@ -103,13 +109,3 @@ promises. Package signatures are on
 ## License
 
 [Apache License 2.0](LICENSE) — Copyright 2016-2026 Sungkyu Yoo
-
-### Large versioned dictionaries
-
-Use `OpenVersioned` for V3 snapshots, atomic expected-version updates and background
-engine replacement. V1/V2 APIs remain compatible. See the [V3 guide](docs/content/reference/versioned.md)
-and [performance report](docs/content/reference/versioned-performance.md).
-
-R2 reuses unchanged downloaded buckets and reduces sparse-engine build memory.
-R3 adds bounded `Scan`, `MaskText`, and `ReplaceText` with original byte/rune spans;
-see [text processing](docs/content/reference/text-processing.md).

@@ -5,21 +5,17 @@ weight: 2
 
 # Parallel Matching
 
-For large texts, use parallel matching to scan with multiple goroutines.
-
-## Overview
-
-Parallel matching splits text into chunks and processes them concurrently, significantly improving performance for large inputs.
-
-## Basic Usage
+`FindParallel` and `FindIndexParallel` split one text into chunks and scan them
+concurrently. The automaton is loaded once per call, so the Redis cost is the same as a
+serial `Find` however many chunks result.
 
 <!-- doccheck -->
 ```go
 matches, err := ac.FindParallel(largeText, &acor.ParallelOptions{
-    Workers:       4,
-    ChunkSize:     1000,
-    AutoOverlap:   true,
-    Boundary: acor.ChunkBoundaryWord,
+    Workers:     4,
+    ChunkSize:   1000, // runes per base chunk; must be positive
+    AutoOverlap: true,
+    Boundary:    acor.ChunkBoundaryWord,
 })
 if err != nil {
     panic(err)
@@ -27,108 +23,39 @@ if err != nil {
 _ = matches
 ```
 
-## Chunk Boundaries
+## Boundaries
 
-Boundary selection chooses where base chunks end. Enable `AutoOverlap` to protect
-matches across every boundary; boundary selection alone cannot guarantee this.
+Only `Boundary` changes between these; everything else stays as above.
 
-### ChunkBoundaryWord (default)
+| Boundary | Splits at | Suited to |
+| -------- | --------- | --------- |
+| `ChunkBoundaryWord` (default) | Whitespace | Natural language |
+| `ChunkBoundaryLine` | Newlines | Log files |
+| `ChunkBoundarySentence` | `.` `!` `?` | Documents |
 
-Splits at word boundaries, ideal for natural language text:
+Boundary choice alone does not protect a keyword that straddles a split. `AutoOverlap`
+does.
 
-```go
-opts := &acor.ParallelOptions{
-    Workers:       4,
-    ChunkSize:     1000,
-    AutoOverlap:   true,
-    Boundary: acor.ChunkBoundaryWord,
-}
-```
+## Boundary protection
 
-### ChunkBoundaryLine
+`AutoOverlap: true` extends each base chunk to the right by
+`max(Overlap, longest keyword rune length - 1)`, using the longest keyword in the engine
+already loaded for this call — no extra Redis read, and every worker shares one snapshot.
+Matches starting inside an extension belong to the next chunk and are not double-counted.
+This also catches keywords longer than `ChunkSize`, including Korean and emoji.
 
-Splits at line breaks, ideal for log files:
+`AutoOverlap` defaults to `false`, which keeps the legacy behavior: an `Overlap` shorter
+than your longest keyword silently misses boundary matches, and a keyword longer than
+`ChunkSize` may fit in no chunk at all.
 
-```go
-opts := &acor.ParallelOptions{
-    Workers:       4,
-    ChunkSize:     1000,
-    AutoOverlap:   true,
-    Boundary: acor.ChunkBoundaryLine,
-}
-```
+## Result order
 
-### ChunkBoundarySentence
+`FindParallel` reports each keyword once, in chunk order and then first-match order
+within a chunk — which need not equal serial scan order. `FindIndexParallel` returns
+sorted, unique rune positions in the original text. Empty input performs no Redis read.
 
-Splits at sentence endings, ideal for document processing:
+## When it pays
 
-```go
-opts := &acor.ParallelOptions{
-    Workers:       4,
-    ChunkSize:     1000,
-    AutoOverlap:   true,
-    Boundary: acor.ChunkBoundarySentence,
-}
-```
-
-## Automatic Boundary Protection
-
-`AutoOverlap: true` uses the longest keyword in the engine loaded for this call.
-Each base chunk owns its starting positions and extends its right search range by
-`max(Overlap, longest keyword rune length - 1)`. Matches starting in the extension
-belong to the next base chunk and are excluded from the current chunk. This also
-finds keywords longer than `ChunkSize`, including Korean and emoji keywords.
-No extra Redis query is needed, and all workers use the same dictionary snapshot.
-
-`FindParallel` returns each keyword once, in chunk order and then first-match scan
-order within each chunk. That order need not equal serial scan order.
-`FindIndexParallel` returns sorted unique rune positions in the original text.
-
-The default `AutoOverlap` is `false`, preserving legacy overlapping chunks.
-In that mode, an insufficient `Overlap` can miss boundary matches, and a keyword
-longer than a chunk may not fit in any chunk. Options are copied before normalization.
-`ChunkSize` must be positive; empty input performs no Redis reads.
-
-## Performance Tuning
-
-### Worker Count
-
-Choose worker count based on CPU cores:
-
-```go
-workers := runtime.NumCPU()
-```
-
-For I/O-bound workloads, consider higher counts:
-
-```go
-workers := runtime.NumCPU() * 2
-```
-
-### Chunk Size
-
-Control chunk size with the `ChunkSize` option:
-
-```go
-opts := &acor.ParallelOptions{
-    Workers:    4,
-    ChunkSize:  10000, // 10,000 runes per base chunk
-}
-```
-
-## When to Use Parallel Matching
-
-- Text size > 100KB
-- Many pattern matches expected
-- CPU cores available for parallel work
-
-## When to Avoid
-
-- Small texts (< 10KB)
-- Single-match scenarios
-- Resource-constrained environments
-
-## Next Steps
-
-- [Batch Operations](../batch-operations/) - Optimize bulk keyword operations
-- [API Reference](../../reference/api/) - Complete API documentation
+Worth it above roughly 100 KB of text, with cores to spare. Below ~10 KB, or for a
+single expected match, the chunking overhead outweighs it. Start `Workers` at
+`runtime.NumCPU()`.

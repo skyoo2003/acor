@@ -5,128 +5,59 @@ weight: 4
 
 # Schema V2 (Optimized)
 
-V2 is the recommended schema for ACOR. A collection occupies a fixed set of at
-most 3 keys, whatever the dictionary size.
+V2 is the default for new collections — no configuration needed. A collection occupies at
+most 3 keys whatever the dictionary size.
 
-## Overview
+| Key | Holds | When it exists |
+|-----|-------|----------------|
+| `{name}:trie` | Serialized trie: keywords, prefixes, version | Always, from creation |
+| `{name}:outputs` | Output mappings, state → keywords | Once the collection has a keyword |
+| `{name}:nodes` | Node metadata | Only after `MigrateV1ToV2`; cleaned up by flush |
 
-V2 consolidates storage into these keys:
+Most collections hold two keys; a fresh one holds a single `:trie`. Nothing but migration
+writes `:nodes`. Budget for three, expect to count fewer.
 
-| Key Pattern | Purpose | When it exists |
-|-------------|---------|----------------|
-| `{name}:trie` | Serialized trie structure (keywords, prefixes, version) | Always, from creation |
-| `{name}:outputs` | All output mappings (state -> keywords) | Once the collection has a keyword |
-| `{name}:nodes` | Node metadata | Only on a collection produced by `MigrateV1ToV2`; cleaned up by flush |
+## Field layout
 
-Most collections therefore hold two keys, and a freshly created one holds a
-single `:trie`. Nothing but migration writes `:nodes`, so a collection built with
-`Add` never has it. Budget for three; expect to count fewer.
+```text
+{name}:trie      (hash)
+  keywords -> ["keyword1", "keyword2", ...]
+  prefixes -> ["", "h", "he", ...]
+  version  -> <int64 optimistic lock>
 
-## Performance Characteristics
+{name}:outputs   (hash)
+  he  -> ["he"]
+  she -> ["he", "she"]
 
-| Operation | Complexity |
-|-----------|------------|
-| Find() | 1 RTT (fixed), 0 RTT with EnableCache |
-| Add() | 2 RTT (flat, independent of keyword length) |
+{name}:nodes     (hash, migration only)
+  keyword1 -> ["s0","s1","s2"]
+```
 
-## Comparison with V1
+Collections written before v0.11 also carry a `suffixes` field on `:trie`. It is never
+read, writes leave it alone, and the next `Flush()` drops it.
 
-Round trips are counted by tests on every CI run; timings are a sample from the
-hardware named on the [benchmarks page](../benchmarks/).
+## Against V1
+
+Round trips are counted by tests on every CI run; timings are a sample from the hardware
+named on the [benchmarks page](../benchmarks/).
 
 | Metric | V1 | V2 |
 |--------|----|----|
 | Keys per 100K keywords | ~500K | 2 |
 | `Find()` round trips | 1 | 1 |
-| `Add()` round trips | grows with keyword length (53 at 5 chars, 507 at 26) | 2 |
+| `Add()` round trips | Grows with keyword length: 53 at 5 chars, 507 at 26 | 2 |
 | `Add()` time | baseline | ~14x faster |
 | `Find()` time, no cache | baseline | ~1.7x **slower** at 1000 keywords |
 
-V2's win is on writes, not reads. Both schemas read in a single round trip, and
-uncached V2 is slightly slower on `Find()` because it reads an outputs hash with
-one entry per trie state where V1 reads only the keyword set. The large read
-speedups belong to `EnableCache` and the preset engines, not to the schema. See
-[Benchmarks](../benchmarks/) for the full tables and how to reproduce them.
+**V2's win is writes, not reads.** Both schemas read in one round trip, and uncached V2 is
+slightly slower on `Find()` because it reads an outputs hash with one entry per trie state
+where V1 reads only the keyword set. The large read speedups belong to `EnableCache` and
+the preset engines, not to the schema.
 
-## Architecture
-
-```mermaid
-graph TB
-    subgraph V2 Schema
-        A[trie key] --> B[Serialized Trie]
-        C[outputs key] --> D[Output Map]
-        E[nodes key] --> F[Node Metadata - migration only]
-    end
-
-    G[Find Operation] --> A
-    G --> C
-    G -.-> E
-```
-
-## Enabling V2
-
-V2 is automatically used for new collections. No configuration needed.
-
-```go
-ac, err := acor.Create(&acor.AhoCorasickArgs{
-    Addr: "localhost:6379",
-    Name: "my-v2-collection",
-})
-if err != nil {
-    log.Fatal(err)
-}
-// Automatically uses V2 schema
-```
-
-## Migration from V1
+## Migrating from V1
 
 ```bash
-# Check current schema
-acor -name mycollection schema-version
-
-# Preview migration
+acor -name mycollection schema-version   # what you have now
 acor -name mycollection migrate --dry-run
-
-# Execute migration
 acor -name mycollection migrate
 ```
-
-## Key Structure
-
-### trie key
-
-Stores the serialized trie as a hash with three fields:
-
-```text
-{collection}:trie
-  keywords -> ["keyword1", "keyword2", ...]
-  prefixes  -> ["", "h", "he", ...]
-  version   -> <int64 optimistic lock>
-```
-
-Collections written before v0.11 also carry a `suffixes` field. It is never
-read, is left alone by writes, and is dropped by the next `Flush()`.
-
-### outputs key
-
-Stores output keywords per trie state as a hash:
-
-```text
-{collection}:outputs
-  he  -> ["he"]
-  she -> ["he", "she"]
-```
-
-### nodes key
-
-A hash mapping each keyword to a JSON array of its trie state strings. It is
-populated only by V1→V2 migration (fresh V2 collections do not write it):
-
-```text
-{collection}:nodes  (hash)
-  keyword1 -> ["s0","s1","s2"]
-```
-
-## Recommendation
-
-**Use V2 for all new collections.** It provides significantly better performance and lower resource usage.
