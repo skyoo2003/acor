@@ -1,19 +1,16 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## Unreleased — next minor release
+## [v1.6.0](https://github.com/skyoo2003/acor/releases/tag/v1.6.0) - 2026-09-06
 
 ### Added
 
-* Opt-in `ParallelOptions.AutoOverlap` protects matches across all chunk boundaries, including keywords longer than a chunk, using one engine snapshot per call.
-* `CacheStats.PresetReloadFailures` and `PresetPollFailures` report cumulative refresh failures, excluding cancellation.
+* Add opt-in automatic parallel boundary protection and cancellation-independent Preset reloads, version-only polling, and refresh failure counters. No data migration is required. ([#243](https://github.com/skyoo2003/acor/issues/243))
+* Add opt-in V3 versioned dictionaries with atomic batch updates, snapshots, background engine refresh, bucket reuse, V2 migration and dictionary CLI tools; add bounded scanning, masking and replacement with original text positions. ([#244](https://github.com/skyoo2003/acor/issues/244))
 
-### Fixed
+### Documentation
 
-* Preset reload waiters respond independently to cancellation. Shared jobs stop when all waiters leave or the instance closes. Snapshot fetching and engine building run outside the state lock; generation checks reject obsolete reloads after writes or invalidation.
-* Preset polling reads only the existing version field. Failed refreshes still return search errors and retry on later requests; polling is disabled by default and provides no outage freshness bound.
-* Parallel options are copied before normalization. Existing behavior remains the default. No Redis schema change or data migration is required.
-
+* Resynced the docs site with the code it describes. The CLI pages counted nineteen commands after `dictionary` made twenty; five pages (`versioned`, `text-processing`, `preset-engine`, and both performance reports) existed but were linked from no section index, so a reader could only reach them by URL; `commands.md` had its V3 section appended below the nav footer; and the `CacheStats` and `ParallelOptions` type listings omitted `PresetReloadFailures`, `PresetPollFailures`, and `AutoOverlap`, which are described in prose further down the same page. Also documented the `bench`, `bench-module`, `bench-v3`, and `proto` Make targets in CONTRIBUTING.md, corrected its doccheck fence count, and linked the three runnable `examples/` programs from Getting Started. ([#245](https://github.com/skyoo2003/acor/issues/245))
 ## [v1.5.2](https://github.com/skyoo2003/acor/releases/tag/v1.5.2) - 2026-08-09
 
 ### Changed
@@ -34,6 +31,7 @@ All notable changes to this project will be documented in this file.
 * Corrected `CONTRIBUTING.md` where it described a process this repository does not run. It told contributors to create their branch from `master` and open the pull request against `master` — a branch that does not exist here, and the same fix [#141](https://github.com/skyoo2003/acor/issues/141) already applied elsewhere without reaching this file. It listed `make all` as six targets when it runs seven, omitting `api-check`, the gate that fails a pull request carrying an unrecorded change to the public API; `docs-verify` and `tidy-check` were undocumented for the same reason. It also carried its own pull-request checklist that had drifted out of step with the template GitHub actually renders, while line 46 instructed contributors to fill in that template; the duplicate is now a pointer to it. Added the changelog-fragment step, which `RELEASE.md` requires of every contributor but `CONTRIBUTING.md` never mentioned. The Redis prerequisite claimed a `>= 6.0` floor that no other document states; it now carries the one `README.md` and the installation guide actually publish — Redis 3.0 or Valkey 7.2 — while noting that CI exercises only version 8 of each. Valkey had been omitted from the document entirely. ([#227](https://github.com/skyoo2003/acor/issues/227))
 * The CLI now has its own section on the documentation site. Its usage — batch modes, the four matching shapes, the whole-word caveat for scripts without inter-word boundaries, parallel chunking, and preset selection — had been filed under a heading called `CLI Installation` on the Getting Started page, where a reader looking for the CLI had no reason to open it; that prose moved unchanged. The new section index adds what it never carried: the nineteen commands grouped by what they do, and the caveat already stated on the compatibility page that the CLI's flags, output format, and exit codes sit outside the `v1` promise. The site's landing page had also fallen behind the site: its hero named two of the three public entry points, and its card grid linked five of the seven sections. Both now match what the site contains. ([#229](https://github.com/skyoo2003/acor/issues/229))
 * The README no longer restates the documentation site's section index. Its `## Documentation` heading carried a seven-bullet list naming every site section with repo-relative paths, duplicating the seven cards on the site's landing page — and that duplicate had already drifted, pointing at a `#cli-installation` anchor that moved when the CLI got its own section. It is now one paragraph and one link to the site, merged with the pkg.go.dev sentence that followed it. Every removed target remains reachable from the landing page. ([#230](https://github.com/skyoo2003/acor/issues/230))
+
 ## [v1.5.1](https://github.com/skyoo2003/acor/releases/tag/v1.5.1) - 2026-08-09
 
 ### Fixed

@@ -1,5 +1,0 @@
-kind: Documentation
-body: "Resynced the docs site with the code it describes. The CLI pages counted nineteen commands after `dictionary` made twenty; five pages (`versioned`, `text-processing`, `preset-engine`, and both performance reports) existed but were linked from no section index, so a reader could only reach them by URL; `commands.md` had its V3 section appended below the nav footer; and the `CacheStats` and `ParallelOptions` type listings omitted `PresetReloadFailures`, `PresetPollFailures`, and `AutoOverlap`, which are described in prose further down the same page. Also documented the `bench`, `bench-module`, `bench-v3`, and `proto` Make targets in CONTRIBUTING.md, corrected its doccheck fence count, and linked the three runnable `examples/` programs from Getting Started."
-time: 2026-09-06T22:10:00+09:00
-custom:
-  Issue: "245"

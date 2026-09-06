@@ -1,5 +1,0 @@
-kind: Added
-body: "Add opt-in automatic parallel boundary protection and cancellation-independent Preset reloads, version-only polling, and refresh failure counters. No data migration is required."
-time: 2026-09-05T19:00:00+09:00
-custom:
-  Issue: "243"
