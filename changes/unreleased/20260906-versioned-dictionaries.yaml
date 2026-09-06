@@ -1,5 +1,0 @@
-kind: Added
-body: "Add opt-in V3 versioned dictionaries with atomic batch updates, snapshots, background engine refresh, bucket reuse, V2 migration and dictionary CLI tools; add bounded scanning, masking and replacement with original text positions."
-time: 2026-09-06T21:00:00+09:00
-custom:
-  Issue: "244"
