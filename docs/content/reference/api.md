@@ -293,11 +293,13 @@ constructed by callers — fields may be added inside `v1`.
 
 ```go
 type CacheStats struct {
-    Hits                uint64        // Reads served without rebuilding the automaton
-    Misses              uint64        // Reads that waited for a rebuild
-    Rebuilds            uint64        // Automaton builds (starts at 1 in Preset mode)
-    RebuildDuration     time.Duration // Cumulative build time, excluding Redis I/O
-    LastInvalidationLag time.Duration // Last peer invalidation delay (Preset/EnableCache only; carries clock skew)
+    PresetReloadFailures uint64        // Failed shared reload jobs, once per job (Preset only; cancellation excluded)
+    PresetPollFailures   uint64        // Failed version polls (Preset with polling enabled only)
+    Hits                 uint64        // Reads served without rebuilding the automaton
+    Misses               uint64        // Reads that waited for a rebuild
+    Rebuilds             uint64        // Automaton builds (starts at 1 in Preset mode)
+    RebuildDuration      time.Duration // Cumulative build time, excluding Redis I/O
+    LastInvalidationLag  time.Duration // Last peer invalidation delay (Preset/EnableCache only; carries clock skew)
 }
 ```
 
@@ -437,10 +439,11 @@ type KeywordError struct {
 
 ```go
 type ParallelOptions struct {
-    Workers   int           // Concurrent goroutines (default: runtime.NumCPU())
-    ChunkSize int           // Target chunk size in characters (default: 1000)
-    Boundary  ChunkBoundary // How chunks are split (default: ChunkBoundaryWord)
-    Overlap   int           // Overlap characters between chunks (default: 50)
+    Workers     int           // Concurrent goroutines (default: runtime.NumCPU())
+    ChunkSize   int           // Target chunk size in characters (required; no fallback)
+    Boundary    ChunkBoundary // How chunks are split (default: ChunkBoundaryWord)
+    Overlap     int           // Overlap characters between chunks (unset means zero)
+    AutoOverlap bool          // Extend each chunk by the dictionary's longest keyword (default: false)
 }
 ```
 

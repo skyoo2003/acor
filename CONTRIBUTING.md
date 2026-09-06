@@ -156,7 +156,7 @@ cover:
 
 | Target | What it gates |
 | ------------- | ------------------------------------------------------------- |
-| `docs-verify` | Compiles the Go blocks in `README.md` and `docs/content/**` that opt in with a `<!-- doccheck -->` or `<!-- doccheck:server -->` marker — 22 of the 91 Go fences today. An unmarked block is never compiled, so add the marker when you add an example that should not be allowed to rot |
+| `docs-verify` | Compiles the Go blocks in `README.md` and `docs/content/**` that opt in with a `<!-- doccheck -->` or `<!-- doccheck:server -->` marker — 25 of the 93 Go fences today. An unmarked block is never compiled, so add the marker when you add an example that should not be allowed to rot |
 | `api-check` | Rewrites `api/v1.txt` and fails on the diff, so an unrecorded change to the public API cannot merge. See [`api/README.md`](api/README.md) |
 | `tidy-check` | Runs `go mod tidy` across all three modules and fails on the diff. Not part of `all` — it runs as a pre-commit hook |
 
@@ -164,6 +164,29 @@ cover:
 `api-check` as pre-commit hooks, along with an SPDX-header check, so they run before the
 commit rather than in review. **`docs-verify` is not among them** — a broken example is
 caught by `make all` or by CI, not by the hook.
+
+### Benchmarks
+
+```sh
+make bench          # pkg/acor and internal/engine microbenchmarks
+make bench-module   # public-API timings, memory, and propagation (separate module)
+make bench-v3       # full V3 matrix via scripts/benchmark-v3.sh
+```
+
+`bench-module` requires `ACOR_INTEGRATION_ADDR`; without it the figures are measured
+against miniredis, which has no round-trip cost and so must never be published as
+timings. `bench` produces the evidence behind
+[`docs/content/reference/benchmarks.md`](docs/content/reference/benchmarks.md).
+
+### Regenerating gRPC Code
+
+```sh
+make proto
+```
+
+Regenerates the server's protobuf and gRPC code from `server/proto/acor/v1/acor.proto`.
+Requires `protoc`, `protoc-gen-go`, and `protoc-gen-go-grpc` on `PATH` — it is the one
+target that needs a toolchain `go` does not install for you.
 
 ### Third-Party Notices
 
