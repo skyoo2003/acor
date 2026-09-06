@@ -103,3 +103,13 @@ promises. Package signatures are on
 ## License
 
 [Apache License 2.0](LICENSE) — Copyright 2016-2026 Sungkyu Yoo
+
+### Large versioned dictionaries
+
+Use `OpenVersioned` for V3 snapshots, atomic expected-version updates and background
+engine replacement. V1/V2 APIs remain compatible. See the [V3 guide](docs/content/reference/versioned.md)
+and [performance report](docs/content/reference/versioned-performance.md).
+
+R2 reuses unchanged downloaded buckets and reduces sparse-engine build memory.
+R3 adds bounded `Scan`, `MaskText`, and `ReplaceText` with original byte/rune spans;
+see [text processing](docs/content/reference/text-processing.md).

@@ -473,3 +473,17 @@ positions. See [parallel matching](../../guides/parallel-matching/).
 `CacheStats.PresetReloadFailures` and `CacheStats.PresetPollFailures` are cumulative
 `uint64` counters. Shared reload failures count once per job; cancellations are
 excluded. They remain zero in other modes. See [Preset refresh](../../guides/redis-backed-engine/#invalidation-safety).
+
+## Versioned dictionaries
+
+`OpenVersioned(ctx, *VersionedOptions)` opens a separate V3 collection. Its
+`VersionedCollection` API provides leased snapshots, paginated list/diff, expected-version
+replace/add/remove, asynchronous engine refresh, operation receipts, V2 copying
+and explicit pruning. See [the V3 API guide](../versioned/) for contracts and a
+compilable example; V3 uses the existing module version and search semantics.
+
+## Bounded source-position APIs
+
+`Scan`, `MaskText`, and `ReplaceText` are available on AhoCorasick and
+VersionedCollection with explicit contexts. See [bounded text processing](../text-processing/)
+for ScanOptions, RewriteOptions, original byte/rune spans and error contracts.

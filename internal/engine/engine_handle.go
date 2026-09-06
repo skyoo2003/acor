@@ -25,13 +25,14 @@ const findResultHint = 8
 // package can build and query the automaton without depending on the concrete
 // engine types (which stay unexported).
 type Engine struct {
+	preset          Preset
 	impl            matchEngine
 	maxKeywordRunes int
 }
 
 // New returns an Engine backed by the implementation selected for preset.
 func New(preset Preset) *Engine {
-	return &Engine{impl: newMatchEngine(preset)}
+	return &Engine{impl: newMatchEngine(preset), preset: preset}
 }
 
 // Build (re)constructs the automaton from the given keyword set.

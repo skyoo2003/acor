@@ -84,3 +84,11 @@ The trade-offs behind each preset are in
 ## Navigation
 
 ← [CLI](../) | [Extending](../../extending/) →
+
+## Versioned dictionaries
+
+Use `acor -name new-v3-name dictionary list|diff|replace|status|copy-v2|prune`.
+Replacement and copying require `--expected-version`; empty replacements and
+empty V2 sources require `--allow-empty`. Diff and replace read a JSON string
+array from stdin. See the [V3 guide](../../reference/versioned/) for pagination,
+case policy, cutover and command examples.
