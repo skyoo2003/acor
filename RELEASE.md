@@ -41,6 +41,14 @@ This prompts for a kind (`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`,
 `Security`, `Documentation`), a body line, and the issue number. It writes a
 YAML fragment under `changes/unreleased/`. Commit it with your change.
 
+The body is **one sentence, two at the very most** — the second only when it
+carries a consequence for the reader: a migration step, a measured number, or
+what deliberately did not change. These fragments become the GitHub release
+body verbatim, so they are read by people deciding whether to upgrade, not by
+people reviewing the diff; the investigation and the file list stay in the pull
+request. `.changie.yaml` enforces the shape with `block: false` and
+`maxLength: 400`, and [CONTRIBUTING.md](CONTRIBUTING.md) shows examples.
+
 ## Cutting a release (maintainer)
 
 1. **Confirm `main` is green** and holds everything you want to ship.
