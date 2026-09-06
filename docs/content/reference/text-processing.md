@@ -3,73 +3,71 @@ title: "Bounded search, masking and replacement"
 description: "Original byte and rune positions with explicit work and output limits."
 ---
 
-R3 adds `Scan`, `MaskText`, and `ReplaceText` to both AhoCorasick and
-VersionedCollection. All take a context. Existing Find/FindMatches APIs retain
-their existing unlimited result and position contracts. V3 calls hold one serving
-engine for the entire scan or rewrite, even if a refresh finishes concurrently.
+# Bounded search, masking and replacement
 
-## Original positions and bounded search
+`Scan`, `MaskText`, and `ReplaceText` exist on both `AhoCorasick` and
+`VersionedCollection` and all take a context. The existing `Find`/`FindMatches` APIs keep
+their unlimited result and position contracts. A V3 call holds one serving engine for the
+whole scan or rewrite, even if a refresh finishes concurrently.
 
-`Scan(ctx, text, *ScanOptions)` returns SourceMatch entries containing the normalized
-Keyword, the original Text substring, and half-open Start/End rune and
-ByteStart/ByteEnd byte offsets into the original input. Unicode case folding can
-change byte lengths: `İSTANBUL` matches `istanbul`, but its byte span still selects
-the original spelling. No normalization of the original output text occurs.
-Invalid UTF-8 input bytes are decoded as RuneError for matching, while reported
-byte slices retain those exact original bytes.
+## Scan
 
-Zero-valued limits select these defaults; negative limits are rejected. Construct
-ScanOptions and RewriteOptions using named fields for forward compatibility.
+`Scan(ctx, text, *ScanOptions)` returns `SourceMatch` entries carrying the normalized
+`Keyword`, the original `Text` substring, and half-open `Start`/`End` rune and
+`ByteStart`/`ByteEnd` byte offsets into the **original** input.
 
-| Option | Default | Behavior at limit |
+Case folding can change byte lengths — `İSTANBUL` matches `istanbul`, and its byte span
+still selects the original spelling. Output text is never normalized. Invalid UTF-8 is
+decoded as `RuneError` for matching, while the reported byte slices keep those exact
+original bytes.
+
+| Option | Default | At the limit |
 |---|---:|---|
-| MaxInputBytes | 1 MiB | ErrInputLimit before loading/scanning the engine |
-| MaxMatches | 1,000 | At most this many entries; Truncated when another eligible match is observed |
-| MaxCandidates | 100,000 | ErrScanWorkLimit when another raw automaton match is encountered |
+| `MaxInputBytes` | 1 MiB | `ErrInputLimit`, before the engine is loaded or scanned |
+| `MaxMatches` | 1,000 | Keeps at most this many; sets `Truncated` when another eligible match appears |
+| `MaxCandidates` | 100,000 | `ErrScanWorkLimit` on the next raw automaton match |
 
-Kind defaults to MatchKindOverlapping. MatchKindLeftmostLongest selects the
-leftmost available start, then the longest keyword there, and discards overlaps.
-The implementation keeps the longest candidate at each pending start until the
-engine's longest keyword makes the decision safe. It does not collect all raw
-matches and sort them. Scratch memory is bounded by input length plus the pending
-start window and retained result count; it is not constant memory. Input indexing
-uses rune and byte-offset arrays. A low result limit alone does not replace the
-input-byte or candidate-work limit.
+Zero-valued limits select the defaults; negative limits are rejected. Construct
+`ScanOptions` and `RewriteOptions` with named fields.
 
-WholeWord and WordRune have the same normalized-rune boundary semantics as
-MatchOptions. Letters, digits, combining marks and underscore are word characters
-by default. Scripts without spaces may require an application-specific WordRune.
-Candidate counting happens before whole-word and overlap filtering, so a dense
-rejected-match workload cannot bypass the work budget. Custom WordRune code runs
-in the caller's goroutine; its own resource use is the caller's responsibility.
+`Kind` defaults to `MatchKindOverlapping`. `MatchKindLeftmostLongest` takes the leftmost
+available start, then the longest keyword there, and discards overlaps — implemented by
+keeping the longest candidate at each pending start until the engine's longest keyword
+makes the decision safe, not by collecting and sorting all raw matches. Scratch memory is
+bounded by input length plus the pending-start window and retained results; it is not
+constant.
 
-Input or candidate exhaustion and cancellation return an error with no result.
-Truncated concerns the eligible result count only. A caller checking safety or
-completeness must handle both errors and Truncated; neither means a clean input.
-The context is checked during input indexing, traversal and match handling.
+`WholeWord` and `WordRune` carry the same normalized-rune semantics as `MatchOptions`:
+letters, digits, combining marks, and underscore are word characters by default, and
+scripts without spaces usually need an application-specific `WordRune`. Candidates are
+counted *before* whole-word and overlap filtering, so a dense rejected-match workload
+cannot slip past the work budget. Custom `WordRune` code runs in the caller's goroutine.
 
-## Atomic masking and literal replacement
+**Errors and `Truncated` are different signals.** Input exhaustion, candidate exhaustion,
+and cancellation all return an error and no result; `Truncated` concerns only the eligible
+result count. Checking for a clean input means handling both. The context is checked
+during input indexing, traversal, and match handling.
 
-`ReplaceText(ctx, text, replacement, *RewriteOptions)` inserts the literal
-replacement for each selected non-overlapping leftmost-longest match. It does not
-interpret regular expressions, expand captures, or search replacement text again.
-An empty replacement deletes matched spans.
+## Masking and replacement
 
-`MaskText(ctx, text, maskRune, *RewriteOptions)` writes one mask rune for every
-matched original rune. The result preserves rune count, not necessarily byte count.
-Any valid Unicode rune, including NUL, is accepted. Invalid runes are rejected.
-Both APIs leave unmatched original bytes untouched.
+`ReplaceText(ctx, text, replacement, *RewriteOptions)` inserts the literal replacement for
+each selected non-overlapping leftmost-longest match. No regular expressions, no capture
+expansion, no re-searching the replacement. An empty replacement deletes matched spans.
 
-RewriteOptions shares the three scan limits above and adds MaxOutputBytes, which
-defaults to 4 MiB. WholeWord and WordRune are also available. Overlap selection is
-always leftmost-longest. Exceeding MaxMatches produces ErrMatchLimit; exceeding the
-output bound produces ErrOutputLimit. Every error returns no RewriteResult, so a
-caller cannot accidentally consume a partially masked document. All output sizes
-are checked before allocating the output buffer.
+`MaskText(ctx, text, maskRune, *RewriteOptions)` writes one mask rune per matched original
+rune, preserving rune count but not necessarily byte count. Any valid Unicode rune is
+accepted, including NUL; invalid runes are rejected.
 
-RewriteResult contains Text and the SourceMatch entries used for the rewrite.
-Their offsets always refer to the **input**, even when replacement changes output
-length. Match Text substrings can retain the original input string in memory.
+Both leave unmatched original bytes untouched. `RewriteOptions` shares the three scan
+limits and adds `MaxOutputBytes`, defaulting to 4 MiB. Overlap selection is always
+leftmost-longest. Exceeding `MaxMatches` gives `ErrMatchLimit`, exceeding the output bound
+gives `ErrOutputLimit`, and **every error returns no `RewriteResult`** — a caller cannot
+accidentally consume a half-masked document. Output size is checked before the buffer is
+allocated.
+
+`RewriteResult` holds `Text` plus the `SourceMatch` entries used. Their offsets always
+refer to the **input**, even when replacement changes the output length. Match `Text`
+substrings can retain the original input string in memory.
 
 <!-- doccheck -->
 ```go
@@ -112,5 +110,5 @@ func main() {
 }
 ```
 
-See the [R2/R3 report](../r2-r3-performance/) for parity, resource-bound and
-cancellation evidence and the same-environment R1 comparison.
+Parity, resource-bound, and cancellation evidence:
+[R2/R3 report](../r2-r3-performance/).

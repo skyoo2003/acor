@@ -5,20 +5,15 @@ weight: 3
 
 # Reference
 
-Technical reference documentation for ACOR.
+- [API Reference](api/) — constructors, matching, batch, parallel, and the option types
+- [Compatibility](compatibility/) — what the `v1` line promises, and what it excludes
+- [Schema V2](schema-v2/) — the current storage layout
+- [Schema V1](schema-v1/) — deprecated, read-only
+- [Versioned dictionaries (V3)](versioned/) — leased snapshots, expected-version writes, cutover
+- [Bounded text processing](text-processing/) — `Scan`, `MaskText`, `ReplaceText` over source positions
 
-## Sections
+## Measurements
 
-- [API Reference](api/) - Public API documentation (unified `Create` API with `Preset` options)
-- [Compatibility](compatibility/) - What the `v1` line promises, and what it excludes
-- [Schema V1](schema-v1/) - Legacy schema details
-- [Schema V2](schema-v2/) - Optimized schema (recommended)
-- [Versioned dictionaries (V3)](versioned/) - Leased snapshots, expected-version writes, and cutover
-- [Bounded search, masking and replacement](text-processing/) - `Scan`, `MaskText`, and `ReplaceText` over original source positions
-- [Benchmarks](benchmarks/) - Measured performance and how to reproduce it
-- [V3 performance report](versioned-performance/) - Million-keyword measurements on Redis and Valkey
-- [R2/R3 verification](r2-r3-performance/) - Boundary protection and bounded-processing evidence
-
-## Navigation
-
-← [Guides](../guides/) | [Operations](../operations/) →
+- [Benchmarks](benchmarks/) — round trips and timings, with the commands that produce them
+- [V3 performance report](versioned-performance/) — the archived R1 million-keyword baseline
+- [R2/R3 verification](r2-r3-performance/) — incremental download, engine memory, bounded APIs

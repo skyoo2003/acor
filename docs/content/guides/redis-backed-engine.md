@@ -5,20 +5,18 @@ weight: 4
 
 # Redis-Backed Engine
 
-The preset-optimized Redis mode (enabled via `Preset` on `AhoCorasickArgs`) combines Redis persistence with a local preset-optimized automaton. Redis is the source of truth; reads hit the local engine with no Redis I/O on the hot path.
+With `Preset` set, Redis stays the source of truth while every instance serves reads from
+its own automaton. This page covers how that stays consistent. Which preset to pick is
+[Preset-Optimized Engine](../preset-engine/).
 
-> **Redis or Valkey:** ACOR connects with [go-redis v9](https://github.com/redis/go-redis) over the standard RESP protocol, so any Redis (>= 3.0) or Valkey (>= 7.2) server works, including Standalone, Sentinel, Cluster, and Ring topologies. Cross-instance cache invalidation uses server Pub/Sub, which behaves identically on Redis and Valkey. Both are covered by the integration test suite in CI.
-
-## When to Use
-
-- Distributed deployments across multiple instances
-- Need for Redis persistence and cross-instance synchronization
-- Want preset-optimized local speed without giving up Redis durability
-- Migrating from the original `AhoCorasick` for better read performance
+> **Redis or Valkey.** ACOR connects over RESP via
+> [go-redis v9](https://github.com/redis/go-redis), so Redis 3.0+ or Valkey 7.2+ works in
+> Standalone, Sentinel, Cluster, and Ring topologies. Cross-instance invalidation uses
+> server Pub/Sub, which behaves identically on both. CI covers both.
 
 ## Architecture
 
-```
+```text
                     Write Path
 Instance A ──Add()──▶ Lua Script (optimistic lock) ──▶ Redis
                                                   │
@@ -32,16 +30,17 @@ Instance B ◀────────────────┘
 Instance A ──Find()──▶ local engine (0 RTT)
 ```
 
-- **Writes**: V2 Lua scripts with optimistic locking (up to 3 retries with backoff)
-- **Reads**: Local preset-optimized automaton — no Redis I/O
-- **Invalidation**: Redis Pub/Sub notifies all instances on mutation
-- **Reload failures**: The previous engine is retained, but the waiting search returns an error. A later search retries the reload.
+| Path | Behavior |
+| ---- | -------- |
+| Writes | V2 Lua scripts with optimistic locking, up to 3 retries with backoff |
+| Reads | Local automaton, no Redis I/O |
+| Invalidation | Redis Pub/Sub on every mutation |
+| Failed reload | Previous engine is retained but the waiting search returns an error; a later search retries |
 
-## Invalidation Safety
+## Invalidation safety
 
-Redis Pub/Sub is best effort. In a multi-instance deployment, set
-`InvalidationPollInterval` to recover from dropped invalidations after a successful
-version poll and reload:
+Pub/Sub is best effort — a disconnected subscriber misses invalidations. In multi-instance
+deployments set `InvalidationPollInterval`:
 
 <!-- doccheck -->
 ```go
@@ -54,138 +53,43 @@ args := &acor.AhoCorasickArgs{
 _ = args
 ```
 
-The zero value disables polling. Polling only applies to Preset mode; normal
-invalidation still uses Pub/Sub. Each poll reads only the existing `version` hash
-field; a changed version marks the engine stale, and the next search reads the
-full snapshot. The interval is not a freshness upper bound: Redis failures, query
-latency, and rebuild time can delay recovery. This mode provides eventual refresh,
-not strong consistency or a guarantee of fresh results during an outage.
+Zero disables polling, and polling applies to Preset mode only. Each poll reads just the
+`version` hash field; a change marks the engine stale and the next search loads the full
+snapshot.
 
-Concurrent stale reads share a reload, while each request independently observes
-its own context cancellation. Canceling one waiter leaves the others running.
-The instance lifetime owns the job; all waiters leaving or `Close` cancels it.
-Redis reads and engine builds run outside the state lock. A generation check
-rejects and retries snapshots overtaken by local writes or invalidations.
+**The interval is not a freshness bound.** Redis failures, query latency, and rebuild time
+all delay recovery. This is eventual refresh, not strong consistency.
 
-`CacheStats().PresetReloadFailures` counts failed shared jobs once per job;
-`PresetPollFailures` counts failed version polls. Cancellation is excluded.
-Both counters are cumulative per instance and remain zero outside Preset mode.
-Monitor these counters alongside application search errors; a retained previous
-engine does not turn a failed reload into a successful response.
+Concurrent stale reads share one reload job while each request observes its own context
+cancellation — cancelling one waiter leaves the others running, and all waiters leaving
+(or `Close`) cancels the job. Redis reads and engine builds run outside the state lock,
+and a generation check rejects snapshots overtaken by local writes.
 
-## Quick Start
+Watch `CacheStats().PresetReloadFailures` (once per failed shared job) and
+`PresetPollFailures` (per failed version poll) alongside your search errors. Cancellation
+is excluded from both; both stay zero outside Preset mode. A retained previous engine does
+not turn a failed reload into a successful response. See
+[Monitoring](../../operations/monitoring/).
 
-<!-- doccheck -->
-```go
-package main
+## Topologies and connection tuning
 
-import (
-    "fmt"
-    "github.com/skyoo2003/acor/pkg/acor"
-)
+All four topologies are configured through the connection fields on `AhoCorasickArgs` —
+see [Redis topologies](../../getting-started/quick-start/#redis-topologies).
 
-func main() {
-    ac, err := acor.Create(&acor.AhoCorasickArgs{
-        Addr:          "localhost:6379",
-        Name:          "my-collection",
-        Preset:        acor.PresetBalanced,
-        CaseSensitive: false,
-    })
-    if err != nil {
-        panic(err)
-    }
-    defer ac.Close()
+`DialTimeout`, `ReadTimeout`, `WriteTimeout`, `MaxRetries`, and `PoolSize` pass straight
+to go-redis for every topology. Zero keeps the go-redis default; `-1` disables the
+read/write timeouts or command retries where supported.
 
-    added, err := ac.Add("hello")
-    if err != nil {
-        panic(err)
-    }
-    fmt.Printf("Added: %d\n", added)
+## Preset mode versus plain V2
 
-    matches, err := ac.Find("hello world")
-    if err != nil {
-        panic(err)
-    }
-    fmt.Println(matches) // [hello]
-}
-```
-
-## AhoCorasickArgs (Preset field)
-
-The `AhoCorasickArgs` struct includes a `Preset` field for selecting the local engine architecture:
-
-```go
-type AhoCorasickArgs struct {
-    // ... Addr, Addrs, RingAddrs, Password, DB, Name ...
-    Preset         Preset       // Architecture preset; zero value is PresetNone (original mode). Set it (e.g. PresetBalanced) to enable preset mode
-    CaseSensitive   bool         // Enable case-sensitive matching (default: false)
-    // ... other fields ...
-}
-```
-
-All standard Redis topologies are supported (Standalone, Sentinel, Cluster, Ring) via the connection fields on `AhoCorasickArgs`.
-
-Connection resilience can be tuned with `DialTimeout`, `ReadTimeout`,
-`WriteTimeout`, `MaxRetries`, and `PoolSize`. These values pass directly to
-go-redis for every topology; zero keeps the go-redis default. Use `-1` to
-disable read/write timeouts or command retries where supported.
-
-## Preset Selection
-
-The same [architecture presets](../preset-engine/#architecture-presets) are available:
-
-| Preset | Use Case |
-|--------|----------|
-| `PresetSpeed` | Latency-critical, memory available |
-| `PresetBalanced` | Default — best speed-to-memory ratio |
-| `PresetMemoryEfficient` | Millions of patterns, memory constrained |
-
-If the `Preset` field is left unset, it defaults to `PresetNone`, which runs the
-original `AhoCorasick` mode (not the preset-optimized engine). You must set
-`Preset` explicitly (e.g. `PresetBalanced`) to enable this engine.
-
-## API Reference
-
-```go
-// Create
-ac, err := acor.Create(&acor.AhoCorasickArgs{
-    Addr:   "localhost:6379",
-    Name:   "my-collection",
-    Preset: acor.PresetBalanced,
-})
-
-// Add/Remove
-added, err := ac.Add("keyword")      // (int, error)
-removed, err := ac.Remove("keyword") // (int, error)
-
-// Find (0 RTT on hot path — reads from local engine)
-matches, err := ac.Find("text")        // ([]string, error)
-positions, err := ac.FindIndex("text") // (map[string][]int, error)
-
-// Stats
-info, err := ac.Info()   // (*AhoCorasickInfo, error)
-
-// Flush and Close
-err := ac.Flush()
-err := ac.Close()
-```
-
-## Comparison with AhoCorasick
-
-| Feature | `AhoCorasick` (no Preset) | `AhoCorasick` (with Preset) |
-|---------|--------------|-----------------|
-| Read latency | 1 RTT (V2) or cached | 0 RTT (local engine) |
+| | No `Preset` | With `Preset` |
+|---|---|---|
+| Read latency | 1 RTT, or 0 with `EnableCache` | 0 RTT |
 | Write latency | Lua script | Lua script + optimistic lock |
 | Cross-instance sync | Pub/Sub cache invalidation | Pub/Sub engine rebuild |
 | Schema | V1 or V2 | V2 only |
-| Presets | N/A | Speed, Balanced, MemoryEfficient |
-| Suggest/SuggestIndex | Yes | No (`ErrSuggestRequiresRedis`) |
-| Batch operations | Yes | Yes |
-| Parallel matching | Yes | Yes |
+| `Suggest` / `SuggestIndex` | Yes | No — `ErrSuggestRequiresRedis` |
+| Batch, parallel matching | Yes | Yes |
 
-Use a `Preset`-optimized `AhoCorasick` when you need the fastest possible reads in a distributed setup and can accept the V2-only constraint.
-
-## Next Steps
-
-- [Preset-Optimized Engine](../preset-engine/) - Redis-backed engine with local speed
-- [API Reference](../../reference/api/) - Complete API documentation
+`Preset` is unset by default (`PresetNone`), which runs the original mode. Choose it when
+you need the fastest reads across several instances and can accept V2-only, no-`Suggest`.

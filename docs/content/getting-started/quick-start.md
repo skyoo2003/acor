@@ -5,36 +5,28 @@ weight: 2
 
 # Quick Start
 
-This guide walks you through building your first ACOR application.
-
-## Basic Usage
-
 <!-- doccheck -->
 ```go
 package main
 
 import (
     "fmt"
+
     "github.com/skyoo2003/acor/pkg/acor"
 )
 
 func main() {
-    args := &acor.AhoCorasickArgs{
+    ac, err := acor.Create(&acor.AhoCorasickArgs{
         Addr: "localhost:6379",
         Name: "sample",
-    }
-
-    ac, err := acor.Create(args)
+    })
     if err != nil {
         panic(err)
     }
     defer ac.Close()
 
-    keywords := []string{"he", "her", "him"}
-    for _, k := range keywords {
-        if _, err := ac.Add(k); err != nil {
-            panic(err)
-        }
+    if _, err := ac.AddMany([]string{"he", "her", "him"}, nil); err != nil {
+        panic(err)
     }
 
     matched, err := ac.Find("he is him")
@@ -42,68 +34,45 @@ func main() {
         panic(err)
     }
     fmt.Println(matched)
-
-    if err := ac.Flush(); err != nil {
-        panic(err)
-    }
 }
 ```
 
-## Redis Topologies
+## Redis topologies
 
-ACOR supports multiple Redis configurations:
-
-### Standalone
-
-```go
-args := &acor.AhoCorasickArgs{
-    Addr:     "localhost:6379",
-    Password: "",
-    DB:       0,
-    Name:     "sample",
-}
-```
-
-### Sentinel
+Pick exactly one set of connection fields — mixing them returns
+`ErrRedisConflictingTopology`.
 
 ```go
-args := &acor.AhoCorasickArgs{
+// Standalone
+args := &acor.AhoCorasickArgs{Addr: "localhost:6379", Name: "sample"}
+
+// Sentinel — Addrs plus MasterName
+args = &acor.AhoCorasickArgs{
     Addrs:      []string{"localhost:26379", "localhost:26380"},
     MasterName: "mymaster",
-    Password:   "",
-    DB:         0,
     Name:       "sample",
 }
-```
 
-### Cluster
+// Cluster — Addrs without MasterName
+args = &acor.AhoCorasickArgs{
+    Addrs: []string{"localhost:7000", "localhost:7001"},
+    Name:  "sample",
+}
 
-```go
-args := &acor.AhoCorasickArgs{
-    Addrs:    []string{"localhost:7000", "localhost:7001", "localhost:7002"},
-    Password: "",
-    Name:     "sample",
+// Ring — shard name to address
+args = &acor.AhoCorasickArgs{
+    RingAddrs: map[string]string{"shard-1": "localhost:7000", "shard-2": "localhost:7001"},
+    Name:      "sample",
 }
 ```
 
-### Ring
+`Password`, `DB`, and the timeout and pool fields apply to every topology; `DB` is
+rejected together with `Addrs`. Full field list:
+[API Reference](../../reference/api/#ahocorasickargs).
 
-```go
-args := &acor.AhoCorasickArgs{
-    RingAddrs: map[string]string{
-        "shard-1": "localhost:7000",
-        "shard-2": "localhost:7001",
-    },
-    Password: "",
-    DB:       0,
-    Name:     "sample",
-}
-```
+## Next
 
-## Next Steps
-
-- [Batch Operations](../../guides/batch-operations/) - Optimize bulk operations
-- [Parallel Matching](../../guides/parallel-matching/) - Process large texts efficiently
-- [Redis-Backed Engine](../../guides/redis-backed-engine/) - Redis persistence with local speed
-- [Match Details](../../reference/api/#findmatches) - Ordered rune spans, matching options, and streaming
-- [API Reference](../../reference/api/) - Complete API documentation
+[Batch operations](../../guides/batch-operations/) ·
+[Parallel matching](../../guides/parallel-matching/) ·
+[Preset engine](../../guides/preset-engine/) ·
+[API reference](../../reference/api/)
