@@ -20,9 +20,16 @@ newlines:
   afterKind: 1                # blank line after each "### Kind" header
 
 # --- Change body prompt ----------------------------------------------------
+# One sentence. Two at the very most, and only when the second carries the
+# consequence for the reader: a migration step, a measured number, or what
+# deliberately did not change. Everything else — the investigation, the file
+# list, the rationale — belongs in the pull request, not the release note.
+# `block` is off and `maxLength` is set so an entry that wants paragraphs fails
+# at `changie new` rather than at review.
 body:
-  block: true                 # allow multi-line bodies (entries here run long)
+  block: false                # single line — no paragraphs
   minLength: 5
+  maxLength: 400              # ~2 sentences; a ceiling, not a target
 
 # --- Kinds -----------------------------------------------------------------
 kinds:

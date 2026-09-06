@@ -1,0 +1,5 @@
+kind: Documentation
+body: 'Changelog entries are now capped at one sentence, two at the very most, enforced by `block: false` and `maxLength: 400` in `.changie.yaml` and documented in CONTRIBUTING.md, RELEASE.md, and the PR template. All 174 existing entries were condensed to the same shape, preserving every issue number, kind, date, and measured figure.'
+time: 2026-09-06T19:03:49.131861+09:00
+custom:
+    Issue: "250"

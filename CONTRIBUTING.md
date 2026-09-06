@@ -209,6 +209,32 @@ it is what becomes the release note. Skip it for internal-only changes (CI, test
 refactors); the [PR template](.github/PULL_REQUEST_TEMPLATE.md) states that rule, and
 [RELEASE.md](RELEASE.md) covers what happens to fragments when a release is cut.
 
+**Write the body as one sentence — two at the very most.** A second sentence
+earns its place only by carrying a consequence: a migration step, a measured
+number, or what deliberately did not change. The investigation, the file list,
+and the rejected alternatives belong in the pull request; a reader scanning the
+changelog wants to know what changed and whether it affects them.
+
+`.changie.yaml` enforces the shape, so an entry that wants paragraphs fails at
+`changie new` rather than at review:
+
+| Constraint | Limit                       | Enforced by                             |
+|------------|-----------------------------|-----------------------------------------|
+| Length     | 5-400 characters            | `body.minLength` / `body.maxLength`     |
+| Lines      | one — no paragraph breaks   | `body.block: false`                     |
+| Sentences  | one, two at the very most   | convention; reviewers, not the tool     |
+
+The 400-character cap is a ceiling, not a target: most entries land well under
+it, and an entry that needs every character is usually two entries.
+
+```text
+Good: `Create` now returns `ErrNilArgs` instead of panicking on a nil argument.
+Good: V1 collections are now read-only; `Add` and `Remove` return `ErrV1ReadOnly`,
+      while every read path and `MigrateV1ToV2` are unchanged.
+Bad:  A paragraph reconstructing how the bug was found, which files moved, and
+      why three alternative designs were rejected.
+```
+
 ### Cleaning
 
 ```sh
