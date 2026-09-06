@@ -213,9 +213,19 @@ refactors); the [PR template](.github/PULL_REQUEST_TEMPLATE.md) states that rule
 earns its place only by carrying a consequence: a migration step, a measured
 number, or what deliberately did not change. The investigation, the file list,
 and the rejected alternatives belong in the pull request; a reader scanning the
-changelog wants to know what changed and whether it affects them. `.changie.yaml`
-caps the body at 400 characters and rejects multi-line input, so an entry that
-wants paragraphs fails at `changie new` rather than at review.
+changelog wants to know what changed and whether it affects them.
+
+`.changie.yaml` enforces the shape, so an entry that wants paragraphs fails at
+`changie new` rather than at review:
+
+| Constraint | Limit                       | Enforced by                             |
+|------------|-----------------------------|-----------------------------------------|
+| Length     | 5-400 characters            | `body.minLength` / `body.maxLength`     |
+| Lines      | one — no paragraph breaks   | `body.block: false`                     |
+| Sentences  | one, two at the very most   | convention; reviewers, not the tool     |
+
+The 400-character cap is a ceiling, not a target: most entries land well under
+it, and an entry that needs every character is usually two entries.
 
 ```text
 Good: `Create` now returns `ErrNilArgs` instead of panicking on a nil argument.
