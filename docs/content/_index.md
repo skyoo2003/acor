@@ -62,7 +62,7 @@ func main() {
   </a>
   <a class="doc-card" href="cli/">
     <strong>CLI</strong>
-    <span>Drive a collection from the shell, nineteen commands.</span>
+    <span>Drive a collection from the shell, twenty commands.</span>
   </a>
   <a class="doc-card" href="extending/">
     <strong>Extending</strong>

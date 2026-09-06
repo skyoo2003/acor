@@ -5,7 +5,7 @@ weight: 6
 
 # CLI
 
-`acor` is the third way into the same collection: one binary, nineteen commands, every one of
+`acor` is the third way into the same collection: one binary, twenty commands, every one of
 them a shell over the library. It is the entry point for the things a program should not have
 to be written for — seeding a dictionary, checking what is in one, running a migration,
 grepping a log against keywords that live in Redis.
@@ -28,7 +28,7 @@ go install github.com/skyoo2003/acor/cmd/acor@latest
 Full instructions, including verifying the install, are on
 [Getting Started → Installation](../getting-started/installation/#cli-installation).
 
-## The nineteen commands
+## The twenty commands
 
 | Group | Commands |
 | ----- | -------- |
@@ -37,6 +37,7 @@ Full instructions, including verifying the install, are on
 | Suggest | `suggest`, `suggest-index` |
 | Inspect | `info`, `schema-version`, `version` |
 | Migrate | `migrate`, `migrate-rollback` |
+| Dictionary (V3) | `dictionary list\|diff\|replace\|status\|copy-v2\|prune` |
 
 Flags are deliberately not tabulated here. `acor --help` prints the command list followed by
 the flag set's own defaults, so each flag's description lives exactly once — next to where the
