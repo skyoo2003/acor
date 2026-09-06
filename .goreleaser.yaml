@@ -13,7 +13,12 @@ before:
 builds:
 - id: acor
   binary: acor
-  main: cmd/acor/main.go
+  # The package, not `cmd/acor/main.go`. A file path compiles that file alone as
+  # `command-line-arguments`, excluding its siblings in the same package — which
+  # held only while `cmd/acor` was one file, and stopped holding the moment
+  # `dictionary.go` arrived, failing the v1.6.0 tag build. Naming the package
+  # builds what `make build` builds, so that target now gates this one.
+  main: ./cmd/acor
   # Stamps `acor version`. Without this a release binary reports its "dev"
   # default, so a bug report would not say which release it came from.
   # .Version, not .Tag: it is the unprefixed number the brew formula, the OCI
