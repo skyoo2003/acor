@@ -5,7 +5,7 @@ go 1.25.0
 replace github.com/skyoo2003/acor => ../
 
 require (
-	github.com/alicebob/miniredis/v2 v2.38.0
+	github.com/alicebob/miniredis/v2 v2.39.0
 	github.com/skyoo2003/acor v0.10.1
 )
 
