@@ -288,6 +288,9 @@ field VersionedOptions.RefreshDebounce time.Duration	ok	versioned.go:58 additive
 field VersionedStatus.CompletedBuilds uint64	ok	versioned.go:73 additive R2/R3 contract; source-span and limit parity verified in scan_test.go:1, cache and coalescing in versioned_reuse_test.go:1
 field VersionedStatus.DownloadedBuckets int	ok	versioned.go:73 additive R2/R3 contract; source-span and limit parity verified in scan_test.go:1, cache and coalescing in versioned_reuse_test.go:1
 field VersionedStatus.ReusedBuckets int	ok	versioned.go:73 additive R2/R3 contract; source-span and limit parity verified in scan_test.go:1, cache and coalescing in versioned_reuse_test.go:1
+field VersionedOptions.DeltaSearch bool	ok	versioned.go:60 opt-in small-update search; publication and compaction verified in versioned_overlay_test.go:1
+field VersionedStatus.DeltaKeywords int	ok	versioned.go:80 overlay keyword count verified in versioned_overlay_test.go:1
+field VersionedStatus.DeltaSearch bool	ok	versioned.go:80 overlay state verified in versioned_overlay_test.go:1
 method (*AhoCorasick) MaskText(ctx context.Context, text string, mask rune, opts *RewriteOptions) (*RewriteResult, error)	ok	rewrite.go:41 additive R2/R3 contract; source-span and limit parity verified in scan_test.go:1, cache and coalescing in versioned_reuse_test.go:1
 method (*AhoCorasick) ReplaceText(ctx context.Context, text, replacement string, opts *RewriteOptions) (*RewriteResult, error)	ok	rewrite.go:35 additive R2/R3 contract; source-span and limit parity verified in scan_test.go:1, cache and coalescing in versioned_reuse_test.go:1
 method (*AhoCorasick) Scan(ctx context.Context, text string, opts *ScanOptions) (*ScanResult, error)	ok	scan.go:70 additive R2/R3 contract; source-span and limit parity verified in scan_test.go:1, cache and coalescing in versioned_reuse_test.go:1

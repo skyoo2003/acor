@@ -34,6 +34,9 @@ const (
 	v3MillisPerSecond = 1000
 	v3PageHint        = 1024
 	v3DebounceDefault = 20 * time.Millisecond
+	v3OverlayLimit    = 128
+	v3CompactDelay    = time.Second
+	v3CompactPoll     = 100 * time.Millisecond
 )
 
 var (
@@ -59,6 +62,9 @@ type VersionedOptions struct {
 	Redis         AhoCorasickArgs
 	CaseSensitive bool
 	Preset        Preset
+	// DeltaSearch enables the small-update search path for MemoryEfficient.
+	// It remains opt-in until the release-scale latency and RSS gates are met.
+	DeltaSearch bool
 	// PollInterval defaults to 30 seconds; negative values are invalid.
 	PollInterval time.Duration
 	// RefreshDebounce coalesces bursts before a build, default 20ms. Negative values are invalid.
@@ -82,6 +88,8 @@ type VersionedStatus struct {
 	ReusedBuckets     int
 	// CompletedBuilds counts successful engines installed by this instance.
 	CompletedBuilds uint64
+	DeltaSearch     bool
+	DeltaKeywords   int
 }
 
 // WriteResult describes an atomic commit. OperationID remains available on an
@@ -106,11 +114,17 @@ type v3Bucket struct {
 	Checksum string
 }
 type v3Engine struct {
-	engine   *matchengine.Engine
-	version  Version
-	sequence uint64
-	manifest *v3Manifest
-	buckets  *[v3BucketCount][]string
+	engine       *matchengine.Engine
+	base         *matchengine.Engine
+	baseBuckets  *[v3BucketCount][]string
+	baseManifest *v3Manifest
+	added        map[string]struct{}
+	removed      map[string]struct{}
+	version      Version
+	sequence     uint64
+	manifest     *v3Manifest
+	buckets      *[v3BucketCount][]string
+	installed    time.Time
 }
 
 // VersionedCollection owns a V3 dictionary and a background engine refresher.
@@ -183,6 +197,8 @@ func OpenVersioned(ctx context.Context, opts *VersionedOptions) (*VersionedColle
 	}
 	v.wg.Add(1)
 	go v.refreshLoop()
+	v.wg.Add(1)
+	go v.compactLoop()
 	return v, nil
 }
 
@@ -270,6 +286,9 @@ func (v *VersionedCollection) refresh(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if used, err := v.tryOverlay(ctx, s, buckets, downloaded, reused); used || err != nil {
+		return err
+	}
 	e := matchengine.New(enginePreset(v.opts.Preset))
 	if buildErr := e.BuildSequenceContext(ctx, bucketSequence(buckets), s.Count()); buildErr != nil {
 		return buildErr
@@ -284,13 +303,15 @@ func (v *VersionedCollection) refresh(ctx context.Context) error {
 	return nil
 }
 func (v *VersionedCollection) installEngine(s *Snapshot, e *matchengine.Engine, buckets *[v3BucketCount][]string, downloaded, reused int) {
-	v.current.Store(&v3Engine{engine: e, version: s.Version(), sequence: s.manifest.Sequence, manifest: s.manifest, buckets: buckets})
+	v.current.Store(&v3Engine{engine: e, version: s.Version(), sequence: s.manifest.Sequence, manifest: s.manifest, buckets: buckets, installed: time.Now()})
 	v.mu.Lock()
 	v.status.ServingVersion = s.Version()
 	v.status.LastError = ""
 	v.status.DownloadedBuckets = downloaded
 	v.status.ReusedBuckets = reused
 	v.status.CompletedBuilds++
+	v.status.DeltaSearch = false
+	v.status.DeltaKeywords = 0
 	v.mu.Unlock()
 }
 func (v *VersionedCollection) refreshLoop() {
