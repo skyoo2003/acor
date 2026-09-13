@@ -129,6 +129,7 @@ field V2CopyResult.Count int
 field V2CopyResult.SourceVersion string
 field V2CopyResult.Write *WriteResult
 field VersionedOptions.CaseSensitive bool
+field VersionedOptions.DeltaSearch bool
 field VersionedOptions.LeaseDuration time.Duration
 field VersionedOptions.LeaseRefresh time.Duration
 field VersionedOptions.PollInterval time.Duration
@@ -140,6 +141,8 @@ field VersionedStatus.BuildDuration time.Duration
 field VersionedStatus.BuildStarted time.Time
 field VersionedStatus.Building bool
 field VersionedStatus.CompletedBuilds uint64
+field VersionedStatus.DeltaKeywords int
+field VersionedStatus.DeltaSearch bool
 field VersionedStatus.DownloadedBuckets int
 field VersionedStatus.LastError string
 field VersionedStatus.ReusedBuckets int

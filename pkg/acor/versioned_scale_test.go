@@ -40,7 +40,8 @@ func TestVersionedScale(t *testing.T) {
 	}
 	ctx := context.Background()
 	name := "scale-" + v3ID()
-	opts := &VersionedOptions{Redis: AhoCorasickArgs{Addr: addr, Name: name}, PollInterval: 50 * time.Millisecond}
+	opts := &VersionedOptions{Redis: AhoCorasickArgs{Addr: addr, Name: name}, PollInterval: 50 * time.Millisecond,
+		DeltaSearch: os.Getenv("ACOR_V3_SCALE_DELTA") == "1"}
 	v, err := OpenVersioned(ctx, opts)
 	if err != nil {
 		t.Fatal(err)
@@ -95,10 +96,12 @@ func TestVersionedScale(t *testing.T) {
 		start := time.Now()
 		r, e := write()
 		commit := time.Since(start)
+		committedAt := time.Now()
 		if e == nil {
 			e = v.WaitForVersion(ctx, r.Version)
 		}
 		ready := time.Since(start)
+		commitReady := time.Since(committedAt)
 		close(done)
 		wg.Wait()
 		if e != nil {
@@ -119,18 +122,20 @@ func TestVersionedScale(t *testing.T) {
 			rss *= 1024
 		}
 		record := map[string]interface{}{"operation": label,
-			"n":              n,
-			"kind":           kind,
-			"commit_ms":      float64(commit.Microseconds()) / 1000,
-			"ready_ms":       float64(ready.Microseconds()) / 1000,
-			"max_rss_bytes":  rss,
-			"redis_bytes":    after["used_memory"],
-			"sent_bytes":     after["total_net_input_bytes"] - before["total_net_input_bytes"],
-			"received_bytes": after["total_net_output_bytes"] - before["total_net_output_bytes"],
-			"search_samples": len(latencies),
-			"search_p50_ns":  percentile(50),
-			"search_p95_ns":  percentile(95),
-			"search_p99_ns":  percentile(99)}
+			"n":                  n,
+			"kind":               kind,
+			"commit_ms":          float64(commit.Microseconds()) / 1000,
+			"ready_ms":           float64(ready.Microseconds()) / 1000,
+			"commit_to_ready_ms": float64(commitReady.Microseconds()) / 1000,
+			"delta_search":       opts.DeltaSearch,
+			"max_rss_bytes":      rss,
+			"redis_bytes":        after["used_memory"],
+			"sent_bytes":         after["total_net_input_bytes"] - before["total_net_input_bytes"],
+			"received_bytes":     after["total_net_output_bytes"] - before["total_net_output_bytes"],
+			"search_samples":     len(latencies),
+			"search_p50_ns":      percentile(50),
+			"search_p95_ns":      percentile(95),
+			"search_p99_ns":      percentile(99)}
 		data, _ := json.Marshal(record)
 		t.Log(string(data))
 		return r
@@ -183,6 +188,11 @@ func TestVersionedScale(t *testing.T) {
 		t.Fatal("search differs from naive reference")
 	}
 	measure("identical_replace", func() (*WriteResult, error) { return v.Replace(ctx, r.Version, words) })
+	for i := range 3 {
+		word := fmt.Sprintf("single-change-%d", i)
+		r = measure(fmt.Sprintf("add_1_repeat_%d", i), func() (*WriteResult, error) { return v.Add(ctx, r.Version, word) })
+		r = measure(fmt.Sprintf("remove_1_repeat_%d", i), func() (*WriteResult, error) { return v.Remove(ctx, r.Version, word) })
+	}
 	for _, changes := range []int{1, 1000, max(1, n/100)} {
 		added := make([]string, changes)
 		for i := range added {
