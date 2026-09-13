@@ -1,0 +1,114 @@
+{{ define "main" }}
+{{ $redis := site.Data.v3delta.redis }}
+{{ $valkey := site.Data.v3delta.valkey }}
+{{ $v3 := site.Data.benchmarks.v3 }}
+{{ $r2r3 := site.Data.benchmarks.r2r3 }}
+{{ if not (and $redis $valkey) }}{{ errorf "V3 delta dashboard requires both final benchmark JSON files" }}{{ end }}
+{{ if not (and $v3 $r2r3) }}{{ errorf "V3 delta dashboard requires archived V3 and R2/R3 benchmark JSON files" }}{{ end }}
+{{ $servers := slice (dict "name" "Redis" "data" $redis) (dict "name" "Valkey" "data" $valkey) }}
+{{ $passed := and $redis.passed $valkey.passed }}
+{{ $p95Total := 0 }}{{ $p95Failed := 0 }}{{ $readyTotal := 0 }}{{ $readyPassed := 0 }}{{ $rssTotal := 0 }}{{ $rssFailed := 0 }}
+{{ range $servers }}
+  {{ range .data.checks }}
+    {{ if isset . "p95_ok" }}
+      {{ $p95Total = add $p95Total 1 }}
+      {{ if not .p95_ok }}{{ $p95Failed = add $p95Failed 1 }}{{ end }}
+    {{ end }}
+    {{ if isset . "ready_ok" }}
+      {{ $readyTotal = add $readyTotal 1 }}
+      {{ if .ready_ok }}{{ $readyPassed = add $readyPassed 1 }}{{ end }}
+    {{ end }}
+    {{ if isset . "rss_ok" }}
+      {{ $rssTotal = add $rssTotal 1 }}
+      {{ if not .rss_ok }}{{ $rssFailed = add $rssFailed 1 }}{{ end }}
+    {{ end }}
+  {{ end }}
+{{ end }}
+<article class="content v3dash">
+  <style>
+    .docs-layout:has(.v3dash) { grid-template-columns: minmax(0, 1000px); }
+    .docs-layout:has(.v3dash) .toc { display: none; }
+    .v3dash .cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem; margin: 1.4rem 0; }
+    .v3dash .card { padding: 1rem; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+    .v3dash .card strong { display: block; font-size: clamp(1.35rem, 2vw, 1.8rem); line-height: 1.2; }
+    .v3dash .card span { display: block; color: var(--muted); font-size: .85rem; }
+    .v3dash .fail { color: #b23b32; }
+    .v3dash .pass { color: var(--accent); }
+    .v3dash td, .v3dash th { min-width: 0; white-space: nowrap; }
+    .v3dash td:first-child, .v3dash th:first-child { white-space: normal; }
+    .v3dash progress { width: 7rem; max-width: 100%; height: .7rem; accent-color: #b23b32; vertical-align: middle; }
+    .v3dash .note { color: var(--muted); font-size: .9rem; }
+    @media (prefers-color-scheme: dark) { .v3dash .fail { color: #ff9a8c; } .v3dash progress { accent-color: #ff9a8c; } }
+    @media (max-width: 700px) { .v3dash .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  </style>
+  {{ .Content }}
+  <div class="cards" aria-label="Release gate summary">
+    <div class="card"><strong class="{{ if $passed }}pass{{ else }}fail{{ end }}">{{ if $passed }}Passed{{ else }}Failed{{ end }}</strong><span>Release gate</span></div>
+    <div class="card"><strong class="fail">{{ $p95Failed }} / {{ $p95Total }}</strong><span>Search p95 failures</span></div>
+    <div class="card"><strong class="pass">{{ $readyPassed }} / {{ $readyTotal }}</strong><span>Ready-time passes</span></div>
+    <div class="card"><strong class="fail">{{ $rssFailed }} / {{ $rssTotal }}</strong><span>Peak-RSS failures</span></div>
+  </div>
+  <h2 id="distributions">By distribution</h2>
+  <p class="note">A ratio above its gate fails. RSS is the process high-water mark after compaction.</p>
+  <table>
+    <thead><tr><th scope="col">Server</th><th scope="col">Keywords</th><th scope="col">p95 failures</th><th scope="col">Worst p95 <small>≤ 1.10×</small></th><th scope="col">Worst ready <small>≤ 0.30×</small></th><th scope="col">Peak RSS <small>≤ 1.00×</small></th></tr></thead>
+    <tbody>
+    {{ range $servers }}
+      {{ $name := .name }}
+      {{ $checks := .data.checks }}
+      {{ range slice "shared" "diverse" "korean" }}
+        {{ $kind := . }}{{ $fail := 0 }}{{ $count := 0 }}{{ $p95 := 0.0 }}{{ $ready := 0.0 }}{{ $rss := 0.0 }}
+        {{ range $checks }}
+          {{ if eq .kind $kind }}
+            {{ if isset . "p95_ok" }}
+              {{ $count = add $count 1 }}
+              {{ if not .p95_ok }}{{ $fail = add $fail 1 }}{{ end }}
+              {{ $ratio := div (float .p95_delta_ns) (float .p95_baseline_ns) }}
+              {{ if gt $ratio $p95 }}{{ $p95 = $ratio }}{{ end }}
+            {{ end }}
+            {{ if isset . "ready_ok" }}
+              {{ $ratio := div (float .ready_delta_ms) (float .ready_baseline_ms) }}
+              {{ if gt $ratio $ready }}{{ $ready = $ratio }}{{ end }}
+            {{ end }}
+            {{ if eq .operation "post_compaction_rss" }}{{ $rss = div (float .delta_bytes) (float .baseline_bytes) }}{{ end }}
+          {{ end }}
+        {{ end }}
+        <tr><th scope="row">{{ $name }}</th><td>{{ $kind | title }}</td><td>{{ $fail }} / {{ $count }}</td><td class="{{ if gt $p95 1.1 }}fail{{ else }}pass{{ end }}">{{ printf "%.2f×" $p95 }}</td><td class="{{ if gt $ready 0.3 }}fail{{ else }}pass{{ end }}">{{ printf "%.3f×" $ready }}</td><td class="{{ if gt $rss 1.0 }}fail{{ else }}pass{{ end }}">{{ printf "%.3f×" $rss }}</td></tr>
+      {{ end }}
+    {{ end }}
+    </tbody>
+  </table>
+  <h2 id="apis">API p95 failures</h2>
+  <p class="note">Each API has 45 paired comparisons per server across inputs and operations.</p>
+  <table>
+    <thead><tr><th scope="col">API</th><th scope="col">Redis</th><th scope="col">Valkey</th></tr></thead>
+    <tbody>
+    {{ range slice "Find" "FindSet" "FindIndex" "FindMatches" "Contains" "FindStream" "FindBatch" "FindParallel" "FindIndexParallel" "Scan" "MaskText" "ReplaceText" }}
+      {{ $api := . }}<tr><th scope="row"><code>{{ $api }}</code></th>
+      {{ range $servers }}
+        {{ $fail := 0 }}{{ $total := 0 }}
+        {{ range .data.checks }}
+          {{ if and (isset . "api") (eq .api $api) }}
+            {{ $total = add $total 1 }}
+            {{ if not .p95_ok }}{{ $fail = add $fail 1 }}{{ end }}
+          {{ end }}
+        {{ end }}
+        <td><span>{{ $fail }} / {{ $total }}</span> <progress value="{{ $fail }}" max="{{ $total }}" aria-label="{{ $fail }} of {{ $total }} {{ $api }} p95 checks failed on {{ .name }}">{{ $fail }} / {{ $total }}</progress></td>
+      {{ end }}
+      </tr>
+    {{ end }}
+    </tbody>
+  </table>
+  <p class="note">The raw evaluator results are in <a href="https://github.com/skyoo2003/acor/blob/main/benchmarks/results/v3-delta-20260914-redis.json">Redis JSON</a> and <a href="https://github.com/skyoo2003/acor/blob/main/benchmarks/results/v3-delta-20260914-valkey.json">Valkey JSON</a>. `DeltaSearch` remains opt-in.</p>
+  <h2 id="benchmark-sets">Benchmark sets</h2>
+  <p class="note">These archived measurements use the original scale-test schema and are shown as context, separate from the final delta-search gate.</p>
+  <table>
+    <thead><tr><th scope="col">Set</th><th scope="col">Date</th><th scope="col">Servers</th><th scope="col">Runs</th><th scope="col">Status</th><th scope="col">Configuration</th></tr></thead>
+    <tbody>
+      <tr><th scope="row"><a href="https://github.com/skyoo2003/acor/blob/main/benchmarks/results/v3-20260906.json">V3 baseline</a></th><td>{{ $v3.date }}</td><td>{{ $v3.redis }} / {{ $v3.valkey }}</td><td>{{ len $v3.runs }}</td><td class="pass">Recorded</td><td>Original versioned scale test</td></tr>
+      <tr><th scope="row"><a href="https://github.com/skyoo2003/acor/blob/main/benchmarks/results/r2-r3-20260906.json">R2/R3 verification</a></th><td>{{ $r2r3.date }}</td><td>{{ $r2r3.redis }} / {{ $r2r3.valkey }}</td><td>{{ len $r2r3.runs }}</td><td class="pass">Recorded</td><td>RefreshDebounce=20ms</td></tr>
+    </tbody>
+  </table>
+  <p class="note">The final delta-search JSON files and these two archived result sets remain available under <code>benchmarks/results</code> for reproducibility.</p>
+</article>
+{{ end }}

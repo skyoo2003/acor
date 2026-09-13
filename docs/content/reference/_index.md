@@ -17,3 +17,4 @@ weight: 3
 - [Benchmarks](benchmarks/) — round trips and timings, with the commands that produce them
 - [V3 performance report](versioned-performance/) — the archived R1 million-keyword baseline
 - [R2/R3 verification](r2-r3-performance/) — incremental download, engine memory, bounded APIs
+- [V3 delta-search dashboard](versioned-delta-dashboard/) — final Redis/Valkey p95 and release-gate results
