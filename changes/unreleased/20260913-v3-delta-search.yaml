@@ -1,3 +1,5 @@
 kind: Added
 body: 'V3 collections can opt into small-update search with `DeltaSearch`, publishing additions and deletions before a deferred full rebuild.'
 time: 2026-09-13T21:00:00+09:00
+custom:
+  Issue: "255"
