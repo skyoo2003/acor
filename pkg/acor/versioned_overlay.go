@@ -128,8 +128,6 @@ func (v *VersionedCollection) compactIfIdle(ctx context.Context) {
 	if current == nil || current.base == nil || time.Since(current.installed) < v3CompactDelay {
 		return
 	}
-	v.refreshMu.Lock()
-	defer v.refreshMu.Unlock()
 	if v.current.Load() != current || ctx.Err() != nil {
 		return
 	}
@@ -140,26 +138,36 @@ func (v *VersionedCollection) compactIfIdle(ctx context.Context) {
 	v.mu.Unlock()
 	defer func() {
 		v.mu.Lock()
-		v.status.Building = false
-		v.status.BuildDuration = time.Since(start)
+		if v.current.Load() == current {
+			v.status.Building = false
+			v.status.BuildDuration = time.Since(start)
+		}
 		v.mu.Unlock()
 	}()
 	e := matchengine.New(enginePreset(v.opts.Preset))
 	if err := e.BuildSequenceContext(ctx, bucketSequence(current.buckets), current.manifest.Count); err != nil {
-		v.recordCompactError(err)
+		if v.current.Load() == current {
+			v.recordCompactError(err)
+		}
 		return
 	}
 	active, err := v.client.Get(ctx, v.key("active")).Result()
 	if err != nil {
-		v.recordCompactError(err)
+		if v.current.Load() == current {
+			v.recordCompactError(err)
+		}
 		return
 	}
+	v.refreshMu.Lock()
+	defer v.refreshMu.Unlock()
 	if Version(active) != current.version || v.current.Load() != current || ctx.Err() != nil {
 		return
 	}
 	v.current.Store(&v3Engine{engine: e, version: current.version, sequence: current.sequence,
 		manifest: current.manifest, buckets: current.buckets, installed: time.Now()})
 	v.mu.Lock()
+	v.status.Building = false
+	v.status.BuildDuration = time.Since(start)
 	v.status.LastError = ""
 	v.status.CompletedBuilds++
 	v.status.DeltaSearch = false

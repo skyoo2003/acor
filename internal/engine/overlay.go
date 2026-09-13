@@ -4,6 +4,7 @@ package engine
 
 import (
 	"slices"
+	"unicode/utf8"
 )
 
 // Overlay combines an immutable base with a small replacement set. Its inputs
@@ -29,81 +30,124 @@ type overlayMatch struct {
 func (o *overlayEngine) buildFromKeywords(map[string]struct{}) { panic("engine: immutable overlay") }
 
 func (o *overlayEngine) matchString(text string, emit func(string, int, int) bool) {
-	var matches []overlayMatch
-	order := 0
-	o.base.MatchString(text, func(k string, start, end int) bool {
-		if _, deleted := o.removed[k]; !deleted {
-			matches = append(matches, overlayMatch{k, start, end, 0, order})
+	i := 0
+	o.matchStream(func() (rune, bool) {
+		if i == len(text) {
+			return 0, false
 		}
-		order++
-		return true
-	})
-	order = 0
-	o.added.MatchString(text, func(k string, start, end int) bool {
-		matches = append(matches, overlayMatch{k, start, end, 1, order})
-		order++
-		return true
-	})
-	slices.SortStableFunc(matches, func(a, b overlayMatch) int {
-		if a.end != b.end {
-			return a.end - b.end
-		}
-		if a.start != b.start {
-			return a.start - b.start
-		}
-		if a.source != b.source {
-			return a.source - b.source
-		}
-		return a.order - b.order
-	})
-	for _, m := range matches {
-		if !emit(m.keyword, m.start, m.end) {
-			return
-		}
-	}
+		r, size := utf8.DecodeRuneInString(text[i:])
+		i += size
+		return r, true
+	}, emit)
 }
 
 func (o *overlayEngine) matchStream(next func() (rune, bool), emit func(string, int, int) bool) {
-	const chunk = 4096
-	longest := max(o.base.MaxKeywordRunes(), o.added.MaxKeywordRunes())
-	window := make([]rune, 0, chunk+longest)
-	windowStart := 0
-	total := 0
-	stopped := false
-	emittedEnd := 0
-	process := func() {
-		o.matchString(string(window), func(k string, from, end int) bool {
-			if windowStart+end <= emittedEnd {
-				return true
-			}
-			if !emit(k, windowStart+from, windowStart+end) {
-				stopped = true
-				return false
+	base, baseOK := o.base.impl.(*memEfficientEngine)
+	added, addedOK := o.added.impl.(*memEfficientEngine)
+	if !baseOK || !addedOK {
+		o.matchStreamWindow(next, emit)
+		return
+	}
+	baseState, addedState, end := 0, 0, 0
+	matches := make([]overlayMatch, 0, 8)
+	for {
+		ch, ok := next()
+		if !ok {
+			return
+		}
+		end++
+		matches = matches[:0]
+		baseState = base.advance(baseState, ch)
+		base.trie.out.emitChain(baseState, end, func(k string, start, end int) bool {
+			if _, removed := o.removed[k]; !removed {
+				matches = append(matches, overlayMatch{k, start, end, 0, len(matches)})
 			}
 			return true
 		})
-		emittedEnd = total
-		keep := min(len(window), max(0, longest-1))
-		windowStart = total - keep
-		copy(window, window[len(window)-keep:])
-		window = window[:keep]
-	}
-	for {
-		r, ok := next()
-		if !ok {
-			break
-		}
-		window = append(window, r)
-		total++
-		if len(window) >= chunk+longest-1 {
-			process()
-			if stopped {
+		addedState = added.advance(addedState, ch)
+		added.trie.out.emitChain(addedState, end, func(k string, start, end int) bool {
+			matches = append(matches, overlayMatch{k, start, end, 1, len(matches)})
+			return true
+		})
+		slices.SortStableFunc(matches, func(a, b overlayMatch) int {
+			if a.start != b.start {
+				return a.start - b.start
+			}
+			if a.source != b.source {
+				return a.source - b.source
+			}
+			return a.order - b.order
+		})
+		for _, m := range matches {
+			if !emit(m.keyword, m.start, m.end) {
 				return
 			}
 		}
 	}
-	if len(window) > 0 && !stopped {
-		process()
+}
+
+// Other presets can still be overlaid. Keep only enough input to decide the
+// matches ending at the current rune, so a stopped callback never reads ahead.
+func (o *overlayEngine) matchStreamWindow(next func() (rune, bool), emit func(string, int, int) bool) {
+	longest := max(o.base.MaxKeywordRunes(), o.added.MaxKeywordRunes())
+	window := make([]rune, 0, longest)
+	end := 0
+	for {
+		ch, ok := next()
+		if !ok {
+			return
+		}
+		end++
+		window = append(window, ch)
+		if len(window) > longest {
+			copy(window, window[1:])
+			window = window[:longest]
+		}
+		startOffset := end - len(window)
+		matches := make([]overlayMatch, 0, 8)
+		o.base.MatchString(string(window), func(k string, start, localEnd int) bool {
+			if localEnd == len(window) {
+				if _, removed := o.removed[k]; !removed {
+					matches = append(matches, overlayMatch{k, startOffset + start, end, 0, len(matches)})
+				}
+			}
+			return true
+		})
+		o.added.MatchString(string(window), func(k string, start, localEnd int) bool {
+			if localEnd == len(window) {
+				matches = append(matches, overlayMatch{k, startOffset + start, end, 1, len(matches)})
+			}
+			return true
+		})
+		slices.SortStableFunc(matches, func(a, b overlayMatch) int {
+			if a.start != b.start {
+				return a.start - b.start
+			}
+			if a.source != b.source {
+				return a.source - b.source
+			}
+			return a.order - b.order
+		})
+		for _, m := range matches {
+			if !emit(m.keyword, m.start, m.end) {
+				return
+			}
+		}
+	}
+}
+
+func (e *memEfficientEngine) advance(state int, ch rune) int {
+	if e.bloom.skipAtRoot(state == 0, ch) {
+		return 0
+	}
+	for {
+		if next, ok := e.trie.nodes[state].next(ch); ok {
+			return next
+		}
+		if state == 0 {
+			return 0
+		}
+		state = e.trie.nodes[state].fail
 	}
 }
 
