@@ -92,7 +92,9 @@ completes when this search view is ready. After one second without another chang
 background build replaces it with a full automaton; later changes or build failures
 leave the published search view intact. Larger changes and other presets continue to
 use the full rebuild path. This option remains off by default pending million-keyword
-Redis and Valkey latency, search p95, and peak RSS validation.
+Redis and Valkey latency, search p95, and peak RSS validation. The
+[delta-search validation report](../versioned-delta-validation/) records the
+release gate and measurements against the full rebuild path.
 
 | Refresh behavior | |
 |---|---|

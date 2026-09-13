@@ -1,0 +1,5183 @@
+{
+  "passed": false,
+  "checks": [
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "ready_baseline_ms": 509.751,
+      "ready_delta_ms": 19.137,
+      "ready_ok": true,
+      "p95_baseline_ns": 13625,
+      "p95_delta_ns": 14792,
+      "p95_ok": true,
+      "api_compaction_overlap": false,
+      "steady_ok": true,
+      "rss_highwater_baseline_bytes": 578977792,
+      "rss_highwater_delta_bytes": 390512640,
+      "heap_alloc_baseline_bytes": 438536216,
+      "heap_alloc_delta_bytes": 312877960
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "Contains",
+      "input": "added_hit",
+      "p95_baseline_ns": 375,
+      "p95_delta_ns": 417,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "Contains",
+      "input": "change",
+      "p95_baseline_ns": 916,
+      "p95_delta_ns": 1166,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "Contains",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 292,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "Find",
+      "input": "added_hit",
+      "p95_baseline_ns": 959,
+      "p95_delta_ns": 1000,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "Find",
+      "input": "change",
+      "p95_baseline_ns": 2625,
+      "p95_delta_ns": 5042,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "Find",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 292,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindBatch",
+      "input": "added_hit",
+      "p95_baseline_ns": 2042,
+      "p95_delta_ns": 2125,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindBatch",
+      "input": "change",
+      "p95_baseline_ns": 6125,
+      "p95_delta_ns": 7500,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindBatch",
+      "input": "delta_miss",
+      "p95_baseline_ns": 459,
+      "p95_delta_ns": 750,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindIndex",
+      "input": "added_hit",
+      "p95_baseline_ns": 1250,
+      "p95_delta_ns": 1292,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindIndex",
+      "input": "change",
+      "p95_baseline_ns": 2792,
+      "p95_delta_ns": 6667,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindIndex",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 333,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindIndexParallel",
+      "input": "added_hit",
+      "p95_baseline_ns": 95500,
+      "p95_delta_ns": 95167,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindIndexParallel",
+      "input": "change",
+      "p95_baseline_ns": 160291,
+      "p95_delta_ns": 150167,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindIndexParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 18333,
+      "p95_delta_ns": 21125,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindMatches",
+      "input": "added_hit",
+      "p95_baseline_ns": 1083,
+      "p95_delta_ns": 1167,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindMatches",
+      "input": "change",
+      "p95_baseline_ns": 3000,
+      "p95_delta_ns": 5000,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindMatches",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 333,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindParallel",
+      "input": "added_hit",
+      "p95_baseline_ns": 90500,
+      "p95_delta_ns": 89333,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindParallel",
+      "input": "change",
+      "p95_baseline_ns": 213417,
+      "p95_delta_ns": 213792,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 21084,
+      "p95_delta_ns": 23250,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindSet",
+      "input": "added_hit",
+      "p95_baseline_ns": 1291,
+      "p95_delta_ns": 1333,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindSet",
+      "input": "change",
+      "p95_baseline_ns": 4042,
+      "p95_delta_ns": 6750,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindSet",
+      "input": "delta_miss",
+      "p95_baseline_ns": 208,
+      "p95_delta_ns": 250,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindStream",
+      "input": "added_hit",
+      "p95_baseline_ns": 1792,
+      "p95_delta_ns": 2125,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindStream",
+      "input": "change",
+      "p95_baseline_ns": 4125,
+      "p95_delta_ns": 8417,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "FindStream",
+      "input": "delta_miss",
+      "p95_baseline_ns": 667,
+      "p95_delta_ns": 875,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "MaskText",
+      "input": "added_hit",
+      "p95_baseline_ns": 2625,
+      "p95_delta_ns": 3042,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "MaskText",
+      "input": "change",
+      "p95_baseline_ns": 3584,
+      "p95_delta_ns": 3666,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "MaskText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 709,
+      "p95_delta_ns": 875,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "ReplaceText",
+      "input": "added_hit",
+      "p95_baseline_ns": 2375,
+      "p95_delta_ns": 2500,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "ReplaceText",
+      "input": "change",
+      "p95_baseline_ns": 2917,
+      "p95_delta_ns": 3208,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "ReplaceText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 708,
+      "p95_delta_ns": 833,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "Scan",
+      "input": "added_hit",
+      "p95_baseline_ns": 2000,
+      "p95_delta_ns": 2417,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "Scan",
+      "input": "change",
+      "p95_baseline_ns": 2708,
+      "p95_delta_ns": 2916,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1",
+      "api": "Scan",
+      "input": "delta_miss",
+      "p95_baseline_ns": 750,
+      "p95_delta_ns": 834,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "ready_baseline_ms": 506.434,
+      "ready_delta_ms": 27.229,
+      "ready_ok": true,
+      "p95_baseline_ns": 13791,
+      "p95_delta_ns": 13209,
+      "p95_ok": true,
+      "api_compaction_overlap": false,
+      "steady_ok": true,
+      "rss_highwater_baseline_bytes": 708509696,
+      "rss_highwater_delta_bytes": 402096128,
+      "heap_alloc_baseline_bytes": 551412248,
+      "heap_alloc_delta_bytes": 359724528
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "Contains",
+      "input": "change",
+      "p95_baseline_ns": 750,
+      "p95_delta_ns": 750,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "Contains",
+      "input": "delta_miss",
+      "p95_baseline_ns": 292,
+      "p95_delta_ns": 292,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "Contains",
+      "input": "removed_change",
+      "p95_baseline_ns": 417,
+      "p95_delta_ns": 417,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "Find",
+      "input": "change",
+      "p95_baseline_ns": 5417,
+      "p95_delta_ns": 2666,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "Find",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 250,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "Find",
+      "input": "removed_change",
+      "p95_baseline_ns": 1000,
+      "p95_delta_ns": 1083,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindBatch",
+      "input": "change",
+      "p95_baseline_ns": 7291,
+      "p95_delta_ns": 6542,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindBatch",
+      "input": "delta_miss",
+      "p95_baseline_ns": 708,
+      "p95_delta_ns": 667,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindBatch",
+      "input": "removed_change",
+      "p95_baseline_ns": 2000,
+      "p95_delta_ns": 2250,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindIndex",
+      "input": "change",
+      "p95_baseline_ns": 6125,
+      "p95_delta_ns": 3708,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindIndex",
+      "input": "delta_miss",
+      "p95_baseline_ns": 292,
+      "p95_delta_ns": 333,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindIndex",
+      "input": "removed_change",
+      "p95_baseline_ns": 1125,
+      "p95_delta_ns": 1292,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindIndexParallel",
+      "input": "change",
+      "p95_baseline_ns": 126208,
+      "p95_delta_ns": 135750,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindIndexParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 22000,
+      "p95_delta_ns": 23166,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindIndexParallel",
+      "input": "removed_change",
+      "p95_baseline_ns": 84667,
+      "p95_delta_ns": 92042,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindMatches",
+      "input": "change",
+      "p95_baseline_ns": 5750,
+      "p95_delta_ns": 3542,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindMatches",
+      "input": "delta_miss",
+      "p95_baseline_ns": 333,
+      "p95_delta_ns": 292,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindMatches",
+      "input": "removed_change",
+      "p95_baseline_ns": 1041,
+      "p95_delta_ns": 1208,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindParallel",
+      "input": "change",
+      "p95_baseline_ns": 178584,
+      "p95_delta_ns": 198542,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 24041,
+      "p95_delta_ns": 24292,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindParallel",
+      "input": "removed_change",
+      "p95_baseline_ns": 88750,
+      "p95_delta_ns": 90750,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindSet",
+      "input": "change",
+      "p95_baseline_ns": 6458,
+      "p95_delta_ns": 3833,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindSet",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 250,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindSet",
+      "input": "removed_change",
+      "p95_baseline_ns": 1125,
+      "p95_delta_ns": 1333,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindStream",
+      "input": "change",
+      "p95_baseline_ns": 4958,
+      "p95_delta_ns": 4834,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindStream",
+      "input": "delta_miss",
+      "p95_baseline_ns": 750,
+      "p95_delta_ns": 1542,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "FindStream",
+      "input": "removed_change",
+      "p95_baseline_ns": 1667,
+      "p95_delta_ns": 1959,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "MaskText",
+      "input": "change",
+      "p95_baseline_ns": 3209,
+      "p95_delta_ns": 3250,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "MaskText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 833,
+      "p95_delta_ns": 1416,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "MaskText",
+      "input": "removed_change",
+      "p95_baseline_ns": 2500,
+      "p95_delta_ns": 3375,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "ReplaceText",
+      "input": "change",
+      "p95_baseline_ns": 2708,
+      "p95_delta_ns": 2916,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "ReplaceText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 792,
+      "p95_delta_ns": 1459,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "ReplaceText",
+      "input": "removed_change",
+      "p95_baseline_ns": 2208,
+      "p95_delta_ns": 3208,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "Scan",
+      "input": "change",
+      "p95_baseline_ns": 2459,
+      "p95_delta_ns": 2625,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "Scan",
+      "input": "delta_miss",
+      "p95_baseline_ns": 791,
+      "p95_delta_ns": 1458,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_1",
+      "api": "Scan",
+      "input": "removed_change",
+      "p95_baseline_ns": 2000,
+      "p95_delta_ns": 3000,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "ready_baseline_ms": 555.899,
+      "ready_delta_ms": 90.985,
+      "ready_ok": true,
+      "p95_baseline_ns": 14667,
+      "p95_delta_ns": 14583,
+      "p95_ok": true,
+      "api_compaction_overlap": false,
+      "steady_ok": true,
+      "rss_highwater_baseline_bytes": 718798848,
+      "rss_highwater_delta_bytes": 463241216,
+      "heap_alloc_baseline_bytes": 489021400,
+      "heap_alloc_delta_bytes": 423014016
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "Contains",
+      "input": "added_hit",
+      "p95_baseline_ns": 417,
+      "p95_delta_ns": 458,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "Contains",
+      "input": "change",
+      "p95_baseline_ns": 833,
+      "p95_delta_ns": 792,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "Contains",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 292,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "Find",
+      "input": "added_hit",
+      "p95_baseline_ns": 916,
+      "p95_delta_ns": 959,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "Find",
+      "input": "change",
+      "p95_baseline_ns": 2166,
+      "p95_delta_ns": 5667,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "Find",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 250,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindBatch",
+      "input": "added_hit",
+      "p95_baseline_ns": 1958,
+      "p95_delta_ns": 2292,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindBatch",
+      "input": "change",
+      "p95_baseline_ns": 4917,
+      "p95_delta_ns": 6708,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindBatch",
+      "input": "delta_miss",
+      "p95_baseline_ns": 459,
+      "p95_delta_ns": 667,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindIndex",
+      "input": "added_hit",
+      "p95_baseline_ns": 1166,
+      "p95_delta_ns": 1459,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindIndex",
+      "input": "change",
+      "p95_baseline_ns": 2625,
+      "p95_delta_ns": 6292,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindIndex",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 292,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindIndexParallel",
+      "input": "added_hit",
+      "p95_baseline_ns": 93042,
+      "p95_delta_ns": 97333,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindIndexParallel",
+      "input": "change",
+      "p95_baseline_ns": 142084,
+      "p95_delta_ns": 150041,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindIndexParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 18334,
+      "p95_delta_ns": 23208,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindMatches",
+      "input": "added_hit",
+      "p95_baseline_ns": 1042,
+      "p95_delta_ns": 1292,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindMatches",
+      "input": "change",
+      "p95_baseline_ns": 2375,
+      "p95_delta_ns": 5708,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindMatches",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 333,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindParallel",
+      "input": "added_hit",
+      "p95_baseline_ns": 90334,
+      "p95_delta_ns": 93125,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindParallel",
+      "input": "change",
+      "p95_baseline_ns": 193708,
+      "p95_delta_ns": 213500,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 19292,
+      "p95_delta_ns": 24500,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindSet",
+      "input": "added_hit",
+      "p95_baseline_ns": 1167,
+      "p95_delta_ns": 1500,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindSet",
+      "input": "change",
+      "p95_baseline_ns": 3084,
+      "p95_delta_ns": 7292,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindSet",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 250,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindStream",
+      "input": "added_hit",
+      "p95_baseline_ns": 1584,
+      "p95_delta_ns": 3167,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindStream",
+      "input": "change",
+      "p95_baseline_ns": 5000,
+      "p95_delta_ns": 9959,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "FindStream",
+      "input": "delta_miss",
+      "p95_baseline_ns": 667,
+      "p95_delta_ns": 1584,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "MaskText",
+      "input": "added_hit",
+      "p95_baseline_ns": 2667,
+      "p95_delta_ns": 4084,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "MaskText",
+      "input": "change",
+      "p95_baseline_ns": 3167,
+      "p95_delta_ns": 4792,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "MaskText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 792,
+      "p95_delta_ns": 1583,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "ReplaceText",
+      "input": "added_hit",
+      "p95_baseline_ns": 2292,
+      "p95_delta_ns": 3542,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "ReplaceText",
+      "input": "change",
+      "p95_baseline_ns": 2792,
+      "p95_delta_ns": 4250,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "ReplaceText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 709,
+      "p95_delta_ns": 1500,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "Scan",
+      "input": "added_hit",
+      "p95_baseline_ns": 1917,
+      "p95_delta_ns": 3292,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "Scan",
+      "input": "change",
+      "p95_baseline_ns": 2459,
+      "p95_delta_ns": 3875,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "add_128",
+      "api": "Scan",
+      "input": "delta_miss",
+      "p95_baseline_ns": 709,
+      "p95_delta_ns": 1500,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "ready_baseline_ms": 559.755,
+      "ready_delta_ms": 75.321,
+      "ready_ok": true,
+      "p95_baseline_ns": 13792,
+      "p95_delta_ns": 15625,
+      "p95_ok": false,
+      "api_compaction_overlap": false,
+      "steady_ok": true,
+      "rss_highwater_baseline_bytes": 791232512,
+      "rss_highwater_delta_bytes": 469352448,
+      "heap_alloc_baseline_bytes": 485669504,
+      "heap_alloc_delta_bytes": 261629024
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "Contains",
+      "input": "change",
+      "p95_baseline_ns": 1417,
+      "p95_delta_ns": 917,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "Contains",
+      "input": "delta_miss",
+      "p95_baseline_ns": 333,
+      "p95_delta_ns": 292,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "Contains",
+      "input": "removed_change",
+      "p95_baseline_ns": 375,
+      "p95_delta_ns": 459,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "Find",
+      "input": "change",
+      "p95_baseline_ns": 5250,
+      "p95_delta_ns": 3166,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "Find",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 250,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "Find",
+      "input": "removed_change",
+      "p95_baseline_ns": 1000,
+      "p95_delta_ns": 1000,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindBatch",
+      "input": "change",
+      "p95_baseline_ns": 12584,
+      "p95_delta_ns": 6708,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindBatch",
+      "input": "delta_miss",
+      "p95_baseline_ns": 750,
+      "p95_delta_ns": 750,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindBatch",
+      "input": "removed_change",
+      "p95_baseline_ns": 2167,
+      "p95_delta_ns": 2208,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindIndex",
+      "input": "change",
+      "p95_baseline_ns": 5959,
+      "p95_delta_ns": 4042,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindIndex",
+      "input": "delta_miss",
+      "p95_baseline_ns": 334,
+      "p95_delta_ns": 333,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindIndex",
+      "input": "removed_change",
+      "p95_baseline_ns": 1208,
+      "p95_delta_ns": 1208,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindIndexParallel",
+      "input": "change",
+      "p95_baseline_ns": 155708,
+      "p95_delta_ns": 148500,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindIndexParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 24750,
+      "p95_delta_ns": 21625,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindIndexParallel",
+      "input": "removed_change",
+      "p95_baseline_ns": 91541,
+      "p95_delta_ns": 86958,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindMatches",
+      "input": "change",
+      "p95_baseline_ns": 6000,
+      "p95_delta_ns": 4417,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindMatches",
+      "input": "delta_miss",
+      "p95_baseline_ns": 333,
+      "p95_delta_ns": 333,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindMatches",
+      "input": "removed_change",
+      "p95_baseline_ns": 1167,
+      "p95_delta_ns": 1125,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindParallel",
+      "input": "change",
+      "p95_baseline_ns": 205542,
+      "p95_delta_ns": 206416,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 24125,
+      "p95_delta_ns": 22042,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindParallel",
+      "input": "removed_change",
+      "p95_baseline_ns": 92875,
+      "p95_delta_ns": 91167,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindSet",
+      "input": "change",
+      "p95_baseline_ns": 7083,
+      "p95_delta_ns": 5083,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindSet",
+      "input": "delta_miss",
+      "p95_baseline_ns": 292,
+      "p95_delta_ns": 250,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindSet",
+      "input": "removed_change",
+      "p95_baseline_ns": 1291,
+      "p95_delta_ns": 1250,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindStream",
+      "input": "change",
+      "p95_baseline_ns": 8625,
+      "p95_delta_ns": 7791,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindStream",
+      "input": "delta_miss",
+      "p95_baseline_ns": 791,
+      "p95_delta_ns": 750,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "FindStream",
+      "input": "removed_change",
+      "p95_baseline_ns": 1833,
+      "p95_delta_ns": 1958,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "MaskText",
+      "input": "change",
+      "p95_baseline_ns": 3042,
+      "p95_delta_ns": 3459,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "MaskText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 875,
+      "p95_delta_ns": 792,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "MaskText",
+      "input": "removed_change",
+      "p95_baseline_ns": 2791,
+      "p95_delta_ns": 2583,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "ReplaceText",
+      "input": "change",
+      "p95_baseline_ns": 2792,
+      "p95_delta_ns": 2792,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "ReplaceText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 792,
+      "p95_delta_ns": 792,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "ReplaceText",
+      "input": "removed_change",
+      "p95_baseline_ns": 2291,
+      "p95_delta_ns": 2208,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "Scan",
+      "input": "change",
+      "p95_baseline_ns": 2541,
+      "p95_delta_ns": 2708,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "Scan",
+      "input": "delta_miss",
+      "p95_baseline_ns": 750,
+      "p95_delta_ns": 792,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_128",
+      "api": "Scan",
+      "input": "removed_change",
+      "p95_baseline_ns": 2042,
+      "p95_delta_ns": 1959,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "ready_baseline_ms": 506.692,
+      "ready_delta_ms": 36.372,
+      "ready_ok": true,
+      "p95_baseline_ns": 13333,
+      "p95_delta_ns": 14500,
+      "p95_ok": true,
+      "api_compaction_overlap": false,
+      "steady_ok": true,
+      "rss_highwater_baseline_bytes": 835420160,
+      "rss_highwater_delta_bytes": 469516288,
+      "heap_alloc_baseline_bytes": 520700400,
+      "heap_alloc_delta_bytes": 307641408
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "Contains",
+      "input": "change",
+      "p95_baseline_ns": 1375,
+      "p95_delta_ns": 958,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "Contains",
+      "input": "delta_miss",
+      "p95_baseline_ns": 292,
+      "p95_delta_ns": 334,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "Contains",
+      "input": "removed_base",
+      "p95_baseline_ns": 417,
+      "p95_delta_ns": 459,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "Find",
+      "input": "change",
+      "p95_baseline_ns": 5167,
+      "p95_delta_ns": 3750,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "Find",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 292,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "Find",
+      "input": "removed_base",
+      "p95_baseline_ns": 959,
+      "p95_delta_ns": 1125,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindBatch",
+      "input": "change",
+      "p95_baseline_ns": 7541,
+      "p95_delta_ns": 6833,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindBatch",
+      "input": "delta_miss",
+      "p95_baseline_ns": 708,
+      "p95_delta_ns": 833,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindBatch",
+      "input": "removed_base",
+      "p95_baseline_ns": 2208,
+      "p95_delta_ns": 2500,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindIndex",
+      "input": "change",
+      "p95_baseline_ns": 5125,
+      "p95_delta_ns": 3541,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindIndex",
+      "input": "delta_miss",
+      "p95_baseline_ns": 333,
+      "p95_delta_ns": 375,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindIndex",
+      "input": "removed_base",
+      "p95_baseline_ns": 1250,
+      "p95_delta_ns": 1375,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindIndexParallel",
+      "input": "change",
+      "p95_baseline_ns": 145000,
+      "p95_delta_ns": 137917,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindIndexParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 22375,
+      "p95_delta_ns": 22667,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindIndexParallel",
+      "input": "removed_base",
+      "p95_baseline_ns": 84458,
+      "p95_delta_ns": 86042,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindMatches",
+      "input": "change",
+      "p95_baseline_ns": 5042,
+      "p95_delta_ns": 3250,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindMatches",
+      "input": "delta_miss",
+      "p95_baseline_ns": 333,
+      "p95_delta_ns": 334,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindMatches",
+      "input": "removed_base",
+      "p95_baseline_ns": 1125,
+      "p95_delta_ns": 1292,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindParallel",
+      "input": "change",
+      "p95_baseline_ns": 206292,
+      "p95_delta_ns": 205250,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 25375,
+      "p95_delta_ns": 23625,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindParallel",
+      "input": "removed_base",
+      "p95_baseline_ns": 93166,
+      "p95_delta_ns": 87500,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindSet",
+      "input": "change",
+      "p95_baseline_ns": 6875,
+      "p95_delta_ns": 5209,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindSet",
+      "input": "delta_miss",
+      "p95_baseline_ns": 292,
+      "p95_delta_ns": 292,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindSet",
+      "input": "removed_base",
+      "p95_baseline_ns": 1209,
+      "p95_delta_ns": 1375,
+      "p95_ok": false
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindStream",
+      "input": "change",
+      "p95_baseline_ns": 8083,
+      "p95_delta_ns": 5083,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindStream",
+      "input": "delta_miss",
+      "p95_baseline_ns": 791,
+      "p95_delta_ns": 750,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "FindStream",
+      "input": "removed_base",
+      "p95_baseline_ns": 1834,
+      "p95_delta_ns": 2000,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "MaskText",
+      "input": "change",
+      "p95_baseline_ns": 3042,
+      "p95_delta_ns": 3084,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "MaskText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 875,
+      "p95_delta_ns": 833,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "MaskText",
+      "input": "removed_base",
+      "p95_baseline_ns": 2416,
+      "p95_delta_ns": 2458,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "ReplaceText",
+      "input": "change",
+      "p95_baseline_ns": 2833,
+      "p95_delta_ns": 2792,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "ReplaceText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 833,
+      "p95_delta_ns": 834,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "ReplaceText",
+      "input": "removed_base",
+      "p95_baseline_ns": 2208,
+      "p95_delta_ns": 2209,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "Scan",
+      "input": "change",
+      "p95_baseline_ns": 2625,
+      "p95_delta_ns": 2750,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "Scan",
+      "input": "delta_miss",
+      "p95_baseline_ns": 792,
+      "p95_delta_ns": 792,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_base_1",
+      "api": "Scan",
+      "input": "removed_base",
+      "p95_baseline_ns": 1916,
+      "p95_delta_ns": 2042,
+      "p95_ok": true
+    },
+    {
+      "kind": "shared",
+      "operation": "add_129_rss",
+      "baseline_bytes": 836288512,
+      "delta_bytes": 655785984
+    },
+    {
+      "kind": "shared",
+      "operation": "remove_129_rss",
+      "baseline_bytes": 837828608,
+      "delta_bytes": 749338624
+    },
+    {
+      "kind": "shared",
+      "operation": "add_1_compact_rss",
+      "baseline_bytes": 837877760,
+      "delta_bytes": 749355008
+    },
+    {
+      "kind": "shared",
+      "operation": "post_compaction_rss",
+      "baseline_bytes": 837877760,
+      "delta_bytes": 810352640,
+      "rss_ok": true,
+      "compaction_wait_ms": 1001.449
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "ready_baseline_ms": 866.509,
+      "ready_delta_ms": 25.752,
+      "ready_ok": true,
+      "p95_baseline_ns": 12833,
+      "p95_delta_ns": 14208,
+      "p95_ok": false,
+      "api_compaction_overlap": false,
+      "steady_ok": true,
+      "rss_highwater_baseline_bytes": 1565671424,
+      "rss_highwater_delta_bytes": 943194112,
+      "heap_alloc_baseline_bytes": 1046737320,
+      "heap_alloc_delta_bytes": 829198536
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "Contains",
+      "input": "added_hit",
+      "p95_baseline_ns": 333,
+      "p95_delta_ns": 375,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "Contains",
+      "input": "change",
+      "p95_baseline_ns": 1292,
+      "p95_delta_ns": 1708,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "Contains",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 250,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "Find",
+      "input": "added_hit",
+      "p95_baseline_ns": 916,
+      "p95_delta_ns": 1042,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "Find",
+      "input": "change",
+      "p95_baseline_ns": 4417,
+      "p95_delta_ns": 3791,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "Find",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 250,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindBatch",
+      "input": "added_hit",
+      "p95_baseline_ns": 1875,
+      "p95_delta_ns": 2250,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindBatch",
+      "input": "change",
+      "p95_baseline_ns": 4459,
+      "p95_delta_ns": 5000,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindBatch",
+      "input": "delta_miss",
+      "p95_baseline_ns": 542,
+      "p95_delta_ns": 625,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindIndex",
+      "input": "added_hit",
+      "p95_baseline_ns": 1125,
+      "p95_delta_ns": 1333,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindIndex",
+      "input": "change",
+      "p95_baseline_ns": 4125,
+      "p95_delta_ns": 10042,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindIndex",
+      "input": "delta_miss",
+      "p95_baseline_ns": 292,
+      "p95_delta_ns": 291,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindIndexParallel",
+      "input": "added_hit",
+      "p95_baseline_ns": 80500,
+      "p95_delta_ns": 78667,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindIndexParallel",
+      "input": "change",
+      "p95_baseline_ns": 118792,
+      "p95_delta_ns": 139458,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindIndexParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 18667,
+      "p95_delta_ns": 19334,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindMatches",
+      "input": "added_hit",
+      "p95_baseline_ns": 958,
+      "p95_delta_ns": 1125,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindMatches",
+      "input": "change",
+      "p95_baseline_ns": 2166,
+      "p95_delta_ns": 2875,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindMatches",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 333,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindParallel",
+      "input": "added_hit",
+      "p95_baseline_ns": 69042,
+      "p95_delta_ns": 75959,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindParallel",
+      "input": "change",
+      "p95_baseline_ns": 130000,
+      "p95_delta_ns": 160417,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 19375,
+      "p95_delta_ns": 20334,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindSet",
+      "input": "added_hit",
+      "p95_baseline_ns": 1208,
+      "p95_delta_ns": 1333,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindSet",
+      "input": "change",
+      "p95_baseline_ns": 4667,
+      "p95_delta_ns": 6000,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindSet",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 250,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindStream",
+      "input": "added_hit",
+      "p95_baseline_ns": 1500,
+      "p95_delta_ns": 2042,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindStream",
+      "input": "change",
+      "p95_baseline_ns": 3375,
+      "p95_delta_ns": 5500,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "FindStream",
+      "input": "delta_miss",
+      "p95_baseline_ns": 708,
+      "p95_delta_ns": 833,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "MaskText",
+      "input": "added_hit",
+      "p95_baseline_ns": 2250,
+      "p95_delta_ns": 2458,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "MaskText",
+      "input": "change",
+      "p95_baseline_ns": 2708,
+      "p95_delta_ns": 3292,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "MaskText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 750,
+      "p95_delta_ns": 958,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "ReplaceText",
+      "input": "added_hit",
+      "p95_baseline_ns": 1834,
+      "p95_delta_ns": 2209,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "ReplaceText",
+      "input": "change",
+      "p95_baseline_ns": 2375,
+      "p95_delta_ns": 3041,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "ReplaceText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 750,
+      "p95_delta_ns": 875,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "Scan",
+      "input": "added_hit",
+      "p95_baseline_ns": 1583,
+      "p95_delta_ns": 1959,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "Scan",
+      "input": "change",
+      "p95_baseline_ns": 2084,
+      "p95_delta_ns": 2708,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1",
+      "api": "Scan",
+      "input": "delta_miss",
+      "p95_baseline_ns": 792,
+      "p95_delta_ns": 916,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "ready_baseline_ms": 846.594,
+      "ready_delta_ms": 37.052,
+      "ready_ok": true,
+      "p95_baseline_ns": 12500,
+      "p95_delta_ns": 12584,
+      "p95_ok": true,
+      "api_compaction_overlap": false,
+      "steady_ok": true,
+      "rss_highwater_baseline_bytes": 1758035968,
+      "rss_highwater_delta_bytes": 943849472,
+      "heap_alloc_baseline_bytes": 1012501488,
+      "heap_alloc_delta_bytes": 865772168
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "Contains",
+      "input": "change",
+      "p95_baseline_ns": 750,
+      "p95_delta_ns": 1167,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "Contains",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 250,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "Contains",
+      "input": "removed_change",
+      "p95_baseline_ns": 375,
+      "p95_delta_ns": 417,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "Find",
+      "input": "change",
+      "p95_baseline_ns": 4292,
+      "p95_delta_ns": 3583,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "Find",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 209,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "Find",
+      "input": "removed_change",
+      "p95_baseline_ns": 1042,
+      "p95_delta_ns": 1083,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindBatch",
+      "input": "change",
+      "p95_baseline_ns": 5417,
+      "p95_delta_ns": 5334,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindBatch",
+      "input": "delta_miss",
+      "p95_baseline_ns": 583,
+      "p95_delta_ns": 541,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindBatch",
+      "input": "removed_change",
+      "p95_baseline_ns": 2333,
+      "p95_delta_ns": 2208,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindIndex",
+      "input": "change",
+      "p95_baseline_ns": 4250,
+      "p95_delta_ns": 4292,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindIndex",
+      "input": "delta_miss",
+      "p95_baseline_ns": 292,
+      "p95_delta_ns": 291,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindIndex",
+      "input": "removed_change",
+      "p95_baseline_ns": 1334,
+      "p95_delta_ns": 1375,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindIndexParallel",
+      "input": "change",
+      "p95_baseline_ns": 149250,
+      "p95_delta_ns": 142083,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindIndexParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 20375,
+      "p95_delta_ns": 19791,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindIndexParallel",
+      "input": "removed_change",
+      "p95_baseline_ns": 76458,
+      "p95_delta_ns": 78375,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindMatches",
+      "input": "change",
+      "p95_baseline_ns": 4292,
+      "p95_delta_ns": 4292,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindMatches",
+      "input": "delta_miss",
+      "p95_baseline_ns": 292,
+      "p95_delta_ns": 292,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindMatches",
+      "input": "removed_change",
+      "p95_baseline_ns": 1167,
+      "p95_delta_ns": 1042,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindParallel",
+      "input": "change",
+      "p95_baseline_ns": 147834,
+      "p95_delta_ns": 153209,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 20750,
+      "p95_delta_ns": 20333,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindParallel",
+      "input": "removed_change",
+      "p95_baseline_ns": 75083,
+      "p95_delta_ns": 76208,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindSet",
+      "input": "change",
+      "p95_baseline_ns": 6958,
+      "p95_delta_ns": 4750,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindSet",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 209,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindSet",
+      "input": "removed_change",
+      "p95_baseline_ns": 1375,
+      "p95_delta_ns": 1333,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindStream",
+      "input": "change",
+      "p95_baseline_ns": 4500,
+      "p95_delta_ns": 6500,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindStream",
+      "input": "delta_miss",
+      "p95_baseline_ns": 709,
+      "p95_delta_ns": 708,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "FindStream",
+      "input": "removed_change",
+      "p95_baseline_ns": 1916,
+      "p95_delta_ns": 1625,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "MaskText",
+      "input": "change",
+      "p95_baseline_ns": 2833,
+      "p95_delta_ns": 2875,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "MaskText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 750,
+      "p95_delta_ns": 833,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "MaskText",
+      "input": "removed_change",
+      "p95_baseline_ns": 2083,
+      "p95_delta_ns": 2041,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "ReplaceText",
+      "input": "change",
+      "p95_baseline_ns": 2625,
+      "p95_delta_ns": 2625,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "ReplaceText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 709,
+      "p95_delta_ns": 750,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "ReplaceText",
+      "input": "removed_change",
+      "p95_baseline_ns": 1875,
+      "p95_delta_ns": 1833,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "Scan",
+      "input": "change",
+      "p95_baseline_ns": 2333,
+      "p95_delta_ns": 2167,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "Scan",
+      "input": "delta_miss",
+      "p95_baseline_ns": 750,
+      "p95_delta_ns": 750,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_1",
+      "api": "Scan",
+      "input": "removed_change",
+      "p95_baseline_ns": 1584,
+      "p95_delta_ns": 1625,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "ready_baseline_ms": 888.96,
+      "ready_delta_ms": 79.348,
+      "ready_ok": true,
+      "p95_baseline_ns": 13000,
+      "p95_delta_ns": 13208,
+      "p95_ok": true,
+      "api_compaction_overlap": false,
+      "steady_ok": true,
+      "rss_highwater_baseline_bytes": 1864663040,
+      "rss_highwater_delta_bytes": 979451904,
+      "heap_alloc_baseline_bytes": 1181741480,
+      "heap_alloc_delta_bytes": 466424928
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "Contains",
+      "input": "added_hit",
+      "p95_baseline_ns": 375,
+      "p95_delta_ns": 375,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "Contains",
+      "input": "change",
+      "p95_baseline_ns": 1291,
+      "p95_delta_ns": 709,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "Contains",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 250,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "Find",
+      "input": "added_hit",
+      "p95_baseline_ns": 1042,
+      "p95_delta_ns": 917,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "Find",
+      "input": "change",
+      "p95_baseline_ns": 3750,
+      "p95_delta_ns": 2167,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "Find",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 250,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindBatch",
+      "input": "added_hit",
+      "p95_baseline_ns": 2375,
+      "p95_delta_ns": 2208,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindBatch",
+      "input": "change",
+      "p95_baseline_ns": 4417,
+      "p95_delta_ns": 5084,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindBatch",
+      "input": "delta_miss",
+      "p95_baseline_ns": 542,
+      "p95_delta_ns": 583,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindIndex",
+      "input": "added_hit",
+      "p95_baseline_ns": 1334,
+      "p95_delta_ns": 1208,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindIndex",
+      "input": "change",
+      "p95_baseline_ns": 4250,
+      "p95_delta_ns": 3041,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindIndex",
+      "input": "delta_miss",
+      "p95_baseline_ns": 292,
+      "p95_delta_ns": 292,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindIndexParallel",
+      "input": "added_hit",
+      "p95_baseline_ns": 82084,
+      "p95_delta_ns": 82333,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindIndexParallel",
+      "input": "change",
+      "p95_baseline_ns": 154792,
+      "p95_delta_ns": 143333,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindIndexParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 19542,
+      "p95_delta_ns": 21375,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindMatches",
+      "input": "added_hit",
+      "p95_baseline_ns": 1208,
+      "p95_delta_ns": 1166,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindMatches",
+      "input": "change",
+      "p95_baseline_ns": 4125,
+      "p95_delta_ns": 2792,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindMatches",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 292,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindParallel",
+      "input": "added_hit",
+      "p95_baseline_ns": 79417,
+      "p95_delta_ns": 74584,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindParallel",
+      "input": "change",
+      "p95_baseline_ns": 154125,
+      "p95_delta_ns": 161542,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 20083,
+      "p95_delta_ns": 21333,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindSet",
+      "input": "added_hit",
+      "p95_baseline_ns": 1458,
+      "p95_delta_ns": 1375,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindSet",
+      "input": "change",
+      "p95_baseline_ns": 4667,
+      "p95_delta_ns": 4083,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindSet",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 250,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindStream",
+      "input": "added_hit",
+      "p95_baseline_ns": 1791,
+      "p95_delta_ns": 2000,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindStream",
+      "input": "change",
+      "p95_baseline_ns": 4416,
+      "p95_delta_ns": 6542,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "FindStream",
+      "input": "delta_miss",
+      "p95_baseline_ns": 667,
+      "p95_delta_ns": 875,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "MaskText",
+      "input": "added_hit",
+      "p95_baseline_ns": 2208,
+      "p95_delta_ns": 2458,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "MaskText",
+      "input": "change",
+      "p95_baseline_ns": 3125,
+      "p95_delta_ns": 3250,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "MaskText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 791,
+      "p95_delta_ns": 916,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "ReplaceText",
+      "input": "added_hit",
+      "p95_baseline_ns": 2000,
+      "p95_delta_ns": 2125,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "ReplaceText",
+      "input": "change",
+      "p95_baseline_ns": 2833,
+      "p95_delta_ns": 2959,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "ReplaceText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 750,
+      "p95_delta_ns": 875,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "Scan",
+      "input": "added_hit",
+      "p95_baseline_ns": 1625,
+      "p95_delta_ns": 1875,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "Scan",
+      "input": "change",
+      "p95_baseline_ns": 2458,
+      "p95_delta_ns": 2459,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_128",
+      "api": "Scan",
+      "input": "delta_miss",
+      "p95_baseline_ns": 708,
+      "p95_delta_ns": 917,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "ready_baseline_ms": 878.177,
+      "ready_delta_ms": 77.567,
+      "ready_ok": true,
+      "p95_baseline_ns": 12583,
+      "p95_delta_ns": 13666,
+      "p95_ok": true,
+      "api_compaction_overlap": false,
+      "steady_ok": true,
+      "rss_highwater_baseline_bytes": 1864794112,
+      "rss_highwater_delta_bytes": 979730432,
+      "heap_alloc_baseline_bytes": 1013548208,
+      "heap_alloc_delta_bytes": 514175760
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "Contains",
+      "input": "change",
+      "p95_baseline_ns": 667,
+      "p95_delta_ns": 1042,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "Contains",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 250,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "Contains",
+      "input": "removed_change",
+      "p95_baseline_ns": 375,
+      "p95_delta_ns": 292,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "Find",
+      "input": "change",
+      "p95_baseline_ns": 2875,
+      "p95_delta_ns": 3584,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "Find",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 209,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "Find",
+      "input": "removed_change",
+      "p95_baseline_ns": 1166,
+      "p95_delta_ns": 916,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindBatch",
+      "input": "change",
+      "p95_baseline_ns": 5875,
+      "p95_delta_ns": 8625,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindBatch",
+      "input": "delta_miss",
+      "p95_baseline_ns": 583,
+      "p95_delta_ns": 500,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindBatch",
+      "input": "removed_change",
+      "p95_baseline_ns": 2250,
+      "p95_delta_ns": 1958,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindIndex",
+      "input": "change",
+      "p95_baseline_ns": 3291,
+      "p95_delta_ns": 4959,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindIndex",
+      "input": "delta_miss",
+      "p95_baseline_ns": 292,
+      "p95_delta_ns": 291,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindIndex",
+      "input": "removed_change",
+      "p95_baseline_ns": 1333,
+      "p95_delta_ns": 1083,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindIndexParallel",
+      "input": "change",
+      "p95_baseline_ns": 146292,
+      "p95_delta_ns": 118292,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindIndexParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 19875,
+      "p95_delta_ns": 19416,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindIndexParallel",
+      "input": "removed_change",
+      "p95_baseline_ns": 77625,
+      "p95_delta_ns": 72542,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindMatches",
+      "input": "change",
+      "p95_baseline_ns": 3416,
+      "p95_delta_ns": 4541,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindMatches",
+      "input": "delta_miss",
+      "p95_baseline_ns": 333,
+      "p95_delta_ns": 250,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindMatches",
+      "input": "removed_change",
+      "p95_baseline_ns": 1167,
+      "p95_delta_ns": 1000,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindParallel",
+      "input": "change",
+      "p95_baseline_ns": 144542,
+      "p95_delta_ns": 136708,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 20209,
+      "p95_delta_ns": 19417,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindParallel",
+      "input": "removed_change",
+      "p95_baseline_ns": 73958,
+      "p95_delta_ns": 66958,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindSet",
+      "input": "change",
+      "p95_baseline_ns": 3625,
+      "p95_delta_ns": 5334,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindSet",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 209,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindSet",
+      "input": "removed_change",
+      "p95_baseline_ns": 1375,
+      "p95_delta_ns": 1125,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindStream",
+      "input": "change",
+      "p95_baseline_ns": 4250,
+      "p95_delta_ns": 7291,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindStream",
+      "input": "delta_miss",
+      "p95_baseline_ns": 667,
+      "p95_delta_ns": 750,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "FindStream",
+      "input": "removed_change",
+      "p95_baseline_ns": 1708,
+      "p95_delta_ns": 1417,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "MaskText",
+      "input": "change",
+      "p95_baseline_ns": 2875,
+      "p95_delta_ns": 2708,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "MaskText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 1167,
+      "p95_delta_ns": 750,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "MaskText",
+      "input": "removed_change",
+      "p95_baseline_ns": 2250,
+      "p95_delta_ns": 2042,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "ReplaceText",
+      "input": "change",
+      "p95_baseline_ns": 2666,
+      "p95_delta_ns": 2583,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "ReplaceText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 875,
+      "p95_delta_ns": 750,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "ReplaceText",
+      "input": "removed_change",
+      "p95_baseline_ns": 1917,
+      "p95_delta_ns": 1917,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "Scan",
+      "input": "change",
+      "p95_baseline_ns": 2250,
+      "p95_delta_ns": 2208,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "Scan",
+      "input": "delta_miss",
+      "p95_baseline_ns": 958,
+      "p95_delta_ns": 750,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_128",
+      "api": "Scan",
+      "input": "removed_change",
+      "p95_baseline_ns": 1667,
+      "p95_delta_ns": 1666,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "ready_baseline_ms": 837.292,
+      "ready_delta_ms": 37.022,
+      "ready_ok": true,
+      "p95_baseline_ns": 11875,
+      "p95_delta_ns": 14250,
+      "p95_ok": false,
+      "api_compaction_overlap": false,
+      "steady_ok": true,
+      "rss_highwater_baseline_bytes": 1938358272,
+      "rss_highwater_delta_bytes": 980451328,
+      "heap_alloc_baseline_bytes": 1010207888,
+      "heap_alloc_delta_bytes": 546856080
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "Contains",
+      "input": "change",
+      "p95_baseline_ns": 750,
+      "p95_delta_ns": 750,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "Contains",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 292,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "Contains",
+      "input": "removed_base",
+      "p95_baseline_ns": 417,
+      "p95_delta_ns": 417,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "Find",
+      "input": "change",
+      "p95_baseline_ns": 2875,
+      "p95_delta_ns": 5042,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "Find",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 250,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "Find",
+      "input": "removed_base",
+      "p95_baseline_ns": 1042,
+      "p95_delta_ns": 1208,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindBatch",
+      "input": "change",
+      "p95_baseline_ns": 5667,
+      "p95_delta_ns": 6334,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindBatch",
+      "input": "delta_miss",
+      "p95_baseline_ns": 542,
+      "p95_delta_ns": 625,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindBatch",
+      "input": "removed_base",
+      "p95_baseline_ns": 2334,
+      "p95_delta_ns": 2709,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindIndex",
+      "input": "change",
+      "p95_baseline_ns": 4167,
+      "p95_delta_ns": 5958,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindIndex",
+      "input": "delta_miss",
+      "p95_baseline_ns": 292,
+      "p95_delta_ns": 375,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindIndex",
+      "input": "removed_base",
+      "p95_baseline_ns": 1333,
+      "p95_delta_ns": 1666,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindIndexParallel",
+      "input": "change",
+      "p95_baseline_ns": 116375,
+      "p95_delta_ns": 134584,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindIndexParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 19459,
+      "p95_delta_ns": 20167,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindIndexParallel",
+      "input": "removed_base",
+      "p95_baseline_ns": 73709,
+      "p95_delta_ns": 77000,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindMatches",
+      "input": "change",
+      "p95_baseline_ns": 3750,
+      "p95_delta_ns": 5125,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindMatches",
+      "input": "delta_miss",
+      "p95_baseline_ns": 292,
+      "p95_delta_ns": 333,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindMatches",
+      "input": "removed_base",
+      "p95_baseline_ns": 1292,
+      "p95_delta_ns": 1458,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindParallel",
+      "input": "change",
+      "p95_baseline_ns": 135083,
+      "p95_delta_ns": 148917,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 20500,
+      "p95_delta_ns": 21375,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindParallel",
+      "input": "removed_base",
+      "p95_baseline_ns": 68959,
+      "p95_delta_ns": 81125,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindSet",
+      "input": "change",
+      "p95_baseline_ns": 4750,
+      "p95_delta_ns": 6375,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindSet",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 250,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindSet",
+      "input": "removed_base",
+      "p95_baseline_ns": 1375,
+      "p95_delta_ns": 1833,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindStream",
+      "input": "change",
+      "p95_baseline_ns": 5625,
+      "p95_delta_ns": 4625,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindStream",
+      "input": "delta_miss",
+      "p95_baseline_ns": 750,
+      "p95_delta_ns": 750,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "FindStream",
+      "input": "removed_base",
+      "p95_baseline_ns": 1709,
+      "p95_delta_ns": 2084,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "MaskText",
+      "input": "change",
+      "p95_baseline_ns": 2625,
+      "p95_delta_ns": 3167,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "MaskText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 792,
+      "p95_delta_ns": 792,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "MaskText",
+      "input": "removed_base",
+      "p95_baseline_ns": 1958,
+      "p95_delta_ns": 2000,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "ReplaceText",
+      "input": "change",
+      "p95_baseline_ns": 2334,
+      "p95_delta_ns": 3000,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "ReplaceText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 833,
+      "p95_delta_ns": 792,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "ReplaceText",
+      "input": "removed_base",
+      "p95_baseline_ns": 1875,
+      "p95_delta_ns": 1834,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "Scan",
+      "input": "change",
+      "p95_baseline_ns": 2292,
+      "p95_delta_ns": 2792,
+      "p95_ok": false
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "Scan",
+      "input": "delta_miss",
+      "p95_baseline_ns": 792,
+      "p95_delta_ns": 791,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_base_1",
+      "api": "Scan",
+      "input": "removed_base",
+      "p95_baseline_ns": 1625,
+      "p95_delta_ns": 1667,
+      "p95_ok": true
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_129_rss",
+      "baseline_bytes": 1989017600,
+      "delta_bytes": 1614217216
+    },
+    {
+      "kind": "diverse",
+      "operation": "remove_129_rss",
+      "baseline_bytes": 1989099520,
+      "delta_bytes": 1951596544
+    },
+    {
+      "kind": "diverse",
+      "operation": "add_1_compact_rss",
+      "baseline_bytes": 2073657344,
+      "delta_bytes": 1951694848
+    },
+    {
+      "kind": "diverse",
+      "operation": "post_compaction_rss",
+      "baseline_bytes": 2073657344,
+      "delta_bytes": 1951875072,
+      "rss_ok": true,
+      "compaction_wait_ms": 1348.594
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "ready_baseline_ms": 1016.701,
+      "ready_delta_ms": 26.123,
+      "ready_ok": true,
+      "p95_baseline_ns": 14500,
+      "p95_delta_ns": 16042,
+      "p95_ok": false,
+      "api_compaction_overlap": false,
+      "steady_ok": true,
+      "rss_highwater_baseline_bytes": 1997225984,
+      "rss_highwater_delta_bytes": 1245052928,
+      "heap_alloc_baseline_bytes": 1052641480,
+      "heap_alloc_delta_bytes": 849935456
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "Contains",
+      "input": "added_hit",
+      "p95_baseline_ns": 625,
+      "p95_delta_ns": 667,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "Contains",
+      "input": "change",
+      "p95_baseline_ns": 2041,
+      "p95_delta_ns": 1666,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "Contains",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 250,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "Find",
+      "input": "added_hit",
+      "p95_baseline_ns": 1208,
+      "p95_delta_ns": 1250,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "Find",
+      "input": "change",
+      "p95_baseline_ns": 3000,
+      "p95_delta_ns": 5500,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "Find",
+      "input": "delta_miss",
+      "p95_baseline_ns": 208,
+      "p95_delta_ns": 167,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindBatch",
+      "input": "added_hit",
+      "p95_baseline_ns": 2584,
+      "p95_delta_ns": 2417,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindBatch",
+      "input": "change",
+      "p95_baseline_ns": 6542,
+      "p95_delta_ns": 6459,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindBatch",
+      "input": "delta_miss",
+      "p95_baseline_ns": 459,
+      "p95_delta_ns": 417,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindIndex",
+      "input": "added_hit",
+      "p95_baseline_ns": 1375,
+      "p95_delta_ns": 1458,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindIndex",
+      "input": "change",
+      "p95_baseline_ns": 3250,
+      "p95_delta_ns": 6459,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindIndex",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 209,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindIndexParallel",
+      "input": "added_hit",
+      "p95_baseline_ns": 99875,
+      "p95_delta_ns": 100750,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindIndexParallel",
+      "input": "change",
+      "p95_baseline_ns": 158958,
+      "p95_delta_ns": 162542,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindIndexParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 18125,
+      "p95_delta_ns": 16916,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindMatches",
+      "input": "added_hit",
+      "p95_baseline_ns": 1292,
+      "p95_delta_ns": 1333,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindMatches",
+      "input": "change",
+      "p95_baseline_ns": 3166,
+      "p95_delta_ns": 4667,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindMatches",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 250,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindParallel",
+      "input": "added_hit",
+      "p95_baseline_ns": 95083,
+      "p95_delta_ns": 98709,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindParallel",
+      "input": "change",
+      "p95_baseline_ns": 208417,
+      "p95_delta_ns": 225041,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 18375,
+      "p95_delta_ns": 18125,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindSet",
+      "input": "added_hit",
+      "p95_baseline_ns": 1458,
+      "p95_delta_ns": 1459,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindSet",
+      "input": "change",
+      "p95_baseline_ns": 3500,
+      "p95_delta_ns": 6959,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindSet",
+      "input": "delta_miss",
+      "p95_baseline_ns": 208,
+      "p95_delta_ns": 208,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindStream",
+      "input": "added_hit",
+      "p95_baseline_ns": 1792,
+      "p95_delta_ns": 2083,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindStream",
+      "input": "change",
+      "p95_baseline_ns": 5709,
+      "p95_delta_ns": 8459,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "FindStream",
+      "input": "delta_miss",
+      "p95_baseline_ns": 625,
+      "p95_delta_ns": 709,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "MaskText",
+      "input": "added_hit",
+      "p95_baseline_ns": 2583,
+      "p95_delta_ns": 2875,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "MaskText",
+      "input": "change",
+      "p95_baseline_ns": 3167,
+      "p95_delta_ns": 3458,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "MaskText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 709,
+      "p95_delta_ns": 750,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "ReplaceText",
+      "input": "added_hit",
+      "p95_baseline_ns": 2333,
+      "p95_delta_ns": 2500,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "ReplaceText",
+      "input": "change",
+      "p95_baseline_ns": 2833,
+      "p95_delta_ns": 3083,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "ReplaceText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 708,
+      "p95_delta_ns": 750,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "Scan",
+      "input": "added_hit",
+      "p95_baseline_ns": 1917,
+      "p95_delta_ns": 2250,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "Scan",
+      "input": "change",
+      "p95_baseline_ns": 2542,
+      "p95_delta_ns": 2750,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1",
+      "api": "Scan",
+      "input": "delta_miss",
+      "p95_baseline_ns": 666,
+      "p95_delta_ns": 750,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "ready_baseline_ms": 966.155,
+      "ready_delta_ms": 36.437,
+      "ready_ok": true,
+      "p95_baseline_ns": 15042,
+      "p95_delta_ns": 15125,
+      "p95_ok": true,
+      "api_compaction_overlap": false,
+      "steady_ok": true,
+      "rss_highwater_baseline_bytes": 2253717504,
+      "rss_highwater_delta_bytes": 1245921280,
+      "heap_alloc_baseline_bytes": 1633979736,
+      "heap_alloc_delta_bytes": 894187472
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "Contains",
+      "input": "change",
+      "p95_baseline_ns": 2041,
+      "p95_delta_ns": 1833,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "Contains",
+      "input": "delta_miss",
+      "p95_baseline_ns": 208,
+      "p95_delta_ns": 167,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "Contains",
+      "input": "removed_change",
+      "p95_baseline_ns": 625,
+      "p95_delta_ns": 667,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "Find",
+      "input": "change",
+      "p95_baseline_ns": 5459,
+      "p95_delta_ns": 3584,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "Find",
+      "input": "delta_miss",
+      "p95_baseline_ns": 167,
+      "p95_delta_ns": 167,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "Find",
+      "input": "removed_change",
+      "p95_baseline_ns": 1166,
+      "p95_delta_ns": 1291,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindBatch",
+      "input": "change",
+      "p95_baseline_ns": 6833,
+      "p95_delta_ns": 6458,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindBatch",
+      "input": "delta_miss",
+      "p95_baseline_ns": 417,
+      "p95_delta_ns": 334,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindBatch",
+      "input": "removed_change",
+      "p95_baseline_ns": 2417,
+      "p95_delta_ns": 2375,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindIndex",
+      "input": "change",
+      "p95_baseline_ns": 6792,
+      "p95_delta_ns": 3666,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindIndex",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 209,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindIndex",
+      "input": "removed_change",
+      "p95_baseline_ns": 1375,
+      "p95_delta_ns": 1333,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindIndexParallel",
+      "input": "change",
+      "p95_baseline_ns": 153875,
+      "p95_delta_ns": 157250,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindIndexParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 16875,
+      "p95_delta_ns": 16750,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindIndexParallel",
+      "input": "removed_change",
+      "p95_baseline_ns": 95042,
+      "p95_delta_ns": 95791,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindMatches",
+      "input": "change",
+      "p95_baseline_ns": 3750,
+      "p95_delta_ns": 3791,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindMatches",
+      "input": "delta_miss",
+      "p95_baseline_ns": 208,
+      "p95_delta_ns": 208,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindMatches",
+      "input": "removed_change",
+      "p95_baseline_ns": 1250,
+      "p95_delta_ns": 1209,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindParallel",
+      "input": "change",
+      "p95_baseline_ns": 215708,
+      "p95_delta_ns": 212334,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 16667,
+      "p95_delta_ns": 17834,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindParallel",
+      "input": "removed_change",
+      "p95_baseline_ns": 97833,
+      "p95_delta_ns": 96750,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindSet",
+      "input": "change",
+      "p95_baseline_ns": 7334,
+      "p95_delta_ns": 4792,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindSet",
+      "input": "delta_miss",
+      "p95_baseline_ns": 167,
+      "p95_delta_ns": 167,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindSet",
+      "input": "removed_change",
+      "p95_baseline_ns": 1375,
+      "p95_delta_ns": 1375,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindStream",
+      "input": "change",
+      "p95_baseline_ns": 6417,
+      "p95_delta_ns": 5500,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindStream",
+      "input": "delta_miss",
+      "p95_baseline_ns": 583,
+      "p95_delta_ns": 625,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "FindStream",
+      "input": "removed_change",
+      "p95_baseline_ns": 1709,
+      "p95_delta_ns": 1750,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "MaskText",
+      "input": "change",
+      "p95_baseline_ns": 2917,
+      "p95_delta_ns": 3125,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "MaskText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 708,
+      "p95_delta_ns": 625,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "MaskText",
+      "input": "removed_change",
+      "p95_baseline_ns": 2333,
+      "p95_delta_ns": 2291,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "ReplaceText",
+      "input": "change",
+      "p95_baseline_ns": 2625,
+      "p95_delta_ns": 2666,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "ReplaceText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 666,
+      "p95_delta_ns": 667,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "ReplaceText",
+      "input": "removed_change",
+      "p95_baseline_ns": 2125,
+      "p95_delta_ns": 2083,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "Scan",
+      "input": "change",
+      "p95_baseline_ns": 2667,
+      "p95_delta_ns": 2417,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "Scan",
+      "input": "delta_miss",
+      "p95_baseline_ns": 709,
+      "p95_delta_ns": 625,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_1",
+      "api": "Scan",
+      "input": "removed_change",
+      "p95_baseline_ns": 1917,
+      "p95_delta_ns": 1833,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "ready_baseline_ms": 1053.16,
+      "ready_delta_ms": 93.282,
+      "ready_ok": true,
+      "p95_baseline_ns": 15916,
+      "p95_delta_ns": 16125,
+      "p95_ok": true,
+      "api_compaction_overlap": false,
+      "steady_ok": true,
+      "rss_highwater_baseline_bytes": 2253979648,
+      "rss_highwater_delta_bytes": 1247051776,
+      "heap_alloc_baseline_bytes": 1054707696,
+      "heap_alloc_delta_bytes": 958100968
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "Contains",
+      "input": "added_hit",
+      "p95_baseline_ns": 625,
+      "p95_delta_ns": 708,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "Contains",
+      "input": "change",
+      "p95_baseline_ns": 1875,
+      "p95_delta_ns": 1875,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "Contains",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 250,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "Find",
+      "input": "added_hit",
+      "p95_baseline_ns": 1292,
+      "p95_delta_ns": 1209,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "Find",
+      "input": "change",
+      "p95_baseline_ns": 5292,
+      "p95_delta_ns": 3416,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "Find",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 209,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindBatch",
+      "input": "added_hit",
+      "p95_baseline_ns": 2625,
+      "p95_delta_ns": 2542,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindBatch",
+      "input": "change",
+      "p95_baseline_ns": 6042,
+      "p95_delta_ns": 6500,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindBatch",
+      "input": "delta_miss",
+      "p95_baseline_ns": 500,
+      "p95_delta_ns": 417,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindIndex",
+      "input": "added_hit",
+      "p95_baseline_ns": 1375,
+      "p95_delta_ns": 1417,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindIndex",
+      "input": "change",
+      "p95_baseline_ns": 3791,
+      "p95_delta_ns": 4417,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindIndex",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 292,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindIndexParallel",
+      "input": "added_hit",
+      "p95_baseline_ns": 101542,
+      "p95_delta_ns": 100875,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindIndexParallel",
+      "input": "change",
+      "p95_baseline_ns": 166167,
+      "p95_delta_ns": 161958,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindIndexParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 17917,
+      "p95_delta_ns": 17500,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindMatches",
+      "input": "added_hit",
+      "p95_baseline_ns": 1333,
+      "p95_delta_ns": 1250,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindMatches",
+      "input": "change",
+      "p95_baseline_ns": 3917,
+      "p95_delta_ns": 3584,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindMatches",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 209,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindParallel",
+      "input": "added_hit",
+      "p95_baseline_ns": 99250,
+      "p95_delta_ns": 98875,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindParallel",
+      "input": "change",
+      "p95_baseline_ns": 217833,
+      "p95_delta_ns": 222208,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 17834,
+      "p95_delta_ns": 18334,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindSet",
+      "input": "added_hit",
+      "p95_baseline_ns": 1417,
+      "p95_delta_ns": 1500,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindSet",
+      "input": "change",
+      "p95_baseline_ns": 5958,
+      "p95_delta_ns": 5167,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindSet",
+      "input": "delta_miss",
+      "p95_baseline_ns": 250,
+      "p95_delta_ns": 208,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindStream",
+      "input": "added_hit",
+      "p95_baseline_ns": 1750,
+      "p95_delta_ns": 2125,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindStream",
+      "input": "change",
+      "p95_baseline_ns": 5375,
+      "p95_delta_ns": 7666,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "FindStream",
+      "input": "delta_miss",
+      "p95_baseline_ns": 666,
+      "p95_delta_ns": 916,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "MaskText",
+      "input": "added_hit",
+      "p95_baseline_ns": 2542,
+      "p95_delta_ns": 2917,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "MaskText",
+      "input": "change",
+      "p95_baseline_ns": 3125,
+      "p95_delta_ns": 3375,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "MaskText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 708,
+      "p95_delta_ns": 833,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "ReplaceText",
+      "input": "added_hit",
+      "p95_baseline_ns": 2292,
+      "p95_delta_ns": 2542,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "ReplaceText",
+      "input": "change",
+      "p95_baseline_ns": 2792,
+      "p95_delta_ns": 3083,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "ReplaceText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 667,
+      "p95_delta_ns": 750,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "Scan",
+      "input": "added_hit",
+      "p95_baseline_ns": 1875,
+      "p95_delta_ns": 2292,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "Scan",
+      "input": "change",
+      "p95_baseline_ns": 2542,
+      "p95_delta_ns": 2834,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "add_128",
+      "api": "Scan",
+      "input": "delta_miss",
+      "p95_baseline_ns": 667,
+      "p95_delta_ns": 792,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "ready_baseline_ms": 1003.31,
+      "ready_delta_ms": 73.131,
+      "ready_ok": true,
+      "p95_baseline_ns": 16042,
+      "p95_delta_ns": 14250,
+      "p95_ok": true,
+      "api_compaction_overlap": false,
+      "steady_ok": true,
+      "rss_highwater_baseline_bytes": 2380791808,
+      "rss_highwater_delta_bytes": 1248100352,
+      "heap_alloc_baseline_bytes": 1636024240,
+      "heap_alloc_delta_bytes": 1020366784
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "Contains",
+      "input": "change",
+      "p95_baseline_ns": 1875,
+      "p95_delta_ns": 2875,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "Contains",
+      "input": "delta_miss",
+      "p95_baseline_ns": 208,
+      "p95_delta_ns": 208,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "Contains",
+      "input": "removed_change",
+      "p95_baseline_ns": 667,
+      "p95_delta_ns": 625,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "Find",
+      "input": "change",
+      "p95_baseline_ns": 5625,
+      "p95_delta_ns": 5667,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "Find",
+      "input": "delta_miss",
+      "p95_baseline_ns": 167,
+      "p95_delta_ns": 167,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "Find",
+      "input": "removed_change",
+      "p95_baseline_ns": 1333,
+      "p95_delta_ns": 1166,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindBatch",
+      "input": "change",
+      "p95_baseline_ns": 6083,
+      "p95_delta_ns": 10334,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindBatch",
+      "input": "delta_miss",
+      "p95_baseline_ns": 375,
+      "p95_delta_ns": 416,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindBatch",
+      "input": "removed_change",
+      "p95_baseline_ns": 2459,
+      "p95_delta_ns": 2500,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindIndex",
+      "input": "change",
+      "p95_baseline_ns": 6167,
+      "p95_delta_ns": 6625,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindIndex",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 250,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindIndex",
+      "input": "removed_change",
+      "p95_baseline_ns": 1334,
+      "p95_delta_ns": 1375,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindIndexParallel",
+      "input": "change",
+      "p95_baseline_ns": 152333,
+      "p95_delta_ns": 143750,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindIndexParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 16291,
+      "p95_delta_ns": 17083,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindIndexParallel",
+      "input": "removed_change",
+      "p95_baseline_ns": 95333,
+      "p95_delta_ns": 95791,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindMatches",
+      "input": "change",
+      "p95_baseline_ns": 5917,
+      "p95_delta_ns": 5750,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindMatches",
+      "input": "delta_miss",
+      "p95_baseline_ns": 208,
+      "p95_delta_ns": 209,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindMatches",
+      "input": "removed_change",
+      "p95_baseline_ns": 1250,
+      "p95_delta_ns": 1291,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindParallel",
+      "input": "change",
+      "p95_baseline_ns": 211459,
+      "p95_delta_ns": 203125,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 16959,
+      "p95_delta_ns": 17542,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindParallel",
+      "input": "removed_change",
+      "p95_baseline_ns": 95458,
+      "p95_delta_ns": 94084,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindSet",
+      "input": "change",
+      "p95_baseline_ns": 7083,
+      "p95_delta_ns": 6291,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindSet",
+      "input": "delta_miss",
+      "p95_baseline_ns": 167,
+      "p95_delta_ns": 167,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindSet",
+      "input": "removed_change",
+      "p95_baseline_ns": 1417,
+      "p95_delta_ns": 1458,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindStream",
+      "input": "change",
+      "p95_baseline_ns": 5333,
+      "p95_delta_ns": 6125,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindStream",
+      "input": "delta_miss",
+      "p95_baseline_ns": 625,
+      "p95_delta_ns": 625,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "FindStream",
+      "input": "removed_change",
+      "p95_baseline_ns": 1750,
+      "p95_delta_ns": 1750,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "MaskText",
+      "input": "change",
+      "p95_baseline_ns": 2916,
+      "p95_delta_ns": 3000,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "MaskText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 667,
+      "p95_delta_ns": 708,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "MaskText",
+      "input": "removed_change",
+      "p95_baseline_ns": 2375,
+      "p95_delta_ns": 2583,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "ReplaceText",
+      "input": "change",
+      "p95_baseline_ns": 2708,
+      "p95_delta_ns": 2917,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "ReplaceText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 666,
+      "p95_delta_ns": 709,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "ReplaceText",
+      "input": "removed_change",
+      "p95_baseline_ns": 2125,
+      "p95_delta_ns": 2167,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "Scan",
+      "input": "change",
+      "p95_baseline_ns": 2500,
+      "p95_delta_ns": 2500,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "Scan",
+      "input": "delta_miss",
+      "p95_baseline_ns": 667,
+      "p95_delta_ns": 708,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_128",
+      "api": "Scan",
+      "input": "removed_change",
+      "p95_baseline_ns": 1834,
+      "p95_delta_ns": 1875,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "ready_baseline_ms": 966.544,
+      "ready_delta_ms": 36.749,
+      "ready_ok": true,
+      "p95_baseline_ns": 14959,
+      "p95_delta_ns": 15375,
+      "p95_ok": true,
+      "api_compaction_overlap": false,
+      "steady_ok": true,
+      "rss_highwater_baseline_bytes": 2380791808,
+      "rss_highwater_delta_bytes": 1248985088,
+      "heap_alloc_baseline_bytes": 1049601808,
+      "heap_alloc_delta_bytes": 1063186088
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "Contains",
+      "input": "change",
+      "p95_baseline_ns": 1583,
+      "p95_delta_ns": 2166,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "Contains",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 250,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "Contains",
+      "input": "removed_base",
+      "p95_baseline_ns": 625,
+      "p95_delta_ns": 708,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "Find",
+      "input": "change",
+      "p95_baseline_ns": 3333,
+      "p95_delta_ns": 5208,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "Find",
+      "input": "delta_miss",
+      "p95_baseline_ns": 167,
+      "p95_delta_ns": 208,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "Find",
+      "input": "removed_base",
+      "p95_baseline_ns": 1167,
+      "p95_delta_ns": 1334,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindBatch",
+      "input": "change",
+      "p95_baseline_ns": 5917,
+      "p95_delta_ns": 6583,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindBatch",
+      "input": "delta_miss",
+      "p95_baseline_ns": 416,
+      "p95_delta_ns": 542,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindBatch",
+      "input": "removed_base",
+      "p95_baseline_ns": 2417,
+      "p95_delta_ns": 2625,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindIndex",
+      "input": "change",
+      "p95_baseline_ns": 3416,
+      "p95_delta_ns": 6292,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindIndex",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 292,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindIndex",
+      "input": "removed_base",
+      "p95_baseline_ns": 1333,
+      "p95_delta_ns": 1583,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindIndexParallel",
+      "input": "change",
+      "p95_baseline_ns": 149208,
+      "p95_delta_ns": 145167,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindIndexParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 17375,
+      "p95_delta_ns": 17750,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindIndexParallel",
+      "input": "removed_base",
+      "p95_baseline_ns": 92708,
+      "p95_delta_ns": 93417,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindMatches",
+      "input": "change",
+      "p95_baseline_ns": 3209,
+      "p95_delta_ns": 3834,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindMatches",
+      "input": "delta_miss",
+      "p95_baseline_ns": 209,
+      "p95_delta_ns": 250,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindMatches",
+      "input": "removed_base",
+      "p95_baseline_ns": 1250,
+      "p95_delta_ns": 1291,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindParallel",
+      "input": "change",
+      "p95_baseline_ns": 216541,
+      "p95_delta_ns": 216292,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindParallel",
+      "input": "delta_miss",
+      "p95_baseline_ns": 16792,
+      "p95_delta_ns": 18500,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindParallel",
+      "input": "removed_base",
+      "p95_baseline_ns": 95417,
+      "p95_delta_ns": 96875,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindSet",
+      "input": "change",
+      "p95_baseline_ns": 3833,
+      "p95_delta_ns": 6750,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindSet",
+      "input": "delta_miss",
+      "p95_baseline_ns": 208,
+      "p95_delta_ns": 292,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindSet",
+      "input": "removed_base",
+      "p95_baseline_ns": 1375,
+      "p95_delta_ns": 1542,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindStream",
+      "input": "change",
+      "p95_baseline_ns": 5375,
+      "p95_delta_ns": 8334,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindStream",
+      "input": "delta_miss",
+      "p95_baseline_ns": 625,
+      "p95_delta_ns": 583,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "FindStream",
+      "input": "removed_base",
+      "p95_baseline_ns": 1708,
+      "p95_delta_ns": 1750,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "MaskText",
+      "input": "change",
+      "p95_baseline_ns": 2791,
+      "p95_delta_ns": 2875,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "MaskText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 750,
+      "p95_delta_ns": 750,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "MaskText",
+      "input": "removed_base",
+      "p95_baseline_ns": 2167,
+      "p95_delta_ns": 2291,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "ReplaceText",
+      "input": "change",
+      "p95_baseline_ns": 2458,
+      "p95_delta_ns": 3500,
+      "p95_ok": false
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "ReplaceText",
+      "input": "delta_miss",
+      "p95_baseline_ns": 667,
+      "p95_delta_ns": 708,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "ReplaceText",
+      "input": "removed_base",
+      "p95_baseline_ns": 2000,
+      "p95_delta_ns": 2083,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "Scan",
+      "input": "change",
+      "p95_baseline_ns": 2375,
+      "p95_delta_ns": 2542,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "Scan",
+      "input": "delta_miss",
+      "p95_baseline_ns": 666,
+      "p95_delta_ns": 708,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_base_1",
+      "api": "Scan",
+      "input": "removed_base",
+      "p95_baseline_ns": 1958,
+      "p95_delta_ns": 1875,
+      "p95_ok": true
+    },
+    {
+      "kind": "korean",
+      "operation": "add_129_rss",
+      "baseline_bytes": 2552299520,
+      "delta_bytes": 2673360896
+    },
+    {
+      "kind": "korean",
+      "operation": "remove_129_rss",
+      "baseline_bytes": 2552315904,
+      "delta_bytes": 3227467776
+    },
+    {
+      "kind": "korean",
+      "operation": "add_1_compact_rss",
+      "baseline_bytes": 2552315904,
+      "delta_bytes": 3228008448
+    },
+    {
+      "kind": "korean",
+      "operation": "post_compaction_rss",
+      "baseline_bytes": 2552315904,
+      "delta_bytes": 3896754176,
+      "rss_ok": false,
+      "compaction_wait_ms": 1472.955
+    }
+  ]
+}

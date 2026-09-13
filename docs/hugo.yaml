@@ -4,6 +4,16 @@ title: ACOR Docs
 disableKinds:
   - taxonomy
   - term
+module:
+  mounts:
+    - source: ../benchmarks/results/v3-delta-20260914-redis.json
+      target: data/v3delta/redis.json
+    - source: ../benchmarks/results/v3-delta-20260914-valkey.json
+      target: data/v3delta/valkey.json
+    - source: ../benchmarks/results/v3-20260906.json
+      target: data/benchmarks/v3.json
+    - source: ../benchmarks/results/r2-r3-20260906.json
+      target: data/benchmarks/r2r3.json
 caches:
   images:
     dir: :cacheDir/images

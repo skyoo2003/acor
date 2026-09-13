@@ -6,12 +6,18 @@ on:
       - main
     paths:
       - docs/**
+      - 'benchmarks/results/v3-delta-*.json'
+      - 'benchmarks/results/v3-20260906.json'
+      - 'benchmarks/results/r2-r3-20260906.json'
       - .github/workflows/pages.yaml
   pull_request:
     branches:
       - main
     paths:
       - docs/**
+      - 'benchmarks/results/v3-delta-*.json'
+      - 'benchmarks/results/v3-20260906.json'
+      - 'benchmarks/results/r2-r3-20260906.json'
       - .github/workflows/pages.yaml
   workflow_dispatch:
 

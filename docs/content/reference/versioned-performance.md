@@ -33,9 +33,8 @@ environment, not throughput or memory guarantees.
 default prefetch setting exited with SIGSEGV in `hashtableIncrementalFindStep` via
 `prefetchCommandQueueKeys`. The final successful Valkey matrix used
 `prefetch-batch-max-size 0`, so this report does **not** establish support for that build's
-default configuration. The stack excerpt is in
-`benchmarks/results/v3-20260906-valkey-crash.txt`; the library returned an error when the
-server disappeared, and the root cause has not been established. The Valkey source archive
+default configuration. The library returned an error when the server disappeared, and the
+root cause has not been established. The Valkey source archive
 SHA-256 was `19c23908e7d57e8d91ef85b41f5646307582f10f4f0fb999bbf89ed24ec9c983` (tag
 9.1.2), built with `make -j4 valkey-server`. Prefetch was disabled through its existing
 configuration option, without modifying server source.
