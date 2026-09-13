@@ -78,3 +78,42 @@ func TestVersionedOverlayLifecycle(t *testing.T) {
 		t.Fatal(got, err)
 	}
 }
+
+func TestVersionedOverlayCompactionRedisError(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	v, err := OpenVersioned(ctx, &VersionedOptions{
+		Redis:       AhoCorasickArgs{Addr: server.Addr(), Name: "overlay-compact-error"},
+		DeltaSearch: true, PollInterval: time.Hour,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = v.Close() })
+	base := make([]string, 129)
+	for i := range base {
+		base[i] = fmt.Sprintf("word-%03d", i)
+	}
+	r, err := v.Replace(ctx, v.Status().ServingVersion, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, r.Version)
+	r, err = v.Add(ctx, r.Version, "new-word")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, r.Version)
+	current := v.current.Load()
+	if current.base == nil {
+		t.Fatal("expected an overlay")
+	}
+	ready := *current
+	ready.installed = time.Now().Add(-v3CompactDelay)
+	v.current.Store(&ready)
+	server.Close()
+	v.compactIfIdle(ctx)
+	if s := v.Status(); s.LastError == "" || s.ServingVersion != r.Version || !s.DeltaSearch {
+		t.Fatalf("failed compaction changed serving snapshot: %+v", s)
+	}
+}
