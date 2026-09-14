@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"sync/atomic"
@@ -21,13 +22,29 @@ type v3FaultHook struct {
 	failChunks      atomic.Bool
 	suppressPublish bool
 	chunksWritten   atomic.Int64
+	stagePipelines  atomic.Int64
 }
 
 func (h *v3FaultHook) DialHook(next redis.DialHook) redis.DialHook {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) { return next(ctx, network, addr) }
 }
 func (h *v3FaultHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
-	return next
+	return func(ctx context.Context, cmds []redis.Cmder) error {
+		staged := false
+		for _, cmd := range cmds {
+			args := cmd.Args()
+			if cmd.Name() == "eval" && args[1] == v3StageScript {
+				staged = true
+				if strings.Contains(args[5].(string), ":chunk:") {
+					h.chunksWritten.Add(1)
+				}
+			}
+		}
+		if staged {
+			h.stagePipelines.Add(1)
+		}
+		return next(ctx, cmds)
+	}
 }
 func (h *v3FaultHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 	return func(ctx context.Context, cmd redis.Cmder) error {
@@ -91,6 +108,28 @@ func TestVersionedLostCommitReceiptAndReuse(t *testing.T) {
 	}
 	if hook.chunksWritten.Load() != before+1 {
 		t.Fatal("single addition rewrote unaffected buckets")
+	}
+}
+
+func TestVersionedBatchStagesChangedBucketsInOnePipeline(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	v := openV3Test(t, server, "batch-stage")
+	hook := &v3FaultHook{}
+	v.client.AddHook(hook)
+	words := []string{"first"}
+	for i := 0; ; i++ {
+		word := fmt.Sprintf("word-%d", i)
+		if v3BucketNumber(words[0]) != v3BucketNumber(word) {
+			words = append(words, word)
+			break
+		}
+	}
+	if _, err := v.AddMany(ctx, v.Status().ServingVersion, words); err != nil {
+		t.Fatal(err)
+	}
+	if got := hook.stagePipelines.Load(); got != 1 {
+		t.Fatalf("stage pipelines = %d, want 1", got)
 	}
 }
 func TestVersionedPollingAndBuildFailure(t *testing.T) {

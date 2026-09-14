@@ -117,16 +117,19 @@ func (v *VersionedCollection) FindStream(ctx context.Context, r io.Reader, onMat
 
 // FindBatch scans every input against one serving engine, preserving input order.
 func (v *VersionedCollection) FindBatch(ctx context.Context, texts []string) ([][]string, error) {
-	ac, err := v.search(ctx)
-	if err != nil {
+	if err := v.check(ctx); err != nil {
 		return nil, err
+	}
+	e := v.current.Load()
+	if e == nil {
+		return nil, ErrVersionedClosed
 	}
 	out := make([][]string, len(texts))
 	for i, text := range texts {
-		out[i], err = ac.FindContext(ctx, text)
-		if err != nil {
+		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+		out[i] = e.engine.Find(normalizeText(text, v.opts.CaseSensitive))
 	}
 	return out, nil
 }

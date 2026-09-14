@@ -34,6 +34,8 @@ type memEfficientEngine struct {
 	guard *buildGuard
 	trie  mapTrie
 	bloom *bloomFilter
+	// asciiRoot skips Bloom hashing for ASCII characters that cannot start a keyword.
+	asciiRoot [128]bool
 }
 
 func newMemEfficientEngine() *memEfficientEngine {
@@ -123,9 +125,13 @@ func (e *memEfficientEngine) buildFromSequence(keywords iter.Seq[string], count 
 
 	e.trie = trie
 	e.bloom = newBloomFilter(len(firstRunes), 0.01)
+	e.asciiRoot = [128]bool{}
 	for r := range firstRunes {
 		e.guard.check()
 		e.bloom.add(r)
+		if r >= 0 && r < utf8.RuneSelf {
+			e.asciiRoot[r] = true
+		}
 	}
 }
 
@@ -138,7 +144,7 @@ func (e *memEfficientEngine) find(text string) []string {
 	state := 0
 
 	for _, ch := range text {
-		if e.bloom.skipAtRoot(state == 0, ch) {
+		if e.skipAtRoot(state == 0, ch) {
 			continue
 		}
 
@@ -170,7 +176,7 @@ func (e *memEfficientEngine) findSet(text string) []string {
 	state := 0
 
 	for _, ch := range text {
-		if e.bloom.skipAtRoot(state == 0, ch) {
+		if e.skipAtRoot(state == 0, ch) {
 			continue
 		}
 
@@ -201,7 +207,7 @@ func (e *memEfficientEngine) findIndex(text string) map[string][]int {
 	runeIndex := 0
 
 	for _, ch := range text {
-		if e.bloom.skipAtRoot(state == 0, ch) {
+		if e.skipAtRoot(state == 0, ch) {
 			runeIndex++
 			continue
 		}
@@ -235,7 +241,7 @@ func (e *memEfficientEngine) matchString(text string, emit func(keyword string, 
 	runeIndex := 0
 
 	for _, ch := range text {
-		if e.bloom.skipAtRoot(state == 0, ch) {
+		if e.skipAtRoot(state == 0, ch) {
 			runeIndex++
 			continue
 		}
@@ -258,6 +264,16 @@ func (e *memEfficientEngine) matchString(text string, emit func(keyword string, 
 	}
 }
 
+func (e *memEfficientEngine) skipAtRoot(atRoot bool, ch rune) bool {
+	if !atRoot {
+		return false
+	}
+	if ch >= 0 && ch < utf8.RuneSelf {
+		return !e.asciiRoot[ch]
+	}
+	return e.bloom != nil && !e.bloom.mightContain(ch)
+}
+
 func (e *memEfficientEngine) matchStream(next func() (rune, bool), emit func(keyword string, start, end int) bool) {
 	if len(e.trie.nodes) <= 1 {
 		return
@@ -271,7 +287,7 @@ func (e *memEfficientEngine) matchStream(next func() (rune, bool), emit func(key
 		if !ok {
 			return
 		}
-		if e.bloom.skipAtRoot(state == 0, ch) {
+		if e.skipAtRoot(state == 0, ch) {
 			runeIndex++
 			continue
 		}

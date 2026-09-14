@@ -16,6 +16,11 @@ import (
 const v3ChunkBytes = 1 << 20
 const v3Add = "add"
 
+type v3Stage struct {
+	key, registry, id string
+	data              []byte
+}
+
 // Every preparation write is fenced, including writes by an expired process
 // resuming after Prune. Registration and content creation are one atomic step.
 const v3StageScript = v3Now + `
@@ -89,6 +94,7 @@ func (v *VersionedCollection) change(ctx context.Context, expected Version, word
 	}
 	next := *old
 	result := &WriteResult{PreviousVersion: expected, Version: expected, OperationID: v3ID()}
+	stages := make([]v3Stage, 0)
 	var buckets [v3BucketCount][]string
 	for _, w := range normalized {
 		b := v3BucketNumber(w)
@@ -108,22 +114,21 @@ func (v *VersionedCollection) change(ctx context.Context, expected Version, word
 		}
 		result.Added += added
 		result.Removed += removed
-		b, stageErr := v.stageBucket(ctx, l, after)
-		if stageErr != nil {
-			return nil, stageErr
-		}
+		b, bucketStages := v3Stages(after)
+		stages = append(stages, bucketStages...)
 		next.Buckets[i] = b
 	}
-	return v.prepareCommit(ctx, l, &next, result)
+	return v.prepareCommit(ctx, l, &next, result, stages)
 }
-func (v *VersionedCollection) prepareCommit(ctx context.Context, l *v3Lease, next *v3Manifest, result *WriteResult) (*WriteResult, error) {
+func (v *VersionedCollection) prepareCommit(ctx context.Context, l *v3Lease, next *v3Manifest, result *WriteResult, stages []v3Stage) (*WriteResult, error) {
 	if result.Added != 0 || result.Removed != 0 {
 		next.Version = Version(v.id + "." + v3ID())
 		next.Sequence++
 		next.Count += result.Added - result.Removed
 		result.Version = next.Version
 		data, _ := json.Marshal(next)
-		if err := v.stage(ctx, l, "gen:"+string(next.Version), "generations", string(next.Version), data); err != nil {
+		stages = append(stages, v3Stage{key: "gen:" + string(next.Version), registry: "generations", id: string(next.Version), data: data})
+		if err := v.stageAll(ctx, l, stages); err != nil {
 			return nil, err
 		}
 	}
@@ -198,7 +203,38 @@ func (v *VersionedCollection) stage(ctx context.Context, l *v3Lease, key, regist
 	}
 	return nil
 }
+func (v *VersionedCollection) stageAll(ctx context.Context, l *v3Lease, stages []v3Stage) error {
+	if len(stages) == 0 {
+		return nil
+	}
+	cmds := make([]*redis.Cmd, 0, len(stages))
+	_, err := v.client.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		for _, stage := range stages {
+			cmds = append(cmds, pipe.Eval(ctx, v3StageScript,
+				[]string{v.key("maintenance"), v.key("writers"), v.key(stage.key), v.key(stage.registry)},
+				l.member, stage.data, stage.id))
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	for _, cmd := range cmds {
+		ok, err := cmd.Int()
+		if err != nil {
+			return err
+		}
+		if ok != 1 {
+			return ErrLeaseExpired
+		}
+	}
+	return nil
+}
 func (v *VersionedCollection) stageBucket(ctx context.Context, l *v3Lease, words []string) (v3Bucket, error) {
+	b, stages := v3Stages(words)
+	return b, v.stageAll(ctx, l, stages)
+}
+func v3Stages(words []string) (v3Bucket, []v3Stage) {
 	b := v3Bucket{Count: len(words)}
 	if len(words) == 0 {
 		return b, nil
@@ -208,16 +244,14 @@ func (v *VersionedCollection) stageBucket(ctx context.Context, l *v3Lease, words
 	// Size includes JSON quotes, escaping, commas and brackets. Oversize single
 	// keywords form independent chunks and cannot make neighboring chunks exceed 1 MiB.
 	start, size := 0, 2
-	flush := func(end int) error {
+	stages := make([]v3Stage, 0, 1)
+	flush := func(end int) {
 		part, _ := json.Marshal(words[start:end])
 		h := v3Hash(part)
-		if err := v.stage(ctx, l, "chunk:"+h, "chunks", h, part); err != nil {
-			return err
-		}
+		stages = append(stages, v3Stage{key: "chunk:" + h, registry: "chunks", id: h, data: part})
 		b.Chunks = append(b.Chunks, h)
 		start = end
 		size = 2
-		return nil
 	}
 	for i, w := range words {
 		encoded, _ := json.Marshal(w)
@@ -226,17 +260,13 @@ func (v *VersionedCollection) stageBucket(ctx context.Context, l *v3Lease, words
 			n++
 		}
 		if size+n > v3ChunkBytes && i > start {
-			if err := flush(i); err != nil {
-				return b, err
-			}
+			flush(i)
 			n = len(encoded)
 		}
 		size += n
 	}
-	if err := flush(len(words)); err != nil {
-		return b, err
-	}
-	return b, nil
+	flush(len(words))
+	return b, stages
 }
 
 // ResolveOperation retrieves a durable successful commit receipt. redis.Nil
