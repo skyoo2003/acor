@@ -210,3 +210,11 @@ func TestEngineEmptyKeywords(t *testing.T) {
 		})
 	}
 }
+
+func TestMemoryEfficientBuildsASCIIRootIndex(t *testing.T) {
+	e := newMemEfficientEngine()
+	e.buildFromKeywords(keywordSet("alpha", "한국"))
+	if !e.asciiRoot['a'] || e.asciiRoot['z'] {
+		t.Fatalf("ascii root index = a:%v z:%v, want a:true z:false", e.asciiRoot['a'], e.asciiRoot['z'])
+	}
+}

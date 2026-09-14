@@ -164,6 +164,25 @@ func TestVersionedSearchParity(t *testing.T) {
 		t.Fatal(ap, bp)
 	}
 }
+
+func TestVersionedFindBatchAvoidsPerTextAdapterAllocations(t *testing.T) {
+	ctx := context.Background()
+	v := openV3Test(t, miniredis.RunT(t), "batch-search")
+	r, err := v.Replace(ctx, v.Status().ServingVersion, []string{"needle"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, r.Version)
+	allocs := testing.AllocsPerRun(100, func() {
+		found, err := v.FindBatch(ctx, []string{"needle"})
+		if err != nil || !reflect.DeepEqual(found, [][]string{{"needle"}}) {
+			t.Fatal(found, err)
+		}
+	})
+	if allocs > 6 {
+		t.Fatalf("FindBatch allocations = %.0f, want at most 6", allocs)
+	}
+}
 func TestVersionedConcurrentWriters(t *testing.T) {
 	ctx := context.Background()
 	server := miniredis.RunT(t)
