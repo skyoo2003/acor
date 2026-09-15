@@ -9,6 +9,9 @@ weight: 2
 concurrently. The automaton is loaded once per call, so the Redis cost is the same as a
 serial `Find` however many chunks result.
 
+For choosing between ordinary, indexed, streaming, and parallel operations, see the
+[API selection table](../../reference/api/#choosing-a-matching-api).
+
 <!-- doccheck -->
 ```go
 matches, err := ac.FindParallel(largeText, &acor.ParallelOptions{

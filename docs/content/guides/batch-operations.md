@@ -42,6 +42,9 @@ for _, ke := range result.Failed {
 shapes for `BatchResult` and `KeywordError` are in the
 [API reference](../../reference/api/#batchresult).
 
+For sentinel and structured error handling, see the
+[API error-handling guidance](../../reference/api/#error-handling).
+
 ## Scanning many texts
 
 `FindMany` loads the automaton once and scans every text against that one snapshot, so it
