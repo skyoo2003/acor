@@ -5,38 +5,43 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/skyoo2003/acor/pkg/acor"
 )
 
 func main() {
-	ac, err := acor.Create(&acor.AhoCorasickArgs{
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	ac, err := acor.CreateContext(ctx, &acor.AhoCorasickArgs{
 		Addr: "localhost:6379",
 		Name: "example-parallel",
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create: %v\n", err)
+		fmt.Fprintln(os.Stderr, fmt.Errorf("failed to create: %w", err))
 		return
 	}
 	defer func() { _ = ac.Close() }()
 
-	_, err = ac.AddMany([]string{"foo", "bar", "baz"}, nil)
+	_, err = ac.AddManyContext(ctx, []string{"foo", "bar", "baz"}, nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to add keywords: %v\n", err)
+		fmt.Fprintln(os.Stderr, fmt.Errorf("failed to add keywords: %w", err))
 		return
 	}
 
 	largeText := "foo bar baz "
-	matches, err := ac.FindParallel(largeText, &acor.ParallelOptions{
+	matches, err := ac.FindParallelContext(ctx, largeText, &acor.ParallelOptions{
 		Workers:     4,
 		Boundary:    acor.ChunkBoundaryWord,
 		ChunkSize:   1000,
 		AutoOverlap: true,
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to find parallel: %v\n", err)
+		fmt.Fprintln(os.Stderr, fmt.Errorf("failed to find parallel: %w", err))
 		return
 	}
 
