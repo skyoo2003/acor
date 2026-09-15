@@ -110,6 +110,41 @@ func TestVersionedLifecycle(t *testing.T) {
 		t.Fatal(found, err)
 	}
 }
+
+func TestVersionedSmallUpdateUsesSingleEngine(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	v, err := OpenVersioned(ctx, &VersionedOptions{
+		Redis:        AhoCorasickArgs{Addr: server.Addr(), Name: "single-engine"},
+		DeltaSearch:  true,
+		PollInterval: 20 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer v.Close()
+
+	r, err := v.Replace(ctx, v.Status().ServingVersion, []string{"stable"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = v.WaitForVersion(ctx, r.Version); err != nil {
+		t.Fatal(err)
+	}
+	r, err = v.Add(ctx, r.Version, "new")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = v.WaitForVersion(ctx, r.Version); err != nil {
+		t.Fatal(err)
+	}
+	if status := v.Status(); status.DeltaSearch || status.DeltaKeywords != 0 {
+		t.Fatalf("small update used delta search: %+v", status)
+	}
+	if got, err := v.FindSet(ctx, "stable new"); err != nil || !slices.Equal(got, []string{"stable", "new"}) {
+		t.Fatalf("small update search: %v (%v)", got, err)
+	}
+}
 func TestVersionedSearchParity(t *testing.T) {
 	ctx := context.Background()
 	server := miniredis.RunT(t)

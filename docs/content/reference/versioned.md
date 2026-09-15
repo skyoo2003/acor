@@ -82,19 +82,12 @@ A successful write means the Redis commit landed. The calling instance and every
 instance may still be searching the previous engine. `WaitForVersion` waits for that
 commit or a later one and honors cancellation. `Status` exposes the observed active
 version, the serving version, build start and duration, and the most recent error.
-`DeltaSearch` and `DeltaKeywords` report whether the serving version uses a small
-change set and how many additions and deletions it contains.
-
-Set `VersionedOptions.DeltaSearch` to enable the experimental small-update path for
-`MemoryEfficient`. Changes of at most 128 keywords download only changed buckets and
-publish a base automaton plus an additions automaton and deletion set. `WaitForVersion`
-completes when this search view is ready. After one second without another change, a
-background build replaces it with a full automaton; later changes or build failures
-leave the published search view intact. Larger changes and other presets continue to
-use the full rebuild path. This option remains off by default pending million-keyword
-Redis and Valkey latency, search p95, and peak RSS validation. The
-[delta-search validation report](../versioned-delta-validation/) records the
-release gate and measurements against the full rebuild path.
+`DeltaSearch` and `DeltaKeywords` remain in the status and option types for source
+compatibility. V3 currently serves one immutable engine for every version, regardless
+of `VersionedOptions.DeltaSearch`; both fields report false and zero. This avoids the
+experimental two-automaton search path, whose million-keyword measurements showed
+search p95 and peak RSS regressions. The historical [delta-search validation report](../versioned-delta-validation/)
+records those measurements.
 
 | Refresh behavior | |
 |---|---|
