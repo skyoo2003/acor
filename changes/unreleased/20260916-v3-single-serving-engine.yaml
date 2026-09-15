@@ -1,0 +1,5 @@
+kind: Changed
+body: 'V3 now serves one immutable engine for every version, removing the experimental two-automaton overlay while retaining DeltaSearch option and status compatibility.'
+time: 2026-09-16T00:00:00+09:00
+custom:
+  Issue: "260"

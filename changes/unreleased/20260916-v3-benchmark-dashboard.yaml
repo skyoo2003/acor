@@ -1,0 +1,5 @@
+kind: Added
+body: 'Added a V3 benchmark dashboard and validation reports covering Redis and Valkey performance at up to one million keywords.'
+time: 2026-09-16T00:00:00+09:00
+custom:
+  Issue: "256"
