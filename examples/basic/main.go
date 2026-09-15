@@ -6,40 +6,45 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/skyoo2003/acor/pkg/acor"
 )
 
 func main() {
-	ac, err := acor.Create(&acor.AhoCorasickArgs{
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	ac, err := acor.CreateContext(ctx, &acor.AhoCorasickArgs{
 		Addr: "localhost:6379",
 		Name: "example-basic",
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create: %v\n", err)
+		fmt.Fprintln(os.Stderr, fmt.Errorf("failed to create: %w", err))
 		return
 	}
 	defer func() { _ = ac.Close() }()
 
 	keywords := []string{"he", "she", "his", "hers"}
 	for _, kw := range keywords {
-		if _, addErr := ac.Add(kw); addErr != nil {
-			fmt.Fprintf(os.Stderr, "failed to add keyword: %v\n", addErr)
+		if _, addErr := ac.AddContext(ctx, kw); addErr != nil {
+			fmt.Fprintln(os.Stderr, fmt.Errorf("failed to add keyword: %w", addErr))
 			return
 		}
 	}
 
-	matches, err := ac.Find("ushers")
+	matches, err := ac.FindContext(ctx, "ushers")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to find: %v\n", err)
+		fmt.Fprintln(os.Stderr, fmt.Errorf("failed to find: %w", err))
 		return
 	}
 
 	fmt.Println(matches)
 
-	if err := ac.Flush(); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to flush: %v\n", err)
+	if err := ac.FlushContext(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, fmt.Errorf("failed to flush: %w", err))
 	}
 }

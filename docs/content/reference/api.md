@@ -109,6 +109,24 @@ See [Batch Operations](../../guides/batch-operations/) for the modes and result 
 
 All positions are **rune** offsets, not byte offsets.
 
+## Choosing a matching API
+
+Use the narrowest operation that matches the input and result you need:
+
+| Need | Use | Result/constraint |
+| --- | --- | --- |
+| Know which keywords occur | `FindContext` | One entry per occurrence; use `FindSetContext` for unique keywords |
+| Need every occurrence or spans | `FindMatchesContext` | `Match` values with rune `[Start, End)` spans and selectable match kind |
+| Stop after the first match | `ContainsContext` | Boolean result |
+| Scan an `io.Reader` | `FindStreamContext` | Incremental overlapping matches; callback `false` stops |
+| Scan several bounded strings | `FindManyContext` | One loaded engine and results keyed by input text |
+| Scan one large string concurrently | `FindParallelContext` / `FindIndexParallelContext` | Required positive `ChunkSize`; use `AutoOverlap` for boundary safety |
+| Process bounded text with rewrite or work limits | `Scan`, `MaskText`, `ReplaceText` | V3/versioned text-processing APIs with explicit options |
+
+The non-context methods remain useful for callers that do not need per-operation
+cancellation. Use the `*Context` form when the call may contact Redis or needs a
+timeout or cancellation deadline.
+
 ### FindMatches
 
 Every occurrence in scan order with its half-open rune span `[Start, End)`. The default
@@ -214,6 +232,30 @@ type KeywordError struct {
     Error   error
 }
 ```
+
+## Error handling
+
+Use `errors.Is` for sentinel errors and `errors.As` for structured errors. Do
+not match error strings:
+
+<!-- doccheck -->
+```go
+err := acor.ErrConcurrencyConflict // replace with the error returned by an operation
+if errors.Is(err, acor.ErrConcurrencyConflict) {
+	// The library already exhausted its internal write retries.
+}
+
+var redisErr *acor.RedisError
+if errors.As(err, &redisErr) {
+	fmt.Printf("Redis operation %s failed for %q: %v\n", redisErr.Op, redisErr.Key, redisErr.Err)
+}
+```
+
+For best-effort batches, the call returns a `BatchResult`; per-keyword failures
+are in `result.Failed` and successful work remains committed. For transactional
+batches, a failure returns an error after the batch is rolled back. An entry in
+`result.Skipped` is not an error: it represents a duplicate add or an absent
+remove.
 
 ## Statistics
 
