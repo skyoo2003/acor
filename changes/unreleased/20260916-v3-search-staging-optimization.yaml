@@ -1,0 +1,5 @@
+kind: Changed
+body: 'Optimized V3 search scanning and batched Redis staging to reduce work for common ASCII inputs and multi-bucket updates.'
+time: 2026-09-16T00:00:00+09:00
+custom:
+  Issue: "259"
