@@ -10,32 +10,50 @@ weight: 2
 package main
 
 import (
-    "fmt"
+	"context"
+	"fmt"
+	"log"
+	"time"
 
-    "github.com/skyoo2003/acor/pkg/acor"
+	"github.com/skyoo2003/acor/pkg/acor"
 )
 
 func main() {
-    ac, err := acor.Create(&acor.AhoCorasickArgs{
-        Addr: "localhost:6379",
-        Name: "sample",
-    })
-    if err != nil {
-        panic(err)
-    }
-    defer ac.Close()
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
 
-    if _, err := ac.AddMany([]string{"he", "her", "him"}, nil); err != nil {
-        panic(err)
-    }
+func run() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-    matched, err := ac.Find("he is him")
-    if err != nil {
-        panic(err)
-    }
-    fmt.Println(matched)
+	ac, err := acor.CreateContext(ctx, &acor.AhoCorasickArgs{
+		Addr: "localhost:6379",
+		Name: "sample",
+	})
+	if err != nil {
+		return fmt.Errorf("create collection: %w", err)
+	}
+	defer func() { _ = ac.Close() }()
+
+	if _, err := ac.AddManyContext(ctx, []string{"he", "her", "him"}, nil); err != nil {
+		return fmt.Errorf("add keywords: %w", err)
+	}
+
+	matched, err := ac.FindMatchesContext(ctx, "he is him", nil)
+	if err != nil {
+		return fmt.Errorf("find matches: %w", err)
+	}
+	fmt.Println(matched)
+	return nil
 }
 ```
+
+The setup context bounds construction I/O only. `Close` controls the instance
+lifetime; use the `*Context` methods when an operation needs cancellation or a
+timeout. The [API reference](../../reference/api/#creating-a-collection) documents
+the full constructor and lifecycle contract.
 
 ## Redis topologies
 
