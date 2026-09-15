@@ -66,12 +66,6 @@ func (bf *bloomFilter) memoryBytes() int64 {
 	return int64(len(bf.bits)) * 8
 }
 
-// skipAtRoot reports whether ch can be skipped: it cannot start any keyword and
-// traversal is at the root state. A nil filter never skips (pre-filter disabled).
-func (bf *bloomFilter) skipAtRoot(atRoot bool, r rune) bool {
-	return bf != nil && atRoot && !bf.mightContain(r)
-}
-
 func (bf *bloomFilter) hashPair(r rune) (hash1, hash2 uint64) { //nolint:gosec
 	var h1 uint64 = 14695981039346656037
 	h1 ^= uint64(r) //nolint:gosec

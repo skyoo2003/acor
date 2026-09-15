@@ -14,7 +14,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 )
 
-//nolint:gocyclo,funlen // One scenario compares every public search entry point at the same overlay version.
+//nolint:gocyclo,funlen // One scenario compares every public search entry point at the same V3 version.
 func TestVersionedOverlaySearchAPIParity(t *testing.T) {
 	ctx := context.Background()
 	server := miniredis.RunT(t)
@@ -28,7 +28,7 @@ func TestVersionedOverlaySearchAPIParity(t *testing.T) {
 		t.Cleanup(func() { _ = v.Close() })
 		return v
 	}
-	delta := open("overlay-api-parity", true)
+	delta := open("single-engine-api-parity", true)
 	full := open("full-api-parity", false)
 	base := []string{"he", "old", "한국", "aa"}
 	for i := 0; i < 129; i++ {
@@ -51,8 +51,8 @@ func TestVersionedOverlaySearchAPIParity(t *testing.T) {
 		}
 		waitV3(t, v, r.Version)
 	}
-	if status := delta.Status(); !status.DeltaSearch || status.DeltaKeywords != 5 {
-		t.Fatalf("expected composed overlay, got %+v", status)
+	if status := delta.Status(); status.DeltaSearch || status.DeltaKeywords != 0 {
+		t.Fatalf("expected single engine, got %+v", status)
 	}
 	text := strings.Repeat("ushers old 한국어 aaaa word-001 ", 5)
 	compare := func(name string, a, b any, errA, errB error) {
@@ -109,20 +109,11 @@ func TestVersionedOverlaySearchAPIParity(t *testing.T) {
 		breplace, be := full.ReplaceText(ctx, input, "[x]", nil)
 		compare("ReplaceText", areplace, breplace, ae, be)
 	}
-	if delta.Status().DeltaSearch {
-		deadline := time.Now().Add(5 * time.Second)
-		for delta.Status().DeltaSearch && time.Now().Before(deadline) {
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
-	if delta.Status().DeltaSearch {
-		t.Fatal("compaction did not complete")
-	}
 	a, ea = delta.Find(ctx, text)
-	compare("post-compaction Find", a, b, ea, eb)
+	compare("post-refresh Find", a, b, ea, eb)
 }
 
-func TestVersionedOverlayFallsBackAboveLimit(t *testing.T) {
+func TestVersionedDeltaOptionUsesSingleEngine(t *testing.T) {
 	ctx := context.Background()
 	server := miniredis.RunT(t)
 	v, err := OpenVersioned(ctx, &VersionedOptions{Redis: AhoCorasickArgs{Addr: server.Addr(), Name: "overlay-limit"},
@@ -147,8 +138,8 @@ func TestVersionedOverlayFallsBackAboveLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitV3(t, v, r.Version)
-	if s := v.Status(); !s.DeltaSearch || s.DeltaKeywords != 128 {
-		t.Fatalf("limit case: %+v", s)
+	if s := v.Status(); s.DeltaSearch || s.DeltaKeywords != 0 {
+		t.Fatalf("single-engine case: %+v", s)
 	}
 	r, err = v.Add(ctx, r.Version, change[128])
 	if err != nil {
@@ -156,11 +147,11 @@ func TestVersionedOverlayFallsBackAboveLimit(t *testing.T) {
 	}
 	waitV3(t, v, r.Version)
 	if s := v.Status(); s.DeltaSearch || s.DeltaKeywords != 0 {
-		t.Fatalf("above-limit fallback: %+v", s)
+		t.Fatalf("second update: %+v", s)
 	}
 }
 
-func TestVersionedOverlayRapidUpdates(t *testing.T) {
+func TestVersionedRapidUpdatesUseSingleEngine(t *testing.T) {
 	ctx := context.Background()
 	server := miniredis.RunT(t)
 	v, err := OpenVersioned(ctx, &VersionedOptions{Redis: AhoCorasickArgs{Addr: server.Addr(), Name: "overlay-rapid"},
@@ -185,18 +176,11 @@ func TestVersionedOverlayRapidUpdates(t *testing.T) {
 		}
 		waitV3(t, v, r.Version)
 	}
-	if s := v.Status(); !s.DeltaSearch || s.DeltaKeywords != 20 || s.ServingVersion != r.Version {
-		t.Fatalf("latest update not served by overlay: %+v", s)
+	if s := v.Status(); s.DeltaSearch || s.DeltaKeywords != 0 || s.ServingVersion != r.Version {
+		t.Fatalf("latest update not served by single engine: %+v", s)
 	}
 	if got, err := v.FindSet(ctx, "new-000 new-019 base-001"); err != nil ||
 		!reflect.DeepEqual(got, []string{"new-000", "new-019", "base-001"}) {
 		t.Fatal("latest search", got, err)
-	}
-	deadline := time.Now().Add(5 * time.Second)
-	for v.Status().DeltaSearch && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
-	if s := v.Status(); s.DeltaSearch || s.ServingVersion != r.Version {
-		t.Fatalf("compaction lost latest version: %+v", s)
 	}
 }
