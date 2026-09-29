@@ -27,8 +27,11 @@ It mirrors the [HTTP API](../http-api/) one for one. The `main` that serves it i
 | `Flush` | `EmptyRequest` | `StatusResponse{status}` |
 | `Status` | `EmptyRequest` | `VersionedStatusResponse{status, versions, refresh state}` |
 
-All nine are unary; full method names are `/acor.server.v1.Acor/<RPC>`. `Status` is served
-by `server.NewVersionedGRPCServer` for V3 and is unimplemented on the legacy server.
+All methods are unary; full method names are `/acor.server.v1.Acor/<RPC>`. `Status` and the
+V3-only methods are served by `server.NewVersionedGRPCServer` and are unimplemented on the
+legacy server. V3 adds `VersionedFind`, `VersionedScan`, `VersionedMask`,
+`VersionedReplaceText`, five expected-version write RPCs, `VersionedWait`, and
+`ResolveOperation`. Their wire fields mirror the V3 HTTP routes.
 
 Two shapes differ from HTTP:
 
@@ -52,11 +55,11 @@ examples](../http-api/).
 
 ## Errors
 
-Every error from the collection becomes `codes.Internal` with the error's own text as the
-message — the same flattening as the HTTP blanket `500`. No RPC returns `InvalidArgument`,
-`NotFound`, or `FailedPrecondition`; a write to a read-only V1 collection is `Internal`.
-Telling a caller mistake from a Redis outage means matching on message text, which is not
-part of any promise.
+Legacy RPC errors remain `codes.Internal`. V3 maps invalid input and limits to
+`InvalidArgument`, expected-version conflicts to `Aborted`, missing operation receipts to
+`NotFound`, and maintenance or a closed collection to `Unavailable`. An ambiguous V3 commit
+returns a normal `VersionedWriteResponse` with `outcome == "unknown"` and an operation ID;
+recover it with `ResolveOperation` rather than retrying the write.
 
 ## Deadlines do not cancel the work
 
@@ -81,8 +84,8 @@ The [HTTP API](../http-api/) behaves identically.
 ```go
 server.NewGRPCServer(service, opts...)                            // bare
 server.NewGRPCServerWithObservability(ctx, service, obs, opts...) // + observability
-server.NewVersionedGRPCServer(v3, opts...)                        // V3 status only
-server.NewVersionedGRPCServerWithMetrics(v3, registry, opts...)   // V3 status + gauges
+server.NewVersionedGRPCServer(v3, opts...)                        // V3 API
+server.NewVersionedGRPCServerWithMetrics(v3, registry, opts...)   // V3 API + gauges
 ```
 
 Both accept any `grpc.ServerOption`, including `grpc.Creds` for TLS, and both leave

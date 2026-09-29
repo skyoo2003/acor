@@ -13,9 +13,24 @@ below. The `main` that mounts it is [Running a Server](../running/).
 > and shapes can change in any release.
 
 For a V3 collection, use `server.NewVersionedHTTPHandler(collection)` as a separate
-read-only handler. It exposes only `/healthz` and `/v1/status`; V3 writes still require
-the expected-version library API. Pass an optional `server/metrics.Registry` to update
-the bounded `acor_versioned_*` gauges whenever a status request is served.
+handler. It retains `/healthz` and `/v1/status`, and exposes versioned searching, bounded
+text transformation, and expected-version writes under `/v1/versioned/`. Pass an optional
+`server/metrics.Registry` to update the bounded `acor_versioned_*` gauges whenever a
+status request is served.
+
+V3 routes are all `POST`: `find`, `scan`, `mask`, `replace-text`, `replace`, `add`,
+`remove`, `add-many`, `remove-many`, `wait`, and `resolve-operation`. Write requests carry
+`expected_version`; their response carries `previous_version`, `version`, `operation_id`,
+`added`, and `removed`. A write confirms the Redis commit, not that this server is already
+searching the new engine. Call `wait` with the returned version when read-after-write is
+needed. A `202` response with `outcome:"unknown"` carries the operation ID for safe
+`resolve-operation` recovery; never blindly reapply it.
+
+`scan` returns original byte and rune spans and accepts `max_input_bytes`, `max_matches`,
+`max_candidates`, `kind`, and `whole_word`. `mask` takes exactly one Unicode-rune `mask`;
+`replace-text` takes a literal `replacement`. The callback-only `WordRune` option is not
+serializable and remains available only in the Go API. V3 requests use the same 1 MiB body
+cap as the legacy handler.
 
 ## Endpoints
 
@@ -87,6 +102,8 @@ Every failure the handler produces is `{"error":"<message>"}` with
 | `400` | Body holds more than one JSON value | `{"error":"request body must contain only a single JSON value"}` |
 | `405` | Wrong method for the path | `{"error":"method not allowed"}` |
 | `413` | Reading the body reaches the 1 MiB cap | `{"error":"request body must not be larger than 1048576 bytes"}` |
+| `409` | V3 expected-version conflict | `{"error":"..."}` |
+| `503` | V3 maintenance or closed collection | `{"error":"..."}` |
 | `500` | Any error from the underlying collection | `{"error":"<the error's own text>"}` |
 | `404` | No such path | **`text/plain`**, `404 page not found` |
 | `301` | Path needs canonicalizing (`/v1//info`) | **`text/html`**, Go's `Moved Permanently` page |

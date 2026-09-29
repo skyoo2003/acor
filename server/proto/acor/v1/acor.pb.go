@@ -521,6 +521,654 @@ func (x *VersionedStatusResponse) GetActiveLeases() int64 {
 	return 0
 }
 
+type VersionedInputRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Input         string                 `protobuf:"bytes,1,opt,name=input,proto3" json:"input,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VersionedInputRequest) Reset() {
+	*x = VersionedInputRequest{}
+	mi := &file_acor_v1_acor_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VersionedInputRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VersionedInputRequest) ProtoMessage() {}
+
+func (x *VersionedInputRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_acor_v1_acor_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VersionedInputRequest.ProtoReflect.Descriptor instead.
+func (*VersionedInputRequest) Descriptor() ([]byte, []int) {
+	return file_acor_v1_acor_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *VersionedInputRequest) GetInput() string {
+	if x != nil {
+		return x.Input
+	}
+	return ""
+}
+
+type VersionedScanRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Input         string                 `protobuf:"bytes,1,opt,name=input,proto3" json:"input,omitempty"`
+	MaxInputBytes int64                  `protobuf:"varint,2,opt,name=max_input_bytes,json=maxInputBytes,proto3" json:"max_input_bytes,omitempty"`
+	MaxMatches    int64                  `protobuf:"varint,3,opt,name=max_matches,json=maxMatches,proto3" json:"max_matches,omitempty"`
+	MaxCandidates int64                  `protobuf:"varint,4,opt,name=max_candidates,json=maxCandidates,proto3" json:"max_candidates,omitempty"`
+	Kind          int32                  `protobuf:"varint,5,opt,name=kind,proto3" json:"kind,omitempty"`
+	WholeWord     bool                   `protobuf:"varint,6,opt,name=whole_word,json=wholeWord,proto3" json:"whole_word,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VersionedScanRequest) Reset() {
+	*x = VersionedScanRequest{}
+	mi := &file_acor_v1_acor_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VersionedScanRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VersionedScanRequest) ProtoMessage() {}
+
+func (x *VersionedScanRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_acor_v1_acor_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VersionedScanRequest.ProtoReflect.Descriptor instead.
+func (*VersionedScanRequest) Descriptor() ([]byte, []int) {
+	return file_acor_v1_acor_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *VersionedScanRequest) GetInput() string {
+	if x != nil {
+		return x.Input
+	}
+	return ""
+}
+
+func (x *VersionedScanRequest) GetMaxInputBytes() int64 {
+	if x != nil {
+		return x.MaxInputBytes
+	}
+	return 0
+}
+
+func (x *VersionedScanRequest) GetMaxMatches() int64 {
+	if x != nil {
+		return x.MaxMatches
+	}
+	return 0
+}
+
+func (x *VersionedScanRequest) GetMaxCandidates() int64 {
+	if x != nil {
+		return x.MaxCandidates
+	}
+	return 0
+}
+
+func (x *VersionedScanRequest) GetKind() int32 {
+	if x != nil {
+		return x.Kind
+	}
+	return 0
+}
+
+func (x *VersionedScanRequest) GetWholeWord() bool {
+	if x != nil {
+		return x.WholeWord
+	}
+	return false
+}
+
+type VersionedRewriteRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Input          string                 `protobuf:"bytes,1,opt,name=input,proto3" json:"input,omitempty"`
+	Replacement    string                 `protobuf:"bytes,2,opt,name=replacement,proto3" json:"replacement,omitempty"`
+	Mask           string                 `protobuf:"bytes,3,opt,name=mask,proto3" json:"mask,omitempty"`
+	MaxInputBytes  int64                  `protobuf:"varint,4,opt,name=max_input_bytes,json=maxInputBytes,proto3" json:"max_input_bytes,omitempty"`
+	MaxMatches     int64                  `protobuf:"varint,5,opt,name=max_matches,json=maxMatches,proto3" json:"max_matches,omitempty"`
+	MaxCandidates  int64                  `protobuf:"varint,6,opt,name=max_candidates,json=maxCandidates,proto3" json:"max_candidates,omitempty"`
+	MaxOutputBytes int64                  `protobuf:"varint,7,opt,name=max_output_bytes,json=maxOutputBytes,proto3" json:"max_output_bytes,omitempty"`
+	WholeWord      bool                   `protobuf:"varint,8,opt,name=whole_word,json=wholeWord,proto3" json:"whole_word,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *VersionedRewriteRequest) Reset() {
+	*x = VersionedRewriteRequest{}
+	mi := &file_acor_v1_acor_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VersionedRewriteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VersionedRewriteRequest) ProtoMessage() {}
+
+func (x *VersionedRewriteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_acor_v1_acor_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VersionedRewriteRequest.ProtoReflect.Descriptor instead.
+func (*VersionedRewriteRequest) Descriptor() ([]byte, []int) {
+	return file_acor_v1_acor_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *VersionedRewriteRequest) GetInput() string {
+	if x != nil {
+		return x.Input
+	}
+	return ""
+}
+
+func (x *VersionedRewriteRequest) GetReplacement() string {
+	if x != nil {
+		return x.Replacement
+	}
+	return ""
+}
+
+func (x *VersionedRewriteRequest) GetMask() string {
+	if x != nil {
+		return x.Mask
+	}
+	return ""
+}
+
+func (x *VersionedRewriteRequest) GetMaxInputBytes() int64 {
+	if x != nil {
+		return x.MaxInputBytes
+	}
+	return 0
+}
+
+func (x *VersionedRewriteRequest) GetMaxMatches() int64 {
+	if x != nil {
+		return x.MaxMatches
+	}
+	return 0
+}
+
+func (x *VersionedRewriteRequest) GetMaxCandidates() int64 {
+	if x != nil {
+		return x.MaxCandidates
+	}
+	return 0
+}
+
+func (x *VersionedRewriteRequest) GetMaxOutputBytes() int64 {
+	if x != nil {
+		return x.MaxOutputBytes
+	}
+	return 0
+}
+
+func (x *VersionedRewriteRequest) GetWholeWord() bool {
+	if x != nil {
+		return x.WholeWord
+	}
+	return false
+}
+
+type SourceMatch struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Keyword       string                 `protobuf:"bytes,1,opt,name=keyword,proto3" json:"keyword,omitempty"`
+	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	Start         int64                  `protobuf:"varint,3,opt,name=start,proto3" json:"start,omitempty"`
+	End           int64                  `protobuf:"varint,4,opt,name=end,proto3" json:"end,omitempty"`
+	ByteStart     int64                  `protobuf:"varint,5,opt,name=byte_start,json=byteStart,proto3" json:"byte_start,omitempty"`
+	ByteEnd       int64                  `protobuf:"varint,6,opt,name=byte_end,json=byteEnd,proto3" json:"byte_end,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SourceMatch) Reset() {
+	*x = SourceMatch{}
+	mi := &file_acor_v1_acor_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SourceMatch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SourceMatch) ProtoMessage() {}
+
+func (x *SourceMatch) ProtoReflect() protoreflect.Message {
+	mi := &file_acor_v1_acor_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SourceMatch.ProtoReflect.Descriptor instead.
+func (*SourceMatch) Descriptor() ([]byte, []int) {
+	return file_acor_v1_acor_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *SourceMatch) GetKeyword() string {
+	if x != nil {
+		return x.Keyword
+	}
+	return ""
+}
+
+func (x *SourceMatch) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *SourceMatch) GetStart() int64 {
+	if x != nil {
+		return x.Start
+	}
+	return 0
+}
+
+func (x *SourceMatch) GetEnd() int64 {
+	if x != nil {
+		return x.End
+	}
+	return 0
+}
+
+func (x *SourceMatch) GetByteStart() int64 {
+	if x != nil {
+		return x.ByteStart
+	}
+	return 0
+}
+
+func (x *SourceMatch) GetByteEnd() int64 {
+	if x != nil {
+		return x.ByteEnd
+	}
+	return 0
+}
+
+type VersionedScanResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Matches       []*SourceMatch         `protobuf:"bytes,1,rep,name=matches,proto3" json:"matches,omitempty"`
+	Truncated     bool                   `protobuf:"varint,2,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VersionedScanResponse) Reset() {
+	*x = VersionedScanResponse{}
+	mi := &file_acor_v1_acor_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VersionedScanResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VersionedScanResponse) ProtoMessage() {}
+
+func (x *VersionedScanResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_acor_v1_acor_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VersionedScanResponse.ProtoReflect.Descriptor instead.
+func (*VersionedScanResponse) Descriptor() ([]byte, []int) {
+	return file_acor_v1_acor_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *VersionedScanResponse) GetMatches() []*SourceMatch {
+	if x != nil {
+		return x.Matches
+	}
+	return nil
+}
+
+func (x *VersionedScanResponse) GetTruncated() bool {
+	if x != nil {
+		return x.Truncated
+	}
+	return false
+}
+
+type VersionedRewriteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Text          string                 `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
+	Matches       []*SourceMatch         `protobuf:"bytes,2,rep,name=matches,proto3" json:"matches,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VersionedRewriteResponse) Reset() {
+	*x = VersionedRewriteResponse{}
+	mi := &file_acor_v1_acor_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VersionedRewriteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VersionedRewriteResponse) ProtoMessage() {}
+
+func (x *VersionedRewriteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_acor_v1_acor_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VersionedRewriteResponse.ProtoReflect.Descriptor instead.
+func (*VersionedRewriteResponse) Descriptor() ([]byte, []int) {
+	return file_acor_v1_acor_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *VersionedRewriteResponse) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *VersionedRewriteResponse) GetMatches() []*SourceMatch {
+	if x != nil {
+		return x.Matches
+	}
+	return nil
+}
+
+type VersionedWriteRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ExpectedVersion string                 `protobuf:"bytes,1,opt,name=expected_version,json=expectedVersion,proto3" json:"expected_version,omitempty"`
+	Keyword         string                 `protobuf:"bytes,2,opt,name=keyword,proto3" json:"keyword,omitempty"`
+	Keywords        []string               `protobuf:"bytes,3,rep,name=keywords,proto3" json:"keywords,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *VersionedWriteRequest) Reset() {
+	*x = VersionedWriteRequest{}
+	mi := &file_acor_v1_acor_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VersionedWriteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VersionedWriteRequest) ProtoMessage() {}
+
+func (x *VersionedWriteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_acor_v1_acor_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VersionedWriteRequest.ProtoReflect.Descriptor instead.
+func (*VersionedWriteRequest) Descriptor() ([]byte, []int) {
+	return file_acor_v1_acor_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *VersionedWriteRequest) GetExpectedVersion() string {
+	if x != nil {
+		return x.ExpectedVersion
+	}
+	return ""
+}
+
+func (x *VersionedWriteRequest) GetKeyword() string {
+	if x != nil {
+		return x.Keyword
+	}
+	return ""
+}
+
+func (x *VersionedWriteRequest) GetKeywords() []string {
+	if x != nil {
+		return x.Keywords
+	}
+	return nil
+}
+
+type VersionedWriteResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	PreviousVersion string                 `protobuf:"bytes,1,opt,name=previous_version,json=previousVersion,proto3" json:"previous_version,omitempty"`
+	Version         string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	OperationId     string                 `protobuf:"bytes,3,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	Added           int64                  `protobuf:"varint,4,opt,name=added,proto3" json:"added,omitempty"`
+	Removed         int64                  `protobuf:"varint,5,opt,name=removed,proto3" json:"removed,omitempty"`
+	Outcome         string                 `protobuf:"bytes,6,opt,name=outcome,proto3" json:"outcome,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *VersionedWriteResponse) Reset() {
+	*x = VersionedWriteResponse{}
+	mi := &file_acor_v1_acor_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VersionedWriteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VersionedWriteResponse) ProtoMessage() {}
+
+func (x *VersionedWriteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_acor_v1_acor_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VersionedWriteResponse.ProtoReflect.Descriptor instead.
+func (*VersionedWriteResponse) Descriptor() ([]byte, []int) {
+	return file_acor_v1_acor_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *VersionedWriteResponse) GetPreviousVersion() string {
+	if x != nil {
+		return x.PreviousVersion
+	}
+	return ""
+}
+
+func (x *VersionedWriteResponse) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *VersionedWriteResponse) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
+}
+
+func (x *VersionedWriteResponse) GetAdded() int64 {
+	if x != nil {
+		return x.Added
+	}
+	return 0
+}
+
+func (x *VersionedWriteResponse) GetRemoved() int64 {
+	if x != nil {
+		return x.Removed
+	}
+	return 0
+}
+
+func (x *VersionedWriteResponse) GetOutcome() string {
+	if x != nil {
+		return x.Outcome
+	}
+	return ""
+}
+
+type VersionedWaitRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Version       string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VersionedWaitRequest) Reset() {
+	*x = VersionedWaitRequest{}
+	mi := &file_acor_v1_acor_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VersionedWaitRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VersionedWaitRequest) ProtoMessage() {}
+
+func (x *VersionedWaitRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_acor_v1_acor_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VersionedWaitRequest.ProtoReflect.Descriptor instead.
+func (*VersionedWaitRequest) Descriptor() ([]byte, []int) {
+	return file_acor_v1_acor_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *VersionedWaitRequest) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+type ResolveOperationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OperationId   string                 `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolveOperationRequest) Reset() {
+	*x = ResolveOperationRequest{}
+	mi := &file_acor_v1_acor_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolveOperationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolveOperationRequest) ProtoMessage() {}
+
+func (x *ResolveOperationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_acor_v1_acor_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolveOperationRequest.ProtoReflect.Descriptor instead.
+func (*ResolveOperationRequest) Descriptor() ([]byte, []int) {
+	return file_acor_v1_acor_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ResolveOperationRequest) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
+}
+
 var File_acor_v1_acor_proto protoreflect.FileDescriptor
 
 const file_acor_v1_acor_proto_rawDesc = "" +
@@ -555,7 +1203,58 @@ const file_acor_v1_acor_proto_rawDesc = "" +
 	"\x14last_refresh_success\x18\x05 \x01(\tR\x12lastRefreshSuccess\x120\n" +
 	"\x14last_refresh_failure\x18\x06 \x01(\tR\x12lastRefreshFailure\x12)\n" +
 	"\x10refresh_failures\x18\a \x01(\x04R\x0frefreshFailures\x12#\n" +
-	"\ractive_leases\x18\b \x01(\x03R\factiveLeases2\xa7\x05\n" +
+	"\ractive_leases\x18\b \x01(\x03R\factiveLeases\"-\n" +
+	"\x15VersionedInputRequest\x12\x14\n" +
+	"\x05input\x18\x01 \x01(\tR\x05input\"\xcf\x01\n" +
+	"\x14VersionedScanRequest\x12\x14\n" +
+	"\x05input\x18\x01 \x01(\tR\x05input\x12&\n" +
+	"\x0fmax_input_bytes\x18\x02 \x01(\x03R\rmaxInputBytes\x12\x1f\n" +
+	"\vmax_matches\x18\x03 \x01(\x03R\n" +
+	"maxMatches\x12%\n" +
+	"\x0emax_candidates\x18\x04 \x01(\x03R\rmaxCandidates\x12\x12\n" +
+	"\x04kind\x18\x05 \x01(\x05R\x04kind\x12\x1d\n" +
+	"\n" +
+	"whole_word\x18\x06 \x01(\bR\twholeWord\"\x9e\x02\n" +
+	"\x17VersionedRewriteRequest\x12\x14\n" +
+	"\x05input\x18\x01 \x01(\tR\x05input\x12 \n" +
+	"\vreplacement\x18\x02 \x01(\tR\vreplacement\x12\x12\n" +
+	"\x04mask\x18\x03 \x01(\tR\x04mask\x12&\n" +
+	"\x0fmax_input_bytes\x18\x04 \x01(\x03R\rmaxInputBytes\x12\x1f\n" +
+	"\vmax_matches\x18\x05 \x01(\x03R\n" +
+	"maxMatches\x12%\n" +
+	"\x0emax_candidates\x18\x06 \x01(\x03R\rmaxCandidates\x12(\n" +
+	"\x10max_output_bytes\x18\a \x01(\x03R\x0emaxOutputBytes\x12\x1d\n" +
+	"\n" +
+	"whole_word\x18\b \x01(\bR\twholeWord\"\x9d\x01\n" +
+	"\vSourceMatch\x12\x18\n" +
+	"\akeyword\x18\x01 \x01(\tR\akeyword\x12\x12\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\x12\x14\n" +
+	"\x05start\x18\x03 \x01(\x03R\x05start\x12\x10\n" +
+	"\x03end\x18\x04 \x01(\x03R\x03end\x12\x1d\n" +
+	"\n" +
+	"byte_start\x18\x05 \x01(\x03R\tbyteStart\x12\x19\n" +
+	"\bbyte_end\x18\x06 \x01(\x03R\abyteEnd\"l\n" +
+	"\x15VersionedScanResponse\x125\n" +
+	"\amatches\x18\x01 \x03(\v2\x1b.acor.server.v1.SourceMatchR\amatches\x12\x1c\n" +
+	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"e\n" +
+	"\x18VersionedRewriteResponse\x12\x12\n" +
+	"\x04text\x18\x01 \x01(\tR\x04text\x125\n" +
+	"\amatches\x18\x02 \x03(\v2\x1b.acor.server.v1.SourceMatchR\amatches\"x\n" +
+	"\x15VersionedWriteRequest\x12)\n" +
+	"\x10expected_version\x18\x01 \x01(\tR\x0fexpectedVersion\x12\x18\n" +
+	"\akeyword\x18\x02 \x01(\tR\akeyword\x12\x1a\n" +
+	"\bkeywords\x18\x03 \x03(\tR\bkeywords\"\xca\x01\n" +
+	"\x16VersionedWriteResponse\x12)\n" +
+	"\x10previous_version\x18\x01 \x01(\tR\x0fpreviousVersion\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\x12!\n" +
+	"\foperation_id\x18\x03 \x01(\tR\voperationId\x12\x14\n" +
+	"\x05added\x18\x04 \x01(\x03R\x05added\x12\x18\n" +
+	"\aremoved\x18\x05 \x01(\x03R\aremoved\x12\x18\n" +
+	"\aoutcome\x18\x06 \x01(\tR\aoutcome\"0\n" +
+	"\x14VersionedWaitRequest\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\"<\n" +
+	"\x17ResolveOperationRequest\x12!\n" +
+	"\foperation_id\x18\x01 \x01(\tR\voperationId2\xd6\r\n" +
 	"\x04Acor\x12D\n" +
 	"\x03Add\x12\x1e.acor.server.v1.KeywordRequest\x1a\x1d.acor.server.v1.CountResponse\x12G\n" +
 	"\x06Remove\x12\x1e.acor.server.v1.KeywordRequest\x1a\x1d.acor.server.v1.CountResponse\x12E\n" +
@@ -565,7 +1264,18 @@ const file_acor_v1_acor_proto_rawDesc = "" +
 	"\fSuggestIndex\x12\x1c.acor.server.v1.InputRequest\x1a$.acor.server.v1.MatchIndexesResponse\x12B\n" +
 	"\x04Info\x12\x1c.acor.server.v1.EmptyRequest\x1a\x1c.acor.server.v1.InfoResponse\x12E\n" +
 	"\x05Flush\x12\x1c.acor.server.v1.EmptyRequest\x1a\x1e.acor.server.v1.StatusResponse\x12O\n" +
-	"\x06Status\x12\x1c.acor.server.v1.EmptyRequest\x1a'.acor.server.v1.VersionedStatusResponseB7Z5github.com/skyoo2003/acor/server/proto/acor/v1;acorv1b\x06proto3"
+	"\x06Status\x12\x1c.acor.server.v1.EmptyRequest\x1a'.acor.server.v1.VersionedStatusResponse\x12W\n" +
+	"\rVersionedFind\x12%.acor.server.v1.VersionedInputRequest\x1a\x1f.acor.server.v1.MatchesResponse\x12\\\n" +
+	"\rVersionedScan\x12$.acor.server.v1.VersionedScanRequest\x1a%.acor.server.v1.VersionedScanResponse\x12b\n" +
+	"\rVersionedMask\x12'.acor.server.v1.VersionedRewriteRequest\x1a(.acor.server.v1.VersionedRewriteResponse\x12i\n" +
+	"\x14VersionedReplaceText\x12'.acor.server.v1.VersionedRewriteRequest\x1a(.acor.server.v1.VersionedRewriteResponse\x12a\n" +
+	"\x10VersionedReplace\x12%.acor.server.v1.VersionedWriteRequest\x1a&.acor.server.v1.VersionedWriteResponse\x12]\n" +
+	"\fVersionedAdd\x12%.acor.server.v1.VersionedWriteRequest\x1a&.acor.server.v1.VersionedWriteResponse\x12`\n" +
+	"\x0fVersionedRemove\x12%.acor.server.v1.VersionedWriteRequest\x1a&.acor.server.v1.VersionedWriteResponse\x12a\n" +
+	"\x10VersionedAddMany\x12%.acor.server.v1.VersionedWriteRequest\x1a&.acor.server.v1.VersionedWriteResponse\x12d\n" +
+	"\x13VersionedRemoveMany\x12%.acor.server.v1.VersionedWriteRequest\x1a&.acor.server.v1.VersionedWriteResponse\x12U\n" +
+	"\rVersionedWait\x12$.acor.server.v1.VersionedWaitRequest\x1a\x1e.acor.server.v1.StatusResponse\x12c\n" +
+	"\x10ResolveOperation\x12'.acor.server.v1.ResolveOperationRequest\x1a&.acor.server.v1.VersionedWriteResponseB7Z5github.com/skyoo2003/acor/server/proto/acor/v1;acorv1b\x06proto3"
 
 var (
 	file_acor_v1_acor_proto_rawDescOnce sync.Once
@@ -579,46 +1289,80 @@ func file_acor_v1_acor_proto_rawDescGZIP() []byte {
 	return file_acor_v1_acor_proto_rawDescData
 }
 
-var file_acor_v1_acor_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_acor_v1_acor_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_acor_v1_acor_proto_goTypes = []any{
-	(*KeywordRequest)(nil),          // 0: acor.server.v1.KeywordRequest
-	(*InputRequest)(nil),            // 1: acor.server.v1.InputRequest
-	(*EmptyRequest)(nil),            // 2: acor.server.v1.EmptyRequest
-	(*CountResponse)(nil),           // 3: acor.server.v1.CountResponse
-	(*MatchesResponse)(nil),         // 4: acor.server.v1.MatchesResponse
-	(*Positions)(nil),               // 5: acor.server.v1.Positions
-	(*MatchIndexesResponse)(nil),    // 6: acor.server.v1.MatchIndexesResponse
-	(*InfoResponse)(nil),            // 7: acor.server.v1.InfoResponse
-	(*StatusResponse)(nil),          // 8: acor.server.v1.StatusResponse
-	(*VersionedStatusResponse)(nil), // 9: acor.server.v1.VersionedStatusResponse
-	nil,                             // 10: acor.server.v1.MatchIndexesResponse.MatchesEntry
+	(*KeywordRequest)(nil),           // 0: acor.server.v1.KeywordRequest
+	(*InputRequest)(nil),             // 1: acor.server.v1.InputRequest
+	(*EmptyRequest)(nil),             // 2: acor.server.v1.EmptyRequest
+	(*CountResponse)(nil),            // 3: acor.server.v1.CountResponse
+	(*MatchesResponse)(nil),          // 4: acor.server.v1.MatchesResponse
+	(*Positions)(nil),                // 5: acor.server.v1.Positions
+	(*MatchIndexesResponse)(nil),     // 6: acor.server.v1.MatchIndexesResponse
+	(*InfoResponse)(nil),             // 7: acor.server.v1.InfoResponse
+	(*StatusResponse)(nil),           // 8: acor.server.v1.StatusResponse
+	(*VersionedStatusResponse)(nil),  // 9: acor.server.v1.VersionedStatusResponse
+	(*VersionedInputRequest)(nil),    // 10: acor.server.v1.VersionedInputRequest
+	(*VersionedScanRequest)(nil),     // 11: acor.server.v1.VersionedScanRequest
+	(*VersionedRewriteRequest)(nil),  // 12: acor.server.v1.VersionedRewriteRequest
+	(*SourceMatch)(nil),              // 13: acor.server.v1.SourceMatch
+	(*VersionedScanResponse)(nil),    // 14: acor.server.v1.VersionedScanResponse
+	(*VersionedRewriteResponse)(nil), // 15: acor.server.v1.VersionedRewriteResponse
+	(*VersionedWriteRequest)(nil),    // 16: acor.server.v1.VersionedWriteRequest
+	(*VersionedWriteResponse)(nil),   // 17: acor.server.v1.VersionedWriteResponse
+	(*VersionedWaitRequest)(nil),     // 18: acor.server.v1.VersionedWaitRequest
+	(*ResolveOperationRequest)(nil),  // 19: acor.server.v1.ResolveOperationRequest
+	nil,                              // 20: acor.server.v1.MatchIndexesResponse.MatchesEntry
 }
 var file_acor_v1_acor_proto_depIdxs = []int32{
-	10, // 0: acor.server.v1.MatchIndexesResponse.matches:type_name -> acor.server.v1.MatchIndexesResponse.MatchesEntry
-	5,  // 1: acor.server.v1.MatchIndexesResponse.MatchesEntry.value:type_name -> acor.server.v1.Positions
-	0,  // 2: acor.server.v1.Acor.Add:input_type -> acor.server.v1.KeywordRequest
-	0,  // 3: acor.server.v1.Acor.Remove:input_type -> acor.server.v1.KeywordRequest
-	1,  // 4: acor.server.v1.Acor.Find:input_type -> acor.server.v1.InputRequest
-	1,  // 5: acor.server.v1.Acor.FindIndex:input_type -> acor.server.v1.InputRequest
-	1,  // 6: acor.server.v1.Acor.Suggest:input_type -> acor.server.v1.InputRequest
-	1,  // 7: acor.server.v1.Acor.SuggestIndex:input_type -> acor.server.v1.InputRequest
-	2,  // 8: acor.server.v1.Acor.Info:input_type -> acor.server.v1.EmptyRequest
-	2,  // 9: acor.server.v1.Acor.Flush:input_type -> acor.server.v1.EmptyRequest
-	2,  // 10: acor.server.v1.Acor.Status:input_type -> acor.server.v1.EmptyRequest
-	3,  // 11: acor.server.v1.Acor.Add:output_type -> acor.server.v1.CountResponse
-	3,  // 12: acor.server.v1.Acor.Remove:output_type -> acor.server.v1.CountResponse
-	4,  // 13: acor.server.v1.Acor.Find:output_type -> acor.server.v1.MatchesResponse
-	6,  // 14: acor.server.v1.Acor.FindIndex:output_type -> acor.server.v1.MatchIndexesResponse
-	4,  // 15: acor.server.v1.Acor.Suggest:output_type -> acor.server.v1.MatchesResponse
-	6,  // 16: acor.server.v1.Acor.SuggestIndex:output_type -> acor.server.v1.MatchIndexesResponse
-	7,  // 17: acor.server.v1.Acor.Info:output_type -> acor.server.v1.InfoResponse
-	8,  // 18: acor.server.v1.Acor.Flush:output_type -> acor.server.v1.StatusResponse
-	9,  // 19: acor.server.v1.Acor.Status:output_type -> acor.server.v1.VersionedStatusResponse
-	11, // [11:20] is the sub-list for method output_type
-	2,  // [2:11] is the sub-list for method input_type
-	2,  // [2:2] is the sub-list for extension type_name
-	2,  // [2:2] is the sub-list for extension extendee
-	0,  // [0:2] is the sub-list for field type_name
+	20, // 0: acor.server.v1.MatchIndexesResponse.matches:type_name -> acor.server.v1.MatchIndexesResponse.MatchesEntry
+	13, // 1: acor.server.v1.VersionedScanResponse.matches:type_name -> acor.server.v1.SourceMatch
+	13, // 2: acor.server.v1.VersionedRewriteResponse.matches:type_name -> acor.server.v1.SourceMatch
+	5,  // 3: acor.server.v1.MatchIndexesResponse.MatchesEntry.value:type_name -> acor.server.v1.Positions
+	0,  // 4: acor.server.v1.Acor.Add:input_type -> acor.server.v1.KeywordRequest
+	0,  // 5: acor.server.v1.Acor.Remove:input_type -> acor.server.v1.KeywordRequest
+	1,  // 6: acor.server.v1.Acor.Find:input_type -> acor.server.v1.InputRequest
+	1,  // 7: acor.server.v1.Acor.FindIndex:input_type -> acor.server.v1.InputRequest
+	1,  // 8: acor.server.v1.Acor.Suggest:input_type -> acor.server.v1.InputRequest
+	1,  // 9: acor.server.v1.Acor.SuggestIndex:input_type -> acor.server.v1.InputRequest
+	2,  // 10: acor.server.v1.Acor.Info:input_type -> acor.server.v1.EmptyRequest
+	2,  // 11: acor.server.v1.Acor.Flush:input_type -> acor.server.v1.EmptyRequest
+	2,  // 12: acor.server.v1.Acor.Status:input_type -> acor.server.v1.EmptyRequest
+	10, // 13: acor.server.v1.Acor.VersionedFind:input_type -> acor.server.v1.VersionedInputRequest
+	11, // 14: acor.server.v1.Acor.VersionedScan:input_type -> acor.server.v1.VersionedScanRequest
+	12, // 15: acor.server.v1.Acor.VersionedMask:input_type -> acor.server.v1.VersionedRewriteRequest
+	12, // 16: acor.server.v1.Acor.VersionedReplaceText:input_type -> acor.server.v1.VersionedRewriteRequest
+	16, // 17: acor.server.v1.Acor.VersionedReplace:input_type -> acor.server.v1.VersionedWriteRequest
+	16, // 18: acor.server.v1.Acor.VersionedAdd:input_type -> acor.server.v1.VersionedWriteRequest
+	16, // 19: acor.server.v1.Acor.VersionedRemove:input_type -> acor.server.v1.VersionedWriteRequest
+	16, // 20: acor.server.v1.Acor.VersionedAddMany:input_type -> acor.server.v1.VersionedWriteRequest
+	16, // 21: acor.server.v1.Acor.VersionedRemoveMany:input_type -> acor.server.v1.VersionedWriteRequest
+	18, // 22: acor.server.v1.Acor.VersionedWait:input_type -> acor.server.v1.VersionedWaitRequest
+	19, // 23: acor.server.v1.Acor.ResolveOperation:input_type -> acor.server.v1.ResolveOperationRequest
+	3,  // 24: acor.server.v1.Acor.Add:output_type -> acor.server.v1.CountResponse
+	3,  // 25: acor.server.v1.Acor.Remove:output_type -> acor.server.v1.CountResponse
+	4,  // 26: acor.server.v1.Acor.Find:output_type -> acor.server.v1.MatchesResponse
+	6,  // 27: acor.server.v1.Acor.FindIndex:output_type -> acor.server.v1.MatchIndexesResponse
+	4,  // 28: acor.server.v1.Acor.Suggest:output_type -> acor.server.v1.MatchesResponse
+	6,  // 29: acor.server.v1.Acor.SuggestIndex:output_type -> acor.server.v1.MatchIndexesResponse
+	7,  // 30: acor.server.v1.Acor.Info:output_type -> acor.server.v1.InfoResponse
+	8,  // 31: acor.server.v1.Acor.Flush:output_type -> acor.server.v1.StatusResponse
+	9,  // 32: acor.server.v1.Acor.Status:output_type -> acor.server.v1.VersionedStatusResponse
+	4,  // 33: acor.server.v1.Acor.VersionedFind:output_type -> acor.server.v1.MatchesResponse
+	14, // 34: acor.server.v1.Acor.VersionedScan:output_type -> acor.server.v1.VersionedScanResponse
+	15, // 35: acor.server.v1.Acor.VersionedMask:output_type -> acor.server.v1.VersionedRewriteResponse
+	15, // 36: acor.server.v1.Acor.VersionedReplaceText:output_type -> acor.server.v1.VersionedRewriteResponse
+	17, // 37: acor.server.v1.Acor.VersionedReplace:output_type -> acor.server.v1.VersionedWriteResponse
+	17, // 38: acor.server.v1.Acor.VersionedAdd:output_type -> acor.server.v1.VersionedWriteResponse
+	17, // 39: acor.server.v1.Acor.VersionedRemove:output_type -> acor.server.v1.VersionedWriteResponse
+	17, // 40: acor.server.v1.Acor.VersionedAddMany:output_type -> acor.server.v1.VersionedWriteResponse
+	17, // 41: acor.server.v1.Acor.VersionedRemoveMany:output_type -> acor.server.v1.VersionedWriteResponse
+	8,  // 42: acor.server.v1.Acor.VersionedWait:output_type -> acor.server.v1.StatusResponse
+	17, // 43: acor.server.v1.Acor.ResolveOperation:output_type -> acor.server.v1.VersionedWriteResponse
+	24, // [24:44] is the sub-list for method output_type
+	4,  // [4:24] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_acor_v1_acor_proto_init() }
@@ -632,7 +1376,7 @@ func file_acor_v1_acor_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_acor_v1_acor_proto_rawDesc), len(file_acor_v1_acor_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
