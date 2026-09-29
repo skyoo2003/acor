@@ -77,7 +77,7 @@ func TestVersionedHTTPHandlerDegradesWithoutServingEngine(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status.Status != "degraded" {
+	if status.Status != statusDegraded {
 		t.Fatalf("status = %q, want degraded", status.Status)
 	}
 }

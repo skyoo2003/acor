@@ -10,6 +10,8 @@ import (
 	servermetrics "github.com/skyoo2003/acor/server/metrics"
 )
 
+const statusDegraded = "degraded"
+
 // VersionedStatusResponse exposes V3 serving state without Redis keys,
 // collection names, or the underlying error text.
 type VersionedStatusResponse struct {
@@ -72,7 +74,7 @@ func writeVersionedStatus(w http.ResponseWriter, code int, status *acor.Versione
 		ActiveLeases:    status.ActiveLeases,
 	}
 	if status.LastError != "" || status.ServingVersion == "" {
-		response.Status = "degraded"
+		response.Status = statusDegraded
 	}
 	if !status.LastRefreshSuccess.IsZero() {
 		response.LastRefreshSuccess = status.LastRefreshSuccess.UTC().Format("2006-01-02T15:04:05.000Z07:00")

@@ -185,7 +185,7 @@ func versionedStatusProto(state *acor.VersionedStatus) *acorv1.VersionedStatusRe
 		ActiveLeases:    int64(state.ActiveLeases),
 	}
 	if state.LastError != "" || state.ServingVersion == "" {
-		response.Status = "degraded"
+		response.Status = statusDegraded
 	}
 	if !state.LastRefreshSuccess.IsZero() {
 		response.LastRefreshSuccess = state.LastRefreshSuccess.UTC().Format(time.RFC3339Nano)
