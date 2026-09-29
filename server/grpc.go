@@ -189,7 +189,7 @@ func versionedGRPCError(err error) error {
 		return status.Error(codes.Canceled, err.Error())
 	case errors.Is(err, redis.Nil):
 		return status.Error(codes.NotFound, err.Error())
-	case errors.Is(err, acor.ErrInvalidVersion), errors.Is(err, acor.ErrInputLimit),
+	case errors.Is(err, errInvalidRewriteRequest), errors.Is(err, acor.ErrInvalidVersion), errors.Is(err, acor.ErrInputLimit),
 		errors.Is(err, acor.ErrScanWorkLimit), errors.Is(err, acor.ErrMatchLimit),
 		errors.Is(err, acor.ErrOutputLimit):
 		return status.Error(codes.InvalidArgument, err.Error())

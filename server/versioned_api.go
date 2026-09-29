@@ -86,6 +86,14 @@ type VersionedRewriteResponse struct {
 	Matches []SourceMatchResponse `json:"matches"`
 }
 
+const (
+	maxRewriteMatches     = 1_000
+	maxRewriteCandidates  = 100_000
+	maxRewriteOutputBytes = 4 << 20
+)
+
+var errInvalidRewriteRequest = errors.New("mask must be exactly one Unicode rune")
+
 type VersionedWriteResponse struct {
 	PreviousVersion acor.Version `json:"previous_version"`
 	Version         acor.Version `json:"version"`
@@ -110,8 +118,8 @@ func scanOptions(req *VersionedScanRequest) *acor.ScanOptions {
 
 func rewriteOptions(req *VersionedRewriteRequest) *acor.RewriteOptions {
 	return &acor.RewriteOptions{
-		MaxInputBytes: req.MaxInputBytes, MaxMatches: req.MaxMatches,
-		MaxCandidates: req.MaxCandidates, MaxOutputBytes: req.MaxOutputBytes, WholeWord: req.WholeWord,
+		MaxInputBytes: req.MaxInputBytes, MaxMatches: min(req.MaxMatches, maxRewriteMatches),
+		MaxCandidates: min(req.MaxCandidates, maxRewriteCandidates), MaxOutputBytes: min(req.MaxOutputBytes, maxRewriteOutputBytes), WholeWord: req.WholeWord,
 	}
 }
 
@@ -155,7 +163,7 @@ func (api *VersionedAPI) rewrite(ctx context.Context, req *VersionedRewriteReque
 	if mask {
 		runes := []rune(req.Mask)
 		if len(runes) != 1 {
-			return nil, errors.New("mask must be exactly one Unicode rune")
+			return nil, errInvalidRewriteRequest
 		}
 		result, err = api.service.MaskText(ctx, req.Input, runes[0], rewriteOptions(req))
 	} else {
@@ -265,7 +273,7 @@ func writeVersionedError(w http.ResponseWriter, err error) {
 		code = 499
 	case errors.Is(err, redis.Nil):
 		code = http.StatusNotFound
-	case errors.Is(err, acor.ErrInvalidVersion), errors.Is(err, acor.ErrInputLimit),
+	case errors.Is(err, errInvalidRewriteRequest), errors.Is(err, acor.ErrInvalidVersion), errors.Is(err, acor.ErrInputLimit),
 		errors.Is(err, acor.ErrScanWorkLimit), errors.Is(err, acor.ErrMatchLimit),
 		errors.Is(err, acor.ErrOutputLimit):
 		code = http.StatusBadRequest

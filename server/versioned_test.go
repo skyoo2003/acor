@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/skyoo2003/acor/pkg/acor"
@@ -101,6 +103,27 @@ func TestVersionedHTTPHandlerOperations(t *testing.T) {
 	}
 }
 
+func TestVersionedRewriteOptionsAreCapped(t *testing.T) {
+	opts := rewriteOptions(&VersionedRewriteRequest{
+		MaxMatches: maxRewriteMatches + 1, MaxCandidates: maxRewriteCandidates + 1,
+		MaxOutputBytes: maxRewriteOutputBytes + 1,
+	})
+	if opts.MaxMatches != maxRewriteMatches || opts.MaxCandidates != maxRewriteCandidates || opts.MaxOutputBytes != maxRewriteOutputBytes {
+		t.Fatalf("rewrite options = %+v, want server caps", opts)
+	}
+}
+
+func TestVersionedHTTPHandlerRejectsInvalidMask(t *testing.T) {
+	handler := NewVersionedHTTPHandler(&versionedStatusSource{})
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/versioned/mask",
+		strings.NewReader(`{"input":"text","mask":"ab"}`))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+}
+
 func TestVersionedHTTPHandlerHidesErrorDetails(t *testing.T) {
 	status := acor.VersionedStatus{LastError: "redis key should not be exposed"}
 	rec := httptest.NewRecorder()
@@ -172,16 +195,21 @@ func TestVersionedGRPCServerOperations(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = conn.Close() })
 	client := acorv1.NewAcorClient(conn)
-	if _, err := client.VersionedFind(context.Background(), &acorv1.VersionedInputRequest{Input: "text"}); err != nil {
-		t.Fatal(err)
+	if _, callErr := client.VersionedFind(context.Background(), &acorv1.VersionedInputRequest{Input: "text"}); callErr != nil {
+		t.Fatal(callErr)
 	}
-	if _, err := client.VersionedScan(context.Background(), &acorv1.VersionedScanRequest{Input: "text"}); err != nil {
-		t.Fatal(err)
+	if _, callErr := client.VersionedScan(context.Background(), &acorv1.VersionedScanRequest{Input: "text"}); callErr != nil {
+		t.Fatal(callErr)
 	}
-	if _, err := client.VersionedAddMany(context.Background(), &acorv1.VersionedWriteRequest{ExpectedVersion: "v", Keywords: []string{"word"}}); err != nil {
-		t.Fatal(err)
+	if _, callErr := client.VersionedAddMany(context.Background(),
+		&acorv1.VersionedWriteRequest{ExpectedVersion: "v", Keywords: []string{"word"}}); callErr != nil {
+		t.Fatal(callErr)
 	}
-	if _, err := client.VersionedWait(context.Background(), &acorv1.VersionedWaitRequest{Version: "v"}); err != nil {
-		t.Fatal(err)
+	if _, callErr := client.VersionedWait(context.Background(), &acorv1.VersionedWaitRequest{Version: "v"}); callErr != nil {
+		t.Fatal(callErr)
+	}
+	_, err = client.VersionedMask(context.Background(), &acorv1.VersionedRewriteRequest{Input: "text", Mask: "ab"})
+	if grpcstatus.Code(err) != codes.InvalidArgument {
+		t.Fatalf("VersionedMask code = %s, want %s; err=%v", grpcstatus.Code(err), codes.InvalidArgument, err)
 	}
 }
