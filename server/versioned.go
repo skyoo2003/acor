@@ -31,11 +31,12 @@ type VersionedStatusSource interface {
 	Status() acor.VersionedStatus
 }
 
-// NewVersionedHTTPHandler returns the read-only V3 status and health surface.
-// It is separate from NewHTTPHandler because V3's versioned write contract does
-// not match the legacy Service interface.
-func NewVersionedHTTPHandler(collection VersionedStatusSource, registries ...*servermetrics.Registry) http.Handler {
+// NewVersionedHTTPHandler returns the V3 status, search, and versioned-write
+// surface. It is separate from NewHTTPHandler because V3's expected-version
+// write contract does not match the legacy Service interface.
+func NewVersionedHTTPHandler(collection VersionedService, registries ...*servermetrics.Registry) http.Handler {
 	mux := http.NewServeMux()
+	api := NewVersionedAPI(collection)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			writeMethodNotAllowed(w)
@@ -56,6 +57,17 @@ func NewVersionedHTTPHandler(collection VersionedStatusSource, registries ...*se
 		status := collection.Status()
 		writeVersionedStatus(w, http.StatusOK, &status, registries...)
 	})
+	mux.HandleFunc("/v1/versioned/find", api.handleFind)
+	mux.HandleFunc("/v1/versioned/scan", api.handleScan)
+	mux.HandleFunc("/v1/versioned/mask", api.handleMask)
+	mux.HandleFunc("/v1/versioned/replace-text", api.handleReplaceText)
+	mux.HandleFunc("/v1/versioned/replace", api.handleWrite("replace"))
+	mux.HandleFunc("/v1/versioned/add", api.handleWrite("add"))
+	mux.HandleFunc("/v1/versioned/remove", api.handleWrite("remove"))
+	mux.HandleFunc("/v1/versioned/add-many", api.handleWrite("add-many"))
+	mux.HandleFunc("/v1/versioned/remove-many", api.handleWrite("remove-many"))
+	mux.HandleFunc("/v1/versioned/wait", api.handleWait)
+	mux.HandleFunc("/v1/versioned/resolve-operation", api.handleResolve)
 	return mux
 }
 

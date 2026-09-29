@@ -18,6 +18,17 @@ service Acor {
   rpc Info(EmptyRequest) returns (InfoResponse);
   rpc Flush(EmptyRequest) returns (StatusResponse);
   rpc Status(EmptyRequest) returns (VersionedStatusResponse);
+  rpc VersionedFind(VersionedInputRequest) returns (MatchesResponse);
+  rpc VersionedScan(VersionedScanRequest) returns (VersionedScanResponse);
+  rpc VersionedMask(VersionedRewriteRequest) returns (VersionedRewriteResponse);
+  rpc VersionedReplaceText(VersionedRewriteRequest) returns (VersionedRewriteResponse);
+  rpc VersionedReplace(VersionedWriteRequest) returns (VersionedWriteResponse);
+  rpc VersionedAdd(VersionedWriteRequest) returns (VersionedWriteResponse);
+  rpc VersionedRemove(VersionedWriteRequest) returns (VersionedWriteResponse);
+  rpc VersionedAddMany(VersionedWriteRequest) returns (VersionedWriteResponse);
+  rpc VersionedRemoveMany(VersionedWriteRequest) returns (VersionedWriteResponse);
+  rpc VersionedWait(VersionedWaitRequest) returns (StatusResponse);
+  rpc ResolveOperation(ResolveOperationRequest) returns (VersionedWriteResponse);
 }
 
 message KeywordRequest {
@@ -67,3 +78,62 @@ message VersionedStatusResponse {
   uint64 refresh_failures = 7;
   int64 active_leases = 8;
 }
+
+message VersionedInputRequest { string input = 1; }
+
+message VersionedScanRequest {
+  string input = 1;
+  int64 max_input_bytes = 2;
+  int64 max_matches = 3;
+  int64 max_candidates = 4;
+  int32 kind = 5;
+  bool whole_word = 6;
+}
+
+message VersionedRewriteRequest {
+  string input = 1;
+  string replacement = 2;
+  string mask = 3;
+  int64 max_input_bytes = 4;
+  int64 max_matches = 5;
+  int64 max_candidates = 6;
+  int64 max_output_bytes = 7;
+  bool whole_word = 8;
+}
+
+message SourceMatch {
+  string keyword = 1;
+  string text = 2;
+  int64 start = 3;
+  int64 end = 4;
+  int64 byte_start = 5;
+  int64 byte_end = 6;
+}
+
+message VersionedScanResponse {
+  repeated SourceMatch matches = 1;
+  bool truncated = 2;
+}
+
+message VersionedRewriteResponse {
+  string text = 1;
+  repeated SourceMatch matches = 2;
+}
+
+message VersionedWriteRequest {
+  string expected_version = 1;
+  string keyword = 2;
+  repeated string keywords = 3;
+}
+
+message VersionedWriteResponse {
+  string previous_version = 1;
+  string version = 2;
+  string operation_id = 3;
+  int64 added = 4;
+  int64 removed = 5;
+  string outcome = 6;
+}
+
+message VersionedWaitRequest { string version = 1; }
+message ResolveOperationRequest { string operation_id = 1; }

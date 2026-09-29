@@ -21,15 +21,26 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Acor_Add_FullMethodName          = "/acor.server.v1.Acor/Add"
-	Acor_Remove_FullMethodName       = "/acor.server.v1.Acor/Remove"
-	Acor_Find_FullMethodName         = "/acor.server.v1.Acor/Find"
-	Acor_FindIndex_FullMethodName    = "/acor.server.v1.Acor/FindIndex"
-	Acor_Suggest_FullMethodName      = "/acor.server.v1.Acor/Suggest"
-	Acor_SuggestIndex_FullMethodName = "/acor.server.v1.Acor/SuggestIndex"
-	Acor_Info_FullMethodName         = "/acor.server.v1.Acor/Info"
-	Acor_Flush_FullMethodName        = "/acor.server.v1.Acor/Flush"
-	Acor_Status_FullMethodName       = "/acor.server.v1.Acor/Status"
+	Acor_Add_FullMethodName                  = "/acor.server.v1.Acor/Add"
+	Acor_Remove_FullMethodName               = "/acor.server.v1.Acor/Remove"
+	Acor_Find_FullMethodName                 = "/acor.server.v1.Acor/Find"
+	Acor_FindIndex_FullMethodName            = "/acor.server.v1.Acor/FindIndex"
+	Acor_Suggest_FullMethodName              = "/acor.server.v1.Acor/Suggest"
+	Acor_SuggestIndex_FullMethodName         = "/acor.server.v1.Acor/SuggestIndex"
+	Acor_Info_FullMethodName                 = "/acor.server.v1.Acor/Info"
+	Acor_Flush_FullMethodName                = "/acor.server.v1.Acor/Flush"
+	Acor_Status_FullMethodName               = "/acor.server.v1.Acor/Status"
+	Acor_VersionedFind_FullMethodName        = "/acor.server.v1.Acor/VersionedFind"
+	Acor_VersionedScan_FullMethodName        = "/acor.server.v1.Acor/VersionedScan"
+	Acor_VersionedMask_FullMethodName        = "/acor.server.v1.Acor/VersionedMask"
+	Acor_VersionedReplaceText_FullMethodName = "/acor.server.v1.Acor/VersionedReplaceText"
+	Acor_VersionedReplace_FullMethodName     = "/acor.server.v1.Acor/VersionedReplace"
+	Acor_VersionedAdd_FullMethodName         = "/acor.server.v1.Acor/VersionedAdd"
+	Acor_VersionedRemove_FullMethodName      = "/acor.server.v1.Acor/VersionedRemove"
+	Acor_VersionedAddMany_FullMethodName     = "/acor.server.v1.Acor/VersionedAddMany"
+	Acor_VersionedRemoveMany_FullMethodName  = "/acor.server.v1.Acor/VersionedRemoveMany"
+	Acor_VersionedWait_FullMethodName        = "/acor.server.v1.Acor/VersionedWait"
+	Acor_ResolveOperation_FullMethodName     = "/acor.server.v1.Acor/ResolveOperation"
 )
 
 // AcorClient is the client API for Acor service.
@@ -48,6 +59,17 @@ type AcorClient interface {
 	Info(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*InfoResponse, error)
 	Flush(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*StatusResponse, error)
 	Status(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*VersionedStatusResponse, error)
+	VersionedFind(ctx context.Context, in *VersionedInputRequest, opts ...grpc.CallOption) (*MatchesResponse, error)
+	VersionedScan(ctx context.Context, in *VersionedScanRequest, opts ...grpc.CallOption) (*VersionedScanResponse, error)
+	VersionedMask(ctx context.Context, in *VersionedRewriteRequest, opts ...grpc.CallOption) (*VersionedRewriteResponse, error)
+	VersionedReplaceText(ctx context.Context, in *VersionedRewriteRequest, opts ...grpc.CallOption) (*VersionedRewriteResponse, error)
+	VersionedReplace(ctx context.Context, in *VersionedWriteRequest, opts ...grpc.CallOption) (*VersionedWriteResponse, error)
+	VersionedAdd(ctx context.Context, in *VersionedWriteRequest, opts ...grpc.CallOption) (*VersionedWriteResponse, error)
+	VersionedRemove(ctx context.Context, in *VersionedWriteRequest, opts ...grpc.CallOption) (*VersionedWriteResponse, error)
+	VersionedAddMany(ctx context.Context, in *VersionedWriteRequest, opts ...grpc.CallOption) (*VersionedWriteResponse, error)
+	VersionedRemoveMany(ctx context.Context, in *VersionedWriteRequest, opts ...grpc.CallOption) (*VersionedWriteResponse, error)
+	VersionedWait(ctx context.Context, in *VersionedWaitRequest, opts ...grpc.CallOption) (*StatusResponse, error)
+	ResolveOperation(ctx context.Context, in *ResolveOperationRequest, opts ...grpc.CallOption) (*VersionedWriteResponse, error)
 }
 
 type acorClient struct {
@@ -148,6 +170,116 @@ func (c *acorClient) Status(ctx context.Context, in *EmptyRequest, opts ...grpc.
 	return out, nil
 }
 
+func (c *acorClient) VersionedFind(ctx context.Context, in *VersionedInputRequest, opts ...grpc.CallOption) (*MatchesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MatchesResponse)
+	err := c.cc.Invoke(ctx, Acor_VersionedFind_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *acorClient) VersionedScan(ctx context.Context, in *VersionedScanRequest, opts ...grpc.CallOption) (*VersionedScanResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VersionedScanResponse)
+	err := c.cc.Invoke(ctx, Acor_VersionedScan_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *acorClient) VersionedMask(ctx context.Context, in *VersionedRewriteRequest, opts ...grpc.CallOption) (*VersionedRewriteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VersionedRewriteResponse)
+	err := c.cc.Invoke(ctx, Acor_VersionedMask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *acorClient) VersionedReplaceText(ctx context.Context, in *VersionedRewriteRequest, opts ...grpc.CallOption) (*VersionedRewriteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VersionedRewriteResponse)
+	err := c.cc.Invoke(ctx, Acor_VersionedReplaceText_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *acorClient) VersionedReplace(ctx context.Context, in *VersionedWriteRequest, opts ...grpc.CallOption) (*VersionedWriteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VersionedWriteResponse)
+	err := c.cc.Invoke(ctx, Acor_VersionedReplace_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *acorClient) VersionedAdd(ctx context.Context, in *VersionedWriteRequest, opts ...grpc.CallOption) (*VersionedWriteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VersionedWriteResponse)
+	err := c.cc.Invoke(ctx, Acor_VersionedAdd_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *acorClient) VersionedRemove(ctx context.Context, in *VersionedWriteRequest, opts ...grpc.CallOption) (*VersionedWriteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VersionedWriteResponse)
+	err := c.cc.Invoke(ctx, Acor_VersionedRemove_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *acorClient) VersionedAddMany(ctx context.Context, in *VersionedWriteRequest, opts ...grpc.CallOption) (*VersionedWriteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VersionedWriteResponse)
+	err := c.cc.Invoke(ctx, Acor_VersionedAddMany_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *acorClient) VersionedRemoveMany(ctx context.Context, in *VersionedWriteRequest, opts ...grpc.CallOption) (*VersionedWriteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VersionedWriteResponse)
+	err := c.cc.Invoke(ctx, Acor_VersionedRemoveMany_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *acorClient) VersionedWait(ctx context.Context, in *VersionedWaitRequest, opts ...grpc.CallOption) (*StatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StatusResponse)
+	err := c.cc.Invoke(ctx, Acor_VersionedWait_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *acorClient) ResolveOperation(ctx context.Context, in *ResolveOperationRequest, opts ...grpc.CallOption) (*VersionedWriteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VersionedWriteResponse)
+	err := c.cc.Invoke(ctx, Acor_ResolveOperation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AcorServer is the server API for Acor service.
 // All implementations must embed UnimplementedAcorServer
 // for forward compatibility.
@@ -164,6 +296,17 @@ type AcorServer interface {
 	Info(context.Context, *EmptyRequest) (*InfoResponse, error)
 	Flush(context.Context, *EmptyRequest) (*StatusResponse, error)
 	Status(context.Context, *EmptyRequest) (*VersionedStatusResponse, error)
+	VersionedFind(context.Context, *VersionedInputRequest) (*MatchesResponse, error)
+	VersionedScan(context.Context, *VersionedScanRequest) (*VersionedScanResponse, error)
+	VersionedMask(context.Context, *VersionedRewriteRequest) (*VersionedRewriteResponse, error)
+	VersionedReplaceText(context.Context, *VersionedRewriteRequest) (*VersionedRewriteResponse, error)
+	VersionedReplace(context.Context, *VersionedWriteRequest) (*VersionedWriteResponse, error)
+	VersionedAdd(context.Context, *VersionedWriteRequest) (*VersionedWriteResponse, error)
+	VersionedRemove(context.Context, *VersionedWriteRequest) (*VersionedWriteResponse, error)
+	VersionedAddMany(context.Context, *VersionedWriteRequest) (*VersionedWriteResponse, error)
+	VersionedRemoveMany(context.Context, *VersionedWriteRequest) (*VersionedWriteResponse, error)
+	VersionedWait(context.Context, *VersionedWaitRequest) (*StatusResponse, error)
+	ResolveOperation(context.Context, *ResolveOperationRequest) (*VersionedWriteResponse, error)
 	mustEmbedUnimplementedAcorServer()
 }
 
@@ -200,6 +343,39 @@ func (UnimplementedAcorServer) Flush(context.Context, *EmptyRequest) (*StatusRes
 }
 func (UnimplementedAcorServer) Status(context.Context, *EmptyRequest) (*VersionedStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Status not implemented")
+}
+func (UnimplementedAcorServer) VersionedFind(context.Context, *VersionedInputRequest) (*MatchesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VersionedFind not implemented")
+}
+func (UnimplementedAcorServer) VersionedScan(context.Context, *VersionedScanRequest) (*VersionedScanResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VersionedScan not implemented")
+}
+func (UnimplementedAcorServer) VersionedMask(context.Context, *VersionedRewriteRequest) (*VersionedRewriteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VersionedMask not implemented")
+}
+func (UnimplementedAcorServer) VersionedReplaceText(context.Context, *VersionedRewriteRequest) (*VersionedRewriteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VersionedReplaceText not implemented")
+}
+func (UnimplementedAcorServer) VersionedReplace(context.Context, *VersionedWriteRequest) (*VersionedWriteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VersionedReplace not implemented")
+}
+func (UnimplementedAcorServer) VersionedAdd(context.Context, *VersionedWriteRequest) (*VersionedWriteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VersionedAdd not implemented")
+}
+func (UnimplementedAcorServer) VersionedRemove(context.Context, *VersionedWriteRequest) (*VersionedWriteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VersionedRemove not implemented")
+}
+func (UnimplementedAcorServer) VersionedAddMany(context.Context, *VersionedWriteRequest) (*VersionedWriteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VersionedAddMany not implemented")
+}
+func (UnimplementedAcorServer) VersionedRemoveMany(context.Context, *VersionedWriteRequest) (*VersionedWriteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VersionedRemoveMany not implemented")
+}
+func (UnimplementedAcorServer) VersionedWait(context.Context, *VersionedWaitRequest) (*StatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VersionedWait not implemented")
+}
+func (UnimplementedAcorServer) ResolveOperation(context.Context, *ResolveOperationRequest) (*VersionedWriteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveOperation not implemented")
 }
 func (UnimplementedAcorServer) mustEmbedUnimplementedAcorServer() {}
 func (UnimplementedAcorServer) testEmbeddedByValue()              {}
@@ -384,6 +560,204 @@ func _Acor_Status_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Acor_VersionedFind_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VersionedInputRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AcorServer).VersionedFind(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Acor_VersionedFind_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AcorServer).VersionedFind(ctx, req.(*VersionedInputRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Acor_VersionedScan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VersionedScanRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AcorServer).VersionedScan(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Acor_VersionedScan_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AcorServer).VersionedScan(ctx, req.(*VersionedScanRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Acor_VersionedMask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VersionedRewriteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AcorServer).VersionedMask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Acor_VersionedMask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AcorServer).VersionedMask(ctx, req.(*VersionedRewriteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Acor_VersionedReplaceText_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VersionedRewriteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AcorServer).VersionedReplaceText(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Acor_VersionedReplaceText_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AcorServer).VersionedReplaceText(ctx, req.(*VersionedRewriteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Acor_VersionedReplace_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VersionedWriteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AcorServer).VersionedReplace(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Acor_VersionedReplace_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AcorServer).VersionedReplace(ctx, req.(*VersionedWriteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Acor_VersionedAdd_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VersionedWriteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AcorServer).VersionedAdd(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Acor_VersionedAdd_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AcorServer).VersionedAdd(ctx, req.(*VersionedWriteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Acor_VersionedRemove_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VersionedWriteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AcorServer).VersionedRemove(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Acor_VersionedRemove_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AcorServer).VersionedRemove(ctx, req.(*VersionedWriteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Acor_VersionedAddMany_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VersionedWriteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AcorServer).VersionedAddMany(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Acor_VersionedAddMany_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AcorServer).VersionedAddMany(ctx, req.(*VersionedWriteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Acor_VersionedRemoveMany_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VersionedWriteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AcorServer).VersionedRemoveMany(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Acor_VersionedRemoveMany_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AcorServer).VersionedRemoveMany(ctx, req.(*VersionedWriteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Acor_VersionedWait_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VersionedWaitRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AcorServer).VersionedWait(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Acor_VersionedWait_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AcorServer).VersionedWait(ctx, req.(*VersionedWaitRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Acor_ResolveOperation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveOperationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AcorServer).ResolveOperation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Acor_ResolveOperation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AcorServer).ResolveOperation(ctx, req.(*ResolveOperationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Acor_ServiceDesc is the grpc.ServiceDesc for Acor service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -426,6 +800,50 @@ var Acor_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Status",
 			Handler:    _Acor_Status_Handler,
+		},
+		{
+			MethodName: "VersionedFind",
+			Handler:    _Acor_VersionedFind_Handler,
+		},
+		{
+			MethodName: "VersionedScan",
+			Handler:    _Acor_VersionedScan_Handler,
+		},
+		{
+			MethodName: "VersionedMask",
+			Handler:    _Acor_VersionedMask_Handler,
+		},
+		{
+			MethodName: "VersionedReplaceText",
+			Handler:    _Acor_VersionedReplaceText_Handler,
+		},
+		{
+			MethodName: "VersionedReplace",
+			Handler:    _Acor_VersionedReplace_Handler,
+		},
+		{
+			MethodName: "VersionedAdd",
+			Handler:    _Acor_VersionedAdd_Handler,
+		},
+		{
+			MethodName: "VersionedRemove",
+			Handler:    _Acor_VersionedRemove_Handler,
+		},
+		{
+			MethodName: "VersionedAddMany",
+			Handler:    _Acor_VersionedAddMany_Handler,
+		},
+		{
+			MethodName: "VersionedRemoveMany",
+			Handler:    _Acor_VersionedRemoveMany_Handler,
+		},
+		{
+			MethodName: "VersionedWait",
+			Handler:    _Acor_VersionedWait_Handler,
+		},
+		{
+			MethodName: "ResolveOperation",
+			Handler:    _Acor_ResolveOperation_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

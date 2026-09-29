@@ -23,6 +23,37 @@ import (
 type versionedStatusSource struct{ status acor.VersionedStatus }
 
 func (s *versionedStatusSource) Status() acor.VersionedStatus { return s.status }
+func (s *versionedStatusSource) Find(context.Context, string) ([]string, error) {
+	return []string{"match"}, nil
+}
+func (s *versionedStatusSource) Scan(context.Context, string, *acor.ScanOptions) (*acor.ScanResult, error) {
+	return &acor.ScanResult{Matches: []acor.SourceMatch{}}, nil
+}
+func (s *versionedStatusSource) MaskText(context.Context, string, rune, *acor.RewriteOptions) (*acor.RewriteResult, error) {
+	return &acor.RewriteResult{}, nil
+}
+func (s *versionedStatusSource) ReplaceText(context.Context, string, string, *acor.RewriteOptions) (*acor.RewriteResult, error) {
+	return &acor.RewriteResult{}, nil
+}
+func (s *versionedStatusSource) Replace(context.Context, acor.Version, []string) (*acor.WriteResult, error) {
+	return &acor.WriteResult{}, nil
+}
+func (s *versionedStatusSource) Add(context.Context, acor.Version, string) (*acor.WriteResult, error) {
+	return &acor.WriteResult{}, nil
+}
+func (s *versionedStatusSource) Remove(context.Context, acor.Version, string) (*acor.WriteResult, error) {
+	return &acor.WriteResult{}, nil
+}
+func (s *versionedStatusSource) AddMany(context.Context, acor.Version, []string) (*acor.WriteResult, error) {
+	return &acor.WriteResult{}, nil
+}
+func (s *versionedStatusSource) RemoveMany(context.Context, acor.Version, []string) (*acor.WriteResult, error) {
+	return &acor.WriteResult{}, nil
+}
+func (s *versionedStatusSource) WaitForVersion(context.Context, acor.Version) error { return nil }
+func (s *versionedStatusSource) ResolveOperation(context.Context, string) (*acor.WriteResult, error) {
+	return &acor.WriteResult{}, nil
+}
 
 func TestVersionedHTTPHandlerStatusAndHealth(t *testing.T) {
 	collection := versionedStatusSource{status: acor.VersionedStatus{
@@ -53,6 +84,20 @@ func TestVersionedHTTPHandlerStatusAndHealth(t *testing.T) {
 	NewVersionedHTTPHandler(&collection).ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("health code = %d, want 200", rec.Code)
+	}
+}
+
+func TestVersionedHTTPHandlerOperations(t *testing.T) {
+	collection := &versionedStatusSource{status: acor.VersionedStatus{ServingVersion: "serving"}}
+	handler := NewVersionedHTTPHandler(collection)
+	for _, path := range []string{"/v1/versioned/find", "/v1/versioned/scan", "/v1/versioned/add-many", "/v1/versioned/wait"} {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, path,
+			strings.NewReader(`{"input":"text","expected_version":"v","keywords":["word"],"version":"v"}`))
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d, body=%s", path, rec.Code, rec.Body.String())
+		}
 	}
 }
 
@@ -109,5 +154,34 @@ func TestVersionedGRPCServerStatus(t *testing.T) {
 	}
 	if status.GetStatus() != "ok" || status.GetServingVersion() != "serving" {
 		t.Fatalf("unexpected gRPC status: %+v", status)
+	}
+}
+
+func TestVersionedGRPCServerOperations(t *testing.T) {
+	source := &versionedStatusSource{status: acor.VersionedStatus{ServingVersion: "serving"}}
+	lis := bufconn.Listen(1 << 20)
+	srv := NewVersionedGRPCServer(source)
+	t.Cleanup(srv.Stop)
+	go func() { _ = srv.Serve(lis) }()
+
+	conn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	client := acorv1.NewAcorClient(conn)
+	if _, err := client.VersionedFind(context.Background(), &acorv1.VersionedInputRequest{Input: "text"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.VersionedScan(context.Background(), &acorv1.VersionedScanRequest{Input: "text"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.VersionedAddMany(context.Background(), &acorv1.VersionedWriteRequest{ExpectedVersion: "v", Keywords: []string{"word"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.VersionedWait(context.Background(), &acorv1.VersionedWaitRequest{Version: "v"}); err != nil {
+		t.Fatal(err)
 	}
 }
