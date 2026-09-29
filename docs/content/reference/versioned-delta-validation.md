@@ -16,9 +16,9 @@ the public option type for source compatibility, but it has no effect, and
 `DeltaSearch`/`DeltaKeywords` report false/zero in `VersionedStatus`.
 
 The archived raw results remain in
-[`benchmarks/results/v3-delta-20260914-redis.json`](https://github.com/skyoo2003/acor/blob/main/benchmarks/results/v3-delta-20260914-redis.json)
+[`test/benchmarks/results/v3-delta-20260914-redis.json`](https://github.com/skyoo2003/acor/blob/main/test/benchmarks/results/v3-delta-20260914-redis.json)
 and
-[`benchmarks/results/v3-delta-20260914-valkey.json`](https://github.com/skyoo2003/acor/blob/main/benchmarks/results/v3-delta-20260914-valkey.json).
+[`test/benchmarks/results/v3-delta-20260914-valkey.json`](https://github.com/skyoo2003/acor/blob/main/test/benchmarks/results/v3-delta-20260914-valkey.json).
 They are historical workstation measurements, not current release gates.
 
 For current V3 measurements, run the single-engine scale benchmark:

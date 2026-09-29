@@ -160,4 +160,21 @@ size/distribution, then runs the million-entry safety scenario. It removes only 
 uniquely named collection keys, never `FLUSHDB`. Do not run another workload on the same
 endpoint during measurement — Redis memory and network counters are server-wide. Raw
 operation summaries, environment strings, startup/prune measurements, and source hashes
-are in `benchmarks/results/v3-20260906.json`.
+are in `test/benchmarks/results/v3-20260906.json`; a new run also writes
+`$ACOR_V3_SCALE_OUTPUT/results.json` for the regression gate.
+
+## Regression gate
+
+Compare two result files from the same disposable Redis/Valkey environment:
+
+```sh
+ACOR_V3_BASELINE_JSON=test/benchmarks/results/v3-20260906.json \
+ACOR_V3_CANDIDATE_JSON=test/benchmarks/results/v3-20260915-redis.json \
+make v3-regression-check
+```
+
+The gate compares the median of operation medians for `ready_ms`, `search_p95_ns`,
+and `max_rss_bytes` within each matching size and distribution. This reduces
+single-operation p95 noise while still covering every operation in the run. It allows a 25% increase by
+default; set `ACOR_V3_MAX_REGRESSION` for a controlled environment. Missing or
+incomparable measurements fail instead of being silently skipped.

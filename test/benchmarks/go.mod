@@ -1,8 +1,8 @@
-module github.com/skyoo2003/acor/benchmarks
+module github.com/skyoo2003/acor/test/benchmarks
 
 go 1.25.0
 
-replace github.com/skyoo2003/acor => ../
+replace github.com/skyoo2003/acor => ../..
 
 require (
 	github.com/alicebob/miniredis/v2 v2.39.0

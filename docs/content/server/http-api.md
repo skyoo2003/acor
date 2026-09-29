@@ -12,6 +12,11 @@ below. The `main` that mounts it is [Running a Server](../running/).
 > The `acor/server` module is [experimental and separately versioned](../) — these paths
 > and shapes can change in any release.
 
+For a V3 collection, use `server.NewVersionedHTTPHandler(collection)` as a separate
+read-only handler. It exposes only `/healthz` and `/v1/status`; V3 writes still require
+the expected-version library API. Pass an optional `server/metrics.Registry` to update
+the bounded `acor_versioned_*` gauges whenever a status request is served.
+
 ## Endpoints
 
 | Method | Path | Request | Success response |
@@ -25,6 +30,11 @@ below. The `main` that mounts it is [Running a Server](../running/).
 | `POST` | `/v1/suggest-index` | `{"input":"..."}` | `{"matches":{"kw":[0]}}` — always `[0]` |
 | `GET` | `/v1/info` | — | `{"keywords":3,"nodes":7}` |
 | `POST` | `/v1/flush` | — | `{"status":"ok"}` |
+
+The V3 status handler returns `active_version`, `serving_version`, `building`,
+`refresh_failures`, `active_leases`, and refresh timestamps. `/healthz` returns `503` when
+no engine is serving or the last refresh failed. Error text and Redis key names are not
+included in this response.
 
 `count` is how many keywords the operation actually changed, so a second `add` of the same
 keyword answers `{"count":0}`. `/v1/flush` takes no body, does not read one if you send it,

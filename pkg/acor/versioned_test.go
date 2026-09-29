@@ -141,6 +141,13 @@ func TestVersionedSmallUpdateUsesSingleEngine(t *testing.T) {
 	if status := v.Status(); status.DeltaSearch || status.DeltaKeywords != 0 {
 		t.Fatalf("small update used delta search: %+v", status)
 	}
+	status := v.Status()
+	if status.LastRefreshSuccess.IsZero() || !status.LastRefreshFailure.IsZero() {
+		t.Fatalf("unexpected successful refresh status: %+v", status)
+	}
+	if status.ActiveLeases != 0 {
+		t.Fatalf("active leases = %d, want 0", status.ActiveLeases)
+	}
 	if got, err := v.FindSet(ctx, "stable new"); err != nil || !slices.Equal(got, []string{"stable", "new"}) {
 		t.Fatalf("small update search: %v (%v)", got, err)
 	}

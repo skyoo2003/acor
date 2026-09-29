@@ -136,6 +136,7 @@ field VersionedOptions.PollInterval time.Duration
 field VersionedOptions.Preset Preset
 field VersionedOptions.Redis AhoCorasickArgs
 field VersionedOptions.RefreshDebounce time.Duration
+field VersionedStatus.ActiveLeases int
 field VersionedStatus.ActiveVersion Version
 field VersionedStatus.BuildDuration time.Duration
 field VersionedStatus.BuildStarted time.Time
@@ -145,6 +146,9 @@ field VersionedStatus.DeltaKeywords int
 field VersionedStatus.DeltaSearch bool
 field VersionedStatus.DownloadedBuckets int
 field VersionedStatus.LastError string
+field VersionedStatus.LastRefreshFailure time.Time
+field VersionedStatus.LastRefreshSuccess time.Time
+field VersionedStatus.RefreshFailures uint64
 field VersionedStatus.ReusedBuckets int
 field VersionedStatus.ServingVersion Version
 field WriteResult.Added int

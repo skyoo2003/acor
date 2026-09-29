@@ -132,6 +132,8 @@ func TestVersionedBatchStagesChangedBucketsInOnePipeline(t *testing.T) {
 		t.Fatalf("stage pipelines = %d, want 1", got)
 	}
 }
+
+//nolint:gocyclo // Covers the refresh failure, polling recovery, and search parity paths.
 func TestVersionedPollingAndBuildFailure(t *testing.T) {
 	ctx := context.Background()
 	server := miniredis.RunT(t)
@@ -153,6 +155,9 @@ func TestVersionedPollingAndBuildFailure(t *testing.T) {
 	status := reader.Status()
 	if status.LastError == "" || status.ServingVersion != initial {
 		t.Fatal(status)
+	}
+	if status.RefreshFailures == 0 || status.LastRefreshFailure.IsZero() {
+		t.Fatalf("refresh failure was not recorded: %+v", status)
 	}
 	if found, e := reader.Find(ctx, "hello"); e != nil || len(found) != 0 {
 		t.Fatal(found, e)

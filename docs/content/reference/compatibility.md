@@ -52,7 +52,7 @@ Not covered:
 | The `acor` CLI | Flags, output, and exit codes can change in any release. Call the library if you need a stable contract |
 | `acor/server` | A separate, experimental module with no tags of its own; the core's version numbers say nothing about it |
 | `internal/...` | Not importable, free to change |
-| The `benchmarks` module | A measurement harness, not an API |
+| The `test/benchmarks` module | A measurement harness, not an API |
 | Documentation wording | Pages get rewritten; what they describe is pinned by this page, not by their phrasing |
 | The V1 schema layout | Deprecated and not evolved further — see [Deprecation](#deprecation) |
 

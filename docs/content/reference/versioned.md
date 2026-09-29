@@ -7,7 +7,16 @@ description: "Large dictionary snapshots, atomic changes, and background search 
 
 V3 is an opt-in storage format in the same Go module. Open it with `OpenVersioned` and a
 **new** collection name. `Create`, the V1/V2 keys, and their error and update contracts
-are untouched. V3 has no `Suggest` and no server API.
+are untouched. V3 has no `Suggest` and no mutation/search server API. The server module
+provides a read-only status surface through `NewVersionedHTTPHandler`.
+
+`VersionedCollection.Status()` is a local observation with no Redis I/O. `ActiveVersion` is the
+last committed version observed from Redis; `ServingVersion` is the version currently used
+for searches. During refresh, `Building` is true. `LastError`, `LastRefreshFailure`, and
+`RefreshFailures` describe failed background refreshes, while `LastRefreshSuccess` records
+the most recent installed engine. `ActiveLeases` counts snapshots and writers owned by the
+process. These fields are diagnostics, not a fleet-wide health check; use `WaitForVersion`
+when a write requires read-after-write behavior.
 
 <!-- doccheck -->
 ```go

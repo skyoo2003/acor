@@ -24,3 +24,4 @@ while [ "$repeat" -le "$repeats" ]; do
 done
 "$binary" -test.run='^TestVersionedMillionSafety$' -test.v -test.timeout=15m \
   > "$output/million-safety.txt" 2>&1
+python3 scripts/collect-v3-results.py "$output" "$output/results.json"
