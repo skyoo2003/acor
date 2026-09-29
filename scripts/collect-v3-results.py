@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+
 """Collect benchmark-v3.sh logs into the JSON shape used by the regression gate."""
 
 import argparse

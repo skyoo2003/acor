@@ -71,5 +71,5 @@ repos:
         name: Add SPDX license header
         entry: python3 scripts/add-spdx-header.py
         language: system
-        files: \.go$
+        files: \.(go|py|sh|proto)$
         pass_filenames: true

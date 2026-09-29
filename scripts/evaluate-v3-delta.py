@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+
 """Evaluate paired million-keyword delta-search runs from benchmark-v3.sh."""
 
 import argparse

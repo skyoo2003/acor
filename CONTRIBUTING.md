@@ -198,6 +198,11 @@ Regenerates `NOTICE` from the modules linked into the `acor` binary and fails if
 the committed file is out of date. Adding a dependency fails this target until
 its license is read by hand and recorded in `tools/licensesnap/main.go`.
 
+The generated notice currently covers only the distributed `acor` CLI. The
+`server/` module is source-only: consumers fetch its dependencies themselves.
+Do not publish the server as a binary, container, or archive until its linked
+dependency notices are generated, checked in CI, and included with that artifact.
+
 ### Changelog Fragment
 
 ```sh
