@@ -8,6 +8,19 @@ on:
       - "**/*.go"
       - "Makefile"
       - "docs/**"
+      - "scripts/**"
+      - "server/proto/**"
+      # License metadata and the paths that package it must run the release
+      # build and attribution gates too. Otherwise a Dockerfile-only change can
+      # merge without proving that the redistributed binary keeps its notices.
+      - "LICENSE"
+      - "server/LICENSE"
+      - "Dockerfile"
+      - "Dockerfile.goreleaser"
+      - ".dockerignore"
+      - ".gitattributes"
+      - ".pre-commit-config.yaml"
+      - "scripts/add-spdx-header.py"
       - "go.mod"
       - "go.sum"
       # Every module's manifests, not just the root's: a Dependabot bump scoped
@@ -37,6 +50,19 @@ on:
       - "**/*.go"
       - "Makefile"
       - "docs/**"
+      - "scripts/**"
+      - "server/proto/**"
+      # Keep license and package-metadata-only pull requests on the same gates
+      # as code changes; the release artifacts are where redistribution terms
+      # become effective.
+      - "LICENSE"
+      - "server/LICENSE"
+      - "Dockerfile"
+      - "Dockerfile.goreleaser"
+      - ".dockerignore"
+      - ".gitattributes"
+      - ".pre-commit-config.yaml"
+      - "scripts/add-spdx-header.py"
       - "go.mod"
       - "go.sum"
       # Every module's manifests, not just the root's: a Dependabot bump scoped
@@ -121,7 +147,7 @@ jobs:
       - name: Check SPDX headers
         if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
         run: |
-          missing=$(git ls-files '*.go' | xargs grep -L -E '^// SPDX-License-Identifier:' || true)
+          missing=$(git ls-files '*.go' '*.py' '*.sh' '*.proto' | xargs grep -L -E '^(//|#) SPDX-License-Identifier: Apache-2.0$' || true)
           if [ -n "$missing" ]; then
             echo "Missing SPDX headers in:"
             echo "$missing"

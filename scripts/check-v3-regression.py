@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+
 """Fail when current V3 measurements regress beyond a bounded threshold."""
 
 import argparse
