@@ -1,4 +1,4 @@
-.PHONY: all setup clean build test lint lint-fix coverage vet fuzz bench bench-module race docs-verify license-check api-check proto tidy-check
+.PHONY: all setup clean build test lint lint-fix coverage vet fuzz bench bench-module race docs-verify license-check api-check proto tidy-check v3-regression-check
 
 # Pin golangci-lint so local `make lint` matches CI (see .github/workflows/ci.yaml).
 # Run via `go run` so the installed binary's version can't drift from CI.
@@ -22,14 +22,14 @@ test:
 	@cd server && go test ./...
 
 # Verify go.mod/go.sum are tidy in all three modules. `go mod tidy` rewrites in
-# place, so the diff is what fails the check. benchmarks/ is included because an
+# place, so the diff is what fails the check. test/benchmarks/ is included because an
 # un-tidied go.sum there is how the pinned competitor versions silently drift
 # from the ones the comparison page claims to have measured.
 tidy-check:
 	@go mod tidy
 	@cd server && go mod tidy
-	@cd benchmarks && go mod tidy
-	@git diff --exit-code go.mod go.sum server/go.mod server/go.sum benchmarks/go.mod benchmarks/go.sum
+	@cd test/benchmarks && go mod tidy
+	@git diff --exit-code go.mod go.sum server/go.mod server/go.sum test/benchmarks/go.mod test/benchmarks/go.sum
 
 docs-verify:
 	@go run ./tools/doccheck README.md $$(find docs/content -name '*.md')
@@ -79,7 +79,7 @@ coverage:
 vet:
 	@go vet ./...
 	@cd server && go vet ./...
-	@cd benchmarks && go vet ./...
+	@cd test/benchmarks && go vet ./...
 
 lint-fix:
 	@$(GOLANGCI_LINT) run --fix ./...
@@ -103,8 +103,8 @@ bench:
 # and propagation figures are meaningless against miniredis, which makes the Redis
 # path nearly free.
 bench-module:
-	@cd benchmarks && go test -bench . -benchmem -benchtime=200x -run '^$$' ./...
-	@cd benchmarks && go test -run 'MemoryFootprint|Propagation' -v ./...
+	@cd test/benchmarks && go test -bench . -benchmem -benchtime=200x -run '^$$' ./...
+	@cd test/benchmarks && go test -run 'MemoryFootprint|Propagation' -v ./...
 
 race:
 	@go test -race ./...
@@ -114,3 +114,11 @@ race:
 .PHONY: bench-v3
 bench-v3:
 	@sh scripts/benchmark-v3.sh
+
+# Compare two real-server V3 result JSON files. The default 25% ceiling is a
+# noisy-workstation guard, not a performance promise; use a tighter value in a
+# controlled release environment. Both files must contain the same workload keys.
+v3-regression-check:
+	@test -n "$(ACOR_V3_BASELINE_JSON)" || (echo "set ACOR_V3_BASELINE_JSON" >&2; exit 2)
+	@test -n "$(ACOR_V3_CANDIDATE_JSON)" || (echo "set ACOR_V3_CANDIDATE_JSON" >&2; exit 2)
+	@python3 scripts/check-v3-regression.py "$(ACOR_V3_BASELINE_JSON)" "$(ACOR_V3_CANDIDATE_JSON)" --max-regression "$(or $(ACOR_V3_MAX_REGRESSION),0.25)"

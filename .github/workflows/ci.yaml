@@ -11,12 +11,12 @@ on:
       - "go.mod"
       - "go.sum"
       # Every module's manifests, not just the root's: a Dependabot bump scoped
-      # to server/ or benchmarks/ touches no root file and no .go file, so
+      # to server/ or test/benchmarks/ touches no root file and no .go file, so
       # without these it would merge without CI ever running.
       - "server/go.mod"
       - "server/go.sum"
-      - "benchmarks/go.mod"
-      - "benchmarks/go.sum"
+      - "test/benchmarks/go.mod"
+      - "test/benchmarks/go.sum"
       - ".github/workflows/*.yaml"
       - ".golangci.yaml"
       # The attribution file itself: a PR that edits only NOTICE is a PR that
@@ -40,12 +40,12 @@ on:
       - "go.mod"
       - "go.sum"
       # Every module's manifests, not just the root's: a Dependabot bump scoped
-      # to server/ or benchmarks/ touches no root file and no .go file, so
+      # to server/ or test/benchmarks/ touches no root file and no .go file, so
       # without these it would merge without CI ever running.
       - "server/go.mod"
       - "server/go.sum"
-      - "benchmarks/go.mod"
-      - "benchmarks/go.sum"
+      - "test/benchmarks/go.mod"
+      - "test/benchmarks/go.sum"
       - ".github/workflows/*.yaml"
       - ".golangci.yaml"
       # The attribution file itself: a PR that edits only NOTICE is a PR that
@@ -85,10 +85,10 @@ jobs:
           cache-dependency-path: |
             go.sum
             server/go.sum
-            benchmarks/go.sum
+            test/benchmarks/go.sum
       # Runs before lint because a stale manifest is what lint reports as
       # "no go files to analyze", which names neither the module nor the fix.
-      # server/ and benchmarks/ replace the core with ../, so a Dependabot bump
+      # server/ and test/benchmarks/ replace the core with the repository root, so a Dependabot bump
       # to the root alone moves their build list and leaves their own manifests
       # behind — that is PR #233, where all six jobs failed on it. pre-commit
       # runs this same target, but Dependabot pushes through the API and never
@@ -117,7 +117,7 @@ jobs:
       # keeps it compiling as the core API it measures through changes.
       - name: Run go vet (benchmarks module)
         run: go vet ./...
-        working-directory: benchmarks
+        working-directory: test/benchmarks
       - name: Check SPDX headers
         if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
         run: |
@@ -252,7 +252,7 @@ jobs:
           go-version: "1.26"
           cache-dependency-path: |
             go.sum
-            benchmarks/go.sum
+            test/benchmarks/go.sum
       - name: Run integration tests against ${{ matrix.server }}
         env:
           ACOR_INTEGRATION_ADDR: localhost:6379
@@ -276,7 +276,7 @@ jobs:
       # the staleness window returns stale answers rather than errors), so it runs for
       # real rather than as a smoke.
       - name: Smoke-run the benchmarks module against ${{ matrix.server }}
-        working-directory: benchmarks
+        working-directory: test/benchmarks
         env:
           ACOR_INTEGRATION_ADDR: localhost:6379
         run: |

@@ -4,11 +4,13 @@ package server
 
 import (
 	"context"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/skyoo2003/acor/pkg/acor"
 	"github.com/skyoo2003/acor/server/health"
 	"github.com/skyoo2003/acor/server/logging"
 	"github.com/skyoo2003/acor/server/metrics"
@@ -31,12 +33,33 @@ type grpcServer struct {
 	service Service
 }
 
+type versionedGRPCServer struct {
+	acorv1.UnimplementedAcorServer
+	statusSource VersionedStatusSource
+	metrics      *metrics.Registry
+}
+
 // NewGRPCServer returns a *grpc.Server serving the acor.server.v1.Acor service
 // defined in server/proto/acor/v1/acor.proto. Callers pass any grpc.ServerOption
 // (TLS, interceptors, ...) and are responsible for Serve/Stop.
 func NewGRPCServer(service Service, opts ...grpc.ServerOption) *grpc.Server {
 	s := grpc.NewServer(opts...)
 	acorv1.RegisterAcorServer(s, &grpcServer{service: service})
+	return s
+}
+
+// NewVersionedGRPCServer returns a read-only gRPC server exposing V3 status.
+// The legacy collection RPCs remain unimplemented because V3 writes require an
+// expected version and are intentionally kept on the Go API.
+func NewVersionedGRPCServer(source VersionedStatusSource, opts ...grpc.ServerOption) *grpc.Server {
+	return NewVersionedGRPCServerWithMetrics(source, nil, opts...)
+}
+
+// NewVersionedGRPCServerWithMetrics is NewVersionedGRPCServer and updates the
+// supplied bounded V3 gauges whenever Status is called.
+func NewVersionedGRPCServerWithMetrics(source VersionedStatusSource, registry *metrics.Registry, opts ...grpc.ServerOption) *grpc.Server {
+	s := grpc.NewServer(opts...)
+	acorv1.RegisterAcorServer(s, &versionedGRPCServer{statusSource: source, metrics: registry})
 	return s
 }
 
@@ -142,6 +165,35 @@ func (s *grpcServer) Flush(_ context.Context, _ *acorv1.EmptyRequest) (*acorv1.S
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &acorv1.StatusResponse{Status: "ok"}, nil
+}
+
+func (s *versionedGRPCServer) Status(_ context.Context, _ *acorv1.EmptyRequest) (*acorv1.VersionedStatusResponse, error) {
+	state := s.statusSource.Status()
+	if s.metrics != nil {
+		s.metrics.UpdateVersionedStatus(&state)
+	}
+	return versionedStatusProto(&state), nil
+}
+
+func versionedStatusProto(state *acor.VersionedStatus) *acorv1.VersionedStatusResponse {
+	response := &acorv1.VersionedStatusResponse{
+		Status:          "ok",
+		ActiveVersion:   string(state.ActiveVersion),
+		ServingVersion:  string(state.ServingVersion),
+		Building:        state.Building,
+		RefreshFailures: state.RefreshFailures,
+		ActiveLeases:    int64(state.ActiveLeases),
+	}
+	if state.LastError != "" || state.ServingVersion == "" {
+		response.Status = "degraded"
+	}
+	if !state.LastRefreshSuccess.IsZero() {
+		response.LastRefreshSuccess = state.LastRefreshSuccess.UTC().Format(time.RFC3339Nano)
+	}
+	if !state.LastRefreshFailure.IsZero() {
+		response.LastRefreshFailure = state.LastRefreshFailure.UTC().Format(time.RFC3339Nano)
+	}
+	return response
 }
 
 // toPositions converts native match-index offsets to their protobuf wrapper.

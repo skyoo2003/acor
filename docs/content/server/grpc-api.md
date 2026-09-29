@@ -25,8 +25,10 @@ It mirrors the [HTTP API](../http-api/) one for one. The `main` that serves it i
 | `SuggestIndex` | `InputRequest{input}` | `MatchIndexesResponse{matches}` |
 | `Info` | `EmptyRequest` | `InfoResponse{keywords, nodes}` |
 | `Flush` | `EmptyRequest` | `StatusResponse{status}` |
+| `Status` | `EmptyRequest` | `VersionedStatusResponse{status, versions, refresh state}` |
 
-All eight are unary; full method names are `/acor.server.v1.Acor/<RPC>`.
+All nine are unary; full method names are `/acor.server.v1.Acor/<RPC>`. `Status` is served
+by `server.NewVersionedGRPCServer` for V3 and is unimplemented on the legacy server.
 
 Two shapes differ from HTTP:
 
@@ -79,6 +81,8 @@ The [HTTP API](../http-api/) behaves identically.
 ```go
 server.NewGRPCServer(service, opts...)                            // bare
 server.NewGRPCServerWithObservability(ctx, service, obs, opts...) // + observability
+server.NewVersionedGRPCServer(v3, opts...)                        // V3 status only
+server.NewVersionedGRPCServerWithMetrics(v3, registry, opts...)   // V3 status + gauges
 ```
 
 Both accept any `grpc.ServerOption`, including `grpc.Creds` for TLS, and both leave

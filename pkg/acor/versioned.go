@@ -73,12 +73,16 @@ type VersionedOptions struct {
 
 // VersionedStatus describes locally observed storage and engine state.
 type VersionedStatus struct {
-	ActiveVersion  Version
-	ServingVersion Version
-	Building       bool
-	BuildStarted   time.Time
-	BuildDuration  time.Duration
-	LastError      string
+	ActiveVersion      Version
+	ServingVersion     Version
+	Building           bool
+	BuildStarted       time.Time
+	BuildDuration      time.Duration
+	LastError          string
+	LastRefreshSuccess time.Time
+	LastRefreshFailure time.Time
+	RefreshFailures    uint64
+	ActiveLeases       int
 	// DownloadedBuckets and ReusedBuckets describe the most recent successful build.
 	DownloadedBuckets int
 	ReusedBuckets     int
@@ -223,7 +227,9 @@ func (v *VersionedCollection) initialize(ctx context.Context) error {
 func (v *VersionedCollection) Status() VersionedStatus {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	return v.status
+	status := v.status
+	status.ActiveLeases = len(v.leases)
+	return status
 }
 func (v *VersionedCollection) signal() {
 	select {
@@ -292,6 +298,7 @@ func (v *VersionedCollection) installEngine(s *Snapshot, e *matchengine.Engine, 
 	v.mu.Lock()
 	v.status.ServingVersion = s.Version()
 	v.status.LastError = ""
+	v.status.LastRefreshSuccess = time.Now()
 	v.status.DownloadedBuckets = downloaded
 	v.status.ReusedBuckets = reused
 	v.status.CompletedBuilds++
@@ -337,6 +344,8 @@ func (v *VersionedCollection) refreshLoop() {
 		if err := v.refresh(v.ctx); err != nil && v.ctx.Err() == nil {
 			v.mu.Lock()
 			v.status.LastError = err.Error()
+			v.status.LastRefreshFailure = time.Now()
+			v.status.RefreshFailures++
 			v.mu.Unlock()
 		}
 	}

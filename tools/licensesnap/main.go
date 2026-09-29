@@ -15,7 +15,7 @@
 // module is a source-only library: a consumer runs `go get` and the go command
 // fetches its dependencies from the proxy with their own LICENSE and NOTICE
 // files intact, so this project never redistributes them and owes no notice for
-// them. benchmarks/ never leaves the repository.
+// them. test/benchmarks/ never leaves the repository.
 //
 // The import graph is walked once per GOOS/GOARCH pair in the release matrix,
 // because `go list` resolves build constraints against both: a Windows-only or

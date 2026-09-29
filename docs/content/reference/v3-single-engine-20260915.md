@@ -36,7 +36,7 @@ process high-water mark; search p95 is sampled during the update.
 | Korean | 2.082–2.173 (2.112) | 1.343–1.530 (1.437) | 1.007–1.179 (1.019) | 2.578–2.805 (2.740) | 2.855–3.058 (2.961) | 4.583–12.834 (4.708) | 43.934–43.947 (43.941) |
 
 The raw machine-readable result is
-[`v3-20260915-redis.json`](../../../benchmarks/results/v3-20260915-redis.json).
+[`v3-20260915-redis.json`](../../../test/benchmarks/results/v3-20260915-redis.json).
 
 ## Reproduce
 

@@ -211,6 +211,10 @@ field VersionedStatus.BuildDuration time.Duration	ok	versioned.go:73 V3 contract
 field VersionedStatus.BuildStarted time.Time	ok	versioned.go:73 V3 contract reviewed against the implementation; lifecycle, parity, leases and fault scenarios are in versioned_test.go:1 and versioned_failure_test.go:1
 field VersionedStatus.Building bool	ok	versioned.go:73 V3 contract reviewed against the implementation; lifecycle, parity, leases and fault scenarios are in versioned_test.go:1 and versioned_failure_test.go:1
 field VersionedStatus.LastError string	ok	versioned.go:73 V3 contract reviewed against the implementation; lifecycle, parity, leases and fault scenarios are in versioned_test.go:1 and versioned_failure_test.go:1
+field VersionedStatus.LastRefreshFailure time.Time	ok	versioned.go:73 additive operational status; refresh failure recording is verified in versioned_failure_test.go:135
+field VersionedStatus.LastRefreshSuccess time.Time	ok	versioned.go:73 additive operational status; successful engine installation is verified in versioned_test.go:119
+field VersionedStatus.RefreshFailures uint64	ok	versioned.go:73 additive operational status; refresh failure counting is verified in versioned_failure_test.go:135
+field VersionedStatus.ActiveLeases int	ok	versioned.go:73 additive operational status; local lease accounting is verified in versioned_test.go:141
 field VersionedStatus.ServingVersion Version	ok	versioned.go:73 V3 contract reviewed against the implementation; lifecycle, parity, leases and fault scenarios are in versioned_test.go:1 and versioned_failure_test.go:1
 field WriteResult.Added int	ok	versioned.go:89 V3 contract reviewed against the implementation; lifecycle, parity, leases and fault scenarios are in versioned_test.go:1 and versioned_failure_test.go:1
 field WriteResult.OperationID string	ok	versioned.go:89 V3 contract reviewed against the implementation; lifecycle, parity, leases and fault scenarios are in versioned_test.go:1 and versioned_failure_test.go:1

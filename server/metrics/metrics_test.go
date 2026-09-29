@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/skyoo2003/acor/pkg/acor"
 )
 
 func TestNewRegistry(t *testing.T) {
@@ -33,5 +35,9 @@ func TestNewRegistry(t *testing.T) {
 	}
 	if reg.GRPCServer == nil {
 		t.Error("expected GRPCServer to be initialized")
+	}
+	reg.UpdateVersionedStatus(&acor.VersionedStatus{Building: true, ServingVersion: "v", RefreshFailures: 2, ActiveLeases: 3})
+	if reg.VersionedBuilding == nil || reg.VersionedServingReady == nil || reg.VersionedRefreshFailures == nil || reg.VersionedActiveLeases == nil {
+		t.Error("expected V3 metrics to be initialized")
 	}
 }

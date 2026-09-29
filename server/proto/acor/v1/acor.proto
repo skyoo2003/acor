@@ -17,6 +17,7 @@ service Acor {
   rpc SuggestIndex(InputRequest) returns (MatchIndexesResponse);
   rpc Info(EmptyRequest) returns (InfoResponse);
   rpc Flush(EmptyRequest) returns (StatusResponse);
+  rpc Status(EmptyRequest) returns (VersionedStatusResponse);
 }
 
 message KeywordRequest {
@@ -54,4 +55,15 @@ message InfoResponse {
 
 message StatusResponse {
   string status = 1;
+}
+
+message VersionedStatusResponse {
+  string status = 1;
+  string active_version = 2;
+  string serving_version = 3;
+  bool building = 4;
+  string last_refresh_success = 5;
+  string last_refresh_failure = 6;
+  uint64 refresh_failures = 7;
+  int64 active_leases = 8;
 }

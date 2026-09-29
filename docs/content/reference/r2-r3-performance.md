@@ -7,9 +7,9 @@ description: "Incremental download, engine memory and bounded source-text API ev
 
 R2/R3 completed 36 real-server runs on 2026-09-06 using the R1 workload: Redis/Valkey ×
 10,000/100,000/1,000,000 keywords × shared/diverse/Korean distributions × two repetitions.
-The R1 measurements are unchanged in `benchmarks/results/v3-20260906.json`; new
+The R1 measurements are unchanged in `test/benchmarks/results/v3-20260906.json`; new
 measurements, source hashes, and safety results are in
-`benchmarks/results/r2-r3-20260906.json`.
+`test/benchmarks/results/r2-r3-20260906.json`.
 
 Environment: Apple M4, 10 logical CPUs, 16 GiB RAM, macOS 26.5.2, Go 1.26.7, Redis 8.10.1,
 source-built Valkey 9.1.2. Both standalone on localhost TCP with RDB/AOF disabled. Preset

@@ -252,7 +252,7 @@ Three Go modules live in this repository:
 | `pkg/acor`    | `github.com/skyoo2003/acor`            | The library. Public API.                      |
 | `cmd/acor`    | same module                            | The CLI, released as a binary and image.      |
 | `server/`     | `github.com/skyoo2003/acor/server`     | Experimental. Separately versioned, untagged. |
-| `benchmarks/` | `github.com/skyoo2003/acor/benchmarks` | Test-only. Never published.                   |
+| `test/benchmarks/` | `github.com/skyoo2003/acor/test/benchmarks` | Test-only. Never published.              |
 
 The library's import path is `github.com/skyoo2003/acor/pkg/acor` — the `pkg/`
 segment included. It stays that way deliberately: it is the path every released
@@ -264,6 +264,36 @@ Both non-root modules keep a `replace` pointing at this checkout so local builds
 and CI compile against the core in the working tree. Go ignores a dependency's
 `replace`, so `server/go.mod`'s `require` for the core must name a released tag —
 that is the version an external consumer actually resolves.
+
+`cmd/acor` intentionally contains only the executable entrypoint. Its command
+parsing and application logic live in `internal/app/acor`, keeping the CLI
+implementation private while the command remains a small composition layer.
+
+The `server/` module and `server/proto/` remain at their published paths. They
+are a separately versioned public module and generated gRPC package, so moving
+them into the root module's `internal` tree would break consumers.
+
+### Project Layout Guidelines
+
+Use [golang-standards/project-layout](https://github.com/golang-standards/project-layout)
+as this repository's directory-layout guide. It is a community convention rather
+than an official Go standard; follow the rules below instead of creating a new
+top-level directory by default.
+
+- Put executable entrypoints in `cmd/<binary>/`; keep `main` limited to process
+  setup and delegation.
+- Put code private to this repository or an application in `internal/`. CLI
+  application logic belongs in `internal/app/<application>`.
+- Put only deliberately supported, externally importable library APIs in `pkg/`.
+  A package placed there is a compatibility commitment.
+- Keep package tests next to their code. Put independent integration harnesses,
+  fixtures, and test-only modules under `test/`.
+- Keep protocol definitions with the module that owns their generated Go import
+  path. This is why the separately versioned server module retains
+  `server/proto/` rather than moving it into the root `api/` directory.
+- Keep supporting artifacts in their established layout: API snapshots in `api/`,
+  documentation in `docs/`, runnable examples in `examples/`, repository tools
+  in `tools/`, and maintenance scripts in `scripts/`.
 
 ## Coding Standards
 

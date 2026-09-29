@@ -99,16 +99,16 @@
     {{ end }}
     </tbody>
   </table>
-  <p class="note">The raw evaluator results are in <a href="https://github.com/skyoo2003/acor/blob/main/benchmarks/results/v3-delta-20260914-redis.json">Redis JSON</a> and <a href="https://github.com/skyoo2003/acor/blob/main/benchmarks/results/v3-delta-20260914-valkey.json">Valkey JSON</a>. `DeltaSearch` remains opt-in.</p>
+  <p class="note">The raw evaluator results are in <a href="https://github.com/skyoo2003/acor/blob/main/test/benchmarks/results/v3-delta-20260914-redis.json">Redis JSON</a> and <a href="https://github.com/skyoo2003/acor/blob/main/test/benchmarks/results/v3-delta-20260914-valkey.json">Valkey JSON</a>. `DeltaSearch` remains opt-in.</p>
   <h2 id="benchmark-sets">Benchmark sets</h2>
   <p class="note">These archived measurements use the original scale-test schema and are shown as context, separate from the final delta-search gate.</p>
   <table>
     <thead><tr><th scope="col">Set</th><th scope="col">Date</th><th scope="col">Servers</th><th scope="col">Runs</th><th scope="col">Status</th><th scope="col">Configuration</th></tr></thead>
     <tbody>
-      <tr><th scope="row"><a href="https://github.com/skyoo2003/acor/blob/main/benchmarks/results/v3-20260906.json">V3 baseline</a></th><td>{{ $v3.date }}</td><td>{{ $v3.redis }} / {{ $v3.valkey }}</td><td>{{ len $v3.runs }}</td><td class="pass">Recorded</td><td>Original versioned scale test</td></tr>
-      <tr><th scope="row"><a href="https://github.com/skyoo2003/acor/blob/main/benchmarks/results/r2-r3-20260906.json">R2/R3 verification</a></th><td>{{ $r2r3.date }}</td><td>{{ $r2r3.redis }} / {{ $r2r3.valkey }}</td><td>{{ len $r2r3.runs }}</td><td class="pass">Recorded</td><td>RefreshDebounce=20ms</td></tr>
+      <tr><th scope="row"><a href="https://github.com/skyoo2003/acor/blob/main/test/benchmarks/results/v3-20260906.json">V3 baseline</a></th><td>{{ $v3.date }}</td><td>{{ $v3.redis }} / {{ $v3.valkey }}</td><td>{{ len $v3.runs }}</td><td class="pass">Recorded</td><td>Original versioned scale test</td></tr>
+      <tr><th scope="row"><a href="https://github.com/skyoo2003/acor/blob/main/test/benchmarks/results/r2-r3-20260906.json">R2/R3 verification</a></th><td>{{ $r2r3.date }}</td><td>{{ $r2r3.redis }} / {{ $r2r3.valkey }}</td><td>{{ len $r2r3.runs }}</td><td class="pass">Recorded</td><td>RefreshDebounce=20ms</td></tr>
     </tbody>
   </table>
-  <p class="note">The final delta-search JSON files and these two archived result sets remain available under <code>benchmarks/results</code> for reproducibility.</p>
+  <p class="note">The final delta-search JSON files and these two archived result sets remain available under <code>test/benchmarks/results</code> for reproducibility.</p>
 </article>
 {{ end }}

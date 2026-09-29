@@ -48,7 +48,7 @@ updates:
   # module, so its dependencies (miniredis and the go-redis chain it pulls) are not
   # covered by the root manifest and are kept current here.
   - package-ecosystem: "gomod"
-    directory: "/benchmarks"
+    directory: "/test/benchmarks"
     schedule:
       interval: "weekly"
       day: "monday"

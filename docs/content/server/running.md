@@ -26,6 +26,22 @@ The collection *is* the service. Every method `server.Service` requires — `Add
 `Find`, `FindIndex`, `Suggest`, `SuggestIndex`, `Flush`, `Info` — is already a method on
 `*acor.AhoCorasick`, so no adapter is needed.
 
+V3 collections intentionally do not implement this legacy mutation interface. Mount the
+read-only operational surface separately when running V3:
+
+```go
+v3, err := acor.OpenVersioned(ctx, &acor.VersionedOptions{Redis: acor.AhoCorasickArgs{
+	Addr: os.Getenv("REDIS_ADDR"), Name: "production-v3",
+}})
+if err != nil { log.Fatal(err) }
+defer v3.Close()
+
+mux.Handle("/v3/", http.StripPrefix("/v3", server.NewVersionedHTTPHandler(v3)))
+```
+
+This exposes `/v3/healthz` and `/v3/v1/status`; it does not add unversioned writes or
+searches to the experimental server API.
+
 <!-- doccheck:server -->
 ```go
 package main
