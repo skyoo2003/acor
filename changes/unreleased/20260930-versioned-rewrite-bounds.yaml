@@ -1,0 +1,2 @@
+kind: Fixed
+body: 'Versioned rewrite endpoints now enforce server-side match, candidate, and output limits and report malformed mask values as client errors.'
