@@ -36,7 +36,12 @@ v3, err := acor.OpenVersioned(ctx, &acor.VersionedOptions{Redis: acor.AhoCorasic
 if err != nil { log.Fatal(err) }
 defer v3.Close()
 
-mux.Handle("/v3/", http.StripPrefix("/v3", server.NewVersionedHTTPHandler(v3)))
+registry := metrics.NewRegistry(nil)
+v3Handler, err := server.NewVersionedHTTPHandlerWithObservability(v3, &server.VersionedObservability{
+	Metrics: registry, Collection: "production-moderation",
+})
+if err != nil { log.Fatal(err) }
+mux.Handle("/v3/", http.StripPrefix("/v3", v3Handler))
 ```
 
 This exposes `/v3/healthz`, `/v3/v1/status`, and V3-only routes under

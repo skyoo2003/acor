@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -19,6 +20,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/skyoo2003/acor/pkg/acor"
+	servermetrics "github.com/skyoo2003/acor/server/metrics"
 	acorv1 "github.com/skyoo2003/acor/server/proto/acor/v1"
 )
 
@@ -86,6 +88,67 @@ func TestVersionedHTTPHandlerStatusAndHealth(t *testing.T) {
 	NewVersionedHTTPHandler(&collection).ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("health code = %d, want 200", rec.Code)
+	}
+}
+
+func TestVersionedObservabilityConstructorsBindMetrics(t *testing.T) {
+	promReg := prometheus.NewRegistry()
+	registry := servermetrics.NewRegistry(promReg)
+	collection := &versionedStatusSource{status: acor.VersionedStatus{ServingVersion: "serving", ActiveLeases: 4}}
+	observability := &VersionedObservability{Metrics: registry, Collection: "moderation-prod"}
+
+	handler, err := NewVersionedHTTPHandlerWithObservability(collection, observability)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if handler == nil {
+		t.Fatal("expected HTTP handler")
+	}
+	grpcServer, err := NewVersionedGRPCServerWithObservability(collection, observability)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if grpcServer == nil {
+		t.Fatal("expected gRPC server")
+	}
+	grpcServer.Stop()
+
+	families, err := promReg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, family := range families {
+		if family.GetName() != "acor_versioned_active_leases" {
+			continue
+		}
+		for _, metric := range family.Metric {
+			if metric.GetGauge().GetValue() != 4 {
+				continue
+			}
+			for _, label := range metric.Label {
+				if label.GetName() == "collection" && label.GetValue() == "moderation-prod" {
+					found = true
+				}
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected labeled V3 metric from automatic binding")
+	}
+}
+
+func TestVersionedObservabilityRejectsInvalidConfig(t *testing.T) {
+	collection := &versionedStatusSource{}
+	registry := servermetrics.NewRegistry(prometheus.NewRegistry())
+	if _, err := NewVersionedHTTPHandlerWithObservability(collection, &VersionedObservability{Metrics: registry, Collection: "invalid label"}); err == nil {
+		t.Fatal("expected invalid label error")
+	}
+	if _, err := NewVersionedHTTPHandlerWithObservability(collection, &VersionedObservability{Collection: "valid"}); err == nil {
+		t.Fatal("expected missing registry error")
+	}
+	if _, err := NewVersionedHTTPHandlerWithObservability(collection, nil); err == nil {
+		t.Fatal("expected missing observability error")
 	}
 }
 

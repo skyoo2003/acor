@@ -1,0 +1,5 @@
+kind: Added
+body: Added scrape-time, collection-labeled V3 Prometheus metrics and observability-aware HTTP and gRPC server constructors.
+time: 2026-09-30T09:27:33.038381+09:00
+custom:
+    Issue: "270"
