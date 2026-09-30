@@ -293,6 +293,14 @@ field VersionedStatus.CompletedBuilds uint64	ok	versioned.go:73 additive R2/R3 c
 field VersionedStatus.DownloadedBuckets int	ok	versioned.go:73 additive R2/R3 contract; source-span and limit parity verified in scan_test.go:1, cache and coalescing in versioned_reuse_test.go:1
 field VersionedStatus.ReusedBuckets int	ok	versioned.go:73 additive R2/R3 contract; source-span and limit parity verified in scan_test.go:1, cache and coalescing in versioned_reuse_test.go:1
 field VersionedOptions.DeltaSearch bool	ok	versioned.go:60 retained for source compatibility; single-engine behavior verified in versioned_test.go:119
+field VersionedOptions.ShardConcurrency int	ok	versioned_shards.go:30 rejects negative concurrency and selects a CPU/count-bounded default; versioned_shards_test.go:62 verifies default and explicit values
+field VersionedOptions.ShardCount uint16	risk	versioned_shards.go:30 validates powers of two through 256 and normalizes zero to one; versioned_shards_test.go:17 verifies legacy reopen; sharded persistence follows in Task 2
+field VersionedStatus.DownloadedShards int	risk	versioned.go:104 adds the observation field; population follows in the sharded refresh task, so currently zero
+field VersionedStatus.FailedShard int	ok	versioned.go:241 initializes the no-failure sentinel to -1; recording shard build failures follows in the sharded refresh task
+field VersionedStatus.LayoutVersion uint16	ok	versioned.go:239 reports actual legacy layout; versioned_shards_test.go:17 verifies persisted legacy reopen compatibility
+field VersionedStatus.RefreshingShards int	risk	versioned.go:107 adds the observation field; population follows in the sharded refresh task, so currently zero
+field VersionedStatus.ReusedShards int	risk	versioned.go:105 adds the observation field; population follows in the sharded refresh task, so currently zero
+field VersionedStatus.ShardCount uint16	ok	versioned.go:240 reports actual legacy shard count; versioned_shards_test.go:17 verifies persisted legacy reopen compatibility
 field VersionedStatus.DeltaKeywords int	ok	versioned.go:80 retained for source compatibility; zero value verified in versioned_test.go:141
 field VersionedStatus.DeltaSearch bool	ok	versioned.go:80 retained for source compatibility; disabled state verified in versioned_test.go:141
 method (*AhoCorasick) MaskText(ctx context.Context, text string, mask rune, opts *RewriteOptions) (*RewriteResult, error)	ok	rewrite.go:41 additive R2/R3 contract; source-span and limit parity verified in scan_test.go:1, cache and coalescing in versioned_reuse_test.go:1

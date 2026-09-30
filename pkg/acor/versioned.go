@@ -59,6 +59,12 @@ type VersionedOptions struct {
 	Redis         AhoCorasickArgs
 	CaseSensitive bool
 	Preset        Preset
+	// ShardCount selects storage for new collections: 0 or 1 keeps legacy V3.
+	// Larger counts must be powers of two, up to 256. Existing layouts are retained.
+	ShardCount uint16
+	// ShardConcurrency bounds shard work; 0 uses the smaller of GOMAXPROCS and
+	// the shard count. Negative values are invalid.
+	ShardConcurrency int
 	// DeltaSearch is retained for source compatibility; V3 always serves a single engine.
 	DeltaSearch bool
 	// PollInterval defaults to 30 seconds; negative values are invalid.
@@ -90,6 +96,15 @@ type VersionedStatus struct {
 	CompletedBuilds uint64
 	DeltaSearch     bool
 	DeltaKeywords   int
+	// LayoutVersion and ShardCount describe the locally observed storage layout.
+	LayoutVersion uint16
+	ShardCount    uint16
+	// DownloadedShards and ReusedShards describe the most recent successful build.
+	DownloadedShards int
+	ReusedShards     int
+	// RefreshingShards counts shards being refreshed; FailedShard is -1 if none.
+	RefreshingShards int
+	FailedShard      int
 }
 
 // WriteResult describes an atomic commit. OperationID remains available on an
@@ -220,6 +235,9 @@ func (v *VersionedCollection) initialize(ctx context.Context) error {
 	if fmt.Sprint(r[1]) != fmt.Sprint(v.opts.CaseSensitive) {
 		return ErrCasePolicy
 	}
+	v.status.LayoutVersion = v3LegacyLayoutVersion
+	v.status.ShardCount = 1
+	v.status.FailedShard = -1
 	return nil
 }
 
@@ -433,6 +451,9 @@ func versionedOptions(opts *VersionedOptions) (VersionedOptions, error) {
 		return VersionedOptions{}, errors.New("acor: VersionedOptions required")
 	}
 	o := *opts
+	if err := v3NormalizeShardOptions(&o); err != nil {
+		return VersionedOptions{}, err
+	}
 	if strings.TrimSpace(o.Redis.Name) == "" {
 		return VersionedOptions{}, errors.New("acor: collection name required")
 	}
