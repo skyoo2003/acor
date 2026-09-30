@@ -65,7 +65,7 @@ type VersionedOptions struct {
 	// ShardConcurrency bounds shard work; 0 uses the smaller of GOMAXPROCS and
 	// the shard count. Negative values are invalid.
 	ShardConcurrency int
-	// DeltaSearch is retained for source compatibility; V3 always serves a single engine.
+	// DeltaSearch is retained for source compatibility; V3 serves complete generations.
 	DeltaSearch bool
 	// PollInterval defaults to 30 seconds; negative values are invalid.
 	PollInterval time.Duration
@@ -133,6 +133,7 @@ type v3Bucket struct {
 }
 type v3Engine struct {
 	engine   *matchengine.Engine
+	shards   []*matchengine.Engine
 	version  Version
 	sequence uint64
 	manifest *v3Manifest
@@ -308,9 +309,9 @@ func (v *VersionedCollection) refresh(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	e := matchengine.New(enginePreset(v.opts.Preset))
-	if buildErr := e.BuildSequenceContext(ctx, bucketSequence(buckets), s.Count()); buildErr != nil {
-		return buildErr
+	e, shards, err := v.buildGeneration(ctx, s, buckets)
+	if err != nil {
+		return err
 	}
 	if err := s.lease.check(ctx); err != nil {
 		return err
@@ -318,11 +319,12 @@ func (v *VersionedCollection) refresh(ctx context.Context) error {
 	if err := v.check(ctx); err != nil {
 		return err
 	}
-	v.installEngine(s, e, buckets, downloaded, reused)
+	v.installEngine(s, e, shards, buckets, downloaded, reused)
 	return nil
 }
-func (v *VersionedCollection) installEngine(s *Snapshot, e *matchengine.Engine, buckets *[v3BucketCount][]string, downloaded, reused int) {
-	v.current.Store(&v3Engine{engine: e, version: s.Version(), sequence: s.manifest.Sequence, manifest: s.manifest, buckets: buckets})
+func (v *VersionedCollection) installEngine(s *Snapshot, e *matchengine.Engine, shards []*matchengine.Engine,
+	buckets *[v3BucketCount][]string, downloaded, reused int) {
+	v.current.Store(&v3Engine{engine: e, shards: shards, version: s.Version(), sequence: s.manifest.Sequence, manifest: s.manifest, buckets: buckets})
 	v.mu.Lock()
 	v.status.ServingVersion = s.Version()
 	v.status.LastError = ""

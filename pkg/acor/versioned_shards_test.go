@@ -7,14 +7,89 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
 )
+
+// Losing unchanged shard engines makes every incremental update rebuild the dictionary.
+func TestVersionedShardedSearchReusesUnchangedEngines(t *testing.T) {
+	ctx := context.Background()
+	v := openShardedV3Test(t, miniredis.RunT(t), "engine-reuse")
+	r, err := v.Replace(ctx, v.Status().ServingVersion, []string{"한국어", "café"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, r.Version)
+	before := v.current.Load()
+	r, err = v.Add(ctx, r.Version, "🙂")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, r.Version)
+	after := v.current.Load()
+	if len(after.shards) != 4 {
+		t.Fatal("missing complete shard engine set")
+	}
+	for shard := range before.shards {
+		if (before.shards[shard] == after.shards[shard]) != (shard != 2) {
+			t.Fatalf("shard %d engine reuse incorrect", shard)
+		}
+	}
+}
+
+func TestVersionedShardedSearchPreservesKoreanMatchPositions(t *testing.T) {
+	ctx := context.Background()
+	v := openShardedV3Test(t, miniredis.RunT(t), "korean-positions")
+	r, err := v.Replace(ctx, v.Status().ServingVersion, []string{"한국어", "한국", "국어", "어"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, r.Version)
+	got, err := v.FindMatches(ctx, "🙂한국어 한국어", nil)
+	want := []Match{{"한국", 1, 3}, {"한국어", 1, 4}, {"국어", 2, 4}, {"어", 3, 4},
+		{"한국", 5, 7}, {"한국어", 5, 8}, {"국어", 6, 8}, {"어", 7, 8}}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatal(got, err)
+	}
+}
+
+// Refreshing inside the first callback must not switch the remaining stream's dictionary.
+func TestVersionedShardedSearchUsesOneGeneration(t *testing.T) {
+	ctx := context.Background()
+	v := openShardedV3Test(t, miniredis.RunT(t), "stream-generation")
+	r, err := v.Replace(ctx, v.Status().ServingVersion, []string{"old", "한국어"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, r.Version)
+	var got []string
+	err = v.FindStream(ctx, iotest.OneByteReader(strings.NewReader("old 한국어 old new café")), func(m Match) bool {
+		got = append(got, m.Keyword)
+		if len(got) == 1 {
+			next, replaceErr := v.Replace(ctx, r.Version, []string{"new", "café"})
+			if replaceErr != nil {
+				t.Fatal(replaceErr)
+			}
+			waitV3(t, v, next.Version)
+		}
+		return true
+	})
+	if err != nil || !slices.Equal(got, []string{"old", "한국어", "old"}) {
+		t.Fatal(got, err)
+	}
+	batch, err := v.FindBatch(ctx, []string{"old new 한국어 café", "new", "old"})
+	if err != nil || !reflect.DeepEqual(batch, [][]string{{"new", "café"}, {"new"}, {}}) {
+		t.Fatal(batch, err)
+	}
+}
 
 func openShardedV3Test(t *testing.T, server *miniredis.Miniredis, name string) *VersionedCollection {
 	t.Helper()

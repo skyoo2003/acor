@@ -40,7 +40,12 @@ func (v *VersionedCollection) search(ctx context.Context) (*AhoCorasick, error) 
 	if e == nil {
 		return nil, ErrVersionedClosed
 	}
-	return &AhoCorasick{ctx: ctx, caseSensitive: v.opts.CaseSensitive, ops: &v3SearchOps{engine: e.engine, sensitive: v.opts.CaseSensitive}}, nil
+	engine := e.engine
+	if len(e.shards) != 0 {
+		// One adapter per request shares its worker bound across parallel chunks.
+		engine = matchengine.NewComposite(e.shards, v.opts.ShardConcurrency)
+	}
+	return &AhoCorasick{ctx: ctx, caseSensitive: v.opts.CaseSensitive, ops: &v3SearchOps{engine: engine, sensitive: v.opts.CaseSensitive}}, nil
 }
 
 // Find uses one serving engine and the existing AhoCorasick Find semantics.
@@ -124,12 +129,16 @@ func (v *VersionedCollection) FindBatch(ctx context.Context, texts []string) ([]
 	if e == nil {
 		return nil, ErrVersionedClosed
 	}
+	engine := e.engine
+	if len(e.shards) != 0 {
+		engine = matchengine.NewComposite(e.shards, v.opts.ShardConcurrency)
+	}
 	out := make([][]string, len(texts))
 	for i, text := range texts {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		out[i] = e.engine.Find(normalizeText(text, v.opts.CaseSensitive))
+		out[i] = engine.Find(normalizeText(text, v.opts.CaseSensitive))
 	}
 	return out, nil
 }
