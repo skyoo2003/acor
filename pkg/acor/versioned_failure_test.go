@@ -23,6 +23,7 @@ type v3FaultHook struct {
 	suppressPublish bool
 	chunksWritten   atomic.Int64
 	stagePipelines  atomic.Int64
+	checkSlots      bool
 }
 
 func (h *v3FaultHook) DialHook(next redis.DialHook) redis.DialHook {
@@ -32,6 +33,11 @@ func (h *v3FaultHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.
 	return func(ctx context.Context, cmds []redis.Cmder) error {
 		staged := false
 		for _, cmd := range cmds {
+			if h.checkSlots {
+				if err := v3CheckScriptSlot(cmd); err != nil {
+					return err
+				}
+			}
 			args := cmd.Args()
 			if cmd.Name() == "eval" && args[1] == v3StageScript {
 				staged = true
@@ -48,6 +54,11 @@ func (h *v3FaultHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.
 }
 func (h *v3FaultHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 	return func(ctx context.Context, cmd redis.Cmder) error {
+		if h.checkSlots {
+			if err := v3CheckScriptSlot(cmd); err != nil {
+				return err
+			}
+		}
 		args := cmd.Args()
 		if cmd.Name() == "get" && strings.Contains(args[1].(string), ":chunk:") && h.failChunks.Load() {
 			return errors.New("injected chunk read failure")
@@ -64,6 +75,45 @@ func (h *v3FaultHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 			return errors.New("injected lost commit response")
 		}
 		return err
+	}
+}
+
+func v3CheckScriptSlot(cmd redis.Cmder) error {
+	if cmd.Name() != "eval" {
+		return nil
+	}
+	args := cmd.Args()
+	count := args[2].(int)
+	tag := ""
+	for _, arg := range args[3 : 3+count] {
+		_, rest, found := strings.Cut(arg.(string), "{")
+		current, _, closed := strings.Cut(rest, "}")
+		if !found || !closed || current == "" || (tag != "" && current != tag) {
+			return fmt.Errorf("script spans Redis Cluster hash tags: %v", args[3:3+count])
+		}
+		tag = current
+	}
+	return nil
+}
+
+func TestVersionedShardedScriptsStayWithinOneSlot(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	v := openShardedV3Test(t, server, "slot-{unsafe}-name")
+	v.client.AddHook(&v3FaultHook{checkSlots: true})
+	r, err := v.AddMany(ctx, v.Status().ServingVersion, []string{"café", "한국어", "🙂"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, r.Version)
+	for shard, word := range map[uint16]string{0: "café", 3: "한국어", 2: "🙂"} {
+		data, _ := json.Marshal([]string{word})
+		if v.client.Exists(ctx, v.shardKey(shard, "chunk:"+v3Hash(data))).Val() != 1 {
+			t.Fatalf("shard %d missing distributed chunk", shard)
+		}
+		if v.client.Exists(ctx, v.key("chunk:"+v3Hash(data))).Val() != 0 {
+			t.Fatal("sharded chunk incorrectly staged in global slot")
+		}
 	}
 }
 func TestVersionedLostCommitReceiptAndReuse(t *testing.T) {
@@ -108,6 +158,97 @@ func TestVersionedLostCommitReceiptAndReuse(t *testing.T) {
 	}
 	if hook.chunksWritten.Load() != before+1 {
 		t.Fatal("single addition rewrote unaffected buckets")
+	}
+}
+
+// Reusing a corrupted content-addressed key must fail before global publication.
+func TestVersionedShardedPreparationRejectsCorruptExistingChunk(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	v := openShardedV3Test(t, server, "corrupt-preparation")
+	initial := v.Status().ServingVersion
+	data := []byte(`["한국어"]`)
+	v.client.Set(ctx, v.shardKey(3, "chunk:"+v3Hash(data)), `["bad"]`, 0)
+	if _, err := v.Add(ctx, initial, "한국어"); !errors.Is(err, ErrVersionedCorrupt) {
+		t.Fatalf("corrupt preparation error = %v", err)
+	}
+	if got := v.client.Get(ctx, v.key("active")).Val(); got != string(initial) {
+		t.Fatal("failed preparation changed active version", got)
+	}
+}
+
+func TestVersionedShardedWriterMirrorsRenewAndClose(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	v := openShardedV3Test(t, server, "shard-writer-lease")
+	l, _, err := v.acquire(ctx, v.Status().ServingVersion, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.close(ctx)
+	if err = v.mirrorWriter(ctx, l, 3); err != nil {
+		t.Fatal(err)
+	}
+	v.client.ZAdd(ctx, v.shardKey(3, "writers"), redis.Z{Member: l.member, Score: 1})
+	l.renew(ctx)
+	global := v.client.ZScore(ctx, v.key("writers"), l.member).Val()
+	local := v.client.ZScore(ctx, v.shardKey(3, "writers"), l.member).Val()
+	if global <= 1 || local != global {
+		t.Fatalf("mirror deadline %v, global %v", local, global)
+	}
+	if err = l.close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err = v.client.ZScore(ctx, v.shardKey(3, "writers"), l.member).Err(); !errors.Is(err, redis.Nil) {
+		t.Fatal("closed writer retained shard lease", err)
+	}
+}
+
+func TestVersionedShardedPreparationFailureKeepsActive(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	v := openShardedV3Test(t, server, "shard-preparation-failure")
+	initial := v.Status().ServingVersion
+	v.client.Set(ctx, v.shardKey(3, "chunks"), "wrong-type", 0)
+	if _, err := v.AddMany(ctx, initial, []string{"café", "한국어"}); err == nil {
+		t.Fatal("expected shard preparation failure")
+	}
+	if got := v.client.Get(ctx, v.key("active")).Val(); got != string(initial) {
+		t.Fatal("failed shard preparation changed active version", got)
+	}
+}
+
+func TestVersionedShardedExpiredAndFencedWritersCannotStage(t *testing.T) {
+	for _, cause := range []string{"expired", "fenced", "maintenance"} {
+		t.Run(cause, func(t *testing.T) {
+			ctx := context.Background()
+			server := miniredis.RunT(t)
+			v := openShardedV3Test(t, server, "shard-lease-"+cause)
+			initial := v.Status().ServingVersion
+			l, _, err := v.acquire(ctx, initial, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer l.close(ctx)
+			switch cause {
+			case "expired":
+				v.client.ZAdd(ctx, v.key("writers"), redis.Z{Score: 1, Member: l.member})
+			case "fenced":
+				v.client.Set(ctx, v.shardKey(3, "fence"), "1", 0)
+			case "maintenance":
+				v.client.Set(ctx, v.shardKey(3, "maintenance"), "1", time.Minute)
+			}
+			b, stages := v3Stages([]string{"한국어"})
+			for i := range stages {
+				stages[i].sharded, stages[i].shard = true, 3
+			}
+			if err = v.stageAll(ctx, l, stages); !errors.Is(err, ErrLeaseExpired) {
+				t.Fatalf("writer %s stage error = %v", cause, err)
+			}
+			if v.client.Exists(ctx, v.shardKey(3, "chunk:"+b.Chunks[0])).Val() != 0 {
+				t.Fatal("rejected writer staged a chunk")
+			}
+		})
 	}
 }
 

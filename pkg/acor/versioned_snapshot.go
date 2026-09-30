@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -13,6 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
+
+	redis "github.com/redis/go-redis/v9"
 )
 
 type v3Lease struct {
@@ -21,6 +24,7 @@ type v3Lease struct {
 	set     string
 	expired atomic.Bool
 	closed  atomic.Bool
+	shards  map[uint16]struct{} // Guarded by owner.mu; mirrors share the global deadline.
 }
 
 // Redis time is authoritative for leases, retention, and fencing.
@@ -41,18 +45,18 @@ func (v *VersionedCollection) acquire(ctx context.Context, expected Version, wri
  local member=active..'/'..ARGV[2]
  redis.call('ZADD',KEYS[3],now+ARGV[3],member)
  return {active,member}`
-	keys := []string{v.key("maintenance"), v.key("active"), v.key(set)}
+	keys := []string{v.key(v3Maintenance), v.key("active"), v.key(set)}
 	r, err := v.client.Eval(ctx, script, keys, string(expected), v3ID(), v.opts.LeaseDuration.Milliseconds()).StringSlice()
 	if err != nil {
 		return nil, "", err
 	}
 	if len(r) == 1 {
-		if r[0] == "maintenance" {
+		if r[0] == v3Maintenance {
 			return nil, "", ErrMaintenance
 		}
 		return nil, "", ErrConcurrencyConflict
 	}
-	l := &v3Lease{owner: v, member: r[1], set: set}
+	l := &v3Lease{owner: v, member: r[1], set: set, shards: make(map[uint16]struct{})}
 	v.mu.Lock()
 	if v.closed.Load() {
 		v.mu.Unlock()
@@ -95,14 +99,33 @@ func (l *v3Lease) renew(ctx context.Context) {
 	if err == nil && ok == 0 {
 		l.expired.Store(true)
 	}
+	if err == nil && ok == 1 && l.set == "writers" {
+		l.owner.mu.Lock()
+		shards := make([]uint16, 0, len(l.shards))
+		for shard := range l.shards {
+			shards = append(shards, shard)
+		}
+		l.owner.mu.Unlock()
+		for _, shard := range shards {
+			_ = l.owner.mirrorWriter(ctx, l, shard)
+		}
+	}
 }
 func (l *v3Lease) close(ctx context.Context) error {
 	l.closed.Store(true)
 	l.expired.Store(true)
 	l.owner.mu.Lock()
 	delete(l.owner.leases, l)
+	shards := make([]uint16, 0, len(l.shards))
+	for shard := range l.shards {
+		shards = append(shards, shard)
+	}
 	l.owner.mu.Unlock()
-	return l.owner.client.ZRem(ctx, l.owner.key(l.set), l.member).Err()
+	err := l.owner.client.ZRem(ctx, l.owner.key(l.set), l.member).Err()
+	for _, shard := range shards {
+		err = errors.Join(err, l.owner.client.ZRem(ctx, l.owner.shardKey(shard, "writers"), l.member).Err())
+	}
+	return err
 }
 func (v *VersionedCollection) renewLoop() {
 	defer v.wg.Done()
@@ -226,8 +249,15 @@ func (v *VersionedCollection) bucket(ctx context.Context, b v3Bucket) ([]string,
 		return words, nil
 	}
 	for _, h := range b.Chunks {
-		data, err := v.client.Get(ctx, v.key("chunk:"+h)).Bytes()
+		key := v.key("chunk:" + h)
+		if b.sharded {
+			key = v.shardKey(b.shard, "chunk:"+h)
+		}
+		data, err := v.client.Get(ctx, key).Bytes()
 		if err != nil {
+			if b.sharded && errors.Is(err, redis.Nil) {
+				return nil, ErrVersionedCorrupt
+			}
 			return nil, err
 		}
 		if v3Hash(data) != h {

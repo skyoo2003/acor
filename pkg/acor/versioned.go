@@ -122,11 +122,14 @@ type v3Manifest struct {
 	Sequence uint64
 	Buckets  [v3BucketCount]v3Bucket
 	Count    int
+	global   *v3GlobalManifest
 }
 type v3Bucket struct {
 	Chunks   []string
 	Count    int
 	Checksum string
+	shard    uint16
+	sharded  bool
 }
 type v3Engine struct {
 	engine   *matchengine.Engine
@@ -212,31 +215,38 @@ func OpenVersioned(ctx context.Context, opts *VersionedOptions) (*VersionedColle
 func (v *VersionedCollection) initialize(ctx context.Context) error {
 	id := v3ID()
 	token := Version(id + "." + v3ID())
-	m := v3Manifest{Version: token, Sequence: 1}
-	data, _ := json.Marshal(m)
+	data, layout, err := v.initialManifest(ctx, token)
+	if err != nil {
+		return err
+	}
 	const script = `
  if redis.call('EXISTS',KEYS[1])==0 then
- redis.call('HSET',KEYS[1],'id',ARGV[1],'case',ARGV[2])
+ redis.call('HSET',KEYS[1],'id',ARGV[1],'case',ARGV[2],'layout',ARGV[5],'shards',ARGV[6])
  redis.call('SET',KEYS[2],ARGV[3])
  redis.call('SET',KEYS[3],ARGV[4])
  redis.call('SET',KEYS[5],'1')
  local t=redis.call('TIME'); redis.call('ZADD',KEYS[4],t[1],ARGV[3])
  end
- return redis.call('HMGET',KEYS[1],'id','case')`
+ return redis.call('HMGET',KEYS[1],'id','case','layout','shards')`
 	keys := []string{v.key("meta"), v.key("active"), v.key("gen:" + string(token)), v.key("generations"), v.key("committed:" + string(token))}
-	r, err := v.client.Eval(ctx, script, keys, id, fmt.Sprint(v.opts.CaseSensitive), string(token), data).Slice()
+	r, err := v.client.Eval(ctx, script, keys, id, fmt.Sprint(v.opts.CaseSensitive), string(token), data,
+		layout.Version, layout.ShardCount).Slice()
 	if err != nil {
 		return err
 	}
-	if len(r) != v3PairLength || r[0] == nil {
+	if len(r) != 4 || r[0] == nil {
 		return ErrVersionedCorrupt
 	}
 	v.id = fmt.Sprint(r[0])
 	if fmt.Sprint(r[1]) != fmt.Sprint(v.opts.CaseSensitive) {
 		return ErrCasePolicy
 	}
-	v.status.LayoutVersion = v3LegacyLayoutVersion
-	v.status.ShardCount = 1
+	layout, err = v3StoredLayout(r[2], r[3])
+	if err != nil {
+		return err
+	}
+	v.status.LayoutVersion = layout.Version
+	v.status.ShardCount = layout.ShardCount
 	v.status.FailedShard = -1
 	return nil
 }
@@ -422,15 +432,12 @@ func (v *VersionedCollection) Close() error {
 }
 
 func (v *VersionedCollection) manifest(ctx context.Context, t Version) (*v3Manifest, error) {
-	if !v.valid(t) {
-		return nil, ErrInvalidVersion
-	}
-	b, err := v.client.Get(ctx, v.key("gen:"+string(t))).Bytes()
-	if err != nil {
-		return nil, err
-	}
+	m, err := v.loadManifest(ctx, t)
+	return m, err
+}
+func (v *VersionedCollection) legacyManifest(data []byte, t Version) (*v3Manifest, error) {
 	var m v3Manifest
-	if json.Unmarshal(b, &m) != nil || m.Version != t || m.Sequence == 0 {
+	if json.Unmarshal(data, &m) != nil || m.Version != t || m.Sequence == 0 || m.Count < 0 {
 		return nil, ErrVersionedCorrupt
 	}
 	count := 0
