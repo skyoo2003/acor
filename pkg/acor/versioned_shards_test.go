@@ -77,6 +77,48 @@ func TestVersionedShardedManifestRejectsMissingShard(t *testing.T) {
 	}
 }
 
+// A damaged sharded header must never be interpreted as an empty legacy generation.
+func TestVersionedShardedManifestRejectsRemovedLayout(t *testing.T) {
+	for _, disguise := range []string{"shards", "shards-and-buckets", "no-storage-fields", "null-buckets"} {
+		t.Run(disguise, func(t *testing.T) {
+			ctx := context.Background()
+			server := miniredis.RunT(t)
+			v := openShardedV3Test(t, server, "removed-layout-"+disguise)
+			version := v.Status().ServingVersion
+			key := v.key("gen:" + string(version))
+			data, err := v.client.Get(ctx, key).Bytes()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var fields map[string]json.RawMessage
+			if err = json.Unmarshal(data, &fields); err != nil {
+				t.Fatal(err)
+			}
+			delete(fields, "Layout")
+			switch disguise {
+			case "shards-and-buckets":
+				fields["Buckets"] = json.RawMessage(`[]`)
+			case "no-storage-fields":
+				delete(fields, "Shards")
+			case "null-buckets":
+				delete(fields, "Shards")
+				fields["Buckets"] = json.RawMessage(`null`)
+			}
+			data, _ = json.Marshal(fields)
+			v.client.Set(ctx, key, data, 0)
+			if _, err = v.globalManifest(ctx, version); !errors.Is(err, ErrVersionedCorrupt) {
+				t.Fatalf("global manifest error = %v", err)
+			}
+			if _, err = v.Add(ctx, version, "한국어"); !errors.Is(err, ErrVersionedCorrupt) {
+				t.Fatalf("malformed generation write error = %v", err)
+			}
+			if got := v.client.Get(ctx, v.key("active")).Val(); got != string(version) {
+				t.Fatal("malformed generation changed active version", got)
+			}
+		})
+	}
+}
+
 // Rewriting every shard breaks incremental CRUD and pinned snapshot reuse.
 func TestVersionedShardedAddRewritesOnlyAffectedShard(t *testing.T) {
 	ctx := context.Background()

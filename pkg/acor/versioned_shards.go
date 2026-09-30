@@ -148,6 +148,16 @@ func (v *VersionedCollection) globalManifest(ctx context.Context, version Versio
 		Layout: v3Layout{Version: v3LegacyLayoutVersion, ShardCount: 1}}, nil
 }
 
+type v3ManifestHeader struct {
+	Layout  json.RawMessage
+	Buckets json.RawMessage
+	Shards  json.RawMessage
+}
+
+func (h v3ManifestHeader) legacy() bool {
+	return len(h.Buckets) != 0 && string(h.Buckets) != "null" && len(h.Shards) == 0
+}
+
 func (v *VersionedCollection) loadManifest(ctx context.Context, version Version) (*v3Manifest, error) {
 	if !v.valid(version) {
 		return nil, ErrInvalidVersion
@@ -156,11 +166,14 @@ func (v *VersionedCollection) loadManifest(ctx context.Context, version Version)
 	if err != nil {
 		return nil, err
 	}
-	var header struct{ Layout json.RawMessage }
+	var header v3ManifestHeader
 	if json.Unmarshal(data, &header) != nil {
 		return nil, ErrVersionedCorrupt
 	}
 	if len(header.Layout) == 0 {
+		if !header.legacy() {
+			return nil, ErrVersionedCorrupt
+		}
 		return v.legacyManifest(data, version)
 	}
 	var global v3GlobalManifest
