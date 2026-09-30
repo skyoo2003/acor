@@ -103,6 +103,10 @@ import "github.com/skyoo2003/acor/server/metrics"
 | `acor_redis_operation_duration_seconds` | Histogram | Redis operation latency |
 | `acor_keywords_total` | Gauge | Registered keywords |
 | `acor_trie_nodes_total` | Gauge | Trie nodes |
+| `acor_versioned_building{collection}` | Gauge | Whether a V3 engine refresh is building |
+| `acor_versioned_serving_ready{collection}` | Gauge | Whether a V3 engine is serving without a refresh error |
+| `acor_versioned_refresh_failures{collection}` | Gauge | Cumulative V3 refresh failures observed by this instance |
+| `acor_versioned_active_leases{collection}` | Gauge | V3 leases held by this instance |
 | `grpc_server_handled_total` | Counter | gRPC requests by method, code |
 | `grpc_server_handling_seconds` | Histogram | gRPC request latency |
 
@@ -128,6 +132,28 @@ func main() {
     http.ListenAndServe(":8080", nil)
 }
 ```
+
+### V3 collection metrics
+
+V3 state is sampled when Prometheus scrapes `/metrics`; it does not need a
+preceding `/v1/status` or gRPC `Status` call and performs no Redis I/O. Bind the
+same stable, operator-chosen label when constructing both protocol surfaces:
+
+```go
+registry := metrics.NewRegistry(nil)
+observability := &server.VersionedObservability{
+    Metrics: registry, Collection: "moderation-prod",
+}
+httpHandler, err := server.NewVersionedHTTPHandlerWithObservability(v3, observability)
+grpcServer, err := server.NewVersionedGRPCServerWithObservability(v3, observability)
+if err != nil { /* handle invalid registry or collection label */ }
+_, _ = httpHandler, grpcServer
+```
+
+`collection` is required, is immutable after registration, and accepts 1–64
+ASCII letters, digits, `.`, `_`, `:`, and `-`. Use an operational identifier,
+not a Redis collection name. Reusing a label for a different V3 collection is
+rejected; reusing it for the same collection's HTTP and gRPC surfaces is safe.
 
 ### Logging
 

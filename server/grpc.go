@@ -38,7 +38,6 @@ type grpcServer struct {
 type versionedGRPCServer struct {
 	acorv1.UnimplementedAcorServer
 	service VersionedService
-	metrics *metrics.Registry
 }
 
 // NewGRPCServer returns a *grpc.Server serving the acor.server.v1.Acor service
@@ -54,14 +53,31 @@ func NewGRPCServer(service Service, opts ...grpc.ServerOption) *grpc.Server {
 // rewrite, and expected-version write RPCs. Legacy collection RPCs remain
 // unimplemented because their mutation contract is incompatible with V3.
 func NewVersionedGRPCServer(service VersionedService, opts ...grpc.ServerOption) *grpc.Server {
-	return NewVersionedGRPCServerWithMetrics(service, nil, opts...)
+	return newVersionedGRPCServer(service, opts...)
 }
 
-// NewVersionedGRPCServerWithMetrics is NewVersionedGRPCServer and updates the
-// supplied bounded V3 gauges whenever Status is called.
+// NewVersionedGRPCServerWithMetrics is retained for source compatibility.
+//
+// Deprecated: use NewVersionedGRPCServerWithObservability. V3 metrics require
+// a stable collection label and are refreshed at scrape time rather than by
+// Status RPCs.
 func NewVersionedGRPCServerWithMetrics(service VersionedService, registry *metrics.Registry, opts ...grpc.ServerOption) *grpc.Server {
+	_ = registry
+	return newVersionedGRPCServer(service, opts...)
+}
+
+// NewVersionedGRPCServerWithObservability binds collection-scoped V3 metrics
+// before creating the gRPC server.
+func NewVersionedGRPCServerWithObservability(service VersionedService, observability *VersionedObservability, opts ...grpc.ServerOption) (*grpc.Server, error) {
+	if err := observability.bind(service); err != nil {
+		return nil, err
+	}
+	return newVersionedGRPCServer(service, opts...), nil
+}
+
+func newVersionedGRPCServer(service VersionedService, opts ...grpc.ServerOption) *grpc.Server {
 	s := grpc.NewServer(opts...)
-	acorv1.RegisterAcorServer(s, &versionedGRPCServer{service: service, metrics: registry})
+	acorv1.RegisterAcorServer(s, &versionedGRPCServer{service: service})
 	return s
 }
 
@@ -171,9 +187,6 @@ func (s *grpcServer) Flush(_ context.Context, _ *acorv1.EmptyRequest) (*acorv1.S
 
 func (s *versionedGRPCServer) Status(_ context.Context, _ *acorv1.EmptyRequest) (*acorv1.VersionedStatusResponse, error) {
 	state := s.service.Status()
-	if s.metrics != nil {
-		s.metrics.UpdateVersionedStatus(&state)
-	}
 	return versionedStatusProto(&state), nil
 }
 
