@@ -3,10 +3,112 @@
 package engine
 
 import (
+	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+// The probe delegates to real native engines and counts the actual per-hit
+// callbacks. FindSet must skip repeated state chains before those callbacks.
+type compositeSetProbe struct {
+	matchEngine
+	native *Engine
+	emits  int
+}
+
+func (p *compositeSetProbe) matchString(text string, emit func(string, int, int) bool) {
+	p.matchEngine.matchString(text, func(keyword string, start, end int) bool {
+		p.emits++
+		return emit(keyword, start, end)
+	})
+}
+func (p *compositeSetProbe) cursor() runeCursor { return p.native.cursor() }
+
+func TestCompositeFindSetSkipsRepeatedSuffixChains(t *testing.T) {
+	saved := dedupHashMin
+	t.Cleanup(func() { dedupHashMin = saved })
+	for _, mode := range []struct {
+		name      string
+		threshold int
+	}{{"bitsets", saved}, {"maps", 1}} {
+		dedupHashMin = mode.threshold
+		for _, preset := range allPresets {
+			t.Run(mode.name+"/"+preset.String(), func(t *testing.T) {
+				sets := make([]map[string]struct{}, 4)
+				for i := range sets {
+					sets[i] = make(map[string]struct{})
+				}
+				want := make([]string, 0, 67)
+				for n := 1; n <= 64; n++ {
+					word := strings.Repeat("a", n)
+					sets[n%4][word] = struct{}{}
+					want = append(want, word)
+				}
+				sets[0]["한국"], sets[1]["한국어"], sets[2]["어"] = struct{}{}, struct{}{}, struct{}{}
+				want = append(want, "한국", "한국어", "어")
+				shards := make([]*Engine, len(sets))
+				probes := make([]*compositeSetProbe, len(sets))
+				for i, set := range sets {
+					native := New(preset)
+					native.Build(set)
+					probes[i] = &compositeSetProbe{matchEngine: native.impl, native: native}
+					shards[i] = &Engine{impl: probes[i], maxKeywordRunes: native.MaxKeywordRunes()}
+				}
+				got := NewComposite(shards, 2).FindSet(strings.Repeat("a", 4096) + " 한국어 한국어")
+				if !reflect.DeepEqual(got, want) {
+					t.Fatal("first-match order changed", got)
+				}
+				callbacks := 0
+				for _, probe := range probes {
+					callbacks += probe.emits
+				}
+				if callbacks > len(want) {
+					t.Fatalf("FindSet traversed %d occurrence callbacks for %d unique keywords", callbacks, len(want))
+				}
+			})
+		}
+	}
+}
+
+func TestCompositeFirstMatchesPreservesRuneSpans(t *testing.T) {
+	want := []compositeMatch{{"a", 0, 1}, {"aa", 0, 2}, {"한국", 3, 5},
+		{"한국어", 3, 6}, {"어", 5, 6}, {"�", 7, 8}}
+	for _, preset := range allPresets {
+		t.Run(preset.String(), func(t *testing.T) {
+			e := New(preset)
+			e.Build(map[string]struct{}{"a": {}, "aa": {}, "한국": {}, "한국어": {}, "어": {}, "�": {}})
+			if got := e.firstMatches("aa 한국어 \xff aa 한국어"); !reflect.DeepEqual(got, want) {
+				t.Fatal(got)
+			}
+		})
+	}
+}
+
+func BenchmarkCompositeFindSetSuffixNested(b *testing.B) {
+	sets := make([]map[string]struct{}, 4)
+	for i := range sets {
+		sets[i] = make(map[string]struct{})
+	}
+	for n := 1; n <= 500; n++ {
+		sets[n%4][strings.Repeat("a", n)] = struct{}{}
+	}
+	shards := make([]*Engine, len(sets))
+	for i, set := range sets {
+		shards[i] = New(PresetMemoryEfficient)
+		shards[i].Build(set)
+	}
+	e := NewComposite(shards, 2)
+	text := strings.Repeat("a", 100000)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if got := e.FindSet(text); len(got) != 500 {
+			b.Fatal(len(got))
+		}
+	}
+}
 
 // Concurrent text chunks must share the request's worker limit rather than
 // multiplying it by the number of chunk workers.

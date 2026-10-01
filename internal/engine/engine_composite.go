@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+	"unicode/utf8"
 )
 
 // NewComposite presents immutable, disjoint shard engines as one engine. Search
@@ -78,17 +79,11 @@ func (e *compositeEngine) shardWork(work func()) {
 func (e *compositeEngine) matches(text string, unique bool) []compositeMatch {
 	perShard := make([][]compositeMatch, len(e.shards))
 	e.eachShard(func(i int) {
-		var seen map[string]struct{}
 		if unique {
-			seen = make(map[string]struct{})
+			perShard[i] = e.shards[i].firstMatches(text)
+			return
 		}
 		e.shards[i].MatchString(text, func(keyword string, start, end int) bool {
-			if unique {
-				if _, ok := seen[keyword]; ok {
-					return true
-				}
-				seen[keyword] = struct{}{}
-			}
 			perShard[i] = append(perShard[i], compositeMatch{keyword, start, end})
 			return true
 		})
@@ -98,6 +93,29 @@ func (e *compositeEngine) matches(text string, unique bool) []compositeMatch {
 		result = append(result, found...)
 	}
 	slices.SortFunc(result, compareCompositeMatch)
+	return result
+}
+
+// The native collector skips an already visited output state before traversing
+// its suffix chain. Recording only newly appended keywords keeps their first
+// spans without paying for every repeated occurrence on match-dense input.
+func (e *Engine) firstMatches(text string) []compositeMatch {
+	cursor := e.cursor()
+	var collector setCollector
+	var result []compositeMatch
+	end := 0
+	for _, ch := range text {
+		end++
+		output := cursor(ch)
+		if output.out == nil {
+			continue
+		}
+		base := len(collector.out)
+		collector.collectChain(output.out, output.state)
+		for _, keyword := range collector.out[base:] {
+			result = append(result, compositeMatch{keyword, end - utf8.RuneCountInString(keyword), end})
+		}
+	}
 	return result
 }
 
@@ -164,18 +182,12 @@ func (c *outputCursor) next(end int) (compositeMatch, bool) {
 // Advancing them one rune at a time preserves Stream's next/emit interleaving,
 // including source scan budgets and leftmost-longest flushing.
 func (e *Engine) cursor() runeCursor {
-	switch impl := e.impl.(type) {
-	case *memEfficientEngine:
-		return mapCursor(impl)
-	case *speedEngine:
-		return speedCursor(impl)
-	case *balancedEngine:
-		return balancedCursor(impl)
-	default:
-		panic("engine: unsupported composite shard")
+	if impl, ok := e.impl.(interface{ cursor() runeCursor }); ok {
+		return impl.cursor()
 	}
+	panic("engine: unsupported composite shard")
 }
-func mapCursor(e *memEfficientEngine) runeCursor {
+func (e *memEfficientEngine) cursor() runeCursor {
 	state := 0
 	return func(ch rune) outputCursor {
 		if len(e.trie.nodes) <= 1 || e.skipAtRoot(state == 0, ch) {
@@ -194,7 +206,7 @@ func mapCursor(e *memEfficientEngine) runeCursor {
 		return outputCursor{&e.trie.out, state}
 	}
 }
-func speedCursor(e *speedEngine) runeCursor {
+func (e *speedEngine) cursor() runeCursor {
 	state := 0
 	return func(ch rune) outputCursor {
 		if e.dfa == nil {
@@ -213,7 +225,7 @@ func speedCursor(e *speedEngine) runeCursor {
 		return outputCursor{&e.out, state}
 	}
 }
-func balancedCursor(e *balancedEngine) runeCursor {
+func (e *balancedEngine) cursor() runeCursor {
 	state := datRootPos
 	return func(ch rune) outputCursor {
 		dat := e.banded.dat
