@@ -43,7 +43,7 @@ func (v *VersionedCollection) search(ctx context.Context) (*AhoCorasick, error) 
 	engine := e.engine
 	if len(e.shards) != 0 {
 		// One adapter per request shares its worker bound across parallel chunks.
-		engine = matchengine.NewComposite(e.shards, v.opts.ShardConcurrency)
+		engine = matchengine.NewComposite(e.shards, v.shardConcurrency(len(e.shards)))
 	}
 	return &AhoCorasick{ctx: ctx, caseSensitive: v.opts.CaseSensitive, ops: &v3SearchOps{engine: engine, sensitive: v.opts.CaseSensitive}}, nil
 }
@@ -131,7 +131,7 @@ func (v *VersionedCollection) FindBatch(ctx context.Context, texts []string) ([]
 	}
 	engine := e.engine
 	if len(e.shards) != 0 {
-		engine = matchengine.NewComposite(e.shards, v.opts.ShardConcurrency)
+		engine = matchengine.NewComposite(e.shards, v.shardConcurrency(len(e.shards)))
 	}
 	out := make([][]string, len(texts))
 	for i, text := range texts {

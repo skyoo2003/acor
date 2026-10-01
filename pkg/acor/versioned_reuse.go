@@ -58,7 +58,8 @@ func (v *VersionedCollection) buildGeneration(ctx context.Context, s *Snapshot,
 	shards = make([]*matchengine.Engine, global.Layout.ShardCount)
 	previous := v.current.Load()
 	g, buildCtx := errgroup.WithContext(ctx)
-	g.SetLimit(v.opts.ShardConcurrency)
+	concurrency := v.shardConcurrency(int(global.Layout.ShardCount))
+	g.SetLimit(concurrency)
 	for shard := range shards {
 		if reusableShard(previous, global, shard) {
 			shards[shard] = previous.shards[shard]
@@ -83,7 +84,7 @@ func (v *VersionedCollection) buildGeneration(ctx context.Context, s *Snapshot,
 	if err := g.Wait(); err != nil {
 		return nil, nil, err
 	}
-	return matchengine.NewComposite(shards, v.opts.ShardConcurrency), shards, nil
+	return matchengine.NewComposite(shards, concurrency), shards, nil
 }
 
 func reusableShard(previous *v3Engine, global *v3GlobalManifest, shard int) bool {

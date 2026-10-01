@@ -221,7 +221,7 @@ func TestVersionedScale(t *testing.T) {
 		"arch": runtime.GOARCH, "cpus": runtime.NumCPU(), "gomaxprocs": runtime.GOMAXPROCS(0), "host": host,
 		"server": server, "endpoint": addr, "seed": 20260906, "preset": v.opts.Preset,
 		"poll_interval_ns": v.opts.PollInterval.Nanoseconds(), "refresh_debounce_ns": v.opts.RefreshDebounce.Nanoseconds(),
-		"shard_concurrency": v.opts.ShardConcurrency, "gogc": os.Getenv("GOGC"), "gomemlimit": os.Getenv("GOMEMLIMIT"),
+		"shard_concurrency": v.shardConcurrency(int(v.Status().ShardCount)), "gogc": os.Getenv("GOGC"), "gomemlimit": os.Getenv("GOMEMLIMIT"),
 		"qualification_environment": os.Getenv("ACOR_V3_SCALE_ENVIRONMENT")})
 	t.Logf("environment %s", environment)
 	measure := func(label string, write func() (*WriteResult, error)) *WriteResult {

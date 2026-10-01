@@ -351,7 +351,7 @@ func (v *VersionedCollection) stageAll(ctx context.Context, l *v3Lease, stages [
 		return v.stageBatch(ctx, l, global)
 	}
 	group, workCtx := errgroup.WithContext(ctx)
-	group.SetLimit(v.opts.ShardConcurrency)
+	group.SetLimit(v.shardConcurrency(len(groups)))
 	for shard, work := range groups {
 		group.Go(func() error {
 			if err := v.mirrorWriter(workCtx, l, shard); err != nil {

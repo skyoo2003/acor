@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -1107,7 +1106,7 @@ func TestVersionedShardOptionsNormalizeDefaults(t *testing.T) {
 				t.Fatal(err)
 			}
 			wantCount := max(count, 1)
-			if o.ShardCount != wantCount || o.ShardConcurrency != max(1, min(runtime.GOMAXPROCS(0), int(wantCount))) {
+			if o.ShardCount != wantCount || o.ShardConcurrency != 0 {
 				t.Fatalf("normalized options: %+v", o)
 			}
 		})

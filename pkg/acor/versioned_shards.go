@@ -43,10 +43,16 @@ func v3NormalizeShardOptions(o *VersionedOptions) error {
 	if o.ShardConcurrency < 0 {
 		return errors.New("acor: invalid shard concurrency")
 	}
-	if o.ShardConcurrency == 0 {
-		o.ShardConcurrency = max(1, min(runtime.GOMAXPROCS(0), int(o.ShardCount)))
-	}
 	return nil
+}
+
+// Keep automatic concurrency unresolved in opts: creation options need not match
+// a reopened generation, and a reshard target can differ from the serving layout.
+func (v *VersionedCollection) shardConcurrency(count int) int {
+	if v.opts.ShardConcurrency != 0 {
+		return v.opts.ShardConcurrency
+	}
+	return max(1, min(runtime.GOMAXPROCS(0), count))
 }
 
 func (l v3Layout) validate() error {
@@ -192,8 +198,9 @@ func (v *VersionedCollection) loadManifest(ctx context.Context, version Version)
 
 func (v *VersionedCollection) loadShards(ctx context.Context, m *v3Manifest) error {
 	count := 0
+	concurrency := v.shardConcurrency(int(m.global.Layout.ShardCount))
 	for start := 0; start < len(m.global.Shards); {
-		end := min(start+v.opts.ShardConcurrency, len(m.global.Shards))
+		end := min(start+concurrency, len(m.global.Shards))
 		cmds := make([]*redis.StringCmd, 0, end-start)
 		_, err := v.client.Pipelined(ctx, func(pipe redis.Pipeliner) error {
 			for shard := start; shard < end; shard++ {
