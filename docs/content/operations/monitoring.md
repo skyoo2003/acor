@@ -87,6 +87,47 @@ Polling reads only the version field, and detects a missed invalidation only aft
 successful poll — the next search then fetches and builds the full dictionary. The
 configured interval is not an upper bound on staleness during failures.
 
+## V3 layout and refresh state
+
+`VersionedCollection.Status()` reads local state without Redis I/O. Scrape every
+serving replica: its observation may lag the active Redis pointer. Layout fields
+describe the installed serving generation after a successful refresh.
+
+<!-- doccheck -->
+```go
+dictionary, err := acor.OpenVersioned(ctx, &acor.VersionedOptions{
+    Redis: acor.AhoCorasickArgs{Addr: "localhost:6379", Name: "filter-v3"},
+})
+if err != nil { return }
+defer dictionary.Close()
+status := dictionary.Status()
+behind := status.ActiveVersion != status.ServingVersion
+failed := status.LastError != ""
+log.Printf("behind=%t building=%t failed=%t layout=%d shards=%d downloaded=%d reused=%d refreshing=%d failed_shard=%d",
+    behind, status.Building, failed, status.LayoutVersion, status.ShardCount,
+    status.DownloadedShards, status.ReusedShards, status.RefreshingShards, status.FailedShard)
+```
+
+`DownloadedShards` and `ReusedShards` describe the most recent successful build;
+they are not per-write counters, and a no-op write does not reset them.
+`RefreshingShards` is the number of changed shards in the in-flight candidate,
+not a progress percentage. `FailedShard` is -1 when no shard is identified.
+`Building` can be false while `LastError` remains set and the old engine serves.
+Alert on growing `RefreshFailures`, a persistent observed version gap, and a stale
+`LastRefreshSuccess` alongside the writer's commit time. Versions are equality
+tokens; subtracting them or sorting their strings cannot measure lag.
+Use `WaitForVersion` with a bounded context for a specific read-after-write probe.
+Polling and retries mean `PollInterval` is not an upper bound on refresh lag.
+
+Measure process RSS and Go GC pauses separately from Redis memory. Redis storage
+shards do not reduce the requirement that each serving replica holds the whole
+searchable dictionary. Capacity alerts need headroom for old and candidate engines
+during refresh and `Reshard`; monitor search p50/p95/p99 while these run. The scale
+harness records changed-shard IDs and keyword-count skew from manifests; those
+metrics require Redis reads and are not included in the local `Status()` scrape.
+The current server registry exposes the V3 gauges listed below; it does not yet
+export layout, shard skew, or changed-shard gauges.
+
 ## Service layer
 
 ### Metrics

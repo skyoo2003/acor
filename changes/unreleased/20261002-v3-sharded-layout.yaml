@@ -1,0 +1,3 @@
+kind: Added
+body: 'Opt-in V3 sharded storage and complete-generation local search, snapshot-safe Reshard transitions, shard refresh diagnostics, and a strict same-environment scale regression schema. Legacy V3 remains the default; controlled large-scale and live multi-node Cluster qualification are still pending.'
+time: 2026-10-02T00:00:00+09:00

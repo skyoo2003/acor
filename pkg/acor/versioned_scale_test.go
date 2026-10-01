@@ -20,6 +20,63 @@ import (
 	redis "github.com/redis/go-redis/v9"
 )
 
+// Missing shard evidence must fail independently of the opt-in real-server run.
+func TestVersionedScaleReportsShardMetrics(t *testing.T) {
+	before := &v3Manifest{Version: "before", global: &v3GlobalManifest{
+		Layout: v3Layout{Version: 2, ShardCount: 4}, Shards: []string{"a", "b", "c", "d"}}}
+	after := &v3Manifest{Version: "after", Count: 4, global: &v3GlobalManifest{
+		Layout: v3Layout{Version: 2, ShardCount: 4}, Shards: []string{"e", "b", "c", "d"}}}
+	after.Buckets[0].Count, after.Buckets[1].Count, after.Buckets[4].Count = 2, 1, 1
+	metrics := v3ScaleShardMetrics(before, after)
+	for field, want := range map[string]float64{"shard_count": 4, "changed_shards": 1,
+		"shard_min_keywords": 0, "shard_max_keywords": 3, "shard_skew_ratio": 3} {
+		if got, ok := metrics[field]; !ok || got != want {
+			t.Errorf("%s=%v present=%v want=%v", field, got, ok, want)
+		}
+	}
+	if got := v3ScaleShardMetrics(after, after)["changed_shards"]; got != 0 {
+		t.Errorf("identical replacement changed %v shards", got)
+	}
+	legacy := &v3Manifest{Version: "legacy", Count: 4}
+	legacy.Buckets[0].Count = 4
+	if got := v3ScaleShardMetrics(after, legacy); got["shard_count"] != 1 || got["changed_shards"] != 1 || got["shard_skew_ratio"] != 1 {
+		t.Errorf("legacy metrics=%v", got)
+	}
+	if got := v3ScaleShardMetrics(legacy, after)["changed_shards"]; got != 4 {
+		t.Errorf("layout transition changed %v target shards want=4", got)
+	}
+	if got := v3ScaleShardMetrics(before, &v3Manifest{global: before.global}); got["shard_skew_ratio"] != 0 {
+		t.Errorf("empty dictionary skew=%v", got)
+	}
+}
+
+func v3ScaleShardMetrics(before, after *v3Manifest) map[string]float64 {
+	count := int(v3ManifestLayout(after).ShardCount)
+	keywords := make([]int, count)
+	for bucket, contents := range &after.Buckets {
+		keywords[bucket%count] += contents.Count
+	}
+	changed := 0
+	if before.Version != after.Version {
+		if after.global == nil || before.global == nil || before.global.Layout != after.global.Layout {
+			changed = count
+		} else {
+			for shard, id := range after.global.Shards {
+				if before.global.Shards[shard] != id {
+					changed++
+				}
+			}
+		}
+	}
+	skew := 0.0
+	if after.Count > 0 {
+		skew = float64(slices.Max(keywords)) * float64(count) / float64(after.Count)
+	}
+	return map[string]float64{"shard_count": float64(count), "changed_shards": float64(changed),
+		"shard_min_keywords": float64(slices.Min(keywords)), "shard_max_keywords": float64(slices.Max(keywords)),
+		"shard_skew_ratio": skew}
+}
+
 // TestVersionedScale is opt-in and must use a disposable real Redis/Valkey
 // server. The deterministic seed and workload are recorded with each result.
 // Run each size/workload in a separate process for independent maximum RSS.
@@ -40,8 +97,15 @@ func TestVersionedScale(t *testing.T) {
 	}
 	ctx := context.Background()
 	name := "scale-" + v3ID()
+	shards := 1
+	if value := os.Getenv("ACOR_V3_SCALE_SHARDS"); value != "" {
+		shards, err = strconv.Atoi(value)
+		if err != nil || shards < 1 || shards > int(v3MaxShardCount) || shards&(shards-1) != 0 {
+			t.Fatal("ACOR_V3_SCALE_SHARDS must be a power of two from 1 through 256")
+		}
+	}
 	opts := &VersionedOptions{Redis: AhoCorasickArgs{Addr: addr, Name: name}, PollInterval: 50 * time.Millisecond,
-		DeltaSearch: os.Getenv("ACOR_V3_SCALE_DELTA") == "1"}
+		ShardCount: uint16(shards)} //nolint:gosec // Validated against the supported uint16 bound above.
 	v, err := OpenVersioned(ctx, opts)
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +117,8 @@ func TestVersionedScale(t *testing.T) {
 		defer c.Close()
 		var cursor uint64
 		for {
-			keys, next, e := c.Scan(ctx, cursor, v.prefix+"*", 256).Result()
+			// Both global and shard namespaces contain the collection digest.
+			keys, next, e := c.Scan(ctx, cursor, strings.TrimSuffix(v.prefix, "}:")+"*", 256).Result()
 			if e != nil {
 				return
 			}
@@ -68,11 +133,28 @@ func TestVersionedScale(t *testing.T) {
 	}()
 	words := v3ScaleWords(n, kind)
 	serverInfo, _ := v.client.Info(ctx, "server").Result()
-	t.Logf("environment go=%s os=%s arch=%s cpus=%d n=%d kind=%s seed=20260906 server=%s",
-		runtime.Version(), runtime.GOOS, runtime.GOARCH, runtime.NumCPU(), n, kind, strings.ReplaceAll(serverInfo, "\r\n", " "))
+	server := make(map[string]string)
+	for _, line := range strings.Split(serverInfo, "\n") {
+		key, value, _ := strings.Cut(strings.TrimSpace(line), ":")
+		switch key {
+		case "redis_version", "valkey_version", "redis_build_id", "redis_mode", "os", "arch_bits":
+			server[key] = value
+		}
+	}
+	host, _ := os.Hostname()
+	environment, _ := json.Marshal(map[string]interface{}{"go": runtime.Version(), "os": runtime.GOOS,
+		"arch": runtime.GOARCH, "cpus": runtime.NumCPU(), "gomaxprocs": runtime.GOMAXPROCS(0), "host": host,
+		"server": server, "endpoint": addr, "seed": 20260906, "preset": v.opts.Preset,
+		"poll_interval_ns": v.opts.PollInterval.Nanoseconds(), "refresh_debounce_ns": v.opts.RefreshDebounce.Nanoseconds(),
+		"shard_concurrency": v.opts.ShardConcurrency, "gogc": os.Getenv("GOGC"), "gomemlimit": os.Getenv("GOMEMLIMIT"),
+		"qualification_environment": os.Getenv("ACOR_V3_SCALE_ENVIRONMENT")})
+	t.Logf("environment %s", environment)
 	measure := func(label string, write func() (*WriteResult, error)) *WriteResult {
 		t.Helper()
 		before := v3ServerMetrics(ctx, v.client)
+		previous := v.current.Load().manifest
+		var gcBefore, gcAfter runtime.MemStats
+		runtime.ReadMemStats(&gcBefore)
 		done := make(chan struct{})
 		var wg sync.WaitGroup
 		var latencies []int64
@@ -80,16 +162,16 @@ func TestVersionedScale(t *testing.T) {
 			ticker := time.NewTicker(time.Millisecond)
 			defer ticker.Stop()
 			for {
+				start := time.Now()
+				_, e := v.Find(ctx, words[0]+" "+words[n/2]+" "+words[n-1])
+				if e != nil {
+					return
+				}
+				latencies = append(latencies, time.Since(start).Nanoseconds())
 				select {
 				case <-done:
 					return
 				case <-ticker.C:
-					start := time.Now()
-					_, e := v.Find(ctx, words[0]+" "+words[n/2]+" "+words[n-1])
-					if e != nil {
-						return
-					}
-					latencies = append(latencies, time.Since(start).Nanoseconds())
 				}
 			}
 		})
@@ -107,6 +189,7 @@ func TestVersionedScale(t *testing.T) {
 		if e != nil {
 			t.Fatal(label, e)
 		}
+		runtime.ReadMemStats(&gcAfter)
 		after := v3ServerMetrics(ctx, v.client)
 		slices.Sort(latencies)
 		percentile := func(p int) int64 {
@@ -127,6 +210,9 @@ func TestVersionedScale(t *testing.T) {
 			"commit_ms":          float64(commit.Microseconds()) / 1000,
 			"ready_ms":           float64(ready.Microseconds()) / 1000,
 			"commit_to_ready_ms": float64(commitReady.Microseconds()) / 1000,
+			"refresh_lag_ms":     float64(commitReady.Nanoseconds()) / 1e6,
+			"gc_pause_ns":        gcAfter.PauseTotalNs - gcBefore.PauseTotalNs,
+			"gc_cycles":          gcAfter.NumGC - gcBefore.NumGC,
 			"delta_search":       opts.DeltaSearch,
 			"max_rss_bytes":      rss,
 			"redis_bytes":        after["used_memory"],
@@ -136,6 +222,9 @@ func TestVersionedScale(t *testing.T) {
 			"search_p50_ns":      percentile(50),
 			"search_p95_ns":      percentile(95),
 			"search_p99_ns":      percentile(99)}
+		for field, value := range v3ScaleShardMetrics(previous, v.current.Load().manifest) {
+			record[field] = value
+		}
 		data, _ := json.Marshal(record)
 		t.Log(string(data))
 		return r
