@@ -305,6 +305,105 @@ type v3PruneExpiryHook struct {
 	global      string
 }
 
+// Route shard commands to an independent Redis clock while leaving the global
+// collection on its original node. Optionally expire global authority after a
+// local grant to reproduce loss of authority between the two renewal steps.
+type v3PruneClockHook struct {
+	v3FaultHook
+	global      *miniredis.Miniredis
+	shard       *redis.Client
+	shardPrefix string
+	expireGrant int
+	localGrants int
+}
+
+func (h *v3PruneClockHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		args := cmd.Args()
+		keyIndex := 1
+		if cmd.Name() == "eval" {
+			keyIndex = 3
+		}
+		if len(args) <= keyIndex || !strings.HasPrefix(fmt.Sprint(args[keyIndex]), h.shardPrefix) {
+			return next(ctx, cmd)
+		}
+		err := h.shard.Process(ctx, cmd)
+		if cmd.Name() == "eval" && args[2] == 3 && err == nil {
+			h.localGrants++
+			if h.localGrants == h.expireGrant {
+				h.global.FastForward(31 * time.Second)
+			}
+		}
+		return err
+	}
+}
+
+func TestVersionedPruneShardClockSkewRejectsExpiredGlobalAuthority(t *testing.T) {
+	ctx := context.Background()
+	global, shard := miniredis.RunT(t), miniredis.RunT(t)
+	now := time.Date(2026, time.October, 2, 0, 0, 0, 0, time.UTC)
+	global.SetTime(now.Add(time.Hour))
+	shard.SetTime(now)
+	v := openV3Test(t, global, "prune-clock-skew")
+	local := redis.NewClient(&redis.Options{Addr: shard.Addr()})
+	t.Cleanup(func() { _ = local.Close() })
+	v.client.Set(ctx, v.key(v3Maintenance), "1", time.Minute)
+	key := v.shardKey(255, "chunk:orphan")
+	local.Set(ctx, key, "[]", 0)
+	local.ZAdd(ctx, v.shardKey(255, "chunks"), redis.Z{Member: "orphan", Score: 1})
+	v.client.AddHook(&v3PruneClockHook{global: global, shard: local,
+		shardPrefix: v.shardKey(255, ""), expireGrant: 2})
+	if _, err := v.pruneShard(ctx, "1", 255, nil); !errors.Is(err, ErrMaintenance) {
+		t.Fatal("expired global authority accepted with a lagging shard clock", err)
+	}
+	if local.Exists(ctx, key).Val() != 1 {
+		t.Fatal("stale global owner deleted shard data")
+	}
+	if local.Exists(ctx, v.shardKey(255, v3Maintenance)).Val() != 0 {
+		t.Fatal("failed global renewal retained shard maintenance")
+	}
+}
+
+func TestVersionedPruneShardFenceIgnoresNodeClockOffsets(t *testing.T) {
+	for _, offset := range []time.Duration{-time.Hour, time.Hour} {
+		t.Run(offset.String(), func(t *testing.T) {
+			ctx := context.Background()
+			global, shard := miniredis.RunT(t), miniredis.RunT(t)
+			now := time.Date(2026, time.October, 2, 0, 0, 0, 0, time.UTC)
+			global.SetTime(now)
+			shard.SetTime(now.Add(offset))
+			v := openV3Test(t, global, "prune-clock-offset")
+			local := redis.NewClient(&redis.Options{Addr: shard.Addr()})
+			t.Cleanup(func() { _ = local.Close() })
+			v.client.Set(ctx, v.key(v3Maintenance), "1", time.Minute)
+			v.client.AddHook(&v3PruneClockHook{global: global, shard: local, shardPrefix: v.shardKey(255, "")})
+			if err := v.pruneShardFence(ctx, "1", 255); err != nil {
+				t.Fatal("valid owner rejected because node clocks differ", err)
+			}
+			if ttl := shard.TTL(v.shardKey(255, v3Maintenance)); ttl != 30*time.Second {
+				t.Fatal("shard authority lifetime depends on clock offset", ttl)
+			}
+		})
+	}
+}
+
+func TestVersionedPruneShardFenceReleasesLockOnFailedGlobalRenewal(t *testing.T) {
+	ctx := context.Background()
+	global, shard := miniredis.RunT(t), miniredis.RunT(t)
+	v := openV3Test(t, global, "prune-global-renewal-failure")
+	local := redis.NewClient(&redis.Options{Addr: shard.Addr()})
+	t.Cleanup(func() { _ = local.Close() })
+	v.client.Set(ctx, v.key(v3Maintenance), "1", 30*time.Second)
+	v.client.AddHook(&v3PruneClockHook{global: global, shard: local,
+		shardPrefix: v.shardKey(255, ""), expireGrant: 1})
+	if err := v.pruneShardFence(ctx, "1", 255); !errors.Is(err, ErrMaintenance) {
+		t.Fatal("expired global owner granted shard authority", err)
+	}
+	if local.Exists(ctx, v.shardKey(255, v3Maintenance)).Val() != 0 {
+		t.Fatal("failed global renewal retained shard maintenance")
+	}
+}
+
 func (h *v3PruneExpiryHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 	return func(ctx context.Context, cmd redis.Cmder) error {
 		args := cmd.Args()

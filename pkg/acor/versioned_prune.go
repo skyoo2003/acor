@@ -181,21 +181,12 @@ func (v *VersionedCollection) pruneCandidates(ctx context.Context, key func(stri
 	return dead, nil
 }
 
-// Renew the global token before granting shard maintenance with the same fence
-// and deadline. A local lock can never outlive the global owner's authority.
+// Grant shard maintenance before renewing the global token, using the same
+// relative TTL on both nodes. The later global renewal then outlives the shard
+// grant without comparing Redis wall clocks. Abort and release the shard grant
+// if global authority expired during the gap between the two operations.
 func (v *VersionedCollection) pruneShardFence(ctx context.Context, token string, shard uint16) error {
-	const global = v3Now + `
- if redis.call('GET',KEYS[1])~=ARGV[1] then return 0 end
- redis.call('PEXPIRE',KEYS[1],ARGV[2]); return now+ARGV[2]`
-	deadline, err := v.client.Eval(ctx, global, []string{v.key(v3Maintenance)}, token, v3MaintenanceTTL).Int64()
-	if err != nil {
-		return err
-	}
-	if deadline == 0 {
-		return ErrMaintenance
-	}
 	const local = v3Now + `
- if tonumber(ARGV[2])<=now then return 0 end
  local fence=redis.call('GET',KEYS[3]) or '0'
  if tonumber(fence)>tonumber(ARGV[1]) then return 0 end
  local owner=redis.call('GET',KEYS[1])
@@ -203,14 +194,21 @@ func (v *VersionedCollection) pruneShardFence(ctx context.Context, token string,
  redis.call('ZREMRANGEBYSCORE',KEYS[2],'-inf',now)
  if redis.call('ZCARD',KEYS[2])>0 then return 0 end
  redis.call('SET',KEYS[3],ARGV[1])
- redis.call('SET',KEYS[1],ARGV[1],'PX',ARGV[2]-now); return 1`
+ redis.call('SET',KEYS[1],ARGV[1],'PX',ARGV[2]); return 1`
 	keys := []string{v.shardKey(shard, v3Maintenance), v.shardKey(shard, "writers"), v.shardKey(shard, "fence")}
-	ok, err := v.client.Eval(ctx, local, keys, token, deadline).Int()
+	ok, err := v.client.Eval(ctx, local, keys, token, v3MaintenanceTTL).Int()
 	if err != nil {
 		return err
 	}
 	if ok != 1 {
 		return ErrMaintenance
+	}
+	if err := v.fence(ctx, token); err != nil {
+		cleanup, cancel := context.WithTimeout(context.Background(), v3CleanupTimeout)
+		defer cancel()
+		const release = `if redis.call('GET',KEYS[1])==ARGV[1] then return redis.call('DEL',KEYS[1]) end return 0`
+		_ = v.client.Eval(cleanup, release, []string{keys[0]}, token).Err()
+		return err
 	}
 	return nil
 }
