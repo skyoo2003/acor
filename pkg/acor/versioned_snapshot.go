@@ -249,11 +249,7 @@ func (v *VersionedCollection) bucket(ctx context.Context, b v3Bucket) ([]string,
 		return words, nil
 	}
 	for _, h := range b.Chunks {
-		key := v.key("chunk:" + h)
-		if b.sharded {
-			key = v.shardKey(b.shard, "chunk:"+h)
-		}
-		data, err := v.client.Get(ctx, key).Bytes()
+		data, err := v.client.Get(ctx, v.bucketChunkKey(b, h)).Bytes()
 		if err != nil {
 			if b.sharded && errors.Is(err, redis.Nil) {
 				return nil, ErrVersionedCorrupt
@@ -275,6 +271,14 @@ func (v *VersionedCollection) bucket(ctx context.Context, b v3Bucket) ([]string,
 	}
 	return words, nil
 }
+
+func (v *VersionedCollection) bucketChunkKey(b v3Bucket, hash string) string {
+	if b.sharded {
+		return v.shardKey(b.shard, "chunk:"+hash)
+	}
+	return v.key("chunk:" + hash)
+}
+
 func (s *Snapshot) all(ctx context.Context) ([]string, error) {
 	if err := s.lease.check(ctx); err != nil {
 		return nil, err

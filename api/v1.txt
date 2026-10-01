@@ -242,6 +242,7 @@ method (*VersionedCollection) Remove(ctx context.Context, expected Version, word
 method (*VersionedCollection) RemoveMany(ctx context.Context, expected Version, words []string) (*WriteResult, error)
 method (*VersionedCollection) Replace(ctx context.Context, expected Version, words []string) (*WriteResult, error)
 method (*VersionedCollection) ReplaceText(ctx context.Context, text, replacement string, opts *RewriteOptions) (*RewriteResult, error)
+method (*VersionedCollection) Reshard(ctx context.Context, expected Version, shardCount uint16) (*WriteResult, error)
 method (*VersionedCollection) ResolveOperation(ctx context.Context, id string) (*WriteResult, error)
 method (*VersionedCollection) Scan(ctx context.Context, text string, opts *ScanOptions) (*ScanResult, error)
 method (*VersionedCollection) Snapshot(ctx context.Context) (*Snapshot, error)

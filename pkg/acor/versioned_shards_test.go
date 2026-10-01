@@ -17,7 +17,493 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	redis "github.com/redis/go-redis/v9"
 )
+
+// Changing storage must preserve normalized words, rune positions, and old cursors.
+//
+//nolint:funlen,gocyclo // Follows a pinned snapshot through both layout formats.
+func TestVersionedReshardPreservesSearchAndSnapshotIsolation(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	v := openV3Test(t, server, "reshard-isolation")
+	v.client.AddHook(&v3FaultHook{checkSlots: true})
+	r, err := v.Replace(ctx, v.Status().ServingVersion, []string{" CAFÉ ", "한국어", "한국", "🙂"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, r.Version)
+	want := []string{"café", "한국", "한국어", "🙂"}
+	var pinned []*Snapshot
+	var pages []*DictionaryPage
+	for _, count := range []uint16{4, 8, 2, 1} {
+		s, snapshotErr := v.Snapshot(ctx)
+		if snapshotErr != nil {
+			t.Fatal(snapshotErr)
+		}
+		t.Cleanup(func() { _ = s.Close(ctx) })
+		page, listErr := s.List(ctx, "", 1)
+		if listErr != nil || page.NextCursor == "" {
+			t.Fatal(page, listErr)
+		}
+		pinned, pages = append(pinned, s), append(pages, page)
+		previous := r.Version
+		r, err = v.Reshard(ctx, previous, count)
+		if err != nil || r.Version == previous || r.PreviousVersion != previous || r.Added != 0 || r.Removed != 0 {
+			t.Fatal(r, err)
+		}
+		waitV3(t, v, r.Version)
+		layoutVersion := uint16(2)
+		if count == 1 {
+			layoutVersion = 1
+		}
+		if status := v.Status(); status.ShardCount != count || status.LayoutVersion != layoutVersion {
+			t.Fatal("serving layout not updated", status)
+		}
+		if meta := v.client.HGetAll(ctx, v.key("meta")).Val(); meta["shards"] != fmt.Sprint(count) || meta["layout"] != fmt.Sprint(layoutVersion) {
+			t.Fatal("committed layout metadata not updated", meta)
+		}
+		got, findErr := v.FindMatches(ctx, "🙂한국어 CAFÉ", nil)
+		matches := []Match{{"🙂", 0, 1}, {"한국", 1, 3}, {"한국어", 1, 4}, {"café", 5, 9}}
+		if findErr != nil || !reflect.DeepEqual(got, matches) {
+			t.Fatal(got, findErr)
+		}
+		opened := openShardedV3Test(t, server, "reshard-isolation")
+		if opened.Status().ShardCount != count {
+			t.Fatal("reopen changed stored layout", opened.Status())
+		}
+		_ = opened.Close()
+	}
+	r, err = v.Replace(ctx, r.Version, []string{"new"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, r.Version)
+	for i, s := range pinned {
+		page, listErr := s.List(ctx, pages[i].NextCursor, 10)
+		if listErr != nil || page.NextCursor != "" || page.Version != s.Version() {
+			t.Fatal(page, listErr)
+		}
+		got := append(slices.Clone(pages[i].Keywords), page.Keywords...)
+		slices.Sort(got)
+		if !slices.Equal(got, want) || s.Count() != 4 {
+			t.Fatal("layout transition changed pinned dictionary", got)
+		}
+		diff, diffErr := s.Diff(ctx, []string{"new"})
+		if diffErr != nil || !slices.Equal(diff.Removed, want) || !slices.Equal(diff.Added, []string{"new"}) {
+			t.Fatal(diff, diffErr)
+		}
+	}
+}
+
+func TestVersionedReshardRejectsConflictAndInvalidCount(t *testing.T) {
+	ctx := context.Background()
+	v := openV3Test(t, miniredis.RunT(t), "reshard-validation")
+	initial := v.Status().ServingVersion
+	for _, count := range []uint16{0, 3, 257, 512} {
+		if _, err := v.Reshard(ctx, initial, count); err == nil {
+			t.Fatal("invalid count accepted", count)
+		}
+	}
+	if _, err := v.Reshard(ctx, "foreign", 4); !errors.Is(err, ErrInvalidVersion) {
+		t.Fatal(err)
+	}
+	// An empty dictionary still needs a new generation for a changed layout.
+	r, err := v.Reshard(ctx, initial, 256)
+	if err != nil || r.Version == initial || r.Added != 0 || r.Removed != 0 {
+		t.Fatal(r, err)
+	}
+	if _, err = v.Reshard(ctx, initial, 2); !errors.Is(err, ErrConcurrencyConflict) {
+		t.Fatal(err)
+	}
+	same, err := v.Reshard(ctx, r.Version, 256)
+	if err != nil || same.Version != r.Version {
+		t.Fatal(same, err)
+	}
+	receipt, err := v.ResolveOperation(ctx, same.OperationID)
+	if err != nil || *receipt != *same {
+		t.Fatal(receipt, err)
+	}
+	waitV3(t, v, r.Version)
+}
+
+// The leased global generation must protect its entire graph after migrating away.
+func TestVersionedPruneRetainsLeasedShardedGeneration(t *testing.T) {
+	ctx := context.Background()
+	v := openShardedV3Test(t, miniredis.RunT(t), "prune-sharded-lease")
+	v.client.AddHook(&v3FaultHook{checkSlots: true})
+	r, err := v.Replace(ctx, v.Status().ServingVersion, []string{"café", "한국어", "🙂"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, r.Version)
+	s, err := v.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close(ctx)
+	r, err = v.Reshard(ctx, r.Version, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, r.Version)
+	ageV3Generations(t, v)
+	if _, err = v.Prune(ctx); err != nil {
+		t.Fatal(err)
+	}
+	words, err := s.all(ctx)
+	slices.Sort(words)
+	if err != nil || !slices.Equal(words, []string{"café", "한국어", "🙂"}) {
+		t.Fatal("leased shard chunks pruned", words, err)
+	}
+	if _, err = v.manifest(ctx, s.Version()); err != nil {
+		t.Fatal("leased shard manifests pruned", err)
+	}
+	_ = s.Close(ctx)
+	if _, err = v.Prune(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for shard := range uint16(4) {
+		if n := v.client.ZCard(ctx, v.shardKey(shard, "manifests")).Val(); n != 0 {
+			t.Fatal("unreachable shard manifests retained", shard, n)
+		}
+		if n := v.client.ZCard(ctx, v.shardKey(shard, "chunks")).Val(); n != 0 {
+			t.Fatal("unreachable shard chunks retained", shard, n)
+		}
+	}
+	active, err := v.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer active.Close(ctx)
+	if words, err = active.all(ctx); err != nil || len(words) != 3 {
+		t.Fatal("active legacy chunks pruned", words, err)
+	}
+}
+
+func ageV3Generations(t *testing.T, v *VersionedCollection) {
+	t.Helper()
+	ctx := context.Background()
+	gens, err := v.client.ZRange(ctx, v.key("generations"), 0, -1).Result()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, generation := range gens {
+		if err = v.client.ZAdd(ctx, v.key("generations"), redis.Z{Score: 1, Member: generation}).Err(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// Both active reused shards and recently prepared global graphs remain reachable.
+func TestVersionedPruneRetainsRecentShardedGeneration(t *testing.T) {
+	ctx := context.Background()
+	v := openShardedV3Test(t, miniredis.RunT(t), "prune-recent")
+	r, err := v.Replace(ctx, v.Status().ServingVersion, []string{"café", "한국어"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, r.Version)
+	old, err := v.manifest(ctx, r.Version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next, err := v.Remove(ctx, r.Version, "한국어")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, next.Version)
+	if _, err = v.Prune(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = v.manifest(ctx, r.Version); err != nil {
+		t.Fatal("recent generation lost shard manifest", err)
+	}
+	if _, err = v.bucket(ctx, old.Buckets[v3BucketNumber("한국어")]); err != nil {
+		t.Fatal("recent generation lost chunk", err)
+	}
+	ageV3Generations(t, v)
+	if _, err = v.Prune(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if v.client.Exists(ctx, shardedV3ChunkKey(v, 3, "한국어")).Val() != 0 {
+		t.Fatal("unreachable chunk retained")
+	}
+	if v.client.Exists(ctx, shardedV3ChunkKey(v, 0, "café")).Val() != 1 {
+		t.Fatal("reused active chunk pruned")
+	}
+	if _, err = v.manifest(ctx, next.Version); err != nil {
+		t.Fatal("reused active shard manifest pruned", err)
+	}
+}
+
+// A preparation without any global manifest still needs eventual collection.
+func TestVersionedPruneCollectsAbandonedTargetShard(t *testing.T) {
+	ctx := context.Background()
+	v := openV3Test(t, miniredis.RunT(t), "prune-abandoned-target")
+	l, _, err := v.acquire(ctx, v.Status().ServingVersion, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.close(ctx)
+	stages := []v3Stage{{key: "chunk:orphan", registry: "chunks", id: "orphan", data: []byte("[]"), shard: 255, sharded: true},
+		{key: "manifest:orphan", registry: "manifests", id: "orphan", data: []byte("{}"), shard: 255, sharded: true}}
+	if err = v.stageAll(ctx, l, stages); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = v.Prune(ctx); !errors.Is(err, ErrMaintenance) {
+		t.Fatal("live preparation was not protected", err)
+	}
+	_ = l.close(ctx)
+	if _, err = v.Prune(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, stage := range stages {
+		if v.client.Exists(ctx, v.shardKey(255, stage.key)).Val() != 0 {
+			t.Fatal("abandoned target shard record retained", stage.key)
+		}
+	}
+}
+
+// A stale pruner must not delete after losing either its global or shard fence.
+func TestVersionedPruneShardFencesRejectStaleOwner(t *testing.T) {
+	for _, cause := range []string{"global-expired", "newer-shard-fence", "shard-maintenance", "live-shard-writer"} {
+		t.Run(cause, func(t *testing.T) {
+			ctx := context.Background()
+			v := openV3Test(t, miniredis.RunT(t), "prune-fence-"+cause)
+			v.client.Set(ctx, v.key("maintenance"), "1", time.Minute)
+			key := v.shardKey(255, "chunk:orphan")
+			v.client.Set(ctx, key, "[]", 0)
+			v.client.ZAdd(ctx, v.shardKey(255, "chunks"), redis.Z{Member: "orphan", Score: 1})
+			switch cause {
+			case "global-expired":
+				v.client.Del(ctx, v.key("maintenance"))
+			case "newer-shard-fence":
+				v.client.Set(ctx, v.shardKey(255, "fence"), "2", 0)
+			case "shard-maintenance":
+				v.client.Set(ctx, v.shardKey(255, "maintenance"), "2", time.Minute)
+			case "live-shard-writer":
+				now, err := v.client.Time(ctx).Result()
+				if err != nil {
+					t.Fatal(err)
+				}
+				v.client.ZAdd(ctx, v.shardKey(255, "writers"), redis.Z{Member: "writer", Score: float64(now.Add(time.Minute).UnixMilli())})
+			}
+			if _, err := v.pruneShard(ctx, "1", 255, nil); !errors.Is(err, ErrMaintenance) {
+				t.Fatal("stale shard prune accepted", err)
+			}
+			if v.client.Exists(ctx, key).Val() != 1 {
+				t.Fatal("stale pruner deleted chunk")
+			}
+		})
+	}
+}
+
+type v3PruneExpiryHook struct {
+	v3FaultHook
+	server      *miniredis.Miniredis
+	maintenance string
+	global      string
+}
+
+func (h *v3PruneExpiryHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		args := cmd.Args()
+		if cmd.Name() == "eval" && strings.Contains(args[1].(string), "return #KEYS-2") && args[3] == h.maintenance {
+			// Expiry between the renewal and the atomic deletion must fence it out.
+			h.server.Del(h.maintenance)
+			h.server.Del(h.global)
+		}
+		return next(ctx, cmd)
+	}
+}
+
+func TestVersionedPruneShardDeletionChecksExpiredAuthority(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	v := openV3Test(t, server, "prune-expiry-at-delete")
+	key := v.shardKey(255, "chunk:orphan")
+	v.client.Set(ctx, key, "[]", 0)
+	v.client.ZAdd(ctx, v.shardKey(255, "chunks"), redis.Z{Member: "orphan", Score: 1})
+	v.client.AddHook(&v3PruneExpiryHook{server: server, maintenance: v.shardKey(255, "maintenance"), global: v.key("maintenance")})
+	if _, err := v.Prune(ctx); !errors.Is(err, ErrMaintenance) {
+		t.Fatal("expired owner deleted shard data", err)
+	}
+	if v.client.Exists(ctx, key).Val() != 1 {
+		t.Fatal("shard deletion was not fenced atomically")
+	}
+}
+
+// Reading and staging under a writer lease excludes prune, but never another writer.
+func TestVersionedReshardConflictsWithConcurrentWrite(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	v := openV3Test(t, server, "reshard-race")
+	writer := openV3Test(t, server, "reshard-race")
+	r, err := v.Add(ctx, v.Status().ServingVersion, "old")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, r.Version)
+	release := make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	t.Cleanup(unblock)
+	hook := &v3FaultHook{chunkEntered: make(chan struct{}, 1), chunkRelease: release}
+	v.client.AddHook(hook)
+	done := make(chan error, 1)
+	go func() { _, reshardErr := v.Reshard(ctx, r.Version, 4); done <- reshardErr }()
+	select {
+	case <-hook.chunkEntered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("reshard did not read source chunks")
+	}
+	if _, err = writer.Prune(ctx); !errors.Is(err, ErrMaintenance) {
+		t.Fatal("prune raced live reshard", err)
+	}
+	next, err := writer.Add(ctx, r.Version, "new")
+	if err != nil {
+		t.Fatal(err)
+	}
+	unblock()
+	if err = <-done; !errors.Is(err, ErrConcurrencyConflict) {
+		t.Fatal(err)
+	}
+	waitV3(t, v, next.Version)
+	if got, findErr := v.FindSet(ctx, "old new"); findErr != nil || !slices.Equal(got, []string{"old", "new"}) {
+		t.Fatal(got, findErr)
+	}
+	if v.client.HGet(ctx, v.key("meta"), "shards").Val() != "1" {
+		t.Fatal("failed reshard changed layout")
+	}
+}
+
+// Ambiguous layout commits reconcile durably, even after their graph is pruned.
+func TestVersionedReshardLostReceiptSurvivesPrune(t *testing.T) {
+	ctx := context.Background()
+	v := openV3Test(t, miniredis.RunT(t), "reshard-receipt")
+	r, err := v.Add(ctx, v.Status().ServingVersion, "한국어")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, r.Version)
+	hook := &v3FaultHook{}
+	v.client.AddHook(hook)
+	hook.dropCommit.Store(true)
+	r, err = v.Reshard(ctx, r.Version, 4)
+	if !errors.Is(err, ErrCommitUnknown) || r == nil {
+		t.Fatal(r, err)
+	}
+	receipt, err := v.ResolveOperation(ctx, r.OperationID)
+	if err != nil || *receipt != *r {
+		t.Fatal(receipt, err)
+	}
+	waitV3(t, v, r.Version)
+	next, err := v.Reshard(ctx, r.Version, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, v, next.Version)
+	ageV3Generations(t, v)
+	if _, err = v.Prune(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if v.client.Exists(ctx, v.key("gen:"+string(r.Version))).Val() != 0 {
+		t.Fatal("receipt generation not pruned")
+	}
+	replayed, err := v.commit(ctx, &v3Lease{member: "expired"}, receipt, &v3Manifest{Sequence: 3})
+	if err != nil || *replayed != *receipt {
+		t.Fatal(replayed, err)
+	}
+	if v.client.Get(ctx, v.key("active")).Val() != string(next.Version) ||
+		v.client.HGet(ctx, v.key("meta"), "shards").Val() != "2" {
+		t.Fatal("replayed receipt changed version or layout")
+	}
+	if err = v.WaitForVersion(ctx, receipt.Version); err != nil {
+		t.Fatal("pruning lost committed sequence", err)
+	}
+}
+
+// Neither invalid source data nor a failed target shard may publish a new layout.
+func TestVersionedReshardPreparationFailureKeepsLayout(t *testing.T) {
+	for _, cause := range []string{"source-corrupt", "target-corrupt", "target-registry"} {
+		t.Run(cause, func(t *testing.T) {
+			ctx := context.Background()
+			v := openV3Test(t, miniredis.RunT(t), "reshard-failure-"+cause)
+			r, err := v.Add(ctx, v.Status().ServingVersion, "한국어")
+			if err != nil {
+				t.Fatal(err)
+			}
+			waitV3(t, v, r.Version)
+			data, _ := json.Marshal([]string{"한국어"})
+			switch cause {
+			case "source-corrupt":
+				v.client.Set(ctx, v.key("chunk:"+v3Hash(data)), "[]", 0)
+			case "target-corrupt":
+				v.client.Set(ctx, shardedV3ChunkKey(v, 3, "한국어"), "[]", 0)
+			case "target-registry":
+				v.client.Set(ctx, v.shardKey(3, "chunks"), "wrong-type", 0)
+			}
+			if _, err = v.Reshard(ctx, r.Version, 4); err == nil {
+				t.Fatal("failed preparation published")
+			}
+			if v.client.Get(ctx, v.key("active")).Val() != string(r.Version) ||
+				v.client.HGet(ctx, v.key("meta"), "shards").Val() != "1" {
+				t.Fatal("failed reshard changed version or layout")
+			}
+			if v.client.ZCard(ctx, v.key("writers")).Val() != 0 {
+				t.Fatal("failed reshard retained global writer lease")
+			}
+			if got, findErr := v.FindSet(ctx, "한국어"); findErr != nil || !slices.Equal(got, []string{"한국어"}) {
+				t.Fatal("failed reshard changed serving generation", got, findErr)
+			}
+		})
+	}
+}
+
+func TestVersionedPruneExpiredShardedWriterCannotResume(t *testing.T) {
+	ctx := context.Background()
+	v := openV3Test(t, miniredis.RunT(t), "prune-expired-writer")
+	l, _, err := v.acquire(ctx, v.Status().ServingVersion, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.close(ctx)
+	stage := v3Stage{key: "chunk:orphan", registry: "chunks", id: "orphan", data: []byte("[]"), shard: 255, sharded: true}
+	if err = v.stageAll(ctx, l, []v3Stage{stage}); err != nil {
+		t.Fatal(err)
+	}
+	v.client.ZAdd(ctx, v.key("writers"), redis.Z{Member: l.member, Score: 1})
+	v.client.ZAdd(ctx, v.shardKey(255, "writers"), redis.Z{Member: l.member, Score: 1})
+	result, err := v.Prune(ctx)
+	if err != nil || result.Chunks != 1 {
+		t.Fatal(result, err)
+	}
+	if err = v.stageBatch(ctx, l, []v3Stage{stage}); !errors.Is(err, ErrLeaseExpired) {
+		t.Fatal("expired staged command resumed", err)
+	}
+	if err = v.mirrorWriter(ctx, l, 255); !errors.Is(err, ErrLeaseExpired) {
+		t.Fatal("expired mirror resumed", err)
+	}
+	if v.client.Exists(ctx, v.shardKey(255, stage.key)).Val() != 0 {
+		t.Fatal("expired writer recreated pruned content")
+	}
+}
+
+// Legacy maintenance must not materialize hundreds of unused shard namespaces.
+func TestVersionedPruneLegacyDoesNotCreateShardState(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	v := openV3Test(t, server, "prune-legacy-footprint")
+	if _, err := v.Prune(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range server.Keys() {
+		if strings.Contains(key, "-shard-") {
+			t.Fatal("legacy prune created unused shard state", key)
+		}
+	}
+}
 
 // Losing unchanged shard engines makes every incremental update rebuild the dictionary.
 func TestVersionedShardedSearchReusesUnchangedEngines(t *testing.T) {
@@ -485,7 +971,7 @@ func TestVersionedShardedLostCommitReceiptResolvesOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	replayed, err := v.commit(ctx, &v3Lease{member: "expired"}, receipt, 2)
+	replayed, err := v.commit(ctx, &v3Lease{member: "expired"}, receipt, &v3Manifest{Sequence: 2})
 	if err != nil || *replayed != *receipt {
 		t.Fatal(replayed, err)
 	}

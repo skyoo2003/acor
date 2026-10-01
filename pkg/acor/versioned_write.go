@@ -50,6 +50,7 @@ const v3CommitScript = v3Now + `
  redis.call('SET',KEYS[3],ARGV[3])
  redis.call('SET',KEYS[7],ARGV[5])
  redis.call('ZADD',KEYS[8],math.floor(now/1000),ARGV[3])
+ redis.call('HSET',KEYS[9],'layout',ARGV[6],'shards',ARGV[7])
  redis.call('PUBLISH',KEYS[6],ARGV[3])
  end
  return ARGV[4]`
@@ -80,6 +81,79 @@ func (v *VersionedCollection) AddMany(ctx context.Context, expected Version, wor
 func (v *VersionedCollection) RemoveMany(ctx context.Context, expected Version, words []string) (*WriteResult, error) {
 	return v.change(ctx, expected, words, "remove")
 }
+
+// Reshard explicitly changes storage layout while preserving the dictionary.
+// shardCount must be a power of two between 1 (legacy layout) and 256. A changed
+// layout commits a new generation, even for an empty dictionary; the same layout
+// is a no-op. Existing snapshots remain pinned to their original layout.
+func (v *VersionedCollection) Reshard(ctx context.Context, expected Version, shardCount uint16) (*WriteResult, error) {
+	if !v.valid(expected) {
+		return nil, ErrInvalidVersion
+	}
+	if !v3ValidShardCount(shardCount) {
+		return nil, errors.New("acor: shard count must be a power of two between 1 and 256")
+	}
+	l, _, err := v.acquire(ctx, expected, true)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = l.close(ctx) }()
+	old, err := v.manifest(ctx, expected)
+	if err != nil {
+		return nil, err
+	}
+	result := &WriteResult{PreviousVersion: expected, Version: expected, OperationID: v3ID()}
+	if v3ManifestLayout(old).ShardCount == shardCount {
+		return v.prepareCommit(ctx, l, old, result, nil, nil, false)
+	}
+	next := &v3Manifest{Version: expected, Sequence: old.Sequence, Count: old.Count}
+	changedShards := make(map[uint16]bool)
+	if shardCount > 1 {
+		next.global = &v3GlobalManifest{Layout: v3Layout{Version: v3ShardedLayoutVersion, ShardCount: shardCount},
+			Shards: make([]string, shardCount)}
+		for shard := range shardCount {
+			changedShards[shard] = true
+		}
+	}
+	stages, err := v.reshardBuckets(ctx, old, next)
+	if err != nil {
+		return nil, err
+	}
+	return v.prepareCommit(ctx, l, next, result, stages, changedShards, true)
+}
+
+// Read each source bucket through its pinned storage coordinates and checksum
+// validation, then prepare equivalent chunks in the target layout.
+func (v *VersionedCollection) reshardBuckets(ctx context.Context, old, next *v3Manifest) ([]v3Stage, error) {
+	var stages []v3Stage
+	for i, before := range &old.Buckets {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		words, err := v.bucket(ctx, before)
+		if err != nil {
+			return nil, err
+		}
+		bucket, work := v3Stages(words)
+		if next.global != nil && bucket.Count > 0 {
+			bucket.sharded, bucket.shard = true, uint16(i)%next.global.Layout.ShardCount //nolint:gosec // Bucket index is at most 4095.
+			for j := range work {
+				work[j].sharded, work[j].shard = true, bucket.shard
+			}
+		}
+		next.Buckets[i] = bucket
+		stages = append(stages, work...)
+	}
+	return stages, nil
+}
+
+func v3ManifestLayout(m *v3Manifest) v3Layout {
+	if m.global != nil {
+		return m.global.Layout
+	}
+	return v3Layout{Version: v3LegacyLayoutVersion, ShardCount: 1}
+}
+
 func (v *VersionedCollection) change(ctx context.Context, expected Version, words []string, mode string) (*WriteResult, error) {
 	if !v.valid(expected) {
 		return nil, ErrInvalidVersion
@@ -132,11 +206,11 @@ func (v *VersionedCollection) change(ctx context.Context, expected Version, word
 		stages = append(stages, bucketStages...)
 		next.Buckets[i] = b
 	}
-	return v.prepareCommit(ctx, l, &next, result, stages, changedShards)
+	return v.prepareCommit(ctx, l, &next, result, stages, changedShards, result.Added != 0 || result.Removed != 0)
 }
 func (v *VersionedCollection) prepareCommit(ctx context.Context, l *v3Lease, next *v3Manifest,
-	result *WriteResult, stages []v3Stage, changedShards map[uint16]bool) (*WriteResult, error) {
-	if result.Added != 0 || result.Removed != 0 {
+	result *WriteResult, stages []v3Stage, changedShards map[uint16]bool, changed bool) (*WriteResult, error) {
+	if changed {
 		next.Version = Version(v.id + "." + v3ID())
 		next.Sequence++
 		next.Count += result.Added - result.Removed
@@ -158,7 +232,7 @@ func (v *VersionedCollection) prepareCommit(ctx context.Context, l *v3Lease, nex
 			}
 		}
 	}
-	return v.commit(ctx, l, result, next.Sequence)
+	return v.commit(ctx, l, result, next)
 }
 
 func v3NextManifest(next *v3Manifest, changed map[uint16]bool, stages *[]v3Stage) []byte {
@@ -187,11 +261,13 @@ func v3NextManifest(next *v3Manifest, changed map[uint16]bool, stages *[]v3Stage
 	return data
 }
 
-func (v *VersionedCollection) commit(ctx context.Context, l *v3Lease, result *WriteResult, sequence uint64) (*WriteResult, error) {
+func (v *VersionedCollection) commit(ctx context.Context, l *v3Lease, result *WriteResult, next *v3Manifest) (*WriteResult, error) {
 	data, _ := json.Marshal(result)
+	layout := v3ManifestLayout(next)
 	keys := []string{v.key(v3Maintenance), v.key("writers"), v.key("active"), v.key("gen:" + string(result.Version)),
-		v.key("op:" + result.OperationID), v.key("events"), v.key("committed:" + string(result.Version)), v.key("generations")}
-	raw, err := v.client.Eval(ctx, v3CommitScript, keys, l.member, string(result.PreviousVersion), string(result.Version), data, sequence).Text()
+		v.key("op:" + result.OperationID), v.key("events"), v.key("committed:" + string(result.Version)), v.key("generations"), v.key("meta")}
+	raw, err := v.client.Eval(ctx, v3CommitScript, keys, l.member, string(result.PreviousVersion), string(result.Version), data,
+		next.Sequence, layout.Version, layout.ShardCount).Text()
 	if err != nil {
 		return result, fmt.Errorf("%w: %w", ErrCommitUnknown, err)
 	}

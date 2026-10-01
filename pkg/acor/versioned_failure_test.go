@@ -164,7 +164,7 @@ func TestVersionedLostCommitReceiptAndReuse(t *testing.T) {
 	}
 	waitV3(t, v, next.Version)
 	// A delayed transport retry must return the old receipt, not reapply it.
-	recovered, err := v.commit(ctx, &v3Lease{member: "expired"}, receipt, 2)
+	recovered, err := v.commit(ctx, &v3Lease{member: "expired"}, receipt, &v3Manifest{Sequence: 2})
 	if err != nil || recovered.Version != receipt.Version {
 		t.Fatal(recovered, err)
 	}

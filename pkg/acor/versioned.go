@@ -374,6 +374,9 @@ func (v *VersionedCollection) installEngine(s *Snapshot, e *matchengine.Engine, 
 	v.mu.Lock()
 	v.current.Store(&v3Engine{engine: e, shards: shards, version: s.Version(), sequence: s.manifest.Sequence, manifest: s.manifest, buckets: buckets})
 	v.status.ServingVersion = s.Version()
+	layout := v3ManifestLayout(s.manifest)
+	v.status.LayoutVersion = layout.Version
+	v.status.ShardCount = layout.ShardCount
 	v.status.LastError = ""
 	v.status.LastRefreshSuccess = time.Now()
 	v.status.DownloadedBuckets = downloaded
