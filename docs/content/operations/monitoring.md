@@ -110,8 +110,9 @@ log.Printf("behind=%t building=%t failed=%t layout=%d shards=%d downloaded=%d re
 
 `DownloadedShards` and `ReusedShards` describe the most recent successful build;
 they are not per-write counters, and a no-op write does not reset them.
-`RefreshingShards` is the number of changed shards in the in-flight candidate,
-not a progress percentage. `FailedShard` is -1 when no shard is identified.
+`RefreshingShards` counts unfinished changed-shard work in the in-flight candidate;
+it decreases as shard builds complete and resets when the build finishes or fails.
+It is not a progress percentage. `FailedShard` is -1 when no shard is identified.
 `Building` can be false while `LastError` remains set and the old engine serves.
 Alert on growing `RefreshFailures`, a persistent observed version gap, and a stale
 `LastRefreshSuccess` alongside the writer's commit time. Versions are equality
@@ -123,7 +124,7 @@ Measure process RSS and Go GC pauses separately from Redis memory. Redis storage
 shards do not reduce the requirement that each serving replica holds the whole
 searchable dictionary. Capacity alerts need headroom for old and candidate engines
 during refresh and `Reshard`; monitor search p50/p95/p99 while these run. The scale
-harness records changed-shard IDs and keyword-count skew from manifests; those
+harness records a changed-shard count and keyword-count skew derived from manifests; those
 metrics require Redis reads and are not included in the local `Status()` scrape.
 The current server registry exposes the V3 gauges listed below; it does not yet
 export layout, shard skew, or changed-shard gauges.

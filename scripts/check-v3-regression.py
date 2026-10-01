@@ -17,6 +17,31 @@ REQUIRED = (*METRICS, "commit_ms", "search_p50_ns", "search_p99_ns", "search_sam
             "shard_skew_ratio", "gc_pause_ns", "gc_cycles")
 
 
+def identified_string(value):
+    return isinstance(value, str) and bool(value.strip())
+
+
+def validate_environment(environment, path):
+    if not isinstance(environment, dict):
+        raise ValueError(f"{path}: missing environment identity")
+    for field in ("host", "go", "os", "arch", "endpoint"):
+        if not identified_string(environment.get(field)):
+            raise ValueError(f"{path}: missing or invalid environment {field}")
+    for field in ("cpus", "gomaxprocs"):
+        value = environment.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError(f"{path}: missing or invalid environment {field}")
+    server = environment.get("server")
+    if not isinstance(server, dict):
+        raise ValueError(f"{path}: missing server identity")
+    for alternatives in (("redis_version", "valkey_version"), ("redis_build_id", "valkey_build_id")):
+        if not any(identified_string(server.get(field)) for field in alternatives):
+            raise ValueError(f"{path}: missing server {'/'.join(alternatives)}")
+    for field in ("redis_mode", "os", "arch_bits"):
+        if not identified_string(server.get(field)):
+            raise ValueError(f"{path}: missing or invalid server {field}")
+
+
 def load(path):
     data = json.loads(path.read_text())
     if data.get("schema_version") != 2:
@@ -34,8 +59,9 @@ def load(path):
             raise ValueError(f"{path}: duplicate run {run_key}")
         seen_runs.add(run_key)
         environment = run.get("environment")
-        if run.get("passed") is not True or not isinstance(environment, dict) or not environment:
+        if run.get("passed") is not True:
             raise ValueError(f"{path}: run lacks successful environment evidence")
+        validate_environment(environment, path)
         seen_operations = set()
         if not run.get("measurements"):
             raise ValueError(f"{path}: run has no measurements")

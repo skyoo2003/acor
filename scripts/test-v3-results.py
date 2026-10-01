@@ -17,7 +17,11 @@ SCRIPTS = Path(__file__).resolve().parent
 def fixture():
     return {"schema_version": 2, "runs": [{
         "n": 100, "kind": "shared", "repeat": 1, "shard_count": 4,
-        "environment": {"host": "fixture", "go": "go1.26.7"}, "passed": True,
+        "environment": {"host": "fixture", "go": "go1.26.7", "os": "linux", "arch": "amd64",
+                        "cpus": 4, "gomaxprocs": 4, "endpoint": "fixture:6379",
+                        "server": {"redis_version": "8.10.1", "redis_build_id": "fixture",
+                                   "redis_mode": "standalone", "os": "Linux", "arch_bits": "64"}},
+        "passed": True,
         "measurements": [{"operation": "add_1", "n": 100, "kind": "shared",
                           "shard_count": 4, "changed_shards": 1,
                           "shard_min_keywords": 20, "shard_max_keywords": 30,
@@ -53,6 +57,31 @@ class ResultsTest(unittest.TestCase):
         candidate = fixture()
         candidate["runs"][0]["environment"]["host"] = "another-host"
         self.assertNotEqual(self.gate(candidate).returncode, 0)
+
+    def test_missing_environment_identity_rejected_even_when_equal(self):
+        for field in ("host", "go", "os", "arch", "cpus", "gomaxprocs", "endpoint", "server"):
+            with self.subTest(field=field):
+                candidate = fixture()
+                del candidate["runs"][0]["environment"][field]
+                self.assertNotEqual(self.gate(candidate, candidate).returncode, 0)
+
+        for field in ("redis_version", "redis_build_id", "redis_mode", "os", "arch_bits"):
+            with self.subTest(server_field=field):
+                candidate = fixture()
+                del candidate["runs"][0]["environment"]["server"][field]
+                self.assertNotEqual(self.gate(candidate, candidate).returncode, 0)
+        for field, value in (("host", " "), ("go", ""), ("cpus", 0), ("gomaxprocs", True), ("server", {})):
+            with self.subTest(field=field, value=value):
+                candidate = fixture()
+                candidate["runs"][0]["environment"][field] = value
+                self.assertNotEqual(self.gate(candidate, candidate).returncode, 0)
+
+    def test_valkey_identity_passes(self):
+        candidate = fixture()
+        server = candidate["runs"][0]["environment"]["server"]
+        server["valkey_version"] = server.pop("redis_version")
+        server["valkey_build_id"] = server.pop("redis_build_id")
+        self.assertEqual(self.gate(candidate, candidate).returncode, 0)
 
     def test_changed_shard_and_repetition_mismatch_rejected(self):
         candidate = fixture()

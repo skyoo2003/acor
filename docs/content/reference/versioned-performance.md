@@ -48,13 +48,17 @@ include host, Go/OS/architecture, CPU count, `GOMAXPROCS`, server version/build/
 endpoint, seed, preset, polling/debounce, shard concurrency, `GOGC`, and `GOMEMLIMIT`.
 This metadata cannot automatically prove that a host was otherwise idle or its
 Redis configuration identical.
+The gate requires identified host/runtime/server fields even when both inputs have
+identical metadata. The harness fails on an unavailable `INFO server` response or
+missing server identity. Coincident CRUD sizes (one keyword, 1,000 keywords, and 1%)
+are measured once per run so custom small counts retain unique operation keys.
 
 Schema version 2 stores each operation's measurements:
 
 | Field | Interpretation |
 |---|---|
 | `shard_count`, `shard_min_keywords`, `shard_max_keywords`, `shard_skew_ratio` | Installed layout and keyword balance; skew is max / mean, including empty shards, or zero for an empty dictionary |
-| `changed_shards` | Number of changed immutable shard IDs for that commit; zero for an identical replacement; all target shards for a layout change |
+| `changed_shards` | Changed-shard count, derived by comparing immutable manifest IDs; IDs themselves are not emitted. Zero for an identical replacement; all target shards for a layout change |
 | `commit_ms`, `ready_ms`, `refresh_lag_ms` | Write duration, write-through-local-readiness duration, and duration from write return to `WaitForVersion` returning; includes polling, debounce, and wait overhead |
 | `search_samples`, `search_p50_ns`, `search_p95_ns`, `search_p99_ns` | Timed local searches during the write/readiness window; very short no-op windows can have only one sample |
 | `max_rss_bytes` | Process-lifetime RSS high-water mark at that operation; not instantaneous heap or Redis memory |

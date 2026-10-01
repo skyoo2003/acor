@@ -5,6 +5,7 @@ package acor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -19,6 +20,82 @@ import (
 
 	redis "github.com/redis/go-redis/v9"
 )
+
+func TestVersionedScaleRequiresServerIdentity(t *testing.T) {
+	valid := "redis_version:8.10.1\r\nredis_build_id:fixture\r\nredis_mode:standalone\r\nos:Linux\r\narch_bits:64\r\n"
+	for _, tc := range []struct {
+		name string
+		info string
+		err  error
+	}{
+		{"permission denied", valid, errors.New("NOPERM INFO denied")},
+		{"missing identity", "", nil},
+		{"missing version", strings.ReplaceAll(valid, "redis_version:8.10.1\r\n", ""), nil},
+		{"missing build", strings.ReplaceAll(valid, "redis_build_id:fixture\r\n", ""), nil},
+		{"missing mode", strings.ReplaceAll(valid, "redis_mode:standalone\r\n", ""), nil},
+		{"missing OS", strings.ReplaceAll(valid, "os:Linux\r\n", ""), nil},
+		{"missing architecture", strings.ReplaceAll(valid, "arch_bits:64\r\n", ""), nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := v3ScaleServerIdentity(tc.info, tc.err); err == nil {
+				t.Fatal("unidentified server accepted for scale evidence")
+			}
+		})
+	}
+	if got, err := v3ScaleServerIdentity(valid, nil); err != nil || got["redis_version"] != "8.10.1" {
+		t.Fatal("valid server identity rejected", got, err)
+	}
+	valkey := strings.ReplaceAll(strings.ReplaceAll(valid, "redis_version", "valkey_version"), "redis_build_id", "valkey_build_id")
+	if got, err := v3ScaleServerIdentity(valkey, nil); err != nil || got["valkey_version"] != "8.10.1" {
+		t.Fatal("valid Valkey identity rejected", got, err)
+	}
+}
+
+func TestVersionedScaleChangeSizesHaveUniqueOperations(t *testing.T) {
+	for _, tc := range []struct {
+		n    int
+		want []int
+	}{{1, []int{1, 1000}}, {100, []int{1, 1000}}, {100000, []int{1, 1000}},
+		{1000, []int{1, 1000, 10}}, {1000000, []int{1, 1000, 10000}}} {
+		if got := v3ScaleChangeSizes(tc.n); !slices.Equal(got, tc.want) {
+			t.Errorf("n=%d change sizes=%v want=%v", tc.n, got, tc.want)
+		}
+	}
+}
+
+func v3ScaleChangeSizes(n int) []int {
+	sizes := []int{1, 1000}
+	if percent := max(1, n/100); percent != 1 && percent != 1000 {
+		sizes = append(sizes, percent)
+	}
+	return sizes
+}
+
+func v3ScaleServerIdentity(info string, infoErr error) (map[string]string, error) {
+	if infoErr != nil {
+		return nil, fmt.Errorf("scale server identification: %w", infoErr)
+	}
+	server := make(map[string]string)
+	for _, line := range strings.Split(info, "\n") {
+		key, value, _ := strings.Cut(strings.TrimSpace(line), ":")
+		switch key {
+		case "redis_version", "valkey_version", "redis_build_id", "valkey_build_id", "redis_mode", "os", "arch_bits":
+			server[key] = strings.TrimSpace(value)
+		}
+	}
+	if server["redis_version"] == "" && server["valkey_version"] == "" {
+		return nil, errors.New("scale server identification: missing version")
+	}
+	if server["redis_build_id"] == "" && server["valkey_build_id"] == "" {
+		return nil, errors.New("scale server identification: missing build ID")
+	}
+	for _, field := range []string{"redis_mode", "os", "arch_bits"} {
+		if server[field] == "" {
+			return nil, fmt.Errorf("scale server identification: missing %s", field)
+		}
+	}
+	return server, nil
+}
 
 // Missing shard evidence must fail independently of the opt-in real-server run.
 func TestVersionedScaleReportsShardMetrics(t *testing.T) {
@@ -132,16 +209,14 @@ func TestVersionedScale(t *testing.T) {
 		}
 	}()
 	words := v3ScaleWords(n, kind)
-	serverInfo, _ := v.client.Info(ctx, "server").Result()
-	server := make(map[string]string)
-	for _, line := range strings.Split(serverInfo, "\n") {
-		key, value, _ := strings.Cut(strings.TrimSpace(line), ":")
-		switch key {
-		case "redis_version", "valkey_version", "redis_build_id", "redis_mode", "os", "arch_bits":
-			server[key] = value
-		}
+	server, err := v3ScaleServerIdentity(v.client.Info(ctx, "server").Result())
+	if err != nil {
+		t.Fatal(err)
 	}
-	host, _ := os.Hostname()
+	host, err := os.Hostname()
+	if err != nil || strings.TrimSpace(host) == "" {
+		t.Fatal("scale environment requires host identification", err)
+	}
 	environment, _ := json.Marshal(map[string]interface{}{"go": runtime.Version(), "os": runtime.GOOS,
 		"arch": runtime.GOARCH, "cpus": runtime.NumCPU(), "gomaxprocs": runtime.GOMAXPROCS(0), "host": host,
 		"server": server, "endpoint": addr, "seed": 20260906, "preset": v.opts.Preset,
@@ -282,7 +357,7 @@ func TestVersionedScale(t *testing.T) {
 		r = measure(fmt.Sprintf("add_1_repeat_%d", i), func() (*WriteResult, error) { return v.Add(ctx, r.Version, word) })
 		r = measure(fmt.Sprintf("remove_1_repeat_%d", i), func() (*WriteResult, error) { return v.Remove(ctx, r.Version, word) })
 	}
-	for _, changes := range []int{1, 1000, max(1, n/100)} {
+	for _, changes := range v3ScaleChangeSizes(n) {
 		added := make([]string, changes)
 		for i := range added {
 			added[i] = fmt.Sprintf("change-%d-%08d", changes, i)
