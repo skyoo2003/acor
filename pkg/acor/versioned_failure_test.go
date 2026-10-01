@@ -24,6 +24,9 @@ type v3FaultHook struct {
 	chunksWritten   atomic.Int64
 	stagePipelines  atomic.Int64
 	checkSlots      bool
+	chunkKey        string
+	chunkEntered    chan struct{}
+	chunkRelease    chan struct{}
 }
 
 func (h *v3FaultHook) DialHook(next redis.DialHook) redis.DialHook {
@@ -60,8 +63,8 @@ func (h *v3FaultHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 			}
 		}
 		args := cmd.Args()
-		if cmd.Name() == "get" && strings.Contains(args[1].(string), ":chunk:") && h.failChunks.Load() {
-			return errors.New("injected chunk read failure")
+		if err := h.beforeChunkRead(ctx, cmd); err != nil {
+			return err
 		}
 		commit := cmd.Name() == "eval" && args[1] == v3CommitScript
 		if cmd.Name() == "eval" && args[1] == v3StageScript && strings.Contains(args[5].(string), ":chunk:") {
@@ -76,6 +79,29 @@ func (h *v3FaultHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 		}
 		return err
 	}
+}
+
+func (h *v3FaultHook) beforeChunkRead(ctx context.Context, cmd redis.Cmder) error {
+	args := cmd.Args()
+	if cmd.Name() != "get" || !strings.Contains(args[1].(string), ":chunk:") ||
+		(h.chunkKey != "" && args[1] != h.chunkKey) {
+		return nil
+	}
+	if h.chunkRelease != nil {
+		select {
+		case h.chunkEntered <- struct{}{}:
+		default:
+		}
+		select {
+		case <-h.chunkRelease:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	if h.failChunks.Load() {
+		return errors.New("injected chunk read failure")
+	}
+	return nil
 }
 
 func v3CheckScriptSlot(cmd redis.Cmder) error {

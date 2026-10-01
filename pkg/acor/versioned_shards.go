@@ -199,27 +199,32 @@ func (v *VersionedCollection) loadShards(ctx context.Context, m *v3Manifest) err
 			for shard := start; shard < end; shard++ {
 				id := m.global.Shards[shard]
 				if len(id) != v3IDLength {
-					return ErrVersionedCorrupt
+					return &v3ShardError{shard: shard, err: ErrVersionedCorrupt}
 				}
 				cmds = append(cmds, pipe.Get(ctx, v.shardKey(uint16(shard), "manifest:"+id))) //nolint:gosec // Validated shard count is at most 256.
 			}
 			return nil
 		})
-		if errors.Is(err, redis.Nil) {
-			return ErrVersionedCorrupt
-		}
 		if err != nil {
+			for i, cmd := range cmds {
+				if cause := cmd.Err(); cause != nil {
+					if errors.Is(cause, redis.Nil) {
+						cause = ErrVersionedCorrupt
+					}
+					return &v3ShardError{shard: start + i, err: cause}
+				}
+			}
 			return err
 		}
 		for i, cmd := range cmds {
 			data, readErr := cmd.Bytes()
 			if readErr != nil {
-				return readErr
+				return &v3ShardError{shard: start + i, err: readErr}
 			}
 			shard := uint16(start + i) //nolint:gosec // Validated shard count is at most 256.
 			n, readErr := v3DecodeShard(data, m, shard)
 			if readErr != nil || n > m.Count-count {
-				return ErrVersionedCorrupt
+				return &v3ShardError{shard: int(shard), err: ErrVersionedCorrupt}
 			}
 			count += n
 		}

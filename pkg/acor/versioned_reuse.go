@@ -30,6 +30,9 @@ func (v *VersionedCollection) engineBuckets(ctx context.Context, s *Snapshot) (n
 		}
 		words, err := v.bucket(ctx, b)
 		if err != nil {
+			if s.manifest.global != nil {
+				return nil, 0, 0, &v3ShardError{shard: i % int(s.manifest.global.Layout.ShardCount), err: err}
+			}
 			return nil, 0, 0, err
 		}
 		next[i] = words
@@ -68,9 +71,12 @@ func (v *VersionedCollection) buildGeneration(ctx context.Context, s *Snapshot,
 				count += len(buckets[bucket])
 			}
 			if err := e.BuildSequenceContext(buildCtx, shardBucketSequence(buckets, shard, len(shards)), count); err != nil {
-				return err
+				return &v3ShardError{shard: shard, err: err}
 			}
 			shards[shard] = e
+			v.mu.Lock()
+			v.status.RefreshingShards--
+			v.mu.Unlock()
 			return nil
 		})
 	}

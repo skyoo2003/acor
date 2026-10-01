@@ -104,6 +104,212 @@ func openShardedV3Test(t *testing.T, server *miniredis.Miniredis, name string) *
 	return v
 }
 
+// A lost invalidation must converge through polling without WaitForVersion waking refresh.
+func TestVersionedShardedPollingRecoversDroppedInvalidation(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	writer := openShardedV3Test(t, server, "sharded-poll")
+	reader := openShardedV3Test(t, server, "sharded-poll")
+	writer.client.AddHook(&v3FaultHook{suppressPublish: true})
+	version := reader.Status().ServingVersion
+	for _, step := range []struct {
+		words      []string
+		downloaded int
+		reused     int
+	}{
+		{[]string{"café", "한국어"}, 2, 2},
+		{[]string{"café", "한국어", "🙂"}, 1, 3},
+		{[]string{"café", "한국어"}, 1, 3}, // An emptied shard still needs a new engine.
+	} {
+		r, err := writer.Replace(ctx, version, step.words)
+		if err != nil {
+			t.Fatal(err)
+		}
+		version = r.Version
+		status := awaitV3Status(t, reader, func(s VersionedStatus) bool { return s.ServingVersion == version })
+		if status.ActiveVersion != version || status.DownloadedShards != step.downloaded ||
+			status.ReusedShards != step.reused || status.FailedShard != -1 || status.RefreshingShards != 0 {
+			t.Fatalf("polling installed incorrect shard observations: %+v", status)
+		}
+		got, err := reader.FindSet(ctx, "café 한국어 🙂")
+		if err != nil || !slices.Equal(got, step.words) {
+			t.Fatal(got, err)
+		}
+	}
+}
+
+// A late shard download failure must retain the complete prior engine and cache.
+//
+//nolint:gocyclo // Follows one generation through a failed refresh and its recovery.
+func TestVersionedShardedBuildFailureKeepsPreviousGeneration(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	writer := openShardedV3Test(t, server, "sharded-failure")
+	reader := openShardedV3Test(t, server, "sharded-failure")
+	r, err := writer.Replace(ctx, writer.Status().ServingVersion, []string{"café"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, reader, r.Version)
+	previous, before := reader.current.Load(), reader.Status()
+	hook := &v3FaultHook{chunkKey: shardedV3ChunkKey(reader, 3, "한국어")}
+	hook.failChunks.Store(true)
+	reader.client.AddHook(hook)
+	r, err = writer.AddMany(ctx, r.Version, []string{"🙂", "한국어"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := awaitV3Status(t, reader, func(s VersionedStatus) bool { return s.RefreshFailures > before.RefreshFailures })
+	if status.ActiveVersion != r.Version || status.ServingVersion != before.ServingVersion ||
+		status.FailedShard != 3 || status.LastError == "" || status.LastRefreshFailure.IsZero() {
+		t.Fatalf("missing failed shard observations: %+v", status)
+	}
+	if reader.current.Load() != previous || status.CompletedBuilds != before.CompletedBuilds ||
+		status.DownloadedShards != before.DownloadedShards || status.ReusedShards != before.ReusedShards {
+		t.Fatal("failed refresh changed installed generation or successful build counters", status)
+	}
+	if got, findErr := reader.FindSet(ctx, "café 한국어 🙂"); findErr != nil || !slices.Equal(got, []string{"café"}) {
+		t.Fatal(got, findErr)
+	}
+	hook.failChunks.Store(false)
+	waitV3(t, reader, r.Version)
+	status = reader.Status()
+	if status.FailedShard != -1 || status.LastError != "" || status.DownloadedShards != 2 || status.ReusedShards != 2 {
+		t.Fatal("recovery did not clear failure or rebuild every changed shard", status)
+	}
+}
+
+// WaitForVersion must not report success while one changed shard remains unavailable.
+func TestVersionedShardedWaitForVersionRequiresEveryShard(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	writer := openShardedV3Test(t, server, "sharded-wait")
+	reader := openShardedV3Test(t, server, "sharded-wait")
+	initial := reader.Status().ServingVersion
+	release := make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	t.Cleanup(unblock)
+	hook := &v3FaultHook{chunkKey: shardedV3ChunkKey(reader, 3, "한국어"),
+		chunkEntered: make(chan struct{}, 1), chunkRelease: release}
+	reader.client.AddHook(hook)
+	r, err := writer.Replace(ctx, initial, []string{"café", "🙂", "한국어"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-hook.chunkEntered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("refresh did not reach the blocked shard")
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer cancel()
+	if err = reader.WaitForVersion(waitCtx, r.Version); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("incomplete generation wait = %v", err)
+	}
+	status := reader.Status()
+	if !status.Building || status.RefreshingShards != 3 || status.ServingVersion != initial || status.ActiveVersion != r.Version {
+		t.Fatalf("pending shard observations: %+v", status)
+	}
+	if found, findErr := reader.Contains(ctx, "café"); findErr != nil || found {
+		t.Fatal("candidate shard leaked into serving generation", found, findErr)
+	}
+	unblock()
+	waitV3(t, reader, r.Version)
+	if got, findErr := reader.FindSet(ctx, "café 🙂 한국어"); findErr != nil || !slices.Equal(got, []string{"café", "🙂", "한국어"}) {
+		t.Fatal(got, findErr)
+	}
+	// A skipped target is satisfied only by a complete later committed generation.
+	older := r.Version
+	r, err = writer.Remove(ctx, r.Version, "🙂")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, reader, r.Version)
+	if err = reader.WaitForVersion(ctx, older); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func shardedV3ChunkKey(v *VersionedCollection, shard uint16, word string) string {
+	data, _ := json.Marshal([]string{word})
+	return v.shardKey(shard, "chunk:"+v3Hash(data))
+}
+
+// Manifest failures occur before engine building, but must still identify the shard.
+func TestVersionedShardedRefreshReportsMissingManifest(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	writer := openShardedV3Test(t, server, "missing-refresh-manifest")
+	reader := openShardedV3Test(t, server, "missing-refresh-manifest")
+	reader.refreshMu.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			reader.refreshMu.Unlock()
+		}
+	}()
+	initial := reader.current.Load()
+	r, err := writer.Add(ctx, initial.version, "한국어")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := writer.globalManifest(ctx, r.Version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := writer.shardKey(3, "manifest:"+m.Shards[3])
+	data, err := writer.client.Get(ctx, key).Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = writer.client.Del(ctx, key).Err(); err != nil {
+		t.Fatal(err)
+	}
+	reader.refreshMu.Unlock()
+	locked = false
+	status := awaitV3Status(t, reader, func(s VersionedStatus) bool { return s.RefreshFailures != 0 })
+	if status.FailedShard != 3 || status.ActiveVersion != r.Version || reader.current.Load() != initial {
+		t.Fatalf("missing manifest changed generation or lost shard identity: %+v", status)
+	}
+	if err = writer.client.Set(ctx, key, data, 0).Err(); err != nil {
+		t.Fatal(err)
+	}
+	waitV3(t, reader, r.Version)
+}
+
+func TestVersionedShardedPublicationIsVersionHint(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	v := openShardedV3Test(t, miniredis.RunT(t), "publication-hint")
+	sub := v.client.Subscribe(ctx, v.key("events"))
+	defer sub.Close()
+	if _, err := sub.Receive(ctx); err != nil {
+		t.Fatal(err)
+	}
+	r, err := v.Replace(ctx, v.Status().ServingVersion, []string{"café", "한국어", "🙂"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	message, err := sub.ReceiveMessage(ctx)
+	if err != nil || message.Payload != string(r.Version) {
+		t.Fatal("publication must contain only the committed version hint", message, err)
+	}
+}
+
+func awaitV3Status(t *testing.T, v *VersionedCollection, ready func(VersionedStatus) bool) VersionedStatus {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if status := v.Status(); ready(status) {
+			return status
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for status: %+v", v.Status())
+	return VersionedStatus{}
+}
+
 // Missing or misidentified immutable references must never become a snapshot.
 func TestVersionedShardedManifestRejectsMissingShard(t *testing.T) {
 	for _, damage := range []string{"missing", "id", "shard", "bucket", "count"} {
