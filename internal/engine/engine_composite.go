@@ -7,7 +7,6 @@ import (
 	"container/heap"
 	"slices"
 	"sync"
-	"sync/atomic"
 	"unicode/utf8"
 )
 
@@ -144,13 +143,30 @@ func (e *compositeEngine) findIndex(text string) map[string][]int {
 	return result
 }
 func (e *compositeEngine) contains(text string) bool {
-	var found atomic.Bool
-	e.eachShard(func(i int) {
-		if !found.Load() && e.shards[i].Contains(text) {
-			found.Store(true)
+	if len(e.shards) == 0 || text == "" {
+		return false
+	}
+	cursors := make([]runeCursor, len(e.shards))
+	for i, shard := range e.shards {
+		cursors[i] = shard.cursor()
+	}
+	found := false
+	// Search all shards at each input position before reading the next rune.
+	// Independent string scans can exhaust nonmatching shards before a later
+	// shard reports an early hit, even with only one worker. A coordinated scan
+	// stops every shard immediately and occupies one shared worker slot.
+	e.shardWork(func() {
+		for _, ch := range text {
+			for _, cursor := range cursors {
+				output := cursor(ch)
+				if output.out != nil && (output.out.own[output.state] != 0 || output.out.outLink[output.state] != outNone) {
+					found = true
+					return
+				}
+			}
 		}
 	})
-	return found.Load()
+	return found
 }
 func (e *compositeEngine) matchString(text string, emit func(string, int, int) bool) {
 	for _, m := range e.matches(text, false) {

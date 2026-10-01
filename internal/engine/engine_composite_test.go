@@ -4,11 +4,103 @@ package engine
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
+
+// Count input consumed by the real native traversal, whether Contains uses its
+// string callback path or advances its cursor directly.
+type compositeContainsProbe struct {
+	matchEngine
+	native *Engine
+	read   int
+}
+
+func (p *compositeContainsProbe) matchString(text string, emit func(string, int, int) bool) {
+	p.native.Stream(func() (rune, bool) {
+		if text == "" {
+			return 0, false
+		}
+		ch, size := utf8.DecodeRuneInString(text)
+		text = text[size:]
+		p.read++
+		return ch, true
+	}, emit)
+}
+
+func (p *compositeContainsProbe) cursor() runeCursor {
+	cursor := p.native.cursor()
+	return func(ch rune) outputCursor {
+		p.read++
+		return cursor(ch)
+	}
+}
+
+func TestCompositeContainsStopsAtLaterShardFirstRuneHit(t *testing.T) {
+	for _, preset := range allPresets {
+		for _, concurrency := range []int{1, 2} {
+			for _, hit := range []string{"a", "한"} {
+				t.Run(preset.String()+"/"+strconv.Itoa(concurrency)+"/"+hit, func(t *testing.T) {
+					words := []string{"missing", "absent", "unmatched", hit}
+					shards := make([]*Engine, len(words))
+					probes := make([]*compositeContainsProbe, len(words))
+					for i, word := range words {
+						native := New(preset)
+						native.Build(map[string]struct{}{word: {}})
+						probes[i] = &compositeContainsProbe{matchEngine: native.impl, native: native}
+						shards[i] = &Engine{impl: probes[i], maxKeywordRunes: native.MaxKeywordRunes()}
+					}
+					if !NewComposite(shards, concurrency).Contains(hit + strings.Repeat("x", 100000)) {
+						t.Fatal("missed the first-rune hit in the last shard")
+					}
+					for i, probe := range probes {
+						if probe.read > 1 {
+							t.Errorf("shard %d consumed %d runes despite a first-rune hit", i, probe.read)
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestCompositeContainsPreservesNativeResults(t *testing.T) {
+	tests := []struct {
+		text string
+		want bool
+	}{
+		{"", false},
+		{"ab", false},
+		{"none", false},
+		{"ABCD", false},
+		{"abcd", true},
+		{"abc", true}, // Only the suffix "bc" is terminal at this state.
+		{"aabc", true},
+		{"xabc", true},
+		{"한국", true},
+		{"\xff", true},
+	}
+	for _, preset := range allPresets {
+		t.Run(preset.String(), func(t *testing.T) {
+			shards := []*Engine{New(preset), New(preset), New(preset)}
+			shards[0].Build(map[string]struct{}{"abcd": {}, "bc": {}})
+			shards[1].Build(map[string]struct{}{"한국": {}, "�": {}})
+			e := NewComposite(shards, 2)
+			for _, tt := range tests {
+				if got := e.Contains(tt.text); got != tt.want {
+					t.Errorf("Contains(%q) = %v, want %v", tt.text, got, tt.want)
+				}
+			}
+			if NewComposite(shards[2:], 2).Contains("abcd 한국") {
+				t.Fatal("empty composite reported a match")
+			}
+		})
+	}
+}
 
 // The probe delegates to real native engines and counts the actual per-hit
 // callbacks. FindSet must skip repeated state chains before those callbacks.
