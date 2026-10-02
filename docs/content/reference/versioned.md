@@ -33,6 +33,8 @@ func main() {
     ctx := context.Background()
     dictionary, err := acor.OpenVersioned(ctx, &acor.VersionedOptions{
         Redis: acor.AhoCorasickArgs{Addr: "localhost:6379", Name: "filter-v3"},
+        ShardCount: 4, // New collections only; an existing layout is retained.
+        ShardConcurrency: 2, // Bound concurrent shard download/build/search work.
     })
     if err != nil { log.Fatal(err) }
     defer dictionary.Close()
@@ -92,7 +94,7 @@ instance may still be searching the previous engine. `WaitForVersion` waits for 
 commit or a later one and honors cancellation. `Status` exposes the observed active
 version, the serving version, build start and duration, and the most recent error.
 `DeltaSearch` and `DeltaKeywords` remain in the status and option types for source
-compatibility. V3 currently serves one immutable engine for every version, regardless
+compatibility. V3 currently serves one immutable complete generation for every version, regardless
 of `VersionedOptions.DeltaSearch`; both fields report false and zero. This avoids the
 experimental two-automaton search path, whose million-keyword measurements showed
 search p95 and peak RSS regressions. The historical [delta-search validation report](../versioned-delta-validation/)
@@ -113,18 +115,83 @@ and delimiters; an oversized single keyword gets its own chunk. Content-addresse
 immutable chunks, generation manifests, metadata, and the active pointer live under
 separate keys.
 
-**All keys share one name-digest hash tag, so a collection occupies one Cluster slot.**
-V3 does not distribute a collection across nodes. Connection options reuse the existing
+`ShardCount` zero or one creates legacy V3: all storage uses the original name-digest
+hash tag. Explicit powers of two from 2 through 256 create sharded layout version 2.
+The same 4,096 bucket IDs route by `bucketID % shardCount`. Each shard's immutable
+chunks and manifest use its own hash tag; a small global manifest orders those shard
+IDs, and the global metadata, active pointer, leases, and receipts keep the original tag.
+Separate tags allow Cluster placement across slots, but distinct shards can collide in
+a slot or share a node. Every Lua operation uses keys from one tag. Live multi-node
+Cluster failover and resharding have not yet been qualified for this release.
+
+Connection options reuse the existing
 standalone, Sentinel, Cluster, and Ring clients; only the connection fields and `Name`
 from `VersionedOptions.Redis` are used.
 
 Delta writes download and prepare affected buckets only; a full replacement compares every
 bucket and reuses the unchanged ones. Local engine refresh reuses verified immutable
 keyword slices for unchanged buckets and downloads only changed ones, and the previous
-cache stays usable when a candidate fails. A full rebuild still needs memory for the old
-engine, the retained slices, and the new engine at once. The default preset is
+cache stays usable when a candidate fails. Sharded refresh also reuses unchanged shard
+engines, builds only changed shards, and atomically installs the complete generation
+after all required shards validate. A failed candidate preserves the previous complete
+serving generation. Search merges all local shards with the existing match ordering;
+Redis is never in the V3 search path. `ShardConcurrency` bounds shard work; zero uses
+the smaller of `GOMAXPROCS` and the shard count.
+
+Every serving replica needs RAM for the full searchable dictionary. During refresh,
+the old engines, retained keyword slices, downloaded chunks, and new changed-shard
+engines coexist. Full replacement and `Reshard` can temporarily require a complete
+second engine set, plus manifest/input preparation memory. `Snapshot.Diff` and `Replace`
+materialize their inputs; pruning materializes retention references. The default preset is
 `MemoryEfficient`; `Speed` and `Balanced` are selectable. No constant-memory or latency
 guarantee is made.
+
+### Choosing a memory profile
+
+Start with `MemoryEfficient` and a fixed shard profile such as 1, 4, or 16, then measure
+your dictionary distribution, text lengths, update sizes, refresh lag, peak process RSS,
+and GC pauses on the deployment host. Common prefixes, diverse prefixes, and Korean
+keywords have different engine costs. More shards can duplicate prefixes and increase
+search merge work. `ShardConcurrency` limits simultaneous work, but does not remove the
+full-index memory requirement. A Go `GOMEMLIMIT` is a soft runtime target, not a cap on
+RSS or protection from a too-large dictionary. Capacity-test the largest replacement
+and layout migration before applying that profile to production.
+
+### Changing a stored layout
+
+Opening an existing collection always uses its persisted layout, even if a different
+valid `ShardCount` is supplied. `Reshard(ctx, expected, count)` explicitly migrates the
+current dictionary; count must be a power of two from 1 through 256 (zero is invalid).
+It prepares the target layout under a writer lease, then commits one global pointer
+using the normal expected-version conflict check. Keywords, normalization, and search
+semantics are preserved. Changing layout advances the version even for an empty
+dictionary; selecting the current count is a no-op with an operation receipt.
+
+<!-- doccheck -->
+```go
+dictionary, err := acor.OpenVersioned(ctx, &acor.VersionedOptions{
+    Redis: acor.AhoCorasickArgs{Addr: "localhost:6379", Name: "filter-v3"},
+})
+if err != nil { return }
+defer dictionary.Close()
+snapshot, err := dictionary.Snapshot(ctx)
+if err != nil { return }
+expected := snapshot.Version()
+if err := snapshot.Close(ctx); err != nil { return }
+result, err := dictionary.Reshard(ctx, expected, 16)
+if err != nil { return } // ErrCommitUnknown needs ResolveOperation; see below.
+if err := dictionary.WaitForVersion(ctx, result.Version); err != nil { return }
+status := dictionary.Status()
+log.Printf("serving=%s layout=%d shards=%d", status.ServingVersion, status.LayoutVersion, status.ShardCount)
+```
+
+Existing leased snapshots and pagination cursors keep reading their original layout.
+Pruning retains their transitive shard-manifest and chunk references. Reverting the
+layout uses a new `Reshard` with a freshly captured expected version, including count 1
+to return to legacy storage; it preserves all keywords committed in the meantime.
+It needs the same capacity and availability checks as the forward migration. Old
+binaries do not understand layout version 2: deploy compatible readers and writers
+before creating or migrating sharded collections.
 
 The final Lua commit checks the expected pointer, the preparation lease, and the
 maintenance lock, stores a receipt, and swaps the pointer. It does not parse the manifest
@@ -139,6 +206,15 @@ is not proof that an in-flight request cannot still commit** — do not blindly 
 ambiguous write. Receipts and committed-version markers are retained indefinitely,
 including no-op receipts, so they grow with write count.
 
+For a failed refresh, inspect `LastError` and `FailedShard`, restore the affected Redis
+shard's availability or correct the source data through a valid write, and let the
+worker retry. The previous complete engine continues serving; a restart must load and
+validate the active generation successfully. Do not delete immutable keys to repair
+a failed build or manually swap the active pointer. Recovery of missing committed
+data requires your Redis/Valkey backup and persistence procedure. A lost preparation
+response cannot publish a partial layout; an ambiguous final commit requires receipt
+resolution. Keep the operation ID across process restarts.
+
 ## Leases and pruning
 
 Snapshots, builds, and preparation writers hold server-time leases: five minutes, renewed
@@ -151,6 +227,13 @@ hours, and anything protected by a valid reader lease. It deletes unreferenced c
 unretained manifests in batches of at most 64, and collects abandoned preparation data.
 Receipts are never deleted, and there is no automatic collector; large retention sets are
 enumerated in memory.
+
+For sharded layouts, references include each retained global generation's shard
+manifests and their storage coordinates, including snapshots from earlier layouts.
+Cleanup also discovers abandoned target namespaces from failed migrations. Global
+maintenance authority fences each occupied shard before bounded deletion; an expired
+maintenance owner cannot continue deleting. Redis availability and snapshot leases
+still determine whether collection can proceed.
 
 Pruning takes a monotonically increasing maintenance fence, and only when no valid writer
 lease remains. While it holds, new writers and snapshots get `ErrMaintenance` and searches

@@ -5,7 +5,87 @@ description: "Reproducible million-keyword measurements on Redis and Valkey."
 
 # V3 performance and acceptance report
 
-The archived R1 baseline. For the implementation and measurements that followed, see the
+## Sharded layout qualification
+
+The sharded V3 release adds a reproducible measurement schema and regression gate.
+It does not yet have a controlled 1M/10M/upper-bound performance report or a live
+multi-node Cluster failure campaign. Functional tests validate legacy compatibility,
+generation installation, snapshot-safe layout transitions, and single-tag scripts;
+they do not establish deployment latency, memory, or failover limits. No speedup or
+maximum dictionary size is claimed.
+
+Use a disposable Redis/Valkey endpoint and a fresh result directory for each matrix.
+Approve the host's RAM capacity before setting the upper bound: every serving process
+loads the full searchable index, and full replacement or resharding can need old and
+new engines at once. The default matrix uses 1M, 10M, and the configured upper bound
+for each of `shared`, `diverse`, and `korean`, with fixed shard profiles 1, 4, and 16
+and three repetitions. Profile 1 is legacy V3. Each workload/profile/repetition gets
+its own Go process so its RSS high-water mark is independent.
+
+```sh
+ACOR_V3_SCALE_ADDR=127.0.0.1:6379 \
+ACOR_V3_SCALE_UPPER_N=20000000 \
+ACOR_V3_SCALE_ENVIRONMENT='host-hardware-and-redis-config-revision' \
+ACOR_V3_SCALE_OUTPUT=/tmp/acor-v3-baseline \
+env -u GOROOT sh scripts/benchmark-v3.sh
+# Repeat on the same reserved host/endpoint/configuration and Go runtime,
+# with candidate code and a new ACOR_V3_SCALE_OUTPUT directory.
+python3 scripts/test-v3-results.py
+python3 scripts/check-v3-regression.py \
+  /tmp/acor-v3-baseline/results.json /tmp/acor-v3-candidate/results.json
+```
+
+The 20M upper bound above is illustrative and requires a capacity-approved host.
+Use `ACOR_V3_SCALE_COUNTS='1000'`, `ACOR_V3_SCALE_REPEATS=1`, and a separate output
+directory for a small smoke matrix. Smoke measurements prove the harness/schema
+works; they cannot qualify the larger deployment. `ACOR_V3_SCALE_TIMEOUT` defaults
+to 60m per run. The separate million-entry safety test still runs once per matrix.
+`ACOR_V3_SCALE_PROFILES` can select a bounded set of valid counts for a deployment
+profile; compare the same profile keys on both revisions. Keep persistence, CPU
+limits, server configuration, background load, and memory policy unchanged and
+encode their revision in `ACOR_V3_SCALE_ENVIRONMENT`. Recorded environment fields
+include host, Go/OS/architecture, CPU count, `GOMAXPROCS`, server version/build/mode,
+endpoint, seed, preset, polling/debounce, shard concurrency, `GOGC`, and `GOMEMLIMIT`.
+This metadata cannot automatically prove that a host was otherwise idle or its
+Redis configuration identical.
+The gate requires identified host/runtime/server fields even when both inputs have
+identical metadata. The harness fails on an unavailable `INFO server` response or
+missing server identity. Coincident CRUD sizes (one keyword, 1,000 keywords, and 1%)
+are measured once per run so custom small counts retain unique operation keys.
+
+Schema version 2 stores each operation's measurements:
+
+| Field | Interpretation |
+|---|---|
+| `shard_count`, `shard_min_keywords`, `shard_max_keywords`, `shard_skew_ratio` | Installed layout and keyword balance; skew is max / mean, including empty shards, or zero for an empty dictionary |
+| `changed_shards` | Changed-shard count, derived by comparing immutable manifest IDs; IDs themselves are not emitted. Zero for an identical replacement; all target shards for a layout change |
+| `commit_ms`, `ready_ms`, `refresh_lag_ms` | Write duration, write-through-local-readiness duration, and duration from write return to `WaitForVersion` returning; includes polling, debounce, and wait overhead |
+| `search_samples`, `search_p50_ns`, `search_p95_ns`, `search_p99_ns` | Timed local searches during the write/readiness window; very short no-op windows can have only one sample |
+| `max_rss_bytes` | Process-lifetime RSS high-water mark at that operation; not instantaneous heap or Redis memory |
+| `gc_pause_ns`, `gc_cycles` | Go stop-the-world pause total and completed GC-cycle deltas for the measurement window; pause total is not a pause percentile |
+
+The gate rejects missing/invalid shard and timing evidence, no search samples,
+mismatched environments, different repetition counts, and missing workload/profile/
+operation keys. Fresh schema-2 baselines are required; archived legacy JSON is not
+comparable. It gates ready time, search p95, refresh lag, and RSS per operation using
+the median across repetitions; add/remove operations also gate `commit_ms` at the
+same changed-shard count. An operation's regression cannot be hidden by unrelated
+operation medians. p50/p99, skew, and GC are diagnostic evidence, not additional
+threshold gates. The default relative ceiling is 25%, intended as a workstation
+guard; controlled release hosts should set an agreed ceiling through
+`--max-regression`. A zero baseline allows no positive increase, so tiny no-op
+measurements may need a longer, separately designed observation window. Passing
+this gate is evidence for the recorded matrix only, not a performance guarantee.
+
+Local searches contact no Redis server, including during refresh. Shards distribute
+storage and bound changed-shard rebuild work; each serving replica still needs the
+entire local index. Measure node-level network/storage balance separately on an
+actual Cluster before making placement or failover claims. See
+[V3 memory, resharding, and recovery guidance](../versioned/).
+
+## Archived R1 baseline
+
+The following tables describe legacy R1 only. For the implementation and measurements that followed, see the
 [R2/R3 comparison](../r2-r3-performance/).
 
 Measured 2026-09-06. The final matrix completed **36 runs**: Redis and Valkey × three

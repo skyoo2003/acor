@@ -59,7 +59,13 @@ type VersionedOptions struct {
 	Redis         AhoCorasickArgs
 	CaseSensitive bool
 	Preset        Preset
-	// DeltaSearch is retained for source compatibility; V3 always serves a single engine.
+	// ShardCount selects storage for new collections: 0 or 1 keeps legacy V3.
+	// Larger counts must be powers of two, up to 256. Existing layouts are retained.
+	ShardCount uint16
+	// ShardConcurrency bounds shard work; 0 uses the smaller of GOMAXPROCS and
+	// the shard count. Negative values are invalid.
+	ShardConcurrency int
+	// DeltaSearch is retained for source compatibility; V3 serves complete generations.
 	DeltaSearch bool
 	// PollInterval defaults to 30 seconds; negative values are invalid.
 	PollInterval time.Duration
@@ -90,6 +96,16 @@ type VersionedStatus struct {
 	CompletedBuilds uint64
 	DeltaSearch     bool
 	DeltaKeywords   int
+	// LayoutVersion and ShardCount describe the locally observed storage layout.
+	LayoutVersion uint16
+	ShardCount    uint16
+	// DownloadedShards counts changed shard engines, including newly empty shards;
+	// ReusedShards counts unchanged engines in the most recent successful build.
+	DownloadedShards int
+	ReusedShards     int
+	// RefreshingShards counts shards being refreshed; FailedShard is -1 if none.
+	RefreshingShards int
+	FailedShard      int
 }
 
 // WriteResult describes an atomic commit. OperationID remains available on an
@@ -107,14 +123,18 @@ type v3Manifest struct {
 	Sequence uint64
 	Buckets  [v3BucketCount]v3Bucket
 	Count    int
+	global   *v3GlobalManifest
 }
 type v3Bucket struct {
 	Chunks   []string
 	Count    int
 	Checksum string
+	shard    uint16
+	sharded  bool
 }
 type v3Engine struct {
 	engine   *matchengine.Engine
+	shards   []*matchengine.Engine
 	version  Version
 	sequence uint64
 	manifest *v3Manifest
@@ -197,29 +217,39 @@ func OpenVersioned(ctx context.Context, opts *VersionedOptions) (*VersionedColle
 func (v *VersionedCollection) initialize(ctx context.Context) error {
 	id := v3ID()
 	token := Version(id + "." + v3ID())
-	m := v3Manifest{Version: token, Sequence: 1}
-	data, _ := json.Marshal(m)
+	data, layout, err := v.initialManifest(ctx, token)
+	if err != nil {
+		return err
+	}
 	const script = `
  if redis.call('EXISTS',KEYS[1])==0 then
- redis.call('HSET',KEYS[1],'id',ARGV[1],'case',ARGV[2])
+ redis.call('HSET',KEYS[1],'id',ARGV[1],'case',ARGV[2],'layout',ARGV[5],'shards',ARGV[6])
  redis.call('SET',KEYS[2],ARGV[3])
  redis.call('SET',KEYS[3],ARGV[4])
  redis.call('SET',KEYS[5],'1')
  local t=redis.call('TIME'); redis.call('ZADD',KEYS[4],t[1],ARGV[3])
  end
- return redis.call('HMGET',KEYS[1],'id','case')`
+ return redis.call('HMGET',KEYS[1],'id','case','layout','shards')`
 	keys := []string{v.key("meta"), v.key("active"), v.key("gen:" + string(token)), v.key("generations"), v.key("committed:" + string(token))}
-	r, err := v.client.Eval(ctx, script, keys, id, fmt.Sprint(v.opts.CaseSensitive), string(token), data).Slice()
+	r, err := v.client.Eval(ctx, script, keys, id, fmt.Sprint(v.opts.CaseSensitive), string(token), data,
+		layout.Version, layout.ShardCount).Slice()
 	if err != nil {
 		return err
 	}
-	if len(r) != v3PairLength || r[0] == nil {
+	if len(r) != 4 || r[0] == nil {
 		return ErrVersionedCorrupt
 	}
 	v.id = fmt.Sprint(r[0])
 	if fmt.Sprint(r[1]) != fmt.Sprint(v.opts.CaseSensitive) {
 		return ErrCasePolicy
 	}
+	layout, err = v3StoredLayout(r[2], r[3])
+	if err != nil {
+		return err
+	}
+	v.status.LayoutVersion = layout.Version
+	v.status.ShardCount = layout.ShardCount
+	v.status.FailedShard = -1
 	return nil
 }
 
@@ -238,11 +268,12 @@ func (v *VersionedCollection) signal() {
 	}
 }
 
-func (v *VersionedCollection) refresh(ctx context.Context) error {
+func (v *VersionedCollection) refresh(ctx context.Context) (err error) {
 	v.refreshMu.Lock()
 	defer v.refreshMu.Unlock()
-	if err := v.check(ctx); err != nil {
-		return err
+	defer func() { v.recordRefreshFailure(err) }()
+	if checkErr := v.check(ctx); checkErr != nil {
+		return checkErr
 	}
 	active, err := v.client.Get(ctx, v.key("active")).Result()
 	if err != nil {
@@ -266,13 +297,16 @@ func (v *VersionedCollection) refresh(ctx context.Context) error {
 		return nil
 	}
 	start := time.Now()
+	changed, reusedShards := v.generationShardCounts(s.manifest)
 	v.mu.Lock()
 	v.status.Building = true
 	v.status.BuildStarted = start
+	v.status.RefreshingShards = changed
 	v.mu.Unlock()
 	defer func() {
 		v.mu.Lock()
 		v.status.Building = false
+		v.status.RefreshingShards = 0
 		v.status.BuildDuration = time.Since(start)
 		v.mu.Unlock()
 	}()
@@ -280,27 +314,76 @@ func (v *VersionedCollection) refresh(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	e := matchengine.New(enginePreset(v.opts.Preset))
-	if buildErr := e.BuildSequenceContext(ctx, bucketSequence(buckets), s.Count()); buildErr != nil {
-		return buildErr
-	}
-	if err := s.lease.check(ctx); err != nil {
+	e, shards, err := v.buildGeneration(ctx, s, buckets)
+	if err != nil {
 		return err
 	}
-	if err := v.check(ctx); err != nil {
-		return err
+	if checkErr := s.lease.check(ctx); checkErr != nil {
+		return checkErr
 	}
-	v.installEngine(s, e, buckets, downloaded, reused)
+	if checkErr := v.check(ctx); checkErr != nil {
+		return checkErr
+	}
+	v.installEngine(s, e, shards, buckets, downloaded, reused, changed, reusedShards)
 	return nil
 }
-func (v *VersionedCollection) installEngine(s *Snapshot, e *matchengine.Engine, buckets *[v3BucketCount][]string, downloaded, reused int) {
-	v.current.Store(&v3Engine{engine: e, version: s.Version(), sequence: s.manifest.Sequence, manifest: s.manifest, buckets: buckets})
+
+func (v *VersionedCollection) recordRefreshFailure(err error) {
+	if err == nil || v.ctx.Err() != nil {
+		return
+	}
 	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.status.LastError = err.Error()
+	v.status.LastRefreshFailure = time.Now()
+	v.status.RefreshFailures++
+	v.status.FailedShard = -1
+	var failure *v3ShardError
+	if errors.As(err, &failure) {
+		v.status.FailedShard = failure.shard
+	}
+}
+
+// Shard failures retain their cause for errors.Is and identify the unavailable
+// part of a candidate without exposing or installing any partial generation.
+type v3ShardError struct {
+	shard int
+	err   error
+}
+
+func (e *v3ShardError) Error() string { return fmt.Sprintf("acor: shard %d: %v", e.shard, e.err) }
+func (e *v3ShardError) Unwrap() error { return e.err }
+
+func (v *VersionedCollection) generationShardCounts(m *v3Manifest) (changed, reused int) {
+	if m.global == nil {
+		return 1, 0
+	}
+	previous := v.current.Load()
+	for shard := range m.global.Shards {
+		if reusableShard(previous, m.global, shard) {
+			reused++
+		} else {
+			changed++
+		}
+	}
+	return changed, reused
+}
+
+func (v *VersionedCollection) installEngine(s *Snapshot, e *matchengine.Engine, shards []*matchengine.Engine,
+	buckets *[v3BucketCount][]string, downloaded, reused, downloadedShards, reusedShards int) {
+	v.mu.Lock()
+	v.current.Store(&v3Engine{engine: e, shards: shards, version: s.Version(), sequence: s.manifest.Sequence, manifest: s.manifest, buckets: buckets})
 	v.status.ServingVersion = s.Version()
+	layout := v3ManifestLayout(s.manifest)
+	v.status.LayoutVersion = layout.Version
+	v.status.ShardCount = layout.ShardCount
 	v.status.LastError = ""
 	v.status.LastRefreshSuccess = time.Now()
 	v.status.DownloadedBuckets = downloaded
 	v.status.ReusedBuckets = reused
+	v.status.DownloadedShards = downloadedShards
+	v.status.ReusedShards = reusedShards
+	v.status.FailedShard = -1
 	v.status.CompletedBuilds++
 	v.status.DeltaSearch = false
 	v.status.DeltaKeywords = 0
@@ -341,18 +424,13 @@ func (v *VersionedCollection) refreshLoop() {
 		case <-v.wake:
 		default:
 		}
-		if err := v.refresh(v.ctx); err != nil && v.ctx.Err() == nil {
-			v.mu.Lock()
-			v.status.LastError = err.Error()
-			v.status.LastRefreshFailure = time.Now()
-			v.status.RefreshFailures++
-			v.mu.Unlock()
-		}
+		_ = v.refresh(v.ctx)
 	}
 }
 
-// WaitForVersion waits for an engine at the given committed version or a later
-// commit. Committed-version receipts survive generation pruning.
+// WaitForVersion waits for a complete local generation at the given committed
+// version or a later commit. Every shard must be installed together before it
+// succeeds. Committed-version receipts survive generation pruning.
 func (v *VersionedCollection) WaitForVersion(ctx context.Context, version Version) error {
 	if !v.valid(version) {
 		return ErrInvalidVersion
@@ -404,15 +482,12 @@ func (v *VersionedCollection) Close() error {
 }
 
 func (v *VersionedCollection) manifest(ctx context.Context, t Version) (*v3Manifest, error) {
-	if !v.valid(t) {
-		return nil, ErrInvalidVersion
-	}
-	b, err := v.client.Get(ctx, v.key("gen:"+string(t))).Bytes()
-	if err != nil {
-		return nil, err
-	}
+	m, err := v.loadManifest(ctx, t)
+	return m, err
+}
+func (v *VersionedCollection) legacyManifest(data []byte, t Version) (*v3Manifest, error) {
 	var m v3Manifest
-	if json.Unmarshal(b, &m) != nil || m.Version != t || m.Sequence == 0 {
+	if json.Unmarshal(data, &m) != nil || m.Version != t || m.Sequence == 0 || m.Count < 0 {
 		return nil, ErrVersionedCorrupt
 	}
 	count := 0
@@ -433,6 +508,9 @@ func versionedOptions(opts *VersionedOptions) (VersionedOptions, error) {
 		return VersionedOptions{}, errors.New("acor: VersionedOptions required")
 	}
 	o := *opts
+	if err := v3NormalizeShardOptions(&o); err != nil {
+		return VersionedOptions{}, err
+	}
 	if strings.TrimSpace(o.Redis.Name) == "" {
 		return VersionedOptions{}, errors.New("acor: collection name required")
 	}

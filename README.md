@@ -105,6 +105,15 @@ writes, and background engine replacement. V1/V2 APIs are unaffected. See the
 [bounded text processing](docs/content/reference/text-processing.md) for `Scan`,
 `MaskText`, and `ReplaceText`.
 
+For a new V3 dictionary, `VersionedOptions.ShardCount` selects a fixed storage and
+engine shard count (powers of two, up to 256); zero or one preserves legacy V3.
+Existing dictionaries keep their stored layout until an explicit `Reshard` commit.
+Sharded storage uses separate Redis hash tags, while each serving replica still holds
+the complete searchable dictionary in RAM. Searches make no Redis calls. Plan for
+the previous engine and replacement shards to coexist during refresh; shard count
+alone does not establish a memory or latency improvement. The sharded release still
+requires controlled scale and live multi-node Cluster qualification.
+
 ## Documentation
 
 The [documentation site](https://skyoo2003.github.io/acor/) covers Redis topologies, the

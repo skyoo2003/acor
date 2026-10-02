@@ -136,6 +136,8 @@ field VersionedOptions.PollInterval time.Duration
 field VersionedOptions.Preset Preset
 field VersionedOptions.Redis AhoCorasickArgs
 field VersionedOptions.RefreshDebounce time.Duration
+field VersionedOptions.ShardConcurrency int
+field VersionedOptions.ShardCount uint16
 field VersionedStatus.ActiveLeases int
 field VersionedStatus.ActiveVersion Version
 field VersionedStatus.BuildDuration time.Duration
@@ -145,12 +147,18 @@ field VersionedStatus.CompletedBuilds uint64
 field VersionedStatus.DeltaKeywords int
 field VersionedStatus.DeltaSearch bool
 field VersionedStatus.DownloadedBuckets int
+field VersionedStatus.DownloadedShards int
+field VersionedStatus.FailedShard int
 field VersionedStatus.LastError string
 field VersionedStatus.LastRefreshFailure time.Time
 field VersionedStatus.LastRefreshSuccess time.Time
+field VersionedStatus.LayoutVersion uint16
 field VersionedStatus.RefreshFailures uint64
+field VersionedStatus.RefreshingShards int
 field VersionedStatus.ReusedBuckets int
+field VersionedStatus.ReusedShards int
 field VersionedStatus.ServingVersion Version
+field VersionedStatus.ShardCount uint16
 field WriteResult.Added int
 field WriteResult.OperationID string
 field WriteResult.PreviousVersion Version
@@ -234,6 +242,7 @@ method (*VersionedCollection) Remove(ctx context.Context, expected Version, word
 method (*VersionedCollection) RemoveMany(ctx context.Context, expected Version, words []string) (*WriteResult, error)
 method (*VersionedCollection) Replace(ctx context.Context, expected Version, words []string) (*WriteResult, error)
 method (*VersionedCollection) ReplaceText(ctx context.Context, text, replacement string, opts *RewriteOptions) (*RewriteResult, error)
+method (*VersionedCollection) Reshard(ctx context.Context, expected Version, shardCount uint16) (*WriteResult, error)
 method (*VersionedCollection) ResolveOperation(ctx context.Context, id string) (*WriteResult, error)
 method (*VersionedCollection) Scan(ctx context.Context, text string, opts *ScanOptions) (*ScanResult, error)
 method (*VersionedCollection) Snapshot(ctx context.Context) (*Snapshot, error)
