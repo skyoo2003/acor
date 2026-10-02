@@ -21,8 +21,9 @@ automation in the repo, not an aspirational process.
 - [`goreleaser`](https://goreleaser.com/install/) (only for local dry-runs)
 - Push access to tags on `skyoo2003/acor`
 
-The release workflow itself needs no manual secrets — it uses the built-in
-`GITHUB_TOKEN` for both the GitHub release and pushing images to GHCR.
+The workflow uses the built-in `GITHUB_TOKEN` for the GitHub release and GHCR.
+Homebrew publishing also requires `TAP_APP_ID` and `TAP_APP_PRIVATE_KEY` for a
+GitHub App installed on `skyoo2003/homebrew-tap` with repository contents write access.
 
 Run every command below from the repo root. The `v` prefix is mandatory and
 must match across the board: `changie batch vX.Y.Z` writes `changes/vX.Y.Z.md`,
@@ -69,6 +70,19 @@ request. `.changie.yaml` enforces the shape with `block: false` and
    `api/v1.txt` instead, which works mid-edit and needs no published baseline.
    Treat a reported incompatible change inside `v1` as a release blocker: the fix
    is to restore what was removed, not to bump the version.
+
+   Verify both release container architectures before tagging:
+
+   ```sh
+   sh scripts/check-release-containers.sh
+   ```
+
+   This builds the release Dockerfile and checks the stamped binary, target
+   system architecture, and bundled license notices. Docker must support both
+   AMD64 and ARM64 execution; CI configures ARM64 emulation on its AMD64 runner.
+   GoReleaser is pinned to v2.18.1 in CI and the release workflow. Its supported
+   `brews` configuration still emits a deprecation warning; keep the existing
+   Formula install path until a separate Homebrew Cask migration is verified.
 
 3. **Batch the fragments** into a version file:
 
@@ -117,7 +131,7 @@ request. `.changie.yaml` enforces the shape with `block: false` and
 2. Runs GoReleaser with `--release-notes changes/<tag>.md`, which produces:
    - **Binaries** for darwin / linux / windows across `386`, `amd64`, `arm`,
      `arm64` (see `.goreleaser.yaml` for excluded combos), packaged as `.tar.gz`
-     (`.zip` on Windows), each bundling `LICENSE`, `README.md`, `CHANGELOG.md`,
+     (`.zip` on Windows), each bundling `LICENSE`, `NOTICE`, `README.md`, `CHANGELOG.md`,
      `CODE_OF_CONDUCT.md`.
    - A **`CHECKSUMS`** file (sha256).
    - **Docker images** pushed to `ghcr.io/skyoo2003/acor`, tagged

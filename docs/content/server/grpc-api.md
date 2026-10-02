@@ -61,9 +61,9 @@ Legacy RPC errors remain `codes.Internal`. V3 maps invalid input and limits to
 returns a normal `VersionedWriteResponse` with `outcome == "unknown"` and an operation ID;
 recover it with `ResolveOperation` rather than retrying the write.
 
-## Deadlines do not cancel the work
+## Legacy deadlines do not cancel the work
 
-**A client deadline or disconnect ends the RPC, not the Redis operation behind it.**
+**For legacy RPCs, a client deadline or disconnect ends the RPC, not the Redis operation behind it.**
 `Service` declares no context on any method (`server/grpc.go` calls
 `s.service.Add(req.GetKeyword())`), and `(*AhoCorasick).Add` runs against the collection's
 own long-lived context. The request context is accepted by each adapter and discarded.
@@ -77,7 +77,9 @@ So a client that gives up on `Add`, `Remove`, or `Flush` and sees `DeadlineExcee
   is a second flush.
 - A short deadline sheds no server load.
 
-The [HTTP API](../http-api/) behaves identically.
+The legacy [HTTP API](../http-api/) behaves identically. V3 RPCs and HTTP requests pass
+their request context into the collection. An interrupted V3 write can still have an
+ambiguous commit; recover its operation receipt instead of assuming it did not happen.
 
 ## Constructors
 
@@ -85,10 +87,15 @@ The [HTTP API](../http-api/) behaves identically.
 server.NewGRPCServer(service, opts...)                            // bare
 server.NewGRPCServerWithObservability(ctx, service, obs, opts...) // + observability
 server.NewVersionedGRPCServer(v3, opts...)                        // V3 API
-server.NewVersionedGRPCServerWithMetrics(v3, registry, opts...)   // V3 API + gauges
+server.NewVersionedGRPCServerWithObservability(v3, v3obs, opts...) // V3 API + collection-scoped gauges
 ```
 
-Both accept any `grpc.ServerOption`, including `grpc.Creds` for TLS, and both leave
+The V3 observability constructor returns `(*grpc.Server, error)` and requires
+`v3obs := &server.VersionedObservability{Metrics: registry, Collection: "moderation-prod"}`.
+Its gauges refresh at scrape time. The deprecated `NewVersionedGRPCServerWithMetrics`
+constructor ignores its registry argument.
+
+These constructors accept any `grpc.ServerOption`, including `grpc.Creds` for TLS, and leave
 `Serve`/`Stop` to you. `Observability` bundles four pillars, and **any field may be nil to
 skip it**:
 

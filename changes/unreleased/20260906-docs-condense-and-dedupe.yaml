@@ -1,5 +1,0 @@
-kind: Documentation
-body: "Condensed the documentation site and removed duplicated pages: `preset-engine`, `redis-backed-engine`, and `reference/api` each repeated a Quick Start, preset table, or API surface, and eight pages carried hand-written nav footers the theme already renders. Also fixed a dead `guides/presets/` link, a disagreeing CLI command count, and a missing `FindSetContext` entry."
-time: 2026-09-06T23:30:00+09:00
-custom:
-  Issue: "249"

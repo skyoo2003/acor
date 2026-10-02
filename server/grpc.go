@@ -202,7 +202,8 @@ func versionedGRPCError(err error) error {
 		return status.Error(codes.Canceled, err.Error())
 	case errors.Is(err, redis.Nil):
 		return status.Error(codes.NotFound, err.Error())
-	case errors.Is(err, errInvalidRewriteRequest), errors.Is(err, acor.ErrInvalidVersion), errors.Is(err, acor.ErrInputLimit),
+	case errors.Is(err, errInvalidVersionedRequest), errors.Is(err, errInvalidRewriteRequest),
+		errors.Is(err, acor.ErrInvalidVersion), errors.Is(err, acor.ErrInputLimit),
 		errors.Is(err, acor.ErrScanWorkLimit), errors.Is(err, acor.ErrMatchLimit),
 		errors.Is(err, acor.ErrOutputLimit):
 		return status.Error(codes.InvalidArgument, err.Error())
@@ -307,11 +308,11 @@ func (s *versionedGRPCServer) VersionedWait(ctx context.Context, req *acorv1.Ver
 	return &acorv1.StatusResponse{Status: "ok"}, nil
 }
 func (s *versionedGRPCServer) ResolveOperation(ctx context.Context, req *acorv1.ResolveOperationRequest) (*acorv1.VersionedWriteResponse, error) {
-	r, err := s.service.ResolveOperation(ctx, req.GetOperationId())
+	r, err := NewVersionedAPI(s.service).resolve(ctx, req.GetOperationId())
 	if err != nil {
 		return nil, versionedGRPCError(err)
 	}
-	return protoWrite(writeResponse(r)), nil
+	return protoWrite(r), nil
 }
 
 func versionedStatusProto(state *acor.VersionedStatus) *acorv1.VersionedStatusResponse {
