@@ -1,5 +1,0 @@
-kind: Added
-body: 'Added HTTP and gRPC V3 search, bounded text transformations, expected-version writes, version barriers, and commit-receipt recovery in the experimental server module.'
-time: 2026-10-02T20:00:00+09:00
-custom:
-  Issue: "269"

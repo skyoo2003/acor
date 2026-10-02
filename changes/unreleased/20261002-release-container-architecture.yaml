@@ -1,5 +1,0 @@
-kind: Fixed
-body: 'Release container bases now match their target architecture, preserving usable system tools on AMD64 and ARM64.'
-time: 2026-10-02T20:30:00+09:00
-custom:
-  Issue: "272"

@@ -1,5 +1,0 @@
-kind: Fixed
-body: 'V3 health now recovers after transient Redis errors without a dictionary update, and malformed HTTP and gRPC requests return client errors instead of server errors.'
-time: 2026-10-02T20:30:00+09:00
-custom:
-  Issue: "272"
