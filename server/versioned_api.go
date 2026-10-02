@@ -5,6 +5,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/redis/go-redis/v9"
@@ -90,9 +91,11 @@ const (
 	maxRewriteMatches     = 1_000
 	maxRewriteCandidates  = 100_000
 	maxRewriteOutputBytes = 4 << 20
+	operationIDLength     = 32
 )
 
 var errInvalidRewriteRequest = errors.New("mask must be exactly one Unicode rune")
+var errInvalidVersionedRequest = errors.New("invalid versioned request")
 
 type VersionedWriteResponse struct {
 	PreviousVersion acor.Version `json:"previous_version"`
@@ -150,6 +153,12 @@ func (api *VersionedAPI) find(ctx context.Context, req *VersionedInputRequest) (
 }
 
 func (api *VersionedAPI) scan(ctx context.Context, req *VersionedScanRequest) (*VersionedScanResponse, error) {
+	if req.MaxInputBytes < 0 || req.MaxMatches < 0 || req.MaxCandidates < 0 {
+		return nil, fmt.Errorf("%w: negative scan limit", errInvalidVersionedRequest)
+	}
+	if req.Kind != int(acor.MatchKindOverlapping) && req.Kind != int(acor.MatchKindLeftmostLongest) {
+		return nil, fmt.Errorf("%w: invalid scan match kind", errInvalidVersionedRequest)
+	}
 	result, err := api.service.Scan(ctx, req.Input, scanOptions(req))
 	if err != nil {
 		return nil, err
@@ -158,6 +167,9 @@ func (api *VersionedAPI) scan(ctx context.Context, req *VersionedScanRequest) (*
 }
 
 func (api *VersionedAPI) rewrite(ctx context.Context, req *VersionedRewriteRequest, mask bool) (*VersionedRewriteResponse, error) {
+	if req.MaxInputBytes < 0 || req.MaxMatches < 0 || req.MaxCandidates < 0 || req.MaxOutputBytes < 0 {
+		return nil, fmt.Errorf("%w: negative rewrite limit", errInvalidVersionedRequest)
+	}
 	var result *acor.RewriteResult
 	var err error
 	if mask {
@@ -241,10 +253,17 @@ func (api *VersionedAPI) handleResolve(w http.ResponseWriter, r *http.Request) {
 	var q ResolveOperationRequest
 	if decodeRequest(w, r, &q) {
 		api.respond(w, func() (interface{}, error) {
-			x, err := api.service.ResolveOperation(r.Context(), q.OperationID)
-			return writeResponse(x), err
+			return api.resolve(r.Context(), q.OperationID)
 		})
 	}
+}
+
+func (api *VersionedAPI) resolve(ctx context.Context, id string) (*VersionedWriteResponse, error) {
+	if len(id) != operationIDLength {
+		return nil, fmt.Errorf("%w: invalid operation ID", errInvalidVersionedRequest)
+	}
+	result, err := api.service.ResolveOperation(ctx, id)
+	return writeResponse(result), err
 }
 
 func (api *VersionedAPI) respond(w http.ResponseWriter, call func() (interface{}, error)) {
@@ -273,7 +292,8 @@ func writeVersionedError(w http.ResponseWriter, err error) {
 		code = 499
 	case errors.Is(err, redis.Nil):
 		code = http.StatusNotFound
-	case errors.Is(err, errInvalidRewriteRequest), errors.Is(err, acor.ErrInvalidVersion), errors.Is(err, acor.ErrInputLimit),
+	case errors.Is(err, errInvalidVersionedRequest), errors.Is(err, errInvalidRewriteRequest),
+		errors.Is(err, acor.ErrInvalidVersion), errors.Is(err, acor.ErrInputLimit),
 		errors.Is(err, acor.ErrScanWorkLimit), errors.Is(err, acor.ErrMatchLimit),
 		errors.Is(err, acor.ErrOutputLimit):
 		code = http.StatusBadRequest

@@ -7,6 +7,11 @@ on:
     paths:
       - "**/*.go"
       - "Makefile"
+      - "CHANGELOG.md"
+      - "RELEASE.md"
+      - "README.md"
+      - "changes/**"
+      - ".changie.yaml"
       - "docs/**"
       - "scripts/**"
       - "server/proto/**"
@@ -49,6 +54,11 @@ on:
     paths:
       - "**/*.go"
       - "Makefile"
+      - "CHANGELOG.md"
+      - "RELEASE.md"
+      - "README.md"
+      - "changes/**"
+      - ".changie.yaml"
       - "docs/**"
       - "scripts/**"
       - "server/proto/**"
@@ -212,7 +222,7 @@ jobs:
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94  # goreleaser-action v7
         with:
           distribution: goreleaser
-          version: "~> v2"
+          version: "v2.18.1"
           args: build --snapshot --clean --single-target
       - name: Verify documentation examples compile
         run: make docs-verify
@@ -279,10 +289,16 @@ jobs:
           cache-dependency-path: |
             go.sum
             test/benchmarks/go.sum
+            server/go.sum
       - name: Run integration tests against ${{ matrix.server }}
         env:
           ACOR_INTEGRATION_ADDR: localhost:6379
         run: go test -race -run Integration -count=1 -v ./pkg/acor
+      - name: Run V3 transport integration tests against ${{ matrix.server }}
+        working-directory: server
+        env:
+          ACOR_INTEGRATION_ADDR: localhost:6379
+        run: go test -race -run Integration -count=1 -v ./...
       - name: Verify published round-trip counts against ${{ matrix.server }}
         env:
           ACOR_INTEGRATION_ADDR: localhost:6379
@@ -308,3 +324,26 @@ jobs:
         run: |
           go test -bench . -benchtime=1x -run '^$' ./...
           go test -run 'MemoryFootprint|Propagation' ./...
+
+  containers:
+    name: Release container (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: "1.26"
+          cache-dependency-path: go.sum
+      - name: Set up ARM64 emulation
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # setup-qemu-action v3
+        with:
+          platforms: arm64
+      - name: Verify target architecture, CLI version, and notices
+        env:
+          ACOR_RELEASE_ARCHES: ${{ matrix.arch }}
+        run: sh scripts/check-release-containers.sh

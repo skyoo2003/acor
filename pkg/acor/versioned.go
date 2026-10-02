@@ -271,7 +271,7 @@ func (v *VersionedCollection) signal() {
 func (v *VersionedCollection) refresh(ctx context.Context) (err error) {
 	v.refreshMu.Lock()
 	defer v.refreshMu.Unlock()
-	defer func() { v.recordRefreshFailure(err) }()
+	defer func() { v.recordRefreshResult(err) }()
 	if checkErr := v.check(ctx); checkErr != nil {
 		return checkErr
 	}
@@ -328,12 +328,17 @@ func (v *VersionedCollection) refresh(ctx context.Context) (err error) {
 	return nil
 }
 
-func (v *VersionedCollection) recordRefreshFailure(err error) {
-	if err == nil || v.ctx.Err() != nil {
+func (v *VersionedCollection) recordRefreshResult(err error) {
+	if v.ctx.Err() != nil {
 		return
 	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	if err == nil {
+		v.status.LastError = ""
+		v.status.FailedShard = -1
+		return
+	}
 	v.status.LastError = err.Error()
 	v.status.LastRefreshFailure = time.Now()
 	v.status.RefreshFailures++

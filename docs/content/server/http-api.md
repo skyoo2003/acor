@@ -14,9 +14,12 @@ below. The `main` that mounts it is [Running a Server](../running/).
 
 For a V3 collection, use `server.NewVersionedHTTPHandler(collection)` as a separate
 handler. It retains `/healthz` and `/v1/status`, and exposes versioned searching, bounded
-text transformation, and expected-version writes under `/v1/versioned/`. Pass an optional
-`server/metrics.Registry` to update the bounded `acor_versioned_*` gauges whenever a
-status request is served.
+text transformation, and expected-version writes under `/v1/versioned/`. For metrics, use
+`server.NewVersionedHTTPHandlerWithObservability(collection, observability)` with a
+`server.VersionedObservability` containing a registry and stable `Collection` label.
+The collection-labeled `acor_versioned_*` gauges refresh on each Prometheus scrape,
+without a preceding status request. The deprecated handler's optional registry argument
+is ignored.
 
 V3 routes are all `POST`: `find`, `scan`, `mask`, `replace-text`, `replace`, `add`,
 `remove`, `add-many`, `remove-many`, `wait`, and `resolve-operation`. Write requests carry
@@ -131,8 +134,8 @@ doubled slash into a confusing method error. Normalize paths before sending.
 
 ## Disconnecting does not cancel the work
 
-**A client timeout or dropped connection ends the request, not the Redis operation behind
-it.** Each handler passes `r.Context()` into its adapter and the adapter discards it
+**For legacy routes, a client timeout or dropped connection ends the request, not the Redis operation behind
+it.** Each legacy handler passes `r.Context()` into its adapter and the adapter discards it
 (`server/server.go:96` and siblings take `_ context.Context`); `Service` declares no
 context on any method, and `(*AhoCorasick).Add` runs against the collection's own
 long-lived context.
@@ -146,7 +149,9 @@ the write:
   `flush` is a second flush.
 - A short client timeout sheds no server load — the Redis work continues at full cost.
 
-The [gRPC API](../grpc-api/) behaves identically: same `Service` interface, same discard.
+Legacy [gRPC RPCs](../grpc-api/) behave identically: same `Service` interface, same discard.
+V3 routes pass the request context into the collection. An interrupted write can still
+have an ambiguous commit; use its operation receipt to recover rather than blindly retry.
 
 ## What the server does not check
 

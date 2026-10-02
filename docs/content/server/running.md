@@ -13,12 +13,12 @@ is that `main`, in full, for each protocol.
 
 ```sh
 go get github.com/skyoo2003/acor/server
-go get github.com/skyoo2003/acor/pkg/acor@latest
+go get github.com/skyoo2003/acor/pkg/acor@v1.7.0
 ```
 
-Both lines matter. `acor/server` resolves to a pseudo-version from `main` and carries a
-`require` on the core module that Go will not override from the dependency's own `replace`
-directive — so name the core version yourself.
+`acor/server` resolves to a pseudo-version from `main`. Its V3 surface requires core
+v1.7.0 or later; the dependency's local `replace` directive applies only inside this
+checkout. The second line makes the supported core version explicit for consumers.
 
 ## HTTP
 
