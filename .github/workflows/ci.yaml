@@ -115,7 +115,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # checkout v7
       - name: Set up Go ${{ matrix.go-version }}
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # setup-go v7.0.0
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5  # setup-go v7.1.0
         with:
           go-version: ${{ matrix.go-version }}
           cache-dependency-path: |
@@ -219,7 +219,7 @@ jobs:
       # compile. Pinned to one leg for the same reason as the checks below.
       - name: Verify the release build
         if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
-        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94  # goreleaser-action v7
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de  # goreleaser-action v7
         with:
           distribution: goreleaser
           version: "v2.18.1"
@@ -283,7 +283,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # checkout v7
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # setup-go v7.0.0
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5  # setup-go v7.1.0
         with:
           go-version: "1.26"
           cache-dependency-path: |
@@ -334,7 +334,7 @@ jobs:
         arch: [amd64, arm64]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version: "1.26"
           cache-dependency-path: go.sum
